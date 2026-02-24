@@ -451,6 +451,7 @@ local function ensureCastConfig()
 	end
 
 	if castCfg.enabled == nil then castCfg.enabled = false end
+	if castCfg.useClassColor == true and castCfg.useGradient == true then castCfg.useGradient = false end
 	local anchor = castCfg.anchor
 	if type(anchor) ~= "table" or anchor.point == nil or anchor.relativePoint == nil or anchor.x == nil or anchor.y == nil or type(anchor.relativeFrame) ~= "string" or anchor.relativeFrame == "" then
 		ensureAnchorConfig(castCfg, castDefaults)
@@ -671,6 +672,19 @@ local function normalizeCastbarGradientMode(value)
 	return "CASTBAR"
 end
 
+local function isCastbarClassColorEnabled(castCfg, castDefaults)
+	local useClassColor = castCfg and castCfg.useClassColor
+	if useClassColor == nil and castDefaults then useClassColor = castDefaults.useClassColor end
+	return useClassColor == true
+end
+
+local function isCastbarGradientEnabled(castCfg, castDefaults)
+	local useGradient = castCfg and castCfg.useGradient
+	if useGradient == nil and castDefaults then useGradient = castDefaults.useGradient end
+	if useGradient ~= true then return false end
+	return not isCastbarClassColorEnabled(castCfg, castDefaults)
+end
+
 local function clamp01(value)
 	if value < 0 then return 0 end
 	if value > 1 then return 1 end
@@ -707,7 +721,7 @@ local function clearCastbarGradientState(bar)
 end
 
 local function applyCastbarGradient(bar, castCfg, baseR, baseG, baseB, baseA, progressOverride)
-	if not bar or not castCfg or castCfg.useGradient ~= true then return false end
+	if not bar or not isCastbarGradientEnabled(castCfg) then return false end
 	local tex = bar.GetStatusBarTexture and bar:GetStatusBarTexture()
 	if not tex or not tex.SetGradient then return false end
 	local sr, sg, sb, sa, er, eg, eb, ea = resolveCastbarGradientColors(castCfg, baseR, baseG, baseB, baseA)
@@ -754,7 +768,7 @@ local function setCastbarColorWithGradient(bar, castCfg, r, g, b, a, progressOve
 	if not lastColor or lastColor[1] ~= br or lastColor[2] ~= bg or lastColor[3] ~= bb or lastColor[4] ~= ba then bar:SetStatusBarColor(br, bg, bb, ba) end
 	bar._eqolLastColor = bar._eqolLastColor or {}
 	bar._eqolLastColor[1], bar._eqolLastColor[2], bar._eqolLastColor[3], bar._eqolLastColor[4] = br, bg, bb, ba
-	if castCfg and castCfg.useGradient == true then
+	if isCastbarGradientEnabled(castCfg) then
 		if not applyCastbarGradient(bar, castCfg, br, bg, bb, ba, progressOverride) then clearCastbarGradientState(bar) end
 	elseif bar._eqolGradientEnabled then
 		clearCastbarGradientState(bar)
@@ -771,7 +785,7 @@ local function refreshCastbarGradient(bar, castCfg, r, g, b, a, progressOverride
 			br, bg, bb, ba = bar:GetStatusBarColor()
 		end
 	end
-	if castCfg and castCfg.useGradient == true then
+	if isCastbarGradientEnabled(castCfg) then
 		if not applyCastbarGradient(bar, castCfg, br or 1, bg or 1, bb or 1, ba or 1, progressOverride) then clearCastbarGradientState(bar) end
 	elseif bar._eqolGradientEnabled then
 		clearCastbarGradientState(bar)
@@ -995,9 +1009,7 @@ local function configureCastStatic(castCfg, castDefaults)
 
 	local isEmpoweredDefault = state.castInfo.isEmpowered and state.castUseDefaultArt == true
 	local clr = castCfg.color or castDefaults.color or { 0.9, 0.7, 0.2, 1 }
-	local useClassColor = castCfg.useClassColor
-	if useClassColor == nil then useClassColor = castDefaults.useClassColor end
-	if useClassColor == true then
+	if isCastbarClassColorEnabled(castCfg, castDefaults) then
 		local class = select(2, UnitClass(UNIT))
 		local cr, cg, cb, ca = getClassColor(class)
 		if cr then clr = { cr, cg, cb, ca or 1 } end
@@ -1096,7 +1108,7 @@ local function updateCastBar()
 	if elapsedMs < 0 then elapsedMs = 0 end
 	local value = elapsedMs / 1000
 	state.castBar:SetValue(value)
-	if not (info.isEmpowered and state.castUseDefaultArt == true) and castCfg.useGradient == true and normalizeCastbarGradientMode(castCfg.gradientMode) == "BAR_END" then
+	if not (info.isEmpowered and state.castUseDefaultArt == true) and isCastbarGradientEnabled(castCfg, castDefaults) and normalizeCastbarGradientMode(castCfg.gradientMode) == "BAR_END" then
 		local maxValue = info.maxValue
 		local progress
 		if type(maxValue) == "number" and maxValue > 0 then progress = value / maxValue end

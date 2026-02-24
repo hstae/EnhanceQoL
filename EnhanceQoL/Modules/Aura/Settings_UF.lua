@@ -4502,7 +4502,8 @@ local function buildUnitSettings(unit)
 
 		list[#list + 1] = { name = "", kind = settingType.Divider, parentId = "cast" }
 
-		local function isCastColorEnabled() return isCastEnabled() and getValue(unit, { "cast", "useClassColor" }, castDef.useClassColor == true) ~= true end
+		local function isCastClassColorEnabled() return getValue(unit, { "cast", "useClassColor" }, castDef.useClassColor == true) == true end
+		local function isCastColorEnabled() return isCastEnabled() and not isCastClassColorEnabled() end
 
 		list[#list + 1] = {
 			name = L["Cast color"] or "Cast color",
@@ -4528,16 +4529,22 @@ local function buildUnitSettings(unit)
 			hasOpacity = true,
 		}
 
-		list[#list + 1] = checkbox(L["Use class color"] or "Use class color", function() return getValue(unit, { "cast", "useClassColor" }, castDef.useClassColor == true) == true end, function(val)
-			setValue(unit, { "cast", "useClassColor" }, val and true or false)
+		list[#list + 1] = checkbox(L["Use class color"] or "Use class color", isCastClassColorEnabled, function(val)
+			local useClassColor = val and true or false
+			setValue(unit, { "cast", "useClassColor" }, useClassColor)
+			if useClassColor then setValue(unit, { "cast", "useGradient" }, false) end
 			refresh()
 			refreshSettingsUI()
 		end, castDef.useClassColor == true, "cast", isCastEnabled)
 
 		if unit == "player" then
-			local function isCastGradientEnabled() return getValue(unit, { "cast", "useGradient" }, castDef.useGradient == true) == true end
+			local function isCastGradientEnabled()
+				return isCastEnabled() and not isCastClassColorEnabled() and getValue(unit, { "cast", "useGradient" }, castDef.useGradient == true) == true
+			end
 			list[#list + 1] = checkbox(L["Use gradient"] or "Use gradient", isCastGradientEnabled, function(val)
-				setValue(unit, { "cast", "useGradient" }, val and true or false)
+				local useGradient = val and true or false
+				setValue(unit, { "cast", "useGradient" }, useGradient)
+				if useGradient then setValue(unit, { "cast", "useClassColor" }, false) end
 				refresh()
 				refreshSettingsUI()
 			end, castDef.useGradient == true, "cast", isCastEnabled)

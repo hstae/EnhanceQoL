@@ -707,7 +707,8 @@ function CastbarSettings.BuildStandaloneCastbarSettings(ctx)
 
 	list[#list + 1] = { name = L["Colors"] or "Colors", kind = settingType.Collapsible, id = section.colors, defaultCollapsed = true }
 
-	local function isCastColorEnabled() return isCastEnabled() and getCast({ "cast", "useClassColor" }, castDef.useClassColor == true) ~= true end
+	local function isCastClassColorEnabled() return getCast({ "cast", "useClassColor" }, castDef.useClassColor == true) == true end
+	local function isCastColorEnabled() return isCastEnabled() and not isCastClassColorEnabled() end
 	list[#list + 1] = {
 		name = L["Cast color"] or "Cast color",
 		kind = settingType.Color,
@@ -732,15 +733,21 @@ function CastbarSettings.BuildStandaloneCastbarSettings(ctx)
 		hasOpacity = true,
 	}
 
-	list[#list + 1] = checkbox(L["Use class color"] or "Use class color", function() return getCast({ "cast", "useClassColor" }, castDef.useClassColor == true) == true end, function(val)
-		setCast({ "cast", "useClassColor" }, val and true or false)
+	list[#list + 1] = checkbox(L["Use class color"] or "Use class color", isCastClassColorEnabled, function(val)
+		local useClassColor = val and true or false
+		setCast({ "cast", "useClassColor" }, useClassColor)
+		if useClassColor then setCast({ "cast", "useGradient" }, false) end
 		refreshCastbar()
 		refreshSettingsUI()
 	end, castDef.useClassColor == true, section.colors, isCastEnabled)
 
-	local function isCastGradientEnabled() return getCast({ "cast", "useGradient" }, castDef.useGradient == true) == true end
+	local function isCastGradientEnabled()
+		return isCastEnabled() and not isCastClassColorEnabled() and getCast({ "cast", "useGradient" }, castDef.useGradient == true) == true
+	end
 	list[#list + 1] = checkbox(L["Use gradient"] or "Use gradient", isCastGradientEnabled, function(val)
-		setCast({ "cast", "useGradient" }, val and true or false)
+		local useGradient = val and true or false
+		setCast({ "cast", "useGradient" }, useGradient)
+		if useGradient then setCast({ "cast", "useClassColor" }, false) end
 		refreshCastbar()
 		refreshSettingsUI()
 	end, castDef.useGradient == true, section.colors, isCastEnabled)
