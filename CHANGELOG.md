@@ -21,6 +21,7 @@
 ### 🐛 Fixed
 
 - Unit Frames (Target): Range fade now refreshes correctly when switching directly between out-of-range targets without losing target first.
+- Unit Frames: Dead indicator wasn't showing
 - Character Frame (Item Comparison): Item level text in the Alt comparison flyout now respects the configured character item-level anchor position instead of defaulting to top-right.
 - Character/Inspect Frame: Enchant text now uses the selected item-detail font and outline settings.
 - Chat Frame: `Enable chat fading` now applies correctly to additional/undocked chat windows instead of only `ChatFrame1`.

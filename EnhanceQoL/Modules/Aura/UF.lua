@@ -5498,13 +5498,25 @@ local function updateUnitStatusIndicator(cfg, unit)
 		return
 	end
 	local statusTag
+	local lifeStatusTag
+	local isDead = UnitIsDead and UnitIsDead(unit)
+	if issecretvalue and issecretvalue(isDead) then isDead = nil end
+	if isDead then
+		lifeStatusTag = DEAD or "Dead"
+	else
+		local isGhost = UnitIsGhost and UnitIsGhost(unit)
+		if issecretvalue and issecretvalue(isGhost) then isGhost = nil end
+		if isGhost then lifeStatusTag = GHOST or "Ghost" end
+	end
 	local connected = UnitIsConnected and UnitIsConnected(unit)
 	if issecretvalue and issecretvalue(connected) then connected = nil end
 	local isAFK = UnitIsAFK and UnitIsAFK(unit)
 	if issecretvalue and issecretvalue(isAFK) then isAFK = nil end
 	local isDND = UnitIsDND and UnitIsDND(unit)
 	if issecretvalue and issecretvalue(isDND) then isDND = nil end
-	if connected == false then
+	if lifeStatusTag then
+		statusTag = lifeStatusTag
+	elseif connected == false then
 		statusTag = PLAYER_OFFLINE or "Offline"
 	elseif isAFK == true then
 		statusTag = DEFAULT_AFK_MESSAGE or "AFK"
@@ -7609,57 +7621,88 @@ function UF.UpdateUnitTexts(unit, force)
 		local rightMode = hc.textRight or "CURMAX"
 		local cur = UnitHealth(unit)
 		local maxv = UnitHealthMax(unit)
-		local percentVal
-		if addon.variables and addon.variables.isMidnight then
-			percentVal = getHealthPercent(unit, cur, maxv)
-		elseif not issecretvalue or (not issecretvalue(cur) and not issecretvalue(maxv)) then
-			percentVal = getHealthPercent(unit, cur, maxv)
+		local lifeStatusTag
+		local isDead = UnitIsDead and UnitIsDead(unit)
+		if issecretvalue and issecretvalue(isDead) then isDead = nil end
+		if isDead then
+			lifeStatusTag = DEAD or "Dead"
+		else
+			local isGhost = UnitIsGhost and UnitIsGhost(unit)
+			if issecretvalue and issecretvalue(isGhost) then isGhost = nil end
+			if isGhost then lifeStatusTag = GHOST or "Ghost" end
 		end
-
-		local delimiter, delimiter2, delimiter3 = st._healthTextDelimiter1, st._healthTextDelimiter2, st._healthTextDelimiter3
-		if not delimiter or not delimiter2 or not delimiter3 then
-			local d1 = UFHelper.getTextDelimiter(hc, defH)
-			local d2 = UFHelper.getTextDelimiterSecondary(hc, defH, d1)
-			local d3 = UFHelper.getTextDelimiterTertiary(hc, defH, d1, d2)
-			if UFHelper.resolveTextDelimiters then
-				delimiter, delimiter2, delimiter3 = UFHelper.resolveTextDelimiters(d1, d2, d3)
-			else
-				delimiter, delimiter2, delimiter3 = d1, d2, d3
+		if lifeStatusTag then
+			local hasRenderedStatusText
+			local function setLifeStatusText(fontString, mode)
+				if not fontString then return end
+				if mode == "NONE" then
+					fontString:SetText("")
+					return
+				end
+				if not hasRenderedStatusText then
+					fontString:SetText(lifeStatusTag)
+					hasRenderedStatusText = true
+				else
+					fontString:SetText("")
+				end
 			end
-		end
 
-		local hidePercentSymbol = hc.hidePercentSymbol == true
-		local roundPercent = hc.roundPercent == true
-		local levelText
-		if UFHelper.textModeUsesLevel(leftMode) or UFHelper.textModeUsesLevel(centerMode) or UFHelper.textModeUsesLevel(rightMode) then
-			levelText = UFHelper.getUnitLevelText(unit, nil, shouldHideClassificationText(cfg, unit))
-		end
+			setLifeStatusText(st.healthTextLeft, leftMode)
+			setLifeStatusText(st.healthTextCenter, centerMode)
+			setLifeStatusText(st.healthTextRight, rightMode)
+		else
+			local percentVal
+			if addon.variables and addon.variables.isMidnight then
+				percentVal = getHealthPercent(unit, cur, maxv)
+			elseif not issecretvalue or (not issecretvalue(cur) and not issecretvalue(maxv)) then
+				percentVal = getHealthPercent(unit, cur, maxv)
+			end
 
-		if st.healthTextLeft then
-			if leftMode == "NONE" then
-				st.healthTextLeft:SetText("")
-			else
-				st.healthTextLeft:SetText(
-					UFHelper.formatText(leftMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, nil, roundPercent, true)
-				)
+			local delimiter, delimiter2, delimiter3 = st._healthTextDelimiter1, st._healthTextDelimiter2, st._healthTextDelimiter3
+			if not delimiter or not delimiter2 or not delimiter3 then
+				local d1 = UFHelper.getTextDelimiter(hc, defH)
+				local d2 = UFHelper.getTextDelimiterSecondary(hc, defH, d1)
+				local d3 = UFHelper.getTextDelimiterTertiary(hc, defH, d1, d2)
+				if UFHelper.resolveTextDelimiters then
+					delimiter, delimiter2, delimiter3 = UFHelper.resolveTextDelimiters(d1, d2, d3)
+				else
+					delimiter, delimiter2, delimiter3 = d1, d2, d3
+				end
 			end
-		end
-		if st.healthTextCenter then
-			if centerMode == "NONE" then
-				st.healthTextCenter:SetText("")
-			else
-				st.healthTextCenter:SetText(
-					UFHelper.formatText(centerMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, nil, roundPercent, true)
-				)
+
+			local hidePercentSymbol = hc.hidePercentSymbol == true
+			local roundPercent = hc.roundPercent == true
+			local levelText
+			if UFHelper.textModeUsesLevel(leftMode) or UFHelper.textModeUsesLevel(centerMode) or UFHelper.textModeUsesLevel(rightMode) then
+				levelText = UFHelper.getUnitLevelText(unit, nil, shouldHideClassificationText(cfg, unit))
 			end
-		end
-		if st.healthTextRight then
-			if rightMode == "NONE" then
-				st.healthTextRight:SetText("")
-			else
-				st.healthTextRight:SetText(
-					UFHelper.formatText(rightMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, nil, roundPercent, true)
-				)
+
+			if st.healthTextLeft then
+				if leftMode == "NONE" then
+					st.healthTextLeft:SetText("")
+				else
+					st.healthTextLeft:SetText(
+						UFHelper.formatText(leftMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, nil, roundPercent, true)
+					)
+				end
+			end
+			if st.healthTextCenter then
+				if centerMode == "NONE" then
+					st.healthTextCenter:SetText("")
+				else
+					st.healthTextCenter:SetText(
+						UFHelper.formatText(centerMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, nil, roundPercent, true)
+					)
+				end
+			end
+			if st.healthTextRight then
+				if rightMode == "NONE" then
+					st.healthTextRight:SetText("")
+				else
+					st.healthTextRight:SetText(
+						UFHelper.formatText(rightMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, nil, roundPercent, true)
+					)
+				end
 			end
 		end
 
@@ -8233,12 +8276,14 @@ onEvent = function(self, event, unit, ...)
 			end
 		end
 		if unit == UNIT.TARGET then updateHealth(getCfg(UNIT.TARGET), UNIT.TARGET) end
+		if unit == UNIT.TARGET_TARGET then updateHealth(getCfg(UNIT.TARGET_TARGET), UNIT.TARGET_TARGET) end
 		if unit == UNIT.PET then updateHealth(getCfg(UNIT.PET), UNIT.PET) end
 		if unit == UNIT.FOCUS then updateHealth(getCfg(UNIT.FOCUS), UNIT.FOCUS) end
 		if isBossUnit(unit) then
 			local bossCfg = getCfg(unit)
 			if bossCfg.enabled then updateHealth(bossCfg, unit) end
 		end
+		if unit and allowedEventUnit[unit] then updateUnitStatusIndicator(getCfg(unit), unit) end
 	elseif event == "UNIT_MAXPOWER" then
 		if unit == UNIT.PLAYER then updatePower(getCfg(UNIT.PLAYER), UNIT.PLAYER) end
 		if unit == UNIT.TARGET then updatePower(getCfg(UNIT.TARGET), UNIT.TARGET) end
