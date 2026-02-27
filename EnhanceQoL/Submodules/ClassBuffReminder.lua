@@ -75,10 +75,10 @@ Reminder.defaults = Reminder.defaults
 		glow = true,
 		soundOnMissing = false,
 		missingSound = "",
-		displayMode = DISPLAY_MODE_FULL,
+		displayMode = DISPLAY_MODE_ICON_ONLY,
 		growthDirection = GROWTH_RIGHT,
 		scale = 1,
-		iconSize = 24,
+		iconSize = 64,
 		fontSize = 13,
 		iconGap = 6,
 		xyTextSize = 13,
@@ -1549,7 +1549,7 @@ function Reminder:RegisterEditMode()
 			point = "CENTER",
 			relativePoint = "CENTER",
 			x = 0,
-			y = -260,
+			y = 240,
 		},
 		onApply = function()
 			Reminder:ApplyVisualSettings()

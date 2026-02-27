@@ -274,10 +274,12 @@ local GroupLootContainer = _G.GroupLootContainer
 LootToast.defaultGroupLootAnchor = LootToast.defaultGroupLootAnchor
 LootToast.defaultBonusRollAnchor = LootToast.defaultBonusRollAnchor
 LootToast.defaultRenownToastAnchor = LootToast.defaultRenownToastAnchor
+LootToast.defaultUnlockToastAnchor = LootToast.defaultUnlockToastAnchor
 LootToast.toastAnchorApplied = LootToast.toastAnchorApplied or false
 LootToast.groupLootAnchorApplied = LootToast.groupLootAnchorApplied or false
 LootToast.renownToastAnchorApplied = LootToast.renownToastAnchorApplied or false
 LootToast.renownToastRuntimeHooked = LootToast.renownToastRuntimeHooked or false
+LootToast.unlockToastRuntimeHooked = LootToast.unlockToastRuntimeHooked or false
 
 local DEFAULT_GROUPROLL_LAYOUT = { scale = 1, offsetX = 0, offsetY = 0, spacing = 4 }
 
@@ -293,17 +295,30 @@ local function GetMajorFactionsRenownToastFrame()
 	return frame
 end
 
+local function GetMajorFactionUnlockToastFrame()
+	local frame = _G.MajorFactionUnlockToast
+	if not FrameIsAccessible(frame) then return nil end
+	return frame
+end
+
 local function EnsureRenownToastRuntimeHooks()
-	if LootToast.renownToastRuntimeHooked then return end
 	local renownToast = GetMajorFactionsRenownToastFrame()
-	if not FrameIsAccessible(renownToast) then return end
+	if FrameIsAccessible(renownToast) and not LootToast.renownToastRuntimeHooked then
+		renownToast:HookScript("OnShow", function()
+			if not addon.db or not addon.db.enableMajorFactionsRenownToastAnchor then return end
+			if LootToast and LootToast.ApplyMajorFactionsRenownToastAnchor then LootToast:ApplyMajorFactionsRenownToastAnchor() end
+		end)
+		LootToast.renownToastRuntimeHooked = true
+	end
 
-	renownToast:HookScript("OnShow", function()
-		if not addon.db or not addon.db.enableMajorFactionsRenownToastAnchor then return end
-		if LootToast and LootToast.ApplyMajorFactionsRenownToastAnchor then LootToast:ApplyMajorFactionsRenownToastAnchor() end
-	end)
-
-	LootToast.renownToastRuntimeHooked = true
+	local unlockToast = GetMajorFactionUnlockToastFrame()
+	if FrameIsAccessible(unlockToast) and not LootToast.unlockToastRuntimeHooked then
+		unlockToast:HookScript("OnShow", function()
+			if not addon.db or not addon.db.enableMajorFactionsRenownToastAnchor then return end
+			if LootToast and LootToast.ApplyMajorFactionsRenownToastAnchor then LootToast:ApplyMajorFactionsRenownToastAnchor() end
+		end)
+		LootToast.unlockToastRuntimeHooked = true
+	end
 end
 
 local function RememberDefaultAnchors()
@@ -327,6 +342,13 @@ local function RememberDefaultAnchors()
 		if FrameIsAccessible(renownToast) then
 			local point, relativeTo, relativePoint, x, y = renownToast:GetPoint()
 			if point then LootToast.defaultRenownToastAnchor = { point = point, relativeTo = relativeTo, relativePoint = relativePoint, x = x, y = y } end
+		end
+	end
+	if not LootToast.defaultUnlockToastAnchor then
+		local unlockToast = GetMajorFactionUnlockToastFrame()
+		if FrameIsAccessible(unlockToast) then
+			local point, relativeTo, relativePoint, x, y = unlockToast:GetPoint()
+			if point then LootToast.defaultUnlockToastAnchor = { point = point, relativeTo = relativeTo, relativePoint = relativePoint, x = x, y = y } end
 		end
 	end
 end
@@ -383,6 +405,13 @@ function LootToast:RestoreDefaultAnchors(force)
 			renownToast:ClearAllPoints()
 			if saved and saved.point then renownToast:SetPoint(saved.point, saved.relativeTo, saved.relativePoint, saved.x, saved.y) end
 			renownToast.ignoreFramePositionManager = nil
+		end
+		local unlockToast = GetMajorFactionUnlockToastFrame()
+		if FrameIsAccessible(unlockToast) then
+			local saved = self.defaultUnlockToastAnchor
+			unlockToast:ClearAllPoints()
+			if saved and saved.point then unlockToast:SetPoint(saved.point, saved.relativeTo, saved.relativePoint, saved.x, saved.y) end
+			unlockToast.ignoreFramePositionManager = nil
 		end
 		self.renownToastAnchorApplied = false
 	end
@@ -876,10 +905,10 @@ function LootToast:GetRenownToastAnchorFrame()
 
 	local width = 256
 	local height = 112
-	local renownToast = GetMajorFactionsRenownToastFrame()
-	if renownToast then
-		local w = renownToast:GetWidth()
-		local h = renownToast:GetHeight()
+	local sampleToast = GetMajorFactionsRenownToastFrame() or GetMajorFactionUnlockToastFrame()
+	if sampleToast then
+		local w = sampleToast:GetWidth()
+		local h = sampleToast:GetHeight()
 		if w and w > 0 then width = w end
 		if h and h > 0 then height = h end
 	end
@@ -925,13 +954,24 @@ function LootToast:ApplyMajorFactionsRenownToastAnchor()
 	anchor:SetPoint(cfg.point, UIParent, cfg.relativePoint, cfg.x, cfg.y)
 	UpdateAnchorLabel(anchor, nil, "majorFactionsRenownToastAnchorLabel")
 
+	local applied = false
 	local renownToast = GetMajorFactionsRenownToastFrame()
-	if renownToast then
+	if FrameIsAccessible(renownToast) then
 		renownToast.ignoreFramePositionManager = true
 		renownToast:ClearAllPoints()
 		renownToast:SetPoint("TOP", anchor, "TOP", 0, 0)
-		self.renownToastAnchorApplied = true
+		applied = true
 	end
+
+	local unlockToast = GetMajorFactionUnlockToastFrame()
+	if FrameIsAccessible(unlockToast) then
+		unlockToast.ignoreFramePositionManager = true
+		unlockToast:ClearAllPoints()
+		unlockToast:SetPoint("TOP", anchor, "TOP", 0, 0)
+		applied = true
+	end
+
+	self.renownToastAnchorApplied = applied
 
 	self:SyncRenownToastEditModePosition()
 end

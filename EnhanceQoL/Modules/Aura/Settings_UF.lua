@@ -2488,6 +2488,213 @@ local function buildUnitSettings(unit)
 		isEnabled = function() return getValue(unit, { "health", "useClassColor" }, healthDef.useClassColor == true) ~= true end,
 	})
 
+	local function isHealthPercentCurveEnabled()
+		return getValue(unit, { "health", "usePercentColorCurve" }, healthDef.usePercentColorCurve == true) == true
+	end
+
+	local MAX_HEALTH_GRADIENT_POINTS = 5
+	local healthGradientPointDefaults = {
+		{ percent = 0, color = healthDef.percentColorCurveLowColor or { 0.9, 0.0, 0.0, 1 } },
+		{ percent = healthDef.percentColorCurveMidpoint or 60, color = healthDef.percentColorCurveMidColor or { 0.9, 0.9, 0.0, 1 } },
+		{ percent = 80, color = { 0.6, 0.85, 0.0, 1 } },
+		{ percent = 40, color = { 0.95, 0.6, 0.0, 1 } },
+		{ percent = 20, color = { 0.95, 0.25, 0.0, 1 } },
+	}
+
+	local configuredGradientPoints = healthDef.percentColorCurvePoints
+	if type(configuredGradientPoints) == "table" then
+		for i = 1, MAX_HEALTH_GRADIENT_POINTS do
+			local src = configuredGradientPoints[i]
+			if type(src) == "table" then
+				local target = healthGradientPointDefaults[i] or {}
+				local pct = tonumber(src.percent or src[1])
+				if pct then target.percent = pct end
+				local col = src.color or src[2]
+				if col == nil and src.percent == nil and src[1] ~= nil and src[2] ~= nil and src[3] ~= nil then col = src end
+				if col then target.color = col end
+				healthGradientPointDefaults[i] = target
+			end
+		end
+	end
+
+	local function clampGradientPercent(value)
+		local pct = tonumber(value)
+		if pct == nil then return nil end
+		if pct < 0 then pct = 0 end
+		if pct > 99 then pct = 99 end
+		return pct
+	end
+
+	local function normalizeGradientPointColor(color, fallback)
+		local r, g, b, a = toRGBA(color, fallback)
+		return { r or 1, g or 1, b or 1, a or 1 }
+	end
+
+	local function getDefaultGradientPoint(index)
+		local fallback = healthGradientPointDefaults[index] or healthGradientPointDefaults[#healthGradientPointDefaults] or { percent = 0, color = { 0.9, 0.0, 0.0, 1 } }
+		local percent = clampGradientPercent(fallback.percent) or 0
+		local color = normalizeGradientPointColor(fallback.color, { 0.9, 0.0, 0.0, 1 })
+		return percent, color
+	end
+
+	local function countGradientPoints(points)
+		if type(points) ~= "table" then return 0 end
+		local count = 0
+		for i = 1, MAX_HEALTH_GRADIENT_POINTS do
+			if type(points[i]) == "table" then count = i end
+		end
+		return count
+	end
+
+	local function getHealthGradientPointCount()
+		local fallbackCount = tonumber(healthDef.percentColorCurvePointCount)
+		local configuredCount = countGradientPoints(healthDef.percentColorCurvePoints)
+		if (not fallbackCount or fallbackCount <= 0) and configuredCount > 0 then fallbackCount = configuredCount end
+		if not fallbackCount or fallbackCount <= 0 then fallbackCount = 2 end
+		local stored = tonumber(getValue(unit, { "health", "percentColorCurvePointCount" }, fallbackCount))
+		if stored == nil or stored <= 0 then stored = fallbackCount end
+		if stored > MAX_HEALTH_GRADIENT_POINTS then stored = MAX_HEALTH_GRADIENT_POINTS end
+		return floor(stored + 0.5)
+	end
+
+	local function ensureHealthGradientPoint(index)
+		local defaultPercent, defaultColor = getDefaultGradientPoint(index)
+		if getValue(unit, { "health", "percentColorCurvePoints", index, "percent" }) == nil then
+			setValue(unit, { "health", "percentColorCurvePoints", index, "percent" }, defaultPercent)
+		end
+		if getValue(unit, { "health", "percentColorCurvePoints", index, "color" }) == nil then
+			setValue(unit, { "health", "percentColorCurvePoints", index, "color" }, defaultColor)
+		end
+	end
+
+	list[#list + 1] = checkbox(
+		L["UFHealthPercentGradient"] or "Use health percent gradient",
+		isHealthPercentCurveEnabled,
+		function(val)
+			local enabled = val and true or false
+			setValue(unit, { "health", "usePercentColorCurve" }, enabled)
+			if enabled then
+				if getValue(unit, { "health", "percentColorCurveType" }) == nil then
+					setValue(unit, { "health", "percentColorCurveType" }, healthDef.percentColorCurveType or "COSINE")
+				end
+				local count = getHealthGradientPointCount()
+				setValue(unit, { "health", "percentColorCurvePointCount" }, count)
+				for i = 1, count do
+					ensureHealthGradientPoint(i)
+				end
+			end
+			refreshSelf()
+			refreshSettingsUI()
+		end,
+		healthDef.usePercentColorCurve == true,
+		"health"
+	)
+
+	local healthCurveTypeOptions = {
+		{ value = "COSINE", label = L["UFCurveTypeCosine"] or "Cosine" },
+		{ value = "LINEAR", label = L["UFCurveTypeLinear"] or "Linear" },
+		{ value = "STEP", label = L["UFCurveTypeStep"] or "Step" },
+	}
+	local healthCurveType = radioDropdown(
+		L["UFHealthGradientCurveType"] or "Gradient curve type",
+		healthCurveTypeOptions,
+		function() return tostring(getValue(unit, { "health", "percentColorCurveType" }, healthDef.percentColorCurveType or "COSINE")):upper() end,
+		function(val)
+			setValue(unit, { "health", "percentColorCurveType" }, (val or "COSINE"):upper())
+			refreshSelf()
+		end,
+		healthDef.percentColorCurveType or "COSINE",
+		"health"
+	)
+	healthCurveType.isEnabled = isHealthPercentCurveEnabled
+	list[#list + 1] = healthCurveType
+
+	local healthCurvePointCountOptions = {
+		{ value = 1, label = "1" },
+		{ value = 2, label = "2" },
+		{ value = 3, label = "3" },
+		{ value = 4, label = "4" },
+		{ value = 5, label = "5" },
+	}
+	local healthCurvePointCount = radioDropdown(
+		L["UFHealthGradientPointCount"] or "Gradient points",
+		healthCurvePointCountOptions,
+		function() return getHealthGradientPointCount() end,
+		function(val)
+			local count = floor(tonumber(val) or 2)
+			if count < 1 then count = 1 end
+			if count > MAX_HEALTH_GRADIENT_POINTS then count = MAX_HEALTH_GRADIENT_POINTS end
+			setValue(unit, { "health", "percentColorCurvePointCount" }, count)
+			for i = 1, count do
+				ensureHealthGradientPoint(i)
+			end
+			refreshSelf()
+			refreshSettingsUI()
+		end,
+		getHealthGradientPointCount(),
+		"health"
+	)
+	healthCurvePointCount.isEnabled = isHealthPercentCurveEnabled
+	list[#list + 1] = healthCurvePointCount
+
+	for i = 1, MAX_HEALTH_GRADIENT_POINTS do
+		local pointColorName = string.format(L["UFHealthGradientPointColor"] or "Point %d color", i)
+		local pointPercentName = string.format(L["UFHealthGradientPointPercent"] or "Point %d percent", i)
+
+		local pointPercent = slider(
+			pointPercentName,
+			0,
+			99,
+			1,
+			function()
+				local defaultPercent = getDefaultGradientPoint(i)
+				local value = clampGradientPercent(getValue(unit, { "health", "percentColorCurvePoints", i, "percent" }, defaultPercent))
+				if value == nil then value = defaultPercent end
+				return value
+			end,
+			function(val)
+				local pct = clampGradientPercent(val)
+				if pct == nil then pct = getDefaultGradientPoint(i) end
+				setValue(unit, { "health", "percentColorCurvePoints", i, "percent" }, pct)
+				refreshSelf()
+			end,
+			getDefaultGradientPoint(i),
+			"health",
+			true,
+			function(v) return tostring(v) .. "%" end
+		)
+		pointPercent.isEnabled = isHealthPercentCurveEnabled
+		pointPercent.isShown = function() return isHealthPercentCurveEnabled() and i <= getHealthGradientPointCount() end
+		list[#list + 1] = pointPercent
+
+		local _, defaultPointColor = getDefaultGradientPoint(i)
+		local pointColor = {
+			name = pointColorName,
+			kind = settingType.Color,
+			parentId = "health",
+			isEnabled = isHealthPercentCurveEnabled,
+			isShown = function() return isHealthPercentCurveEnabled() and i <= getHealthGradientPointCount() end,
+			get = function() return getValue(unit, { "health", "percentColorCurvePoints", i, "color" }, defaultPointColor) end,
+			set = function(_, color)
+				setColor(unit, { "health", "percentColorCurvePoints", i, "color" }, color.r, color.g, color.b, color.a)
+				refreshSelf()
+			end,
+			colorGet = function() return getValue(unit, { "health", "percentColorCurvePoints", i, "color" }, defaultPointColor) end,
+			colorSet = function(_, color)
+				setColor(unit, { "health", "percentColorCurvePoints", i, "color" }, color.r, color.g, color.b, color.a)
+				refreshSelf()
+			end,
+			colorDefault = {
+				r = defaultPointColor[1] or 1,
+				g = defaultPointColor[2] or 1,
+				b = defaultPointColor[3] or 1,
+				a = defaultPointColor[4] or 1,
+			},
+			hasOpacity = true,
+		}
+		list[#list + 1] = pointColor
+	end
+
 	local showTapDeniedColor = unit == "target" or unit == "targettarget" or unit == "focus" or isBoss
 	if showTapDeniedColor then
 		local tapDef = healthDef.tapDeniedColor or { 0.5, 0.5, 0.5, 1 }

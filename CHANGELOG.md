@@ -1,5 +1,13 @@
 # Changelog
 
+## [8.3.0] - 2026-02-27
+
+### ✨ Added
+
+- Unit Frames (Health): Added `Use health percent gradient` with configurable curve type (`Cosine`, `Linear`, `Step`) and up to 5 custom gradient points (each with percent + color). The max-health color remains driven by class/custom/default health color.
+
+---
+
 ## [8.2.0] - 2026-02-27
 
 ### ✨ Added

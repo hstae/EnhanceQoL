@@ -962,6 +962,16 @@ local defaults = {
 			useCustomColor = false,
 			useClassColor = false,
 			useTapDeniedColor = true,
+			usePercentColorCurve = false,
+			percentColorCurveType = "COSINE",
+			percentColorCurvePointCount = 2,
+			percentColorCurvePoints = {
+				{ percent = 0, color = { 0.9, 0.0, 0.0, 1 } },
+				{ percent = 60, color = { 0.9, 0.9, 0.0, 1 } },
+			},
+			percentColorCurveMidpoint = 60,
+			percentColorCurveMidColor = { 0.9, 0.9, 0.0, 1 },
+			percentColorCurveLowColor = { 0.9, 0.0, 0.0, 1 },
 			color = { 0.0, 0.8, 0.0, 1 },
 			tapDeniedColor = { 0.5, 0.5, 0.5, 1 },
 			absorbColor = { 0.85, 0.95, 1.0, 0.7 },
@@ -5094,6 +5104,202 @@ local function ensureBossBarsVisible(unit, st)
 	if st.status and not st.status:IsShown() then st.status:Show() end
 end
 
+function UF.resolveHealthBaseColor(unit, hc, defH)
+	local useCustom = hc.useCustomColor == true
+	local isPlayerUnit = UnitIsPlayer and UnitIsPlayer(unit)
+	local hr, hg, hb, ha = nil, nil, nil, nil
+
+	if useCustom then
+		if not isPlayerUnit then
+			local nr, ng, nb, na
+			if UFHelper and UFHelper.getNPCOverrideColor then
+				nr, ng, nb, na = UFHelper.getNPCOverrideColor(unit)
+			end
+			if nr then
+				hr, hg, hb, ha = nr, ng, nb, na
+			elseif hc.color then
+				hr, hg, hb, ha = hc.color[1], hc.color[2], hc.color[3], hc.color[4] or 1
+			end
+		elseif hc.color then
+			hr, hg, hb, ha = hc.color[1], hc.color[2], hc.color[3], hc.color[4] or 1
+		end
+	elseif hc.useClassColor then
+		local class
+		if isPlayerUnit then
+			class = select(2, UnitClass(unit))
+		elseif unit == UNIT.PET then
+			class = select(2, UnitClass(UNIT.PLAYER))
+		end
+		local cr, cg, cb, ca = getClassColor(class)
+		if cr then
+			hr, hg, hb, ha = cr, cg, cb, ca
+		end
+	end
+
+	if not hr and not useCustom then
+		local nr, ng, nb, na
+		if UFHelper and UFHelper.getNPCHealthColor then
+			nr, ng, nb, na = UFHelper.getNPCHealthColor(unit)
+		end
+		if nr then
+			hr, hg, hb, ha = nr, ng, nb, na
+		end
+	end
+
+	if not hr then
+		local color = defH.color or { 0, 0.8, 0, 1 }
+		hr, hg, hb, ha = color[1] or 0, color[2] or 0.8, color[3] or 0, color[4] or 1
+	end
+
+	return hr, hg, hb, ha
+end
+
+function UF.resolveHealthColorCurveType(value)
+	local curveType = Enum and Enum.LuaCurveType
+	if not curveType then return nil end
+	local token = type(value) == "string" and value:upper() or "COSINE"
+	if token == "LINEAR" then return curveType.Linear or curveType.Cosine or curveType.Step end
+	if token == "STEP" then return curveType.Step or curveType.Cosine or curveType.Linear end
+	return curveType.Cosine or curveType.Linear or curveType.Step
+end
+
+function UF.getHealthPercentCurveColor(st, unit, hc, defH, maxR, maxG, maxB, maxA)
+	local useCurve = hc.usePercentColorCurve
+	if useCurve == nil then useCurve = defH.usePercentColorCurve end
+	if useCurve ~= true then return nil end
+	if not (C_CurveUtil and C_CurveUtil.CreateColorCurve and CreateColor) then return nil end
+
+	local hr, hg, hb, ha = maxR or 0, maxG or 0.8, maxB or 0, maxA or 1
+	local curveTypeToken = type(hc.percentColorCurveType) == "string" and hc.percentColorCurveType or defH.percentColorCurveType or "COSINE"
+	curveTypeToken = tostring(curveTypeToken):upper()
+	local curve = st._healthPercentCurve
+	if
+		curve
+		and st._healthPercentCurveDirty ~= true
+		and st._healthPercentCurveTypeToken == curveTypeToken
+		and st._healthPercentCurveMaxR == hr
+		and st._healthPercentCurveMaxG == hg
+		and st._healthPercentCurveMaxB == hb
+		and st._healthPercentCurveMaxA == ha
+	then
+		local fastColor
+		if UFHelper and UFHelper.getHealthCurveValue then
+			fastColor = UFHelper.getHealthCurveValue(unit, curve)
+		elseif UnitHealthPercent then
+			fastColor = UnitHealthPercent(unit, true, curve)
+		end
+		if not fastColor then return nil end
+		if fastColor.GetRGBA then return fastColor:GetRGBA() end
+		if fastColor.r then return fastColor.r, fastColor.g, fastColor.b, fastColor.a end
+		return fastColor[1], fastColor[2], fastColor[3], fastColor[4]
+	end
+
+	local pointsSource = hc.percentColorCurvePoints
+	if type(pointsSource) ~= "table" or next(pointsSource) == nil then pointsSource = defH.percentColorCurvePoints end
+
+	local pointCount = tonumber(hc.percentColorCurvePointCount)
+	if pointCount == nil then pointCount = tonumber(defH.percentColorCurvePointCount) end
+	if pointCount == nil or pointCount <= 0 then
+		if type(pointsSource) == "table" then
+			for i = 1, 5 do
+				if type(pointsSource[i]) == "table" then pointCount = i end
+			end
+		end
+	end
+	if pointCount == nil or pointCount <= 0 then pointCount = 2 end
+	pointCount = math.floor(pointCount + 0.5)
+	if pointCount < 1 then pointCount = 1 end
+	if pointCount > 5 then pointCount = 5 end
+
+	local legacyMidpoint = tonumber(hc.percentColorCurveMidpoint)
+	if legacyMidpoint == nil then legacyMidpoint = tonumber(defH.percentColorCurveMidpoint) end
+	if legacyMidpoint == nil then legacyMidpoint = 60 end
+	if legacyMidpoint < 1 then legacyMidpoint = 1 end
+	if legacyMidpoint > 99 then legacyMidpoint = 99 end
+	local legacyLowColor = hc.percentColorCurveLowColor or defH.percentColorCurveLowColor or { 0.9, 0.0, 0.0, 1 }
+	local legacyMidColor = hc.percentColorCurveMidColor or defH.percentColorCurveMidColor or { 0.9, 0.9, 0.0, 1 }
+	local fallbackPoints = {
+		{ percent = 0, color = legacyLowColor },
+		{ percent = legacyMidpoint, color = legacyMidColor },
+		{ percent = 80, color = { 0.6, 0.85, 0.0, 1 } },
+		{ percent = 40, color = { 0.95, 0.6, 0.0, 1 } },
+		{ percent = 20, color = { 0.95, 0.25, 0.0, 1 } },
+	}
+
+	local points = {}
+	for i = 1, pointCount do
+		local fallback = fallbackPoints[i] or fallbackPoints[#fallbackPoints]
+		local src = type(pointsSource) == "table" and pointsSource[i] or nil
+		local percent, pointColor
+		if type(src) == "table" then
+			percent = tonumber(src.percent or src[1])
+			pointColor = src.color or src[2]
+			if pointColor == nil and src.percent == nil and src[1] ~= nil and src[2] ~= nil and src[3] ~= nil then pointColor = src end
+		end
+		if percent == nil then percent = fallback.percent end
+		if percent < 0 then percent = 0 end
+		if percent > 99 then percent = 99 end
+		local pr, pg, pb, pa = unpackColor(pointColor, fallback.color[1] or 1, fallback.color[2] or 1, fallback.color[3] or 1, fallback.color[4] or 1)
+		points[#points + 1] = { percent = percent, r = pr, g = pg, b = pb, a = pa }
+	end
+	if #points == 0 then return nil end
+	table.sort(points, function(a, b) return (a.percent or 0) > (b.percent or 0) end)
+
+	local uniquePoints = {}
+	local lastPercent
+	for i = 1, #points do
+		local point = points[i]
+		if point.percent ~= lastPercent then
+			uniquePoints[#uniquePoints + 1] = point
+			lastPercent = point.percent
+		end
+	end
+	points = uniquePoints
+
+	local signatureParts = {
+		curveTypeToken,
+		string.format("MAX:%.4f,%.4f,%.4f,%.4f", hr, hg, hb, ha),
+	}
+	for i = 1, #points do
+		local point = points[i]
+		signatureParts[#signatureParts + 1] = string.format("%d:%.4f,%.4f,%.4f,%.4f,%.4f", i, (point.percent or 0) / 100, point.r or 1, point.g or 1, point.b or 1, point.a or 1)
+	end
+	local signature = table.concat(signatureParts, "|")
+
+	if st._healthPercentCurveSig ~= signature then
+		curve = C_CurveUtil.CreateColorCurve()
+		if not curve then return nil end
+		local curveType = UF.resolveHealthColorCurveType(curveTypeToken)
+		if curveType then curve:SetType(curveType) end
+		curve:AddPoint(1.0, CreateColor(hr, hg, hb, ha))
+		for i = 1, #points do
+			local point = points[i]
+			curve:AddPoint((point.percent or 0) / 100, CreateColor(point.r or 1, point.g or 1, point.b or 1, point.a or 1))
+		end
+		st._healthPercentCurve = curve
+		st._healthPercentCurveSig = signature
+	else
+		curve = st._healthPercentCurve
+	end
+
+	st._healthPercentCurveTypeToken = curveTypeToken
+	st._healthPercentCurveMaxR, st._healthPercentCurveMaxG, st._healthPercentCurveMaxB, st._healthPercentCurveMaxA = hr, hg, hb, ha
+	st._healthPercentCurveDirty = nil
+
+	if not curve then return nil end
+	local color
+	if UFHelper and UFHelper.getHealthCurveValue then
+		color = UFHelper.getHealthCurveValue(unit, curve)
+	elseif UnitHealthPercent then
+		color = UnitHealthPercent(unit, true, curve)
+	end
+	if not color then return nil end
+
+	if color.GetRGBA then return color:GetRGBA() end
+	if color.r then return color.r, color.g, color.b, color.a end
+	return color[1], color[2], color[3], color[4]
+end
+
 local function updateHealth(cfg, unit)
 	cfg = cfg or (states[unit] and states[unit].cfg) or ensureDB(unit)
 	if cfg and cfg.enabled == false then return end
@@ -5126,63 +5332,27 @@ local function updateHealth(cfg, unit)
 
 	local hr, hg, hb, ha = st._healthColorR, st._healthColorG, st._healthColorB, st._healthColorA
 	if st._healthColorDirty or hr == nil then
-		local useCustom = hc.useCustomColor == true
-		local isPlayerUnit = UnitIsPlayer and UnitIsPlayer(unit)
-		hr, hg, hb, ha = nil, nil, nil, nil
-
-		if useCustom then
-			if not isPlayerUnit then
-				local nr, ng, nb, na
-				if UFHelper and UFHelper.getNPCOverrideColor then
-					nr, ng, nb, na = UFHelper.getNPCOverrideColor(unit)
-				end
-				if nr then
-					hr, hg, hb, ha = nr, ng, nb, na
-				elseif hc.color then
-					hr, hg, hb, ha = hc.color[1], hc.color[2], hc.color[3], hc.color[4] or 1
-				end
-			elseif hc.color then
-				hr, hg, hb, ha = hc.color[1], hc.color[2], hc.color[3], hc.color[4] or 1
-			end
-		elseif hc.useClassColor then
-			local class
-			if isPlayerUnit then
-				class = select(2, UnitClass(unit))
-			elseif unit == UNIT.PET then
-				class = select(2, UnitClass(UNIT.PLAYER))
-			end
-			local cr, cg, cb, ca = getClassColor(class)
-			if cr then
-				hr, hg, hb, ha = cr, cg, cb, ca
-			end
-		end
-
-		if not hr and not useCustom then
-			local nr, ng, nb, na
-			if UFHelper and UFHelper.getNPCHealthColor then
-				nr, ng, nb, na = UFHelper.getNPCHealthColor(unit)
-			end
-			if nr then
-				hr, hg, hb, ha = nr, ng, nb, na
-			end
-		end
-
-		local useTapDenied = hc.useTapDeniedColor
-		if useTapDenied == nil then useTapDenied = defH.useTapDeniedColor end
-		if useTapDenied ~= false and UnitIsTapDenied and UnitPlayerControlled and not UnitPlayerControlled(unit) and UnitIsTapDenied(unit) then
-			local tc = hc.tapDeniedColor or defH.tapDeniedColor or { 0.5, 0.5, 0.5, 1 }
-			hr, hg, hb, ha = tc[1] or 0.5, tc[2] or 0.5, tc[3] or 0.5, tc[4] or 1
-		end
-
-		if not hr then
-			local color = defH.color or { 0, 0.8, 0, 1 }
-			hr, hg, hb, ha = color[1] or 0, color[2] or 0.8, color[3] or 0, color[4] or 1
-		end
+		hr, hg, hb, ha = UF.resolveHealthBaseColor(unit, hc, defH)
 
 		st._healthColorR, st._healthColorG, st._healthColorB, st._healthColorA = hr, hg, hb, ha
+		st._healthPercentCurveDirty = true
 		st._healthColorDirty = nil
 	end
-	st.health:SetStatusBarColor(hr or 0, hg or 0.8, hb or 0, ha or 1)
+
+	local finalR, finalG, finalB, finalA = hr, hg, hb, ha
+	local cr, cg, cb, ca = UF.getHealthPercentCurveColor(st, unit, hc, defH, hr, hg, hb, ha)
+	if cr then
+		finalR, finalG, finalB, finalA = cr, cg, cb, ca
+	end
+
+	local useTapDenied = hc.useTapDeniedColor
+	if useTapDenied == nil then useTapDenied = defH.useTapDeniedColor end
+	if useTapDenied ~= false and UnitIsTapDenied and UnitPlayerControlled and not UnitPlayerControlled(unit) and UnitIsTapDenied(unit) then
+		local tc = hc.tapDeniedColor or defH.tapDeniedColor or { 0.5, 0.5, 0.5, 1 }
+		finalR, finalG, finalB, finalA = tc[1] or 0.5, tc[2] or 0.5, tc[3] or 0.5, tc[4] or 1
+	end
+
+	st.health:SetStatusBarColor(finalR or 0, finalG or 0.8, finalB or 0, finalA or 1)
 	if allowAbsorb and (st.absorb or st.healAbsorb) then
 		local cacheGuid = UnitGUID and UnitGUID(unit) or unit
 		local guidComparable = not (issecretvalue and issecretvalue(cacheGuid))
@@ -6843,6 +7013,7 @@ local function applyConfig(unit)
 	local st = states[unit]
 	st.cfg = cfg
 	st._healthColorDirty = true
+	st._healthPercentCurveDirty = true
 	st._powerColorDirty = true
 	st._secondaryPowerColorDirty = true
 	st._healthTextDirty = true
@@ -7096,8 +7267,13 @@ local function applyBossEditSample(idx, cfg)
 	local percentVal = getHealthPercent("player", cur, maxv)
 	st.health:SetMinMaxValues(0, maxv)
 	st.health:SetValue(cur, interpolation)
-	local color = hc.color or (def.health and def.health.color) or { 0, 0.8, 0, 1 }
-	st.health:SetStatusBarColor(color[1] or 0, color[2] or 0.8, color[3] or 0, color[4] or 1)
+	local baseR, baseG, baseB, baseA = UF.resolveHealthBaseColor(unit, hc, defH)
+	local sampleR, sampleG, sampleB, sampleA = baseR, baseG, baseB, baseA
+	local cr, cg, cb, ca = UF.getHealthPercentCurveColor(st, "player", hc, defH, baseR, baseG, baseB, baseA)
+	if cr then
+		sampleR, sampleG, sampleB, sampleA = cr, cg, cb, ca
+	end
+	st.health:SetStatusBarColor(sampleR or 0, sampleG or 0.8, sampleB or 0, sampleA or 1)
 	local leftMode = hc.textLeft or "PERCENT"
 	local centerMode = hc.textCenter or "NONE"
 	local rightMode = hc.textRight or "CURMAX"
