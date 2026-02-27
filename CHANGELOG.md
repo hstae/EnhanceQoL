@@ -6,6 +6,10 @@
 
 - Loot Toasts (Major Factions): Added Edit Mode support for the Renown toast anchor, so the toast can be repositioned directly in Edit Mode.
 
+### 🐛 Fixed
+
+- Datapanel: Clamp to screen to avoid out of screen movement.
+
 ---
 
 ## [8.0.0] - 2026-02-27

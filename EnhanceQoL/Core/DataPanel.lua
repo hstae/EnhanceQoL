@@ -1268,6 +1268,9 @@ function DataPanel.Create(id, name, existingOnly)
 	frame:SetMovable(true)
 	frame:SetResizable(true)
 	frame:EnableMouse(true)
+	if frame.SetClampedToScreen then
+		frame:SetClampedToScreen(true)
+	end
 	local initialStrata = normalizeStrata(info.strata, frame:GetFrameStrata())
 	info.strata = initialStrata
 	if frame:GetFrameStrata() ~= initialStrata then frame:SetFrameStrata(initialStrata) end
