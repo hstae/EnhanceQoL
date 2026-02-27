@@ -4,7 +4,8 @@
 
 ### ✨ Added
 
-- Group Frames (Party/Raid): Added a new Buff filter dropdown in Edit Mode (`Buffs`) to choose whether buffs are tracked with `RAID_IN_COMBAT` (healer buffs/HoTs) or `RAID` (broader helpful effects).
+- Group Frames (Party/Raid): Added a new Buff filter dropdown in Edit Mode (`Buffs`) options: `Healer buffs` and `Helpful effects`.
+- Class Buff Reminder: Added a standalone reminder for class-provided group buffs with full Edit Mode support.
 
 ### 🔄 Changed
 

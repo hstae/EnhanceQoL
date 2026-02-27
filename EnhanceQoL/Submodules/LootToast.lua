@@ -277,6 +277,7 @@ LootToast.defaultRenownToastAnchor = LootToast.defaultRenownToastAnchor
 LootToast.toastAnchorApplied = LootToast.toastAnchorApplied or false
 LootToast.groupLootAnchorApplied = LootToast.groupLootAnchorApplied or false
 LootToast.renownToastAnchorApplied = LootToast.renownToastAnchorApplied or false
+LootToast.renownToastRuntimeHooked = LootToast.renownToastRuntimeHooked or false
 
 local DEFAULT_GROUPROLL_LAYOUT = { scale = 1, offsetX = 0, offsetY = 0, spacing = 4 }
 
@@ -290,6 +291,19 @@ local function GetMajorFactionsRenownToastFrame()
 	local frame = _G.MajorFactionsRenownToast
 	if not FrameIsAccessible(frame) then return nil end
 	return frame
+end
+
+local function EnsureRenownToastRuntimeHooks()
+	if LootToast.renownToastRuntimeHooked then return end
+	local renownToast = GetMajorFactionsRenownToastFrame()
+	if not FrameIsAccessible(renownToast) then return end
+
+	renownToast:HookScript("OnShow", function()
+		if not addon.db or not addon.db.enableMajorFactionsRenownToastAnchor then return end
+		if LootToast and LootToast.ApplyMajorFactionsRenownToastAnchor then LootToast:ApplyMajorFactionsRenownToastAnchor() end
+	end)
+
+	LootToast.renownToastRuntimeHooked = true
 end
 
 local function RememberDefaultAnchors()
@@ -368,6 +382,7 @@ function LootToast:RestoreDefaultAnchors(force)
 			local saved = self.defaultRenownToastAnchor
 			renownToast:ClearAllPoints()
 			if saved and saved.point then renownToast:SetPoint(saved.point, saved.relativeTo, saved.relativePoint, saved.x, saved.y) end
+			renownToast.ignoreFramePositionManager = nil
 		end
 		self.renownToastAnchorApplied = false
 	end
@@ -900,6 +915,7 @@ function LootToast:ApplyMajorFactionsRenownToastAnchor()
 	if not addon.db then return end
 	if not addon.db.enableMajorFactionsRenownToastAnchor then return end
 
+	EnsureRenownToastRuntimeHooks()
 	RememberDefaultAnchors()
 
 	local cfg = GetRenownToastAnchorConfig()
@@ -911,6 +927,7 @@ function LootToast:ApplyMajorFactionsRenownToastAnchor()
 
 	local renownToast = GetMajorFactionsRenownToastFrame()
 	if renownToast then
+		renownToast.ignoreFramePositionManager = true
 		renownToast:ClearAllPoints()
 		renownToast:SetPoint("TOP", anchor, "TOP", 0, 0)
 		self.renownToastAnchorApplied = true
@@ -952,6 +969,7 @@ end
 
 local function ReanchorAlerts()
 	if not addon.db then return end
+	EnsureRenownToastRuntimeHooks()
 	if addon.db.enableLootToastAnchor then LootToast:ApplyAnchorPosition() end
 	if addon.db.enableGroupLootAnchor then LootToast:ApplyGroupLootLayout() end
 	if addon.db.enableMajorFactionsRenownToastAnchor then LootToast:ApplyMajorFactionsRenownToastAnchor() end

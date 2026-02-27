@@ -2,15 +2,15 @@ local addonName, addon = ...
 
 addon.variables.NewVersionTableEQOL = {
 
-	-- Profiles -> EQoL Unit Frames
-	["EQOL_PROFILES"] = true,
-	["EQOL_UFProfiles"] = true,
-	["EQOL_ufProfileActive"] = true,
-	["EQOL_ufProfileGlobal"] = true,
+	-- Root category id from Settings/MainCategory.lua
+	["EQOL_UI"] = true,
 
-	-- Loot Toast -> Major Factions Renown Toast Anchor
-	["EQOL_GENERAL"] = true,
-	["EQOL_Loot"] = true,
-	["EQOL_enableMajorFactionsRenownToastAnchor"] = true,
-	["EQOL_majorFactionsRenownToastAnchor"] = true,
+	-- Legacy/alias (can stay harmlessly)
+	["EQOL_INTERFACE"] = true,
+
+	-- Expandable section id in Settings/ClassBuffReminder.lua
+	["EQOL_ClassBuffReminder"] = true,
+
+	-- Feature setting keys
+	["EQOL_classBuffReminderEnabled"] = true,
 }

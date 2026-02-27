@@ -22,7 +22,7 @@
 ## Retail: true
 ## X-Compatible-With: retail
 ## X-WoWI-ID: 26888
-## OptionalDeps: MidnightSimpleUnitFrames, UnhaltedUnitFrames, ElvUI, Baganator, HarreksAdvancedRaidFrames
+## OptionalDeps: MidnightSimpleUnitFrames, UnhaltedUnitFrames, ElvUI, Baganator
 
 libs\LibStub\LibStub.lua
 libs\AceLocale-3.0\AceLocale-3.0.xml
@@ -60,6 +60,7 @@ Submodules\GemHelper.lua
 Submodules\ContainerActions.lua
 Submodules\MountActions.lua
 Submodules\ActionTracker.lua
+Submodules\ClassBuffReminder.lua
 Submodules\GCDBar.lua
 Submodules\CombatText.lua
 Submodules\ChatIM\ChannelHistory.lua
