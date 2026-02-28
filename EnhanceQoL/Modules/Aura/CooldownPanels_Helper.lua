@@ -168,6 +168,7 @@ Helper.ENTRY_DEFAULTS = {
 	showItemUses = false,
 	showWhenEmpty = false,
 	showWhenNoCooldown = false,
+	showWhenMissing = false,
 	glowReady = false,
 	glowDuration = 0,
 	soundReady = false,
@@ -769,6 +770,9 @@ function Helper.NormalizeEntry(entry, defaults)
 		entry.macroID = tonumber(entry.macroID)
 		if type(entry.macroName) == "string" and strtrim then entry.macroName = strtrim(entry.macroName) end
 		if type(entry.macroName) ~= "string" or entry.macroName == "" then entry.macroName = nil end
+	elseif entry.type == "STANCE" then
+		if CooldownPanels and CooldownPanels.NormalizeStanceEntry then CooldownPanels:NormalizeStanceEntry(entry) end
+		entry.showWhenMissing = entry.showWhenMissing == true
 	end
 	local duration = tonumber(entry.glowDuration)
 	if duration == nil then duration = defaults.entry and defaults.entry.glowDuration or Helper.ENTRY_DEFAULTS.glowDuration or 0 end
@@ -848,6 +852,15 @@ function Helper.CreateEntry(entryType, idValue, defaults)
 		if entry.showItemCount == nil then entry.showItemCount = true end
 	elseif entryType == "SLOT" then
 		entry.slotID = tonumber(idValue)
+	elseif entryType == "STANCE" then
+		entry.stanceID = type(idValue) == "string" and string.upper(idValue) or nil
+		if CooldownPanels and CooldownPanels.NormalizeStanceEntry then CooldownPanels:NormalizeStanceEntry(entry) end
+		entry.alwaysShow = false
+		entry.showWhenMissing = false
+		entry.showCooldown = false
+		entry.showCooldownText = false
+		entry.glowReady = false
+		entry.soundReady = false
 	elseif entryType == "MACRO" then
 		entry.macroID = tonumber(idValue)
 	end
