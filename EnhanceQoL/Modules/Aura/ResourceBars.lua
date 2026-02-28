@@ -16,6 +16,7 @@ ResourceBars.ui = ResourceBars.ui or {}
 local LSM = LibStub("LibSharedMedia-3.0")
 
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_Aura")
+local GetVisibilityRuleMetadata = addon.functions and addon.functions.GetVisibilityRuleMetadata
 
 local UnitPower, UnitPowerMax, UnitHealth, UnitHealthMax, UnitGetTotalAbsorbs, UnitStagger, GetTime = UnitPower, UnitPowerMax, UnitHealth, UnitHealthMax, UnitGetTotalAbsorbs, UnitStagger, GetTime
 local CreateFrame = CreateFrame
@@ -1114,6 +1115,77 @@ local function resolveProfileDB(profileName)
 	return addon.db, false
 end
 
+local function normalizeVisibilityPayloadMap(root, mode)
+	if type(root) ~= "table" then return end
+
+	local normalizeConfig = ResourceBars and ResourceBars.NormalizeVisibilityConfig
+	local copySelection = ResourceBars and ResourceBars.CopyVisibilitySelection
+
+	local function normalizeBarConfig(cfg)
+		if type(cfg) ~= "table" then return end
+		local normalized
+		if type(normalizeConfig) == "function" then
+			normalized = normalizeConfig(cfg.visibility, cfg)
+		else
+			if type(cfg.visibility) == "table" then
+				for key, value in pairs(cfg.visibility) do
+					if value == true then
+						normalized = normalized or {}
+						normalized[key] = true
+					end
+				end
+			end
+			if not normalized then
+				if cfg.hideOutOfCombat == true then
+					normalized = normalized or {}
+					normalized.ALWAYS_IN_COMBAT = true
+				end
+				if cfg.hideMounted == true then
+					normalized = normalized or {}
+					normalized.PLAYER_NOT_MOUNTED = true
+				end
+			end
+			if normalized and normalized.ALWAYS_HIDDEN then normalized = { ALWAYS_HIDDEN = true } end
+		end
+
+		if normalized then
+			if type(copySelection) == "function" then
+				cfg.visibility = copySelection(normalized)
+			else
+				cfg.visibility = CopyTable(normalized)
+			end
+		else
+			cfg.visibility = nil
+		end
+		cfg.hideOutOfCombat = nil
+		cfg.hideMounted = nil
+	end
+
+	local function normalizeBarMap(map)
+		if type(map) ~= "table" then return end
+		for key, cfg in pairs(map) do
+			if type(cfg) == "table" and type(key) == "string" and key:sub(1, 1) ~= "_" then normalizeBarConfig(cfg) end
+		end
+	end
+
+	if mode == "classes" then
+		for _, classCfg in pairs(root) do
+			local specs = type(classCfg) == "table" and ((type(classCfg.specs) == "table" and classCfg.specs) or classCfg) or nil
+			if type(specs) == "table" then
+				for _, specCfg in pairs(specs) do
+					if type(specCfg) == "table" then normalizeBarMap(specCfg) end
+				end
+			end
+		end
+	elseif mode == "specs" then
+		for _, specCfg in pairs(root) do
+			if type(specCfg) == "table" then normalizeBarMap(specCfg) end
+		end
+	else
+		normalizeBarMap(root)
+	end
+end
+
 local function exportResourceProfile(scopeKey, profileName)
 	scopeKey = scopeKey or "ALL"
 	local classKey = addon.variables.unitClass
@@ -1139,6 +1211,7 @@ local function exportResourceProfile(scopeKey, profileName)
 		payload.specNames = nil
 		if type(db.personalResourceBarSettings) ~= "table" then return nil, "EMPTY" end
 		payload.classes = CopyTable(db.personalResourceBarSettings)
+		normalizeVisibilityPayloadMap(payload.classes, "classes")
 		do
 			local globals = {}
 			if type(db.resourceBarsAutoEnable) == "table" then globals.resourceBarsAutoEnable = CopyTable(db.resourceBarsAutoEnable) end
@@ -1147,7 +1220,10 @@ local function exportResourceProfile(scopeKey, profileName)
 			if db.resourceBarsHideVehicle ~= nil then globals.resourceBarsHideVehicle = db.resourceBarsHideVehicle and true or false end
 			if db.resourceBarsHidePetBattle ~= nil then globals.resourceBarsHidePetBattle = db.resourceBarsHidePetBattle and true or false end
 			if db.resourceBarsHideClientScene ~= nil then globals.resourceBarsHideClientScene = db.resourceBarsHideClientScene and true or false end
-			if type(db.globalResourceBarSettings) == "table" then globals.globalResourceBarSettings = CopyTable(db.globalResourceBarSettings) end
+			if type(db.globalResourceBarSettings) == "table" then
+				globals.globalResourceBarSettings = CopyTable(db.globalResourceBarSettings)
+				normalizeVisibilityPayloadMap(globals.globalResourceBarSettings)
+			end
 			if next(globals) then payload.globalSettings = globals end
 		end
 		if type(payload.classes) ~= "table" or not next(payload.classes) then return nil, "EMPTY" end
@@ -1157,6 +1233,7 @@ local function exportResourceProfile(scopeKey, profileName)
 		for specIndex, specCfg in pairs(classConfig) do
 			if type(specCfg) == "table" then
 				payload.specs[specIndex] = CopyTable(specCfg)
+				normalizeVisibilityPayloadMap(payload.specs[specIndex])
 				local idx = tonumber(specIndex)
 				if idx then
 					local specName = specNameByIndex(idx)
@@ -1173,6 +1250,7 @@ local function exportResourceProfile(scopeKey, profileName)
 		local specCfg = classConfig[specIndex]
 		if type(specCfg) ~= "table" then return nil, "SPEC_EMPTY" end
 		payload.specs[specIndex] = CopyTable(specCfg)
+		normalizeVisibilityPayloadMap(payload.specs[specIndex])
 		local specName = specNameByIndex(specIndex)
 		if specName then payload.specNames[specIndex] = specName end
 	end
@@ -1226,6 +1304,7 @@ local function importResourceProfile(encoded, scopeKey)
 			local specs = normalizeSpecs(classCfg)
 			if type(specs) == "table" then
 				normalized[classTag] = CopyTable(specs)
+				normalizeVisibilityPayloadMap(normalized[classTag], "specs")
 				any = true
 			end
 		end
@@ -1242,7 +1321,10 @@ local function importResourceProfile(encoded, scopeKey)
 		if global.resourceBarsHidePetBattle ~= nil then addon.db.resourceBarsHidePetBattle = global.resourceBarsHidePetBattle and true or false end
 		if global.resourceBarsHideClientScene ~= nil then addon.db.resourceBarsHideClientScene = global.resourceBarsHideClientScene and true or false end
 		if global.resourceBarsHidePetBattle == nil and global.auraHideInPetBattle ~= nil then addon.db.resourceBarsHidePetBattle = global.auraHideInPetBattle and true or false end
-		if type(global.globalResourceBarSettings) == "table" then addon.db.globalResourceBarSettings = CopyTable(global.globalResourceBarSettings) end
+		if type(global.globalResourceBarSettings) == "table" then
+			addon.db.globalResourceBarSettings = CopyTable(global.globalResourceBarSettings)
+			normalizeVisibilityPayloadMap(addon.db.globalResourceBarSettings)
+		end
 	end
 
 	local function applySpecsToClass(targetClass, specs, scope)
@@ -1256,6 +1338,7 @@ local function importResourceProfile(encoded, scopeKey)
 				local idx = tonumber(specIndex)
 				if idx and type(specCfg) == "table" then
 					classConfig[idx] = CopyTable(specCfg)
+					normalizeVisibilityPayloadMap(classConfig[idx])
 					if targetClass == classKey then applied[#applied + 1] = idx end
 					any = true
 				end
@@ -1269,6 +1352,7 @@ local function importResourceProfile(encoded, scopeKey)
 		local sourceCfg = specs[targetIndex] or specs[tostring(targetIndex)]
 		if type(sourceCfg) ~= "table" then return false, "SPEC_MISMATCH" end
 		classConfig[targetIndex] = CopyTable(sourceCfg)
+		normalizeVisibilityPayloadMap(classConfig[targetIndex])
 		if targetClass == classKey then applied[#applied + 1] = targetIndex end
 		return true
 	end
@@ -4510,8 +4594,7 @@ local function setPowerbars(opts)
 			-- Per-form filter for Druid
 			local formAllowed = true
 			local barCfg = specCfg and specCfg[pType]
-			local delegateFormsToDriver = barCfg and ResourceBars.ShouldUseDruidFormDriver(barCfg)
-			if isDruid and barCfg and barCfg.showForms and not delegateFormsToDriver then
+			if isDruid and barCfg and barCfg.showForms then
 				local allowed = barCfg.showForms
 				if druidForm and allowed[druidForm] == false then formAllowed = false end
 			end
@@ -4595,89 +4678,333 @@ local function resolveBarConfigForFrame(pType, frame)
 	return cfg
 end
 
-local function buildDruidVisibilityExpression(cfg, hideOutOfCombat, formStanceMap)
-	if not shouldUseDruidFormDriver(cfg) then return nil end
-	local showForms = cfg.showForms
-	local clauses = {}
-	local seen = {}
-	local function appendClause(formCondition)
-		local cond = formCondition
-		if hideOutOfCombat then
-			if cond and cond ~= "" then
-				cond = "combat," .. cond
-			else
-				cond = "combat"
-			end
-		end
-		if cond and cond ~= "" then
-			local clause = ("[%s] show"):format(cond)
-			if not seen[clause] then
-				seen[clause] = true
-				clauses[#clauses + 1] = clause
-			end
-		end
-	end
+local visibilityLogic = {
+	fallbackOptions = {
+		{ value = "ALWAYS_IN_COMBAT", label = "Always in combat", order = 20 },
+		{ value = "ALWAYS_OUT_OF_COMBAT", label = "Always out of combat", order = 30 },
+		{ value = "SKYRIDING_ACTIVE", label = "While skyriding", order = 25 },
+		{ value = "SKYRIDING_INACTIVE", label = "Hide while skyriding", order = 26 },
+		{ value = "FLYING_ACTIVE", label = L["visibilityRule_flying"] or "While flying", order = 27 },
+		{ value = "FLYING_INACTIVE", label = L["visibilityRule_hideFlying"] or "Hide while flying", order = 28 },
+		{ value = "PLAYER_CASTING", label = "Player is casting", order = 35 },
+		{ value = "PLAYER_MOUNTED", label = "Mounted", order = 36 },
+		{ value = "PLAYER_NOT_MOUNTED", label = "Not mounted", order = 37 },
+		{ value = "PLAYER_HAS_TARGET", label = "When I have a target", order = 45 },
+		{ value = "PLAYER_IN_GROUP", label = "In party/raid", order = 46 },
+		{ value = "ALWAYS_HIDDEN", label = "Always hidden", order = 100 },
+	},
+	ruleMapCache = nil,
+	optionsCache = nil,
+}
 
-	if showForms.HUMANOID ~= false then
-		appendClause("nostance")
-		for _, idx in ipairs((formStanceMap and formStanceMap.HUMANOID) or {}) do
-			if idx and idx > 0 then appendClause("stance:" .. idx) end
+function visibilityLogic:CopySelectionMap(selection)
+	if type(selection) ~= "table" then return nil end
+	local out
+	for key, value in pairs(selection) do
+		if value == true then
+			out = out or {}
+			out[key] = true
 		end
 	end
-	for i = 2, #DRUID_FORM_SEQUENCE do
-		local key = DRUID_FORM_SEQUENCE[i]
-		if showForms[key] ~= false then
-			local indices = formStanceMap and formStanceMap[key]
-			if indices and #indices > 0 then
-				for _, idx in ipairs(indices) do
-					if idx and idx > 0 then appendClause("stance:" .. idx) end
-				end
-			else
-				local idx = formKeyToIndex[key]
-				if idx and idx > 0 then appendClause("stance:" .. idx) end
-			end
-		end
-	end
-	if #clauses == 0 then return "hide" end
-	clauses[#clauses + 1] = "hide"
-	return table.concat(clauses, "; ")
+	return out
 end
 
-local function buildVisibilityDriverForBar(cfg)
-	local hideOOC = ResourceBars.ShouldHideOutOfCombat and ResourceBars.ShouldHideOutOfCombat()
-	local hideMounted = ResourceBars.ShouldHideMounted and ResourceBars.ShouldHideMounted()
-	local hideVehicle = ResourceBars.ShouldHideInVehicle and ResourceBars.ShouldHideInVehicle()
-	local hidePetBattle = ResourceBars.ShouldHideInPetBattle and ResourceBars.ShouldHideInPetBattle()
-	cfg = cfg or {}
-	local formStanceMap = addon.variables.unitClass == "DRUID" and getDruidFormStanceMap() or nil
-	local druidExpr = buildDruidVisibilityExpression(cfg, hideOOC, formStanceMap)
-	if not hideOOC and not hideMounted and not hideVehicle and not hidePetBattle and not druidExpr then return nil, false end
+function visibilityLogic:GetRuleMap()
+	if self.ruleMapCache then return self.ruleMapCache end
+	local allowed = {}
+	local metadata = GetVisibilityRuleMetadata and GetVisibilityRuleMetadata() or nil
+	if type(metadata) == "table" then
+		for key, data in pairs(metadata) do
+			local applies = data and data.appliesTo
+			if applies and applies.actionbar and key ~= "MOUSEOVER" then allowed[key] = true end
+		end
+	end
+	for _, option in ipairs(self.fallbackOptions) do
+		if option and option.value and option.value ~= "MOUSEOVER" then allowed[option.value] = true end
+	end
+	self.ruleMapCache = allowed
+	return allowed
+end
 
-	local clauses = {}
+function visibilityLogic:NormalizeConfig(config, legacyCfg)
+	local allowed = self:GetRuleMap()
+	local out
+	if type(config) == "table" then
+		for key in pairs(allowed) do
+			if config[key] == true then
+				out = out or {}
+				out[key] = true
+			end
+		end
+	end
+	if not out and type(legacyCfg) == "table" then
+		if legacyCfg.hideOutOfCombat == true then
+			out = out or {}
+			out.ALWAYS_IN_COMBAT = true
+		end
+		if legacyCfg.hideMounted == true then
+			out = out or {}
+			out.PLAYER_NOT_MOUNTED = true
+		end
+	end
+	if not out then return nil end
+	if out.ALWAYS_HIDDEN then return { ALWAYS_HIDDEN = true } end
+	return out
+end
+
+function visibilityLogic:GetRuleOptions()
+	if self.optionsCache then return self.optionsCache end
+	local options, seen = {}, {}
+	local metadata = GetVisibilityRuleMetadata and GetVisibilityRuleMetadata() or nil
+	if type(metadata) == "table" then
+		for key, data in pairs(metadata) do
+			local applies = data and data.appliesTo
+			if applies and applies.actionbar and key ~= "MOUSEOVER" then
+				options[#options + 1] = {
+					value = key,
+					label = data.label or key,
+					text = data.label or key,
+					order = data.order or 999,
+				}
+				seen[key] = true
+			end
+		end
+	end
+	for _, option in ipairs(self.fallbackOptions) do
+		if option and option.value and not seen[option.value] and option.value ~= "MOUSEOVER" then
+			options[#options + 1] = {
+				value = option.value,
+				label = option.label or option.value,
+				text = option.label or option.value,
+				order = option.order or 999,
+			}
+			seen[option.value] = true
+		end
+	end
+	table.sort(options, function(a, b)
+		if a.order == b.order then
+			local left = tostring(a.label or a.value or "")
+			local right = tostring(b.label or b.value or "")
+			if strcmputf8i then return strcmputf8i(left, right) < 0 end
+			return left:lower() < right:lower()
+		end
+		return a.order < b.order
+	end)
+	self.optionsCache = options
+	return options
+end
+
+ResourceBars.CopyVisibilitySelection = function(selection) return visibilityLogic:CopySelectionMap(selection) end
+ResourceBars.NormalizeVisibilityConfig = function(config, legacyCfg) return visibilityLogic:NormalizeConfig(config, legacyCfg) end
+ResourceBars.GetVisibilityRuleOptions = function() return visibilityLogic:GetRuleOptions() end
+
+function visibilityLogic:IsPlayerMounted()
+	if IsMounted and IsMounted() then return true end
+	if addon.variables.unitClass ~= "DRUID" then return false end
+	local formIndex = GetShapeshiftForm and (GetShapeshiftForm() or 0) or 0
+	if not formIndex or formIndex <= 0 then return false end
+	local formKey
+	if GetShapeshiftFormID then formKey = formIDToKey[GetShapeshiftFormID()] end
+	if not formKey then formKey = resolveFormKeyFromShapeshiftIndex(formIndex) end
+	if not formKey then formKey = formIndexToKey[formIndex] end
+	return formKey == "TRAVEL" or formKey == "STAG"
+end
+
+function visibilityLogic:IsPlayerCasting()
+	if UnitCastingInfo and UnitCastingInfo("player") then return true end
+	if UnitChannelInfo and UnitChannelInfo("player") then return true end
+	return false
+end
+
+function visibilityLogic:IsPlayerSkyriding()
+	if C_PlayerInfo and C_PlayerInfo.GetGlidingInfo then
+		local _, canGlide = C_PlayerInfo.GetGlidingInfo()
+		if canGlide ~= nil then return canGlide == true end
+	end
+	if SecureCmdOptionParse then
+		if addon.variables.unitClass == "DRUID" then return SecureCmdOptionParse("[advflyable, mounted] 1; [advflyable, stance:3] 1; [advflyable, stance:6] 1; 0") == "1" end
+		return SecureCmdOptionParse("[advflyable, mounted] 1; 0") == "1"
+	end
+	return addon.variables and addon.variables.isPlayerSkyriding == true
+end
+
+function visibilityLogic:IsPlayerFlying()
+	if C_PlayerInfo and C_PlayerInfo.GetGlidingInfo then
+		local isGliding = C_PlayerInfo.GetGlidingInfo()
+		if isGliding ~= nil then return isGliding == true end
+	end
+	if IsFlying and IsFlying() then return true end
+	return false
+end
+
+function visibilityLogic:HasShowRules(config)
+	if not config then return false end
+	return config.ALWAYS_IN_COMBAT
+		or config.ALWAYS_OUT_OF_COMBAT
+		or config.SKYRIDING_ACTIVE
+		or config.FLYING_ACTIVE
+		or config.PLAYER_CASTING
+		or config.PLAYER_MOUNTED
+		or config.PLAYER_NOT_MOUNTED
+		or config.PLAYER_HAS_TARGET
+		or config.PLAYER_IN_GROUP
+end
+
+function visibilityLogic:ShouldShow(config)
+	if not config then return true end
+	if config.ALWAYS_HIDDEN then return false end
+
+	local inCombat = false
+	if InCombatLockdown and InCombatLockdown() then
+		inCombat = true
+	elseif UnitAffectingCombat then
+		inCombat = UnitAffectingCombat("player") == true
+	end
+	local hasTarget = UnitExists and UnitExists("target") == true
+	local inGroup = IsInGroup and IsInGroup() == true
+	local mounted = self:IsPlayerMounted()
+	local casting = self:IsPlayerCasting()
+	local skyriding = self:IsPlayerSkyriding()
+	local flying = self:IsPlayerFlying()
+
+	if config.SKYRIDING_INACTIVE then
+		if skyriding then return false end
+		if not self:HasShowRules(config) then return true end
+	end
+	if config.FLYING_INACTIVE then
+		if flying then return false end
+		if not self:HasShowRules(config) then return true end
+	end
+
+	if config.SKYRIDING_ACTIVE and skyriding then return true end
+	if config.FLYING_ACTIVE and flying then return true end
+	if config.ALWAYS_IN_COMBAT and inCombat then return true end
+	if config.ALWAYS_OUT_OF_COMBAT and not inCombat then return true end
+	if config.PLAYER_CASTING and casting then return true end
+	if config.PLAYER_MOUNTED and mounted then return true end
+	if config.PLAYER_NOT_MOUNTED and not mounted then return true end
+	if config.PLAYER_HAS_TARGET and hasTarget then return true end
+	if config.PLAYER_IN_GROUP and inGroup then return true end
+	return false
+end
+
+function visibilityLogic:UsesManualRules(config)
+	if not config then return false end
+	return config.PLAYER_CASTING == true or config.SKYRIDING_ACTIVE == true or config.SKYRIDING_INACTIVE == true or config.FLYING_ACTIVE == true or config.FLYING_INACTIVE == true
+end
+
+function visibilityLogic:AppendUniqueClause(clauses, seen, condition, action)
+	if not condition or condition == "" then return end
+	local clause = ("[%s] %s"):format(condition, action or "show")
+	if seen[clause] then return end
+	seen[clause] = true
+	clauses[#clauses + 1] = clause
+end
+
+function visibilityLogic:AppendDruidTravelClauses(clauses, seen, action)
+	if addon.variables.unitClass ~= "DRUID" then return end
+	local map = getDruidFormStanceMap()
+	local function appendIndices(indices)
+		if type(indices) ~= "table" then return end
+		for _, idx in ipairs(indices) do
+			if idx and idx > 0 then self:AppendUniqueClause(clauses, seen, "stance:" .. idx, action) end
+		end
+	end
+	appendIndices(map and map.TRAVEL)
+	appendIndices(map and map.STAG)
+	if not (map and map.TRAVEL and #map.TRAVEL > 0) then
+		local idx = formKeyToIndex.TRAVEL
+		if idx and idx > 0 then self:AppendUniqueClause(clauses, seen, "stance:" .. idx, action) end
+	end
+	if not (map and map.STAG and #map.STAG > 0) then
+		local idx = formKeyToIndex.STAG
+		if idx and idx > 0 then self:AppendUniqueClause(clauses, seen, "stance:" .. idx, action) end
+	end
+end
+
+function visibilityLogic:BuildDriver(cfg)
+	cfg = cfg or {}
+	local visibilityCfg = self:NormalizeConfig(cfg.visibility, cfg)
+	local hideVehicle = ResourceBars.ShouldHideInVehicle and ResourceBars.ShouldHideInVehicle(cfg)
+	local hidePetBattle = ResourceBars.ShouldHideInPetBattle and ResourceBars.ShouldHideInPetBattle(cfg)
+	if visibilityCfg and visibilityCfg.ALWAYS_HIDDEN then return "hide", false, visibilityCfg end
+	if self:UsesManualRules(visibilityCfg) then return nil, true, visibilityCfg end
+	if not visibilityCfg and not hideVehicle and not hidePetBattle then return nil, false, visibilityCfg end
+
+	local clauses, seen = {}, {}
+	local showRuleCount = 0
+
 	if hidePetBattle then clauses[#clauses + 1] = "[petbattle] hide" end
 	if hideVehicle then clauses[#clauses + 1] = "[vehicleui] hide" end
-	if hideMounted then
-		clauses[#clauses + 1] = "[mounted] hide"
-		if addon.variables.unitClass == "DRUID" then
-			local travelIdx = (formStanceMap and formStanceMap.TRAVEL and formStanceMap.TRAVEL[1]) or formKeyToIndex.TRAVEL
-			if travelIdx and travelIdx > 0 then clauses[#clauses + 1] = ("[stance:%d] hide"):format(travelIdx) end
-			local stagIdx = (formStanceMap and formStanceMap.STAG and formStanceMap.STAG[1]) or formKeyToIndex.STAG
-			if stagIdx and stagIdx > 0 then clauses[#clauses + 1] = ("[stance:%d] hide"):format(stagIdx) end
+
+	if visibilityCfg then
+		if visibilityCfg.PLAYER_NOT_MOUNTED then
+			self:AppendDruidTravelClauses(clauses, seen, "hide")
+			self:AppendUniqueClause(clauses, seen, "nomounted", "show")
+			showRuleCount = showRuleCount + 1
+		end
+		if visibilityCfg.PLAYER_MOUNTED then
+			self:AppendUniqueClause(clauses, seen, "mounted", "show")
+			self:AppendDruidTravelClauses(clauses, seen, "show")
+			showRuleCount = showRuleCount + 1
+		end
+		if visibilityCfg.ALWAYS_IN_COMBAT then
+			self:AppendUniqueClause(clauses, seen, "combat", "show")
+			showRuleCount = showRuleCount + 1
+		end
+		if visibilityCfg.ALWAYS_OUT_OF_COMBAT then
+			self:AppendUniqueClause(clauses, seen, "nocombat", "show")
+			showRuleCount = showRuleCount + 1
+		end
+		if visibilityCfg.PLAYER_HAS_TARGET then
+			self:AppendUniqueClause(clauses, seen, "@target,exists", "show")
+			showRuleCount = showRuleCount + 1
+		end
+		if visibilityCfg.PLAYER_IN_GROUP then
+			self:AppendUniqueClause(clauses, seen, "group", "show")
+			showRuleCount = showRuleCount + 1
 		end
 	end
 
-	if druidExpr then
-		clauses[#clauses + 1] = druidExpr
-	elseif hideOOC then
-		clauses[#clauses + 1] = RB.OOC_VISIBILITY_DRIVER
+	if showRuleCount > 0 then
+		clauses[#clauses + 1] = "hide"
 	else
 		clauses[#clauses + 1] = "show"
 	end
-
-	return table.concat(clauses, "; "), druidExpr ~= nil
+	return table.concat(clauses, "; "), false, visibilityCfg
 end
 
-local function ensureVisibilityDriverWatcher()
+function visibilityLogic:IsPetBattleActive()
+	if ResourceBars._petBattleOpen == true then return true end
+	if C_PetBattles and C_PetBattles.IsInBattle then return C_PetBattles.IsInBattle() == true end
+	return false
+end
+
+function visibilityLogic:ShouldShowManual(cfg, visibilityCfg)
+	if not cfg then return false end
+	if ResourceBars.ShouldHideInVehicle and ResourceBars.ShouldHideInVehicle(cfg) then
+		if UnitInVehicle and UnitInVehicle("player") then return false end
+	end
+	if ResourceBars.ShouldHideInPetBattle and ResourceBars.ShouldHideInPetBattle(cfg) then
+		if self:IsPetBattleActive() then return false end
+	end
+	return self:ShouldShow(visibilityCfg)
+end
+
+function visibilityLogic:ApplyManualFrameVisibility(frame, shouldShow)
+	if not frame then return end
+	if shouldShow then
+		if frame._rbManualVisibilityHidden then
+			frame._rbManualVisibilityHidden = nil
+			if not frame:IsShown() then frame:Show() end
+		end
+		return
+	end
+	frame._rbManualVisibilityHidden = true
+	if frame:IsShown() then frame:Hide() end
+end
+
+function visibilityLogic:EnsureWatcher()
 	if visibilityDriverWatcher then return end
 	visibilityDriverWatcher = CreateFrame("Frame")
 	visibilityDriverWatcher:RegisterEvent("PLAYER_REGEN_ENABLED")
@@ -4712,28 +5039,25 @@ local function ensureVisibilityDriverWatcher()
 		end
 
 		if event == "PLAYER_MOUNT_DISPLAY_CHANGED" then
-			if not (ResourceBars.ShouldHideMounted and ResourceBars.ShouldHideMounted()) and not (ResourceBars.ShouldHideInVehicle and ResourceBars.ShouldHideInVehicle()) then return end
 			local mounted = IsMounted and IsMounted() or false
 			if not ResourceBars._pendingVisibilityDriver and self._playerMounted == mounted then return end
 			self._playerMounted = mounted
 		elseif event == "UNIT_ENTERED_VEHICLE" or event == "UNIT_EXITED_VEHICLE" then
 			if unit and unit ~= "player" then return end
-			if not (ResourceBars.ShouldHideInVehicle and ResourceBars.ShouldHideInVehicle()) then return end
 			local inVehicle = UnitInVehicle and UnitInVehicle("player") or false
 			if not ResourceBars._pendingVisibilityDriver and self._playerVehicle == inVehicle then return end
 			self._playerVehicle = inVehicle
 		else
 			return
 		end
-
 		ResourceBars.ApplyVisibilityPreference(event)
 	end)
 end
 
-local function canApplyVisibilityDriver()
+function visibilityLogic:CanApplyDriver()
 	if InCombatLockdown and InCombatLockdown() then
 		ResourceBars._pendingVisibilityDriver = true
-		ensureVisibilityDriverWatcher()
+		self:EnsureWatcher()
 		return false
 	end
 	return true
@@ -4744,7 +5068,7 @@ function applyVisibilityDriverToFrame(frame, expression)
 	if InCombatLockdown and InCombatLockdown() then
 		ResourceBars._pendingVisibilityDriverUpdates = ResourceBars._pendingVisibilityDriverUpdates or {}
 		ResourceBars._pendingVisibilityDriverUpdates[frame] = expression == nil and false or expression
-		ensureVisibilityDriverWatcher()
+		visibilityLogic:EnsureWatcher()
 		return
 	end
 	if not expression then
@@ -4763,16 +5087,19 @@ end
 
 function ResourceBars.ApplyVisibilityPreference(context)
 	if not RegisterStateDriver or not UnregisterStateDriver then return end
-	local canApplyDriver = canApplyVisibilityDriver()
+	local canApplyDriver = visibilityLogic:CanApplyDriver()
 	if canApplyDriver then ResourceBars._pendingVisibilityDriver = nil end
 	local barsEnabled = not (addon and addon.db and addon.db.enableResourceFrame == false)
 	local editModeActive = addon.EditMode and addon.EditMode.IsInEditMode and addon.EditMode:IsInEditMode()
-	local hideInClientScene = not editModeActive and ResourceBars.ShouldHideInClientScene and ResourceBars.ShouldHideInClientScene() and ResourceBars._clientSceneOpen == true
 	local driverWasActive = ResourceBars._visibilityDriverActive == true
+	local releasedManualHidden = false
 	if not barsEnabled then
 		forEachResourceBarFrame(function(frame)
 			if canApplyDriver then applyVisibilityDriverToFrame(frame, nil) end
-			if frame then frame._rbDruidFormDriver = nil end
+			if frame and frame._rbManualVisibilityHidden then
+				frame._rbManualVisibilityHidden = nil
+				releasedManualHidden = true
+			end
 			if ResourceBars.ApplyClientSceneAlphaToFrame then ResourceBars.ApplyClientSceneAlphaToFrame(frame, false) end
 		end)
 		if canApplyDriver then
@@ -4787,26 +5114,45 @@ function ResourceBars.ApplyVisibilityPreference(context)
 		local cfg = resolveBarConfigForFrame(pType, frame)
 		local barEnabled = cfg and cfg.enabled == true
 		if barEnabled then
+			local hideInClientScene = not editModeActive and ResourceBars.ShouldHideInClientScene and ResourceBars.ShouldHideInClientScene(cfg) and ResourceBars._clientSceneOpen == true
 			if editModeActive then
 				if canApplyDriver then applyVisibilityDriverToFrame(frame, "show") end
-				frame._rbDruidFormDriver = nil
+				if frame and frame._rbManualVisibilityHidden then
+					frame._rbManualVisibilityHidden = nil
+					releasedManualHidden = true
+				end
 				driverActiveNow = true
 			else
-				local expr, hasDruidRule = buildVisibilityDriverForBar(cfg)
-				if expr then driverActiveNow = true end
-				if canApplyDriver then applyVisibilityDriverToFrame(frame, expr) end
-				frame._rbDruidFormDriver = hasDruidRule or nil
+				local expr, usesManualVisibility, visibilityCfg = visibilityLogic:BuildDriver(cfg)
+				if usesManualVisibility then
+					if canApplyDriver then applyVisibilityDriverToFrame(frame, nil) end
+					visibilityLogic:ApplyManualFrameVisibility(frame, visibilityLogic:ShouldShowManual(cfg, visibilityCfg))
+				else
+					if expr then driverActiveNow = true end
+					if canApplyDriver then applyVisibilityDriverToFrame(frame, expr) end
+					if frame and frame._rbManualVisibilityHidden then
+						frame._rbManualVisibilityHidden = nil
+						releasedManualHidden = true
+					end
+				end
 			end
 			if ResourceBars.ApplyClientSceneAlphaToFrame then ResourceBars.ApplyClientSceneAlphaToFrame(frame, hideInClientScene) end
 		else
 			if canApplyDriver then applyVisibilityDriverToFrame(frame, nil) end
-			if frame then frame._rbDruidFormDriver = nil end
+			if frame and frame._rbManualVisibilityHidden then
+				frame._rbManualVisibilityHidden = nil
+				releasedManualHidden = true
+			end
 			if ResourceBars.ApplyClientSceneAlphaToFrame then ResourceBars.ApplyClientSceneAlphaToFrame(frame, false) end
 		end
 	end)
 	if canApplyDriver then
 		ResourceBars._visibilityDriverActive = driverActiveNow
-		if driverWasActive and not driverActiveNow and context ~= "fromSetPowerbars" and frameAnchor then setPowerbars() end
+		if driverWasActive and not driverActiveNow and context ~= "fromSetPowerbars" and frameAnchor then
+			setPowerbars()
+		elseif releasedManualHidden and context ~= "fromSetPowerbars" and frameAnchor then
+			setPowerbars()
+		end
 	else
 		ResourceBars._visibilityDriverActive = driverWasActive
 	end
@@ -4872,6 +5218,40 @@ local function eventHandler(self, event, unit, arg1)
 		ResourceBars.SyncRuntimeSpecContext()
 		scheduleSpecRefresh()
 		if scheduleRelativeFrameWidthSync then scheduleRelativeFrameWidthSync() end
+	elseif event == "PET_BATTLE_OPENING_START" then
+		ResourceBars._petBattleOpen = true
+		ResourceBars.ApplyVisibilityPreference(event)
+		return
+	elseif event == "PET_BATTLE_CLOSE" then
+		ResourceBars._petBattleOpen = false
+		ResourceBars.ApplyVisibilityPreference(event)
+		return
+	elseif
+		event == "PLAYER_TARGET_CHANGED"
+		or event == "GROUP_ROSTER_UPDATE"
+		or event == "PLAYER_REGEN_DISABLED"
+		or event == "PLAYER_REGEN_ENABLED"
+		or event == "PLAYER_MOUNT_DISPLAY_CHANGED"
+		or event == "PLAYER_CAN_GLIDE_CHANGED"
+		or event == "PLAYER_IS_GLIDING_CHANGED"
+	then
+		ResourceBars.ApplyVisibilityPreference(event)
+		return
+	elseif
+		event == "UNIT_SPELLCAST_START"
+		or event == "UNIT_SPELLCAST_STOP"
+		or event == "UNIT_SPELLCAST_FAILED"
+		or event == "UNIT_SPELLCAST_INTERRUPTED"
+		or event == "UNIT_SPELLCAST_CHANNEL_START"
+		or event == "UNIT_SPELLCAST_CHANNEL_STOP"
+	then
+		if unit ~= "player" then return end
+		ResourceBars.ApplyVisibilityPreference(event)
+		return
+	elseif event == "UNIT_ENTERED_VEHICLE" or event == "UNIT_EXITED_VEHICLE" then
+		if unit ~= "player" then return end
+		ResourceBars.ApplyVisibilityPreference(event)
+		return
 	elseif event == "CLIENT_SCENE_OPENED" then
 		local sceneType = unit
 		ResourceBars._clientSceneOpen = (sceneType == 1)
@@ -4883,6 +5263,7 @@ local function eventHandler(self, event, unit, arg1)
 		return
 	elseif event == "PLAYER_ENTERING_WORLD" then
 		ResourceBars.SyncRuntimeSpecContext()
+		if C_PetBattles and C_PetBattles.IsInBattle then ResourceBars._petBattleOpen = C_PetBattles.IsInBattle() == true end
 		updateHealthBar("UNIT_ABSORB_AMOUNT_CHANGED")
 		setPowerbars()
 		if After then After(0, function()
@@ -4958,6 +5339,7 @@ function ResourceBars.EnableResourceBars()
 		frameAnchor = CreateFrame("Frame")
 		addon.Aura.anchorFrame = frameAnchor
 	end
+	ResourceBars._petBattleOpen = C_PetBattles and C_PetBattles.IsInBattle and (C_PetBattles.IsInBattle() == true) or false
 	for _, event in ipairs(RB.EVENTS_TO_REGISTER) do
 		-- Register unit vs non-unit events correctly
 		if event == "UPDATE_SHAPESHIFT_FORM" then
@@ -4971,6 +5353,34 @@ function ResourceBars.EnableResourceBars()
 	frameAnchor:RegisterEvent("TRAIT_CONFIG_UPDATED")
 	frameAnchor:RegisterEvent("CLIENT_SCENE_OPENED")
 	frameAnchor:RegisterEvent("CLIENT_SCENE_CLOSED")
+	frameAnchor:RegisterEvent("PLAYER_TARGET_CHANGED")
+	frameAnchor:RegisterEvent("GROUP_ROSTER_UPDATE")
+	frameAnchor:RegisterEvent("PLAYER_REGEN_DISABLED")
+	frameAnchor:RegisterEvent("PLAYER_REGEN_ENABLED")
+	frameAnchor:RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED")
+	frameAnchor:RegisterEvent("PLAYER_CAN_GLIDE_CHANGED")
+	frameAnchor:RegisterEvent("PLAYER_IS_GLIDING_CHANGED")
+	frameAnchor:RegisterEvent("PET_BATTLE_OPENING_START")
+	frameAnchor:RegisterEvent("PET_BATTLE_CLOSE")
+	if frameAnchor.RegisterUnitEvent then
+		frameAnchor:RegisterUnitEvent("UNIT_SPELLCAST_START", "player")
+		frameAnchor:RegisterUnitEvent("UNIT_SPELLCAST_STOP", "player")
+		frameAnchor:RegisterUnitEvent("UNIT_SPELLCAST_FAILED", "player")
+		frameAnchor:RegisterUnitEvent("UNIT_SPELLCAST_INTERRUPTED", "player")
+		frameAnchor:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_START", "player")
+		frameAnchor:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_STOP", "player")
+		frameAnchor:RegisterUnitEvent("UNIT_ENTERED_VEHICLE", "player")
+		frameAnchor:RegisterUnitEvent("UNIT_EXITED_VEHICLE", "player")
+	else
+		frameAnchor:RegisterEvent("UNIT_SPELLCAST_START")
+		frameAnchor:RegisterEvent("UNIT_SPELLCAST_STOP")
+		frameAnchor:RegisterEvent("UNIT_SPELLCAST_FAILED")
+		frameAnchor:RegisterEvent("UNIT_SPELLCAST_INTERRUPTED")
+		frameAnchor:RegisterEvent("UNIT_SPELLCAST_CHANNEL_START")
+		frameAnchor:RegisterEvent("UNIT_SPELLCAST_CHANNEL_STOP")
+		frameAnchor:RegisterEvent("UNIT_ENTERED_VEHICLE")
+		frameAnchor:RegisterEvent("UNIT_EXITED_VEHICLE")
+	end
 	frameAnchor:SetScript("OnEvent", eventHandler)
 	frameAnchor:Hide()
 
@@ -4993,6 +5403,7 @@ end
 
 function ResourceBars.DisableResourceBars()
 	ResourceBars._clientSceneOpen = false
+	ResourceBars._petBattleOpen = false
 	if frameAnchor then
 		frameAnchor:UnregisterAllEvents()
 		frameAnchor:SetScript("OnEvent", nil)
@@ -5023,7 +5434,7 @@ function ResourceBars.DisableResourceBars()
 	for pType, bar in pairs(powerbar) do
 		if bar then
 			applyVisibilityDriverToFrame(bar, nil)
-			bar._rbDruidFormDriver = nil
+			bar._rbManualVisibilityHidden = nil
 			bar:Hide()
 			if pType == "RUNES" then deactivateRuneTicker(bar) end
 		end

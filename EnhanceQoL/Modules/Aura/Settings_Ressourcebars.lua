@@ -349,6 +349,83 @@ local function registerEditModeBars()
 				if ResourceBars.ReanchorAll then ResourceBars.ReanchorAll() end
 			end
 		end
+		local visibilityGlobalKeys = {
+			hideOutOfCombat = "resourceBarsHideOutOfCombat",
+			hideMounted = "resourceBarsHideMounted",
+			hideVehicle = "resourceBarsHideVehicle",
+			hidePetBattle = "resourceBarsHidePetBattle",
+			hideClientScene = "resourceBarsHideClientScene",
+		}
+		local visibilityDefaults = {
+			hideOutOfCombat = false,
+			hideMounted = false,
+			hideVehicle = false,
+			hidePetBattle = false,
+			hideClientScene = true,
+		}
+		local function getGlobalVisibilityFallback(field)
+			local dbKey = visibilityGlobalKeys[field]
+			local defaultValue = visibilityDefaults[field] == true
+			if not dbKey then return defaultValue end
+			local db = addon and addon.db
+			if db and db[dbKey] ~= nil then return db[dbKey] == true end
+			return defaultValue
+		end
+		local visibilityRuleOptions = (ResourceBars.GetVisibilityRuleOptions and ResourceBars.GetVisibilityRuleOptions()) or {}
+		local function getBarVisibilitySelection()
+			local c = curSpecCfg()
+			if not c then return nil end
+			local normalized = ResourceBars.NormalizeVisibilityConfig and ResourceBars.NormalizeVisibilityConfig(c.visibility, c) or nil
+			if not normalized then
+				local fallbackLegacy
+				if getGlobalVisibilityFallback("hideOutOfCombat") then
+					fallbackLegacy = fallbackLegacy or {}
+					fallbackLegacy.ALWAYS_IN_COMBAT = true
+				end
+				if getGlobalVisibilityFallback("hideMounted") then
+					fallbackLegacy = fallbackLegacy or {}
+					fallbackLegacy.PLAYER_NOT_MOUNTED = true
+				end
+				if fallbackLegacy and ResourceBars.NormalizeVisibilityConfig then normalized = ResourceBars.NormalizeVisibilityConfig(fallbackLegacy) end
+			end
+			if ResourceBars.CopyVisibilitySelection then return ResourceBars.CopyVisibilitySelection(normalized) end
+			return normalized and CopyTable(normalized) or nil
+		end
+		local function setBarVisibilityRule(rule, state)
+			local c = curSpecCfg()
+			if not c then return end
+			local normalized = getBarVisibilitySelection() or {}
+			if rule == "ALWAYS_HIDDEN" and state then
+				normalized = { ALWAYS_HIDDEN = true }
+			elseif state then
+				normalized[rule] = true
+				normalized.ALWAYS_HIDDEN = nil
+			else
+				normalized[rule] = nil
+			end
+			if not next(normalized) then
+				c.visibility = nil
+			elseif ResourceBars.CopyVisibilitySelection then
+				c.visibility = ResourceBars.CopyVisibilitySelection(normalized)
+			else
+				c.visibility = CopyTable(normalized)
+			end
+			-- Keep legacy flags removed once a per-bar visibility selection is set.
+			c.hideOutOfCombat = nil
+			c.hideMounted = nil
+			queueRefresh()
+		end
+		local function getBarVisibilitySetting(field)
+			local c = curSpecCfg()
+			if c and c[field] ~= nil then return c[field] == true end
+			return getGlobalVisibilityFallback(field)
+		end
+		local function setBarVisibilitySetting(field, value)
+			local c = curSpecCfg()
+			if not c then return end
+			c[field] = value and true or false
+			queueRefresh()
+		end
 		local function applyBarSize()
 			local c = curSpecCfg()
 			if not c then return end
@@ -573,6 +650,47 @@ local function registerEditModeBars()
 						queueRefresh()
 					end,
 					isShown = function() return barType ~= "HEALTH" end,
+				},
+				{
+					name = L["Show when"] or "Show when",
+					kind = settingType.MultiDropdown,
+					field = "visibility",
+					parentId = "frame",
+					height = 220,
+					values = visibilityRuleOptions,
+					hideSummary = true,
+					default = getBarVisibilitySelection(),
+					isSelected = function(_, value)
+						local selection = getBarVisibilitySelection()
+						return selection and selection[value] == true or false
+					end,
+					setSelected = function(_, value, state) setBarVisibilityRule(value, state and true or false) end,
+					isShown = function() return visibilityRuleOptions and #visibilityRuleOptions > 0 end,
+					isEnabled = function() return visibilityRuleOptions and #visibilityRuleOptions > 0 end,
+				},
+				{
+					name = L["Hide in vehicles"],
+					kind = settingType.Checkbox,
+					parentId = "frame",
+					get = function() return getBarVisibilitySetting("hideVehicle") end,
+					set = function(_, value) setBarVisibilitySetting("hideVehicle", value) end,
+					default = getGlobalVisibilityFallback("hideVehicle"),
+				},
+				{
+					name = L["Hide in pet battles"] or "Hide in pet battles",
+					kind = settingType.Checkbox,
+					parentId = "frame",
+					get = function() return getBarVisibilitySetting("hidePetBattle") end,
+					set = function(_, value) setBarVisibilitySetting("hidePetBattle", value) end,
+					default = getGlobalVisibilityFallback("hidePetBattle"),
+				},
+				{
+					name = L["Hide in client scenes"] or "Hide in client scenes",
+					kind = settingType.Checkbox,
+					parentId = "frame",
+					get = function() return getBarVisibilitySetting("hideClientScene") end,
+					set = function(_, value) setBarVisibilitySetting("hideClientScene", value) end,
+					default = getGlobalVisibilityFallback("hideClientScene"),
 				},
 			}
 			if barType == "MAELSTROM_WEAPON" then

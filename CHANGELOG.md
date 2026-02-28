@@ -5,6 +5,7 @@
 ### ✨ Added
 
 - Resource Bars (Mage Frost): Added support for `Icicles` as an aura-based resource bar.
+- Resource Bars (Edit Mode): Added per-bar `Show when` (same visibility rules as Cooldown Panels) directly under `Frame`, including migration from legacy mounted/combat hide settings.
 
 ### 🔄 Changed
 

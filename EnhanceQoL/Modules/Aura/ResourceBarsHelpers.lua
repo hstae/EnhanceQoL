@@ -10,15 +10,22 @@ end
 local ResourceBars = addon.Aura and addon.Aura.ResourceBars
 if not ResourceBars then return end
 
-function ResourceBars.ShouldHideInClientScene() return addon and addon.db and addon.db.resourceBarsHideClientScene == true end
+local function resolveVisibilityFlag(cfg, cfgKey, globalKey, defaultValue)
+	if type(cfg) == "table" and cfg[cfgKey] ~= nil then return cfg[cfgKey] == true end
+	local db = addon and addon.db
+	if db and db[globalKey] ~= nil then return db[globalKey] == true end
+	return defaultValue == true
+end
 
-function ResourceBars.ShouldHideOutOfCombat() return addon and addon.db and addon.db.resourceBarsHideOutOfCombat == true end
+function ResourceBars.ShouldHideInClientScene(cfg) return resolveVisibilityFlag(cfg, "hideClientScene", "resourceBarsHideClientScene", true) end
 
-function ResourceBars.ShouldHideMounted() return addon and addon.db and addon.db.resourceBarsHideMounted == true end
+function ResourceBars.ShouldHideOutOfCombat(cfg) return resolveVisibilityFlag(cfg, "hideOutOfCombat", "resourceBarsHideOutOfCombat", false) end
 
-function ResourceBars.ShouldHideInVehicle() return addon and addon.db and addon.db.resourceBarsHideVehicle == true end
+function ResourceBars.ShouldHideMounted(cfg) return resolveVisibilityFlag(cfg, "hideMounted", "resourceBarsHideMounted", false) end
 
-function ResourceBars.ShouldHideInPetBattle() return addon and addon.db and addon.db.resourceBarsHidePetBattle == true end
+function ResourceBars.ShouldHideInVehicle(cfg) return resolveVisibilityFlag(cfg, "hideVehicle", "resourceBarsHideVehicle", false) end
+
+function ResourceBars.ShouldHideInPetBattle(cfg) return resolveVisibilityFlag(cfg, "hidePetBattle", "resourceBarsHidePetBattle", false) end
 
 function ResourceBars.ApplyClientSceneAlphaToFrame(frame, forceHide)
 	if not (frame and frame.SetAlpha) then return end
