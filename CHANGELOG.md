@@ -1,9 +1,10 @@
 # Changelog
 
-## [8.4.0] - 2026-02-28
+## [8.4.0] - 2026-03-01
 
 ### ✨ Added
 
+- Mouse (Crosshair): Added `Enable screen crosshair` in regular Settings (`General -> Mouse & Accessibility`) to globally toggle the feature.
 - Resource Bars (Mage Frost): Added support for `Icicles` as an aura-based resource bar.
 - Resource Bars (Edit Mode): Added per-bar `Show when` (same visibility rules as Cooldown Panels) directly under `Frame`, including migration from legacy mounted/combat hide settings.
 - Aura (Experience Bar): Added a fully customizable Experience Bar with Edit Mode integration (anchor target/point/offset, optional match-width, texture/background/border, and hide options for pet battles + Blizzard tracking bars).
