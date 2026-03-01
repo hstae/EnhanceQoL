@@ -4917,16 +4917,13 @@ function visibilityLogic:BuildDriver(cfg)
 	cfg = cfg or {}
 	local visibilityCfg = self:NormalizeConfig(cfg.visibility, cfg)
 	if visibilityCfg == nil then
-		local fallbackVisibility
-		if ResourceBars.ShouldHideOutOfCombat and ResourceBars.ShouldHideOutOfCombat(cfg) then
-			fallbackVisibility = fallbackVisibility or {}
-			fallbackVisibility.ALWAYS_IN_COMBAT = true
+		local shouldHideOutOfCombat = ResourceBars.ShouldHideOutOfCombat and ResourceBars.ShouldHideOutOfCombat(cfg)
+		local shouldHideMounted = ResourceBars.ShouldHideMounted and ResourceBars.ShouldHideMounted(cfg)
+		if shouldHideOutOfCombat or shouldHideMounted then
+			visibilityCfg = {}
+			if shouldHideOutOfCombat then visibilityCfg.ALWAYS_IN_COMBAT = true end
+			if shouldHideMounted then visibilityCfg.PLAYER_NOT_MOUNTED = true end
 		end
-		if ResourceBars.ShouldHideMounted and ResourceBars.ShouldHideMounted(cfg) then
-			fallbackVisibility = fallbackVisibility or {}
-			fallbackVisibility.PLAYER_NOT_MOUNTED = true
-		end
-		visibilityCfg = fallbackVisibility
 	end
 	local hideVehicle = ResourceBars.ShouldHideInVehicle and ResourceBars.ShouldHideInVehicle(cfg)
 	local hidePetBattle = ResourceBars.ShouldHideInPetBattle and ResourceBars.ShouldHideInPetBattle(cfg)

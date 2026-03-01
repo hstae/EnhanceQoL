@@ -306,6 +306,10 @@ local function normalizeTextContentMode(value)
 	if value == "RESTEDPERCENT" then return "RESTEDPERCENT" end
 	if value == "PERCENT_RESTED" then return "PERCENT_RESTED" end
 	if value == "CURMAX_RESTED" then return "CURMAX_RESTED" end
+	if value == "TIME_THIS_LEVEL" then return "TIME_THIS_LEVEL" end
+	if value == "XP_PER_HOUR" then return "XP_PER_HOUR" end
+	if value == "ETA_LEVEL" then return "ETA_LEVEL" end
+	if value == "ETA_LEVEL_XPH" then return "ETA_LEVEL_XPH" end
 	return "NONE"
 end
 
@@ -320,6 +324,10 @@ local function textModeOptions()
 		{ value = "RESTEDPERCENT", label = L["xpBarTextTypeRestedPercent"] or "Rested %" },
 		{ value = "PERCENT_RESTED", label = L["xpBarTextTypePercentRested"] or "Percent (+rested)" },
 		{ value = "CURMAX_RESTED", label = L["xpBarTextTypeCurMaxRested"] or "Current / Max (+rested)" },
+		{ value = "TIME_THIS_LEVEL", label = L["xpBarTextTypeTimeThisLevel"] or "Time this level" },
+		{ value = "XP_PER_HOUR", label = L["xpBarTextTypeXPPerHour"] or "XP per hour" },
+		{ value = "ETA_LEVEL", label = L["xpBarTextTypeETA"] or "Leveling in" },
+		{ value = "ETA_LEVEL_XPH", label = L["xpBarTextTypeETAXPH"] or "Leveling in (+XP/h)" },
 	}
 end
 
@@ -373,6 +381,50 @@ local function getXPValues()
 	return normalizeXPValue(current), normalizeXPValue(maximum)
 end
 
+local function getCurrentExpansionMaxLevel()
+	local gmlfe = _G and _G.GetMaxLevelForExpansionLevel
+	if gmlfe then
+		local expansionLevel
+		local gsel = _G and _G.GetServerExpansionLevel
+		if gsel then expansionLevel = gsel() end
+		if type(expansionLevel) ~= "number" then expansionLevel = _G and _G.LE_EXPANSION_LEVEL_CURRENT end
+		if type(expansionLevel) ~= "number" then
+			local gel = _G and _G.GetExpansionLevel
+			if gel then expansionLevel = gel() end
+		end
+		if type(expansionLevel) == "number" then
+			local maxLevel = tonumber(gmlfe(expansionLevel))
+			if maxLevel and maxLevel > 0 then return maxLevel end
+		end
+	end
+
+	local gmll = _G and _G.GetMaxLevelForLatestExpansion
+	if gmll then
+		local maxLevel = tonumber(gmll())
+		if maxLevel and maxLevel > 0 then return maxLevel end
+	end
+
+	local gmlfpe = _G and _G.GetMaxLevelForPlayerExpansion
+	if gmlfpe then
+		local maxLevel = tonumber(gmlfpe())
+		if maxLevel and maxLevel > 0 then return maxLevel end
+	end
+
+	local gmpl = _G and _G.GetMaxPlayerLevel
+	if gmpl then
+		local maxLevel = tonumber(gmpl())
+		if maxLevel and maxLevel > 0 then return maxLevel end
+	end
+
+	return nil
+end
+
+local function isAtCurrentExpansionMaxLevel()
+	local expansionMax = getCurrentExpansionMaxLevel()
+	if not expansionMax then return false end
+	return getPlayerLevel() >= expansionMax
+end
+
 local function getRestedXP()
 	local rested = GetXPExhaustion and GetXPExhaustion() or 0
 	if rested == nil then rested = 0 end
@@ -384,6 +436,32 @@ local function formatNumber(value)
 	value = math.floor((tonumber(value) or 0) + 0.5)
 	if BreakUpLargeNumbers then return BreakUpLargeNumbers(value) end
 	return tostring(value)
+end
+
+local function formatShortNumber(value)
+	value = math.max(0, tonumber(value) or 0)
+	local function trim(valueText) return (valueText:gsub("%.0([KMB])$", "%1")) end
+	if value >= 1000000000 then return trim(string.format("%.1fB", value / 1000000000)) end
+	if value >= 1000000 then return trim(string.format("%.1fM", value / 1000000)) end
+	if value >= 1000 then return trim(string.format("%.1fK", value / 1000)) end
+	return tostring(math.floor(value + 0.5))
+end
+
+local function formatDurationShort(seconds)
+	local total = math.max(0, tonumber(seconds) or 0)
+	total = math.floor(total + 0.5)
+	if total < 60 then return "<1m" end
+	if total < 3600 then return string.format("%dm", math.floor(total / 60)) end
+	local hours = math.floor(total / 3600)
+	local minutes = math.floor((total % 3600) / 60)
+	if hours < 24 then
+		if minutes > 0 then return string.format("%dh %dm", hours, minutes) end
+		return string.format("%dh", hours)
+	end
+	local days = math.floor(hours / 24)
+	hours = hours % 24
+	if hours > 0 then return string.format("%dd %dh", days, hours) end
+	return string.format("%dd", days)
 end
 
 local function buildXPContext(level, current, maximum, rested)
@@ -413,6 +491,39 @@ local function buildXPContext(level, current, maximum, rested)
 	}
 end
 
+function ExperienceBar:EnrichXPContext(ctx)
+	if not ctx then return end
+	local now = GetTime and GetTime() or 0
+	self._xpStats = self._xpStats or {}
+	local stats = self._xpStats
+	local level = ctx.level or 0
+	local currentXP = ctx.current or 0
+
+	if stats.level ~= level or currentXP < (stats.lastXP or 0) then
+		stats.level = level
+		stats.levelStartTime = now
+		stats.levelStartXP = currentXP
+	end
+
+	if not stats.levelStartTime then stats.levelStartTime = now end
+	if stats.levelStartXP == nil then stats.levelStartXP = currentXP end
+	stats.lastXP = currentXP
+
+	local elapsed = math.max(0, now - (stats.levelStartTime or now))
+	local gained = math.max(0, currentXP - (stats.levelStartXP or currentXP))
+	local xpPerHour = 0
+	if elapsed > 1 and gained > 0 then xpPerHour = (gained / elapsed) * 3600 end
+
+	ctx.timeThisLevelSeconds = elapsed
+	ctx.gainedThisLevel = gained
+	ctx.xpPerHour = xpPerHour
+	if xpPerHour > 0 and (ctx.remaining or 0) > 0 then
+		ctx.etaLevelSeconds = ((ctx.remaining or 0) / xpPerHour) * 3600
+	else
+		ctx.etaLevelSeconds = nil
+	end
+end
+
 local function formatXPText(mode, ctx)
 	if not ctx then return nil end
 	if mode == "NONE" then return nil end
@@ -424,6 +535,25 @@ local function formatXPText(mode, ctx)
 	if mode == "RESTEDPERCENT" then return string.format("%.1f%%", ctx.restedPercent or 0) end
 	if mode == "PERCENT_RESTED" then return string.format("%.1f%% (+%.1f%%)", ctx.currentPercent or 0, ctx.restedPercent or 0) end
 	if mode == "CURMAX_RESTED" then return string.format("%s / %s (+%s)", formatNumber(ctx.current), formatNumber(ctx.max), formatNumber(ctx.rested or 0)) end
+	if mode == "TIME_THIS_LEVEL" then return string.format("%s: %s", L["xpBarTextTimeThisLevelLabel"] or "Time this level", formatDurationShort(ctx.timeThisLevelSeconds or 0)) end
+	if mode == "XP_PER_HOUR" then
+		if (ctx.xpPerHour or 0) <= 0 then return nil end
+		return string.format("%s: %s", L["xpBarTextXPPerHourLabel"] or "XP/hour", formatShortNumber(ctx.xpPerHour))
+	end
+	if mode == "ETA_LEVEL" then
+		if not ctx.etaLevelSeconds then return nil end
+		return string.format("%s: %s", L["xpBarTextETAFormattingLabel"] or "Leveling in", formatDurationShort(ctx.etaLevelSeconds))
+	end
+	if mode == "ETA_LEVEL_XPH" then
+		if not ctx.etaLevelSeconds or (ctx.xpPerHour or 0) <= 0 then return nil end
+		return string.format(
+			"%s: %s (%s %s)",
+			L["xpBarTextETAFormattingLabel"] or "Leveling in",
+			formatDurationShort(ctx.etaLevelSeconds),
+			formatShortNumber(ctx.xpPerHour),
+			L["xpBarTextXPPerHourSuffix"] or "XP/hour"
+		)
+	end
 	return nil
 end
 
@@ -935,9 +1065,11 @@ function ExperienceBar:DespawnFrame()
 	self._lastXPContext = nil
 	self._hasRested = nil
 	self._lastFraction = nil
+	self._xpStats = nil
 end
 
 local function shouldShowCustomXPBar()
+	if isAtCurrentExpansionMaxLevel() then return false end
 	local _, maxXP = getXPValues()
 	if maxXP <= 0 then return false end
 	return true
@@ -1056,6 +1188,12 @@ function ExperienceBar:UpdateXP()
 	end
 
 	self:MaybeUpdateAnchor()
+	if isAtCurrentExpansionMaxLevel() then
+		self:StopBootstrapRefresh()
+		self:DespawnFrame()
+		self:ApplyBlizzardTrackingVisibility()
+		return
+	end
 	local currentXP, maxXP = getXPValues()
 	if maxXP <= 0 then
 		self:DespawnFrame()
@@ -1070,6 +1208,7 @@ function ExperienceBar:UpdateXP()
 
 	local restedXP = getRestedXP()
 	local ctx = buildXPContext(getPlayerLevel(), currentXP, maxXP, restedXP)
+	self:EnrichXPContext(ctx)
 	self._lastXPContext = ctx
 	self._hasRested = (ctx.rested or 0) > 0
 	local fraction = 0
