@@ -880,10 +880,21 @@ local function setFrameRule(info, key, shouldSelect)
 end
 
 local function getFrameRuleOptions(info)
+	local allowedRuleSet
+	if info and type(info.visibilityRules) == "table" then
+		for _, ruleKey in ipairs(info.visibilityRules) do
+			if type(ruleKey) == "string" and ruleKey ~= "" then
+				allowedRuleSet = allowedRuleSet or {}
+				allowedRuleSet[ruleKey] = true
+			end
+		end
+	end
+
 	local options = {}
 	for key, data in pairs(GetVisibilityRuleMetadata() or {}) do
 		local allowed = data.appliesTo and data.appliesTo.frame
 		if allowed and data.unitRequirement and data.unitRequirement ~= info.unitToken then allowed = false end
+		if allowed and allowedRuleSet and not allowedRuleSet[key] then allowed = false end
 		if allowed then table.insert(options, { value = key, text = data.label or key, order = data.order or 999 }) end
 	end
 	table.sort(options, function(a, b)

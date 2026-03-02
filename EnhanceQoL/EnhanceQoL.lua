@@ -676,6 +676,7 @@ local function EnsureUnitFrameDriverWatcher()
 				if not data or not data.expression then
 					if UnregisterStateDriver then pcall(UnregisterStateDriver, frame, "visibility") end
 					frame.EQOL_VisibilityStateDriver = nil
+					if data and data.showWhenCleared and frame.Show then pcall(frame.Show, frame) end
 				elseif RegisterStateDriver then
 					local ok = pcall(RegisterStateDriver, frame, "visibility", data.expression)
 					if ok then frame.EQOL_VisibilityStateDriver = data.expression end
@@ -686,19 +687,20 @@ local function EnsureUnitFrameDriverWatcher()
 	addon.variables.unitFrameDriverWatcher = watcher
 end
 
-local function ApplyUnitFrameStateDriver(frame, expression)
+local function ApplyUnitFrameStateDriver(frame, expression, showWhenCleared)
 	if not frame then return end
 	if frame.EQOL_VisibilityStateDriver == expression then return end
 	if InCombatLockdown and InCombatLockdown() then
 		addon.variables = addon.variables or {}
 		addon.variables.pendingUnitFrameDriverUpdates = addon.variables.pendingUnitFrameDriverUpdates or {}
-		addon.variables.pendingUnitFrameDriverUpdates[frame] = { expression = expression }
+		addon.variables.pendingUnitFrameDriverUpdates[frame] = { expression = expression, showWhenCleared = showWhenCleared == true }
 		EnsureUnitFrameDriverWatcher()
 		return
 	end
 	if not expression then
 		if UnregisterStateDriver then pcall(UnregisterStateDriver, frame, "visibility") end
 		frame.EQOL_VisibilityStateDriver = nil
+		if showWhenCleared and frame.Show then pcall(frame.Show, frame) end
 		return
 	end
 	if RegisterStateDriver then
@@ -949,12 +951,12 @@ end
 local function ClearUnitFrameState(frame, cbData, opts)
 	if not frame then return end
 	if IsBossFrameContainer(frame) then
-		ApplyUnitFrameStateDriver(frame, nil)
+		ApplyUnitFrameStateDriver(frame, nil, cbData and cbData.showWhenNoRule)
 		SetBossFrameHidden(false)
 		frameVisibilityStates[frame] = nil
 		return
 	end
-	if not (opts and opts.noStateDriver) then ApplyUnitFrameStateDriver(frame, nil) end
+	if not (opts and opts.noStateDriver) then ApplyUnitFrameStateDriver(frame, nil, cbData and cbData.showWhenNoRule) end
 	RestoreUnitFrameVisibility(frame, cbData)
 	frameVisibilityStates[frame] = nil
 end
@@ -994,7 +996,7 @@ local function ApplyVisibilityToUnitFrame(frameName, cbData, config, opts)
 	end
 
 	state.driverActive = false
-	if not (opts and opts.noStateDriver) or state.isBossFrame then ApplyUnitFrameStateDriver(frame, nil) end
+	if not (opts and opts.noStateDriver) or state.isBossFrame then ApplyUnitFrameStateDriver(frame, nil, state.cbData and state.cbData.showWhenNoRule) end
 
 	if config.MOUSEOVER then
 		state.isMouseOver = MouseIsOver(frame)
@@ -5633,14 +5635,14 @@ function loadMain()
 				end
 				local GF = UF and UF.GroupFrames
 				if GF and GF.ToggleHealerBuffPlacementEditor then GF:ToggleHealerBuffPlacementEditor(kind) end
-				end
-
-				openHealerBuffEditor()
-			else
-				OpenSettingsRoot()
 			end
+
+			openHealerBuffEditor()
+		else
+			OpenSettingsRoot()
 		end
 	end
+end
 
 -- Erstelle ein Frame f��r Events
 local frameLoad = CreateFrame("Frame")

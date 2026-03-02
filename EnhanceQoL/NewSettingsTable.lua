@@ -10,15 +10,13 @@ addon.variables.NewVersionTableEQOL = {
 	["EQOL_INTERFACE"] = true,
 
 	-- Expandable section id in Settings/ClassBuffReminder.lua
-	["EQOL_ClassBuffReminder"] = true,
-	["EQOL_MapNavigation"] = true,
-	["EQOL_CastbarsAndCooldowns"] = true,
-	["EQOL_MouseAndAccessibility"] = true,
+	["EQOL_VisibilityFrames"] = true,
 
 	-- Feature setting keys
 	["EQOL_classBuffReminderEnabled"] = true,
 	["EQOL_xpBarEnabled"] = true,
 	["EQOL_mouseCrosshairEnabled"] = true,
+	["EQOL_unitframeSettingMinimap_visibility"] = true,
 
 	-- Map Navigation -> Square Minimap Stats -> Location
 	["EQOL_squareMinimapStatsLocationShowZone"] = true,
