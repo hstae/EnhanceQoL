@@ -8,7 +8,8 @@
 - Group Frames (Healer Buff Placement): Added new Indicator options for `Icon`/`Square`: `Cooldown Swipe`, `Draw Edge`, `Draw Bling`, `Hide Cooldown Text`, and `Hide Charge Text`.
 - Group Frames (Healer Buff Placement): Added `Cooldown Size` and `Charge Size` sliders (up to `64`) for `Icon`/`Square` indicators.
 - Group Frames (Healer Buff Placement): Added `Loop Live Preview` toggle in the editor.
-- Visibility & Fading (Frames): Added a `Minimap` visibility rule entry with rule options `Always in combat` and `Always hidden`.
+- Visibility & Fading (Frames): Added a `Minimap` visibility rule entry with rule options `Always out of combat` and `Always hidden`.
+- Unit Frames / Castbars: Added a separate `Backdrop texture` selector (SharedMedia statusbar) for `Health`, `Power`, and `Cast` backdrops, including Standalone Castbar and Group Frames.
 
 ### 🔄 Changed
 

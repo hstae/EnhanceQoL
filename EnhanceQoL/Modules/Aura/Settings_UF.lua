@@ -2991,6 +2991,21 @@ local function buildUnitSettings(unit)
 			return useBackdropClassColor ~= true
 		end,
 	})
+	list[#list + 1] = checkboxDropdown(
+		L["Backdrop texture"] or "Backdrop texture",
+		textureOpts,
+		function() return getValue(unit, { "health", "backdrop", "texture" }, (healthDef.backdrop and healthDef.backdrop.texture) or "DEFAULT") end,
+		function(val)
+			setValue(unit, { "health", "backdrop", "texture" }, val or "DEFAULT")
+			refresh()
+		end,
+		(healthDef.backdrop and healthDef.backdrop.texture) or "DEFAULT",
+		"health"
+	)
+	list[#list].isEnabled = function()
+		local isBackdropEnabled = getValue(unit, { "health", "backdrop", "enabled" }, (healthDef.backdrop and healthDef.backdrop.enabled) ~= false) ~= false
+		return isBackdropEnabled
+	end
 	list[#list + 1] = checkbox(
 		L["UFHealthBackdropClampToFill"] or "Clamp backdrop to missing health",
 		function()
@@ -3750,6 +3765,18 @@ local function buildUnitSettings(unit)
 		colorDefault = { r = 0, g = 0, b = 0, a = 0.6 },
 		isEnabled = isPowerEnabled,
 	})
+	list[#list + 1] = checkboxDropdown(
+		L["Backdrop texture"] or "Backdrop texture",
+		textureOpts,
+		function() return getValue(unit, { "power", "backdrop", "texture" }, (powerDef.backdrop and powerDef.backdrop.texture) or "DEFAULT") end,
+		function(val)
+			setValue(unit, { "power", "backdrop", "texture" }, val or "DEFAULT")
+			refresh()
+		end,
+		(powerDef.backdrop and powerDef.backdrop.texture) or "DEFAULT",
+		"power"
+	)
+	list[#list].isEnabled = function() return isPowerEnabled() and getValue(unit, { "power", "backdrop", "enabled" }, (powerDef.backdrop and powerDef.backdrop.enabled) ~= false) ~= false end
 
 	if addon.Aura and addon.Aura.AppendUFSecondaryPowerSettings then addon.Aura.AppendUFSecondaryPowerSettings(list, unit, def, textureOpts, addDivider, refresh, refreshSelf) end
 
@@ -4403,25 +4430,18 @@ local function buildUnitSettings(unit)
 			)
 		end
 
-		local castNameAnchor = radioDropdown(
-			L["UFCastNameAnchor"] or "Cast name anchor",
-			anchorOptions,
-			function()
-				local fallback = castDef.nameAnchor or "LEFT"
-				if fallback ~= "LEFT" and fallback ~= "CENTER" and fallback ~= "RIGHT" then fallback = "LEFT" end
-				local value = getValue(unit, { "cast", "nameAnchor" }, fallback)
-				if value ~= "LEFT" and value ~= "CENTER" and value ~= "RIGHT" then return fallback end
-				return value
-			end,
-			function(val)
-				local value = val
-				if value ~= "LEFT" and value ~= "CENTER" and value ~= "RIGHT" then value = "LEFT" end
-				setValue(unit, { "cast", "nameAnchor" }, value)
-				refresh()
-			end,
-			castDef.nameAnchor or "LEFT",
-			"cast"
-		)
+		local castNameAnchor = radioDropdown(L["UFCastNameAnchor"] or "Cast name anchor", anchorOptions, function()
+			local fallback = castDef.nameAnchor or "LEFT"
+			if fallback ~= "LEFT" and fallback ~= "CENTER" and fallback ~= "RIGHT" then fallback = "LEFT" end
+			local value = getValue(unit, { "cast", "nameAnchor" }, fallback)
+			if value ~= "LEFT" and value ~= "CENTER" and value ~= "RIGHT" then return fallback end
+			return value
+		end, function(val)
+			local value = val
+			if value ~= "LEFT" and value ~= "CENTER" and value ~= "RIGHT" then value = "LEFT" end
+			setValue(unit, { "cast", "nameAnchor" }, value)
+			refresh()
+		end, castDef.nameAnchor or "LEFT", "cast")
 		castNameAnchor.isEnabled = isCastNameEnabled
 		list[#list + 1] = castNameAnchor
 
@@ -4635,6 +4655,18 @@ local function buildUnitSettings(unit)
 		})
 		castBackdrop.isEnabled = isCastEnabled
 		list[#list + 1] = castBackdrop
+		list[#list + 1] = checkboxDropdown(
+			L["Backdrop texture"] or "Backdrop texture",
+			textureOpts,
+			function() return getValue(unit, { "cast", "backdrop", "texture" }, (castDef.backdrop and castDef.backdrop.texture) or "DEFAULT") end,
+			function(val)
+				setValue(unit, { "cast", "backdrop", "texture" }, val or "DEFAULT")
+				refresh()
+			end,
+			(castDef.backdrop and castDef.backdrop.texture) or "DEFAULT",
+			"cast"
+		)
+		list[#list].isEnabled = function() return isCastEnabled() and getValue(unit, { "cast", "backdrop", "enabled" }, (castDef.backdrop and castDef.backdrop.enabled) ~= false) ~= false end
 
 		local function isCastBorderEnabled() return getValue(unit, { "cast", "border", "enabled" }, (castDef.border and castDef.border.enabled) == true) == true end
 
@@ -6867,7 +6899,9 @@ local function buildStandaloneCastbarSettings()
 
 	local castCfg, castDef
 	local castbarModule = getCastbarModule()
-	if castbarModule and castbarModule.GetConfig then castCfg, castDef = castbarModule.GetConfig() end
+	if castbarModule and castbarModule.GetConfig then
+		castCfg, castDef = castbarModule.GetConfig()
+	end
 	if type(castCfg) ~= "table" then
 		addon.db = addon.db or {}
 		addon.db.castbar = type(addon.db.castbar) == "table" and addon.db.castbar or {}

@@ -4,7 +4,6 @@ addon.variables.NewVersionTableEQOL = {
 
 	-- Root category id from Settings/MainCategory.lua
 	["EQOL_UI"] = true,
-	["EQOL_GENERAL"] = true,
 
 	-- Legacy/alias (can stay harmlessly)
 	["EQOL_INTERFACE"] = true,
@@ -13,11 +12,9 @@ addon.variables.NewVersionTableEQOL = {
 	["EQOL_VisibilityFrames"] = true,
 
 	-- Feature setting keys
+	["EQOL_ClassBuffReminder"] = true,
 	["EQOL_classBuffReminderEnabled"] = true,
+	["EQOL_CastbarsAndCooldowns"] = true,
 	["EQOL_xpBarEnabled"] = true,
-	["EQOL_mouseCrosshairEnabled"] = true,
 	["EQOL_unitframeSettingMinimap_visibility"] = true,
-
-	-- Map Navigation -> Square Minimap Stats -> Location
-	["EQOL_squareMinimapStatsLocationShowZone"] = true,
 }

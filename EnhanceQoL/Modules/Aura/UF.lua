@@ -986,7 +986,7 @@ local defaults = {
 			showSampleHealAbsorb = false,
 			healAbsorbTexture = "SOLID",
 			healAbsorbReverseFill = true,
-			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 }, useClassColor = false, clampToFill = false },
+			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 }, texture = "DEFAULT", useClassColor = false, clampToFill = false },
 			textLeft = "PERCENT",
 			textCenter = "NONE",
 			textRight = "CURMAX",
@@ -1012,7 +1012,7 @@ local defaults = {
 			detachedStrata = nil,
 			emptyMaxFallback = false,
 			color = { 0.1, 0.45, 1, 1 },
-			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 } },
+			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 }, texture = "DEFAULT" },
 			useCustomColor = false,
 			textLeft = "PERCENT",
 			textCenter = "NONE",
@@ -1043,7 +1043,7 @@ local defaults = {
 			detachedStrata = nil,
 			emptyMaxFallback = false,
 			color = { 0.1, 0.45, 1, 1 },
-			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 } },
+			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 }, texture = "DEFAULT" },
 			useCustomColor = false,
 			textLeft = "PERCENT",
 			textCenter = "NONE",
@@ -1137,7 +1137,7 @@ local defaults = {
 			frameLevelOffset = nil,
 			anchor = "BOTTOM", -- or "TOP"
 			offset = { x = 0, y = -4 },
-			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 } },
+			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 }, texture = "DEFAULT" },
 			border = {
 				enabled = false,
 				color = { 0, 0, 0, 0.8 },
@@ -1320,7 +1320,7 @@ local defaults = {
 			frameLevelOffset = nil,
 			anchor = "BOTTOM", -- or "TOP"
 			offset = { x = 11, y = -4 },
-			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 } },
+			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 }, texture = "DEFAULT" },
 			border = {
 				enabled = false,
 				color = { 0, 0, 0, 0.8 },
@@ -4052,12 +4052,6 @@ local function ensureBorderFrame(frame)
 	return border
 end
 
-local BAR_BACKDROP_STYLE = {
-	bgFile = "Interface\\Buttons\\WHITE8x8",
-	edgeFile = nil,
-	tile = false,
-}
-
 local function unpackColor(color, defaultR, defaultG, defaultB, defaultA)
 	if type(color) ~= "table" then return defaultR, defaultG, defaultB, defaultA end
 	return color[1] or color.r or defaultR, color[2] or color.g or defaultG, color[3] or color.b or defaultB, color[4] or color.a or defaultA
@@ -4149,6 +4143,9 @@ local function applyBarBackdrop(bar, cfg, overrideR, overrideG, overrideB, overr
 	cfg = cfg or {}
 	options = options or {}
 	local bd = cfg.backdrop or {}
+	local backdropTextureKey = bd.texture
+	if backdropTextureKey == nil or backdropTextureKey == "" or backdropTextureKey == "DEFAULT" then backdropTextureKey = cfg.texture end
+	local backdropTexture = UFHelper.resolveTexture(backdropTextureKey)
 	local clampToFill = options.clampToFill == true
 	local reverseFill = options.reverseFill == true
 	local cache = bar._ufBackdropCache
@@ -4161,6 +4158,7 @@ local function applyBarBackdrop(bar, cfg, overrideR, overrideG, overrideB, overr
 		cache.clampToFill = clampToFill
 		cache.reverseFill = reverseFill
 		cache.statusTex = nil
+		cache.texture = nil
 		bar._ufBackdropCache = cache
 		return
 	end
@@ -4185,13 +4183,13 @@ local function applyBarBackdrop(bar, cfg, overrideR, overrideG, overrideB, overr
 		or cache.clampToFill ~= clampToFill
 		or cache.reverseFill ~= reverseFill
 		or cache.statusTex ~= currentStatusTex
+		or cache.texture ~= backdropTexture
 	if not styleChanged then return end
 	if clampToFill then
 		if bar.SetBackdrop then bar:SetBackdrop(nil) end
 		local tex = bar._ufBackdropTexture
 		if not tex then
 			tex = bar:CreateTexture(nil, "BACKGROUND")
-			tex:SetTexture("Interface\\Buttons\\WHITE8x8")
 			bar._ufBackdropTexture = tex
 		end
 		local htex = bar.GetStatusBarTexture and bar:GetStatusBarTexture()
@@ -4211,11 +4209,18 @@ local function applyBarBackdrop(bar, cfg, overrideR, overrideG, overrideB, overr
 		else
 			tex:SetAllPoints(bar)
 		end
-		tex:SetColorTexture(colorR, colorG, colorB, colorA)
+		tex:SetTexture(backdropTexture)
+		if tex.SetHorizTile then tex:SetHorizTile(false) end
+		if tex.SetVertTile then tex:SetVertTile(false) end
+		if tex.SetVertexColor then tex:SetVertexColor(colorR, colorG, colorB, colorA) end
 		tex:Show()
 	else
 		if bar._ufBackdropTexture then bar._ufBackdropTexture:Hide() end
-		bar:SetBackdrop(BAR_BACKDROP_STYLE)
+		bar:SetBackdrop({
+			bgFile = backdropTexture,
+			edgeFile = nil,
+			tile = false,
+		})
 		bar:SetBackdropColor(colorR, colorG, colorB, colorA)
 	end
 	cache = cache or {}
@@ -4227,6 +4232,7 @@ local function applyBarBackdrop(bar, cfg, overrideR, overrideG, overrideB, overr
 	cache.clampToFill = clampToFill
 	cache.reverseFill = reverseFill
 	cache.statusTex = currentStatusTex
+	cache.texture = backdropTexture
 	bar._ufBackdropCache = cache
 end
 
@@ -4405,6 +4411,10 @@ local function applyCastLayout(cfg, unit)
 	st.castUseDefaultArt = useDefaultArt
 	do -- Cast backdrop
 		local bd = (ccfg and ccfg.backdrop) or (defc and defc.backdrop) or { enabled = true, color = { 0, 0, 0, 0.6 } }
+		local backdropTexKey = bd.texture
+		if backdropTexKey == nil or backdropTexKey == "" or backdropTexKey == "DEFAULT" then backdropTexKey = texKey end
+		local useDefaultBackdropArt = not backdropTexKey or backdropTexKey == "" or backdropTexKey == "DEFAULT"
+		local castBackdropTexture = UFHelper.resolveCastTexture(backdropTexKey)
 		if st.castBar.SetBackdrop then st.castBar:SetBackdrop(nil) end
 		local bg = st.castBar.backdropTexture
 		if bd.enabled == false then
@@ -4416,12 +4426,12 @@ local function applyCastLayout(cfg, unit)
 			end
 			local col = bd.color or { 0, 0, 0, 0.6 }
 			bg:ClearAllPoints()
-			if useDefaultArt and bg.SetAtlas then
+			if useDefaultBackdropArt and bg.SetAtlas then
 				bg:SetAtlas("ui-castingbar-background", false)
 				bg:SetPoint("TOPLEFT", st.castBar, "TOPLEFT", -defaultBackdropInset, defaultBackdropInset)
 				bg:SetPoint("BOTTOMRIGHT", st.castBar, "BOTTOMRIGHT", defaultBackdropInset, -defaultBackdropInset)
 			else
-				bg:SetTexture(castTexture)
+				bg:SetTexture(castBackdropTexture)
 				bg:SetAllPoints(st.castBar)
 			end
 			bg:SetVertexColor(col[1] or 0, col[2] or 0, col[3] or 0, col[4] or 0.6)

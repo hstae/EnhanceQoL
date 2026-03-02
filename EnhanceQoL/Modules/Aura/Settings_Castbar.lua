@@ -635,6 +635,19 @@ function CastbarSettings.BuildStandaloneCastbarSettings(ctx)
 	})
 	castBackdrop.isEnabled = isCastEnabled
 	list[#list + 1] = castBackdrop
+	local castBackdropTexture = checkboxDropdown(
+		L["Backdrop texture"] or "Backdrop texture",
+		textureOpts,
+		function() return getCast({ "cast", "backdrop", "texture" }, (castDef.backdrop and castDef.backdrop.texture) or "DEFAULT") end,
+		function(val)
+			setCast({ "cast", "backdrop", "texture" }, val or "DEFAULT")
+			refreshCastbar()
+		end,
+		(castDef.backdrop and castDef.backdrop.texture) or "DEFAULT",
+		section.frameAppearance
+	)
+	castBackdropTexture.isEnabled = function() return isCastEnabled() and getCast({ "cast", "backdrop", "enabled" }, (castDef.backdrop and castDef.backdrop.enabled) ~= false) ~= false end
+	list[#list + 1] = castBackdropTexture
 
 	local function isCastBorderEnabled() return getCast({ "cast", "border", "enabled" }, (castDef.border and castDef.border.enabled) == true) == true end
 	list[#list + 1] = checkboxColor({

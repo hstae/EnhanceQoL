@@ -73,7 +73,7 @@ local fallbackCastDefaults = {
 	height = 16,
 	anchor = "BOTTOM",
 	offset = { x = 0, y = -4 },
-	backdrop = { enabled = true, color = { 0, 0, 0, 0.6 } },
+	backdrop = { enabled = true, color = { 0, 0, 0, 0.6 }, texture = "DEFAULT" },
 	border = {
 		enabled = false,
 		color = { 0, 0, 0, 0.8 },
@@ -287,7 +287,9 @@ local function getBarHorizontalOutsets(castCfg, castDefaults)
 	local useDefaultArt = not texKey or texKey == "" or texKey == "DEFAULT"
 	local backdrop = castCfg.backdrop
 	if backdrop == nil then backdrop = castDefaults.backdrop end
-	if type(backdrop) == "table" and backdrop.enabled ~= false and useDefaultArt then
+	local backdropTexKey = type(backdrop) == "table" and backdrop.texture or nil
+	local useDefaultBackdropArt = useDefaultArt and (not backdropTexKey or backdropTexKey == "" or backdropTexKey == "DEFAULT")
+	if type(backdrop) == "table" and backdrop.enabled ~= false and useDefaultBackdropArt then
 		left = math.max(left, 1)
 		right = math.max(right, 1)
 	end
@@ -923,6 +925,10 @@ local function applyCastLayout(castCfg, castDefaults)
 
 	do -- Cast backdrop
 		local bd = castCfg.backdrop or castDefaults.backdrop or { enabled = true, color = { 0, 0, 0, 0.6 } }
+		local backdropTexKey = bd.texture
+		if backdropTexKey == nil or backdropTexKey == "" or backdropTexKey == "DEFAULT" then backdropTexKey = texKey end
+		local useDefaultBackdropArt = not backdropTexKey or backdropTexKey == "" or backdropTexKey == "DEFAULT"
+		local castBackdropTexture = UFHelper.resolveCastTexture(backdropTexKey)
 		if state.castBar.SetBackdrop then state.castBar:SetBackdrop(nil) end
 		local bg = state.castBar.backdropTexture
 		if bd.enabled == false then
@@ -934,12 +940,12 @@ local function applyCastLayout(castCfg, castDefaults)
 			end
 			local col = bd.color or { 0, 0, 0, 0.6 }
 			bg:ClearAllPoints()
-			if useDefaultArt and bg.SetAtlas then
+			if useDefaultBackdropArt and bg.SetAtlas then
 				bg:SetAtlas("ui-castingbar-background", false)
 				bg:SetPoint("TOPLEFT", state.castBar, "TOPLEFT", -defaultBackdropInset, defaultBackdropInset)
 				bg:SetPoint("BOTTOMRIGHT", state.castBar, "BOTTOMRIGHT", defaultBackdropInset, -defaultBackdropInset)
 			else
-				bg:SetTexture(castTexture)
+				bg:SetTexture(castBackdropTexture)
 				bg:SetAllPoints(state.castBar)
 			end
 			bg:SetVertexColor(col[1] or 0, col[2] or 0, col[3] or 0, col[4] or 0.6)

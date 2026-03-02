@@ -833,7 +833,7 @@ addon.variables.unitFrameNames = {
 		name = "MinimapCluster",
 		var = "unitframeSettingMinimap",
 		text = _G.MINIMAP_LABEL or "Minimap",
-		visibilityRules = { "ALWAYS_IN_COMBAT", "ALWAYS_HIDDEN" },
+		visibilityRules = { "ALWAYS_OUT_OF_COMBAT", "ALWAYS_HIDDEN" },
 		showWhenNoRule = true,
 	},
 	{
