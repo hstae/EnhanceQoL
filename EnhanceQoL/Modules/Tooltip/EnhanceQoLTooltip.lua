@@ -49,11 +49,16 @@ end
 
 local function safeSecureCall(func, ...)
 	if not func then return false end
-	if securecallfunction then
-		return securecallfunction(secureInvoke, func, ...) == true
-	end
+	if securecallfunction then return securecallfunction(secureInvoke, func, ...) == true end
 	local ok = pcall(func, ...)
 	return ok
+end
+
+local function IsTooltipMutable(tooltip)
+	if not tooltip then return false end
+	if tooltip.IsForbidden and tooltip:IsForbidden() then return false end
+	if tooltip.IsProtected and tooltip:IsProtected() then return false end
+	return true
 end
 
 local function GetUnitTokenFromTooltip(tt)
@@ -391,7 +396,7 @@ local function fmtNum(n)
 end
 
 local function checkCurrency(tooltip, id)
-	if tooltip:IsForbidden() or tooltip:IsProtected() then return end
+	if not IsTooltipMutable(tooltip) then return end
 	if not id then return end
 
 	if addon.db["TooltipShowCurrencyID"] then
@@ -453,6 +458,7 @@ local function checkCurrency(tooltip, id)
 end
 
 local function checkSpell(tooltip, id, name, isSpell)
+	if not IsTooltipMutable(tooltip) then return end
 	local first = true
 	if addon.db["TooltipShowSpellID"] then
 		if id then
@@ -571,6 +577,7 @@ local function ShouldRunAdditionalTooltip()
 end
 
 local function checkAdditionalTooltip(tooltip)
+	if not IsTooltipMutable(tooltip) then return end
 	if not ShouldRunAdditionalTooltip() then return end
 	local unit = ResolveTooltipUnit(tooltip)
 	local function challengeLabel(mapId)
@@ -912,6 +919,7 @@ local function UpdateTooltipHealthBarVisibility(tooltip)
 end
 
 local function checkUnit(tooltip)
+	if not IsTooltipMutable(tooltip) then return end
 	UpdateTooltipHealthBarVisibility(tooltip)
 	if not HasUnitTooltipOptions() then return end
 	if addon.db["TooltipUnitHideInDungeon"] and select(1, IsInInstance()) == false then
@@ -961,6 +969,7 @@ addon.Tooltip.ApplyScale = ApplyTooltipScale
 
 local lastEntry
 local function checkItem(tooltip, id, name, guid)
+	if not IsTooltipMutable(tooltip) then return end
 	local first = true
 
 	-- Automatically preview housing items if enabled
@@ -1068,6 +1077,7 @@ local function checkItem(tooltip, id, name, guid)
 end
 
 local function checkAura(tooltip, id, name)
+	if not IsTooltipMutable(tooltip) then return end
 	local first = true
 	if addon.db["TooltipShowSpellID"] then
 		if id then
@@ -1118,6 +1128,7 @@ local function checkAura(tooltip, id, name)
 end
 
 local function checkAdditionalUnit(tt)
+	if not IsTooltipMutable(tt) then return end
 	if not (addon.db["TooltipUnitShowSpec"] or addon.db["TooltipUnitShowItemLevel"]) then return end
 	if isTooltipRestricted() then return end
 
@@ -1149,6 +1160,7 @@ if TooltipDataProcessor then
 	TooltipDataProcessor.AddTooltipPostCall(TooltipDataProcessor.AllTypes, function(tooltip, data)
 		if not addon.db then return end
 		if not data or not data.type then return end
+		if not IsTooltipMutable(tooltip) then return end
 
 		local restricted = addon.functions.isRestrictedContent and addon.functions.isRestrictedContent(true)
 		local id, name, _, timeLimit, kind
