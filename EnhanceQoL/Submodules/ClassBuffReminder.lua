@@ -349,6 +349,14 @@ local function textOutlineFlags(value)
 	return "OUTLINE"
 end
 
+local function centeredAxisOffset(index, count, step)
+	local idx = tonumber(index)
+	local total = tonumber(count)
+	local spacing = tonumber(step)
+	if not idx or not total or not spacing then return 0 end
+	return ((idx - 1) - ((total - 1) / 2)) * spacing
+end
+
 local function safeIsPlayerSpell(spellId)
 	spellId = normalizeSpellId(spellId)
 	if not spellId then return false end
@@ -1629,14 +1637,21 @@ function Reminder:RenderSelfMissingIcons(missingEntries)
 
 		local x = 0
 		local y = 0
-		if direction == GROWTH_LEFT then
-			x = growFromCenter and -((i - 1) * step) or ((width / 2) - (scaledIconSize / 2) - ((i - 1) * step))
+		if growFromCenter then
+			local centeredOffset = centeredAxisOffset(i, count, step)
+			if direction == GROWTH_UP or direction == GROWTH_DOWN then
+				y = centeredOffset
+			else
+				x = centeredOffset
+			end
+		elseif direction == GROWTH_LEFT then
+			x = (width / 2) - (scaledIconSize / 2) - ((i - 1) * step)
 		elseif direction == GROWTH_UP then
-			y = growFromCenter and ((i - 1) * step) or (-(height / 2) + (scaledIconSize / 2) + ((i - 1) * step))
+			y = -(height / 2) + (scaledIconSize / 2) + ((i - 1) * step)
 		elseif direction == GROWTH_DOWN then
-			y = growFromCenter and -((i - 1) * step) or ((height / 2) - (scaledIconSize / 2) - ((i - 1) * step))
+			y = (height / 2) - (scaledIconSize / 2) - ((i - 1) * step)
 		else
-			x = growFromCenter and ((i - 1) * step) or (-(width / 2) + (scaledIconSize / 2) + ((i - 1) * step))
+			x = -(width / 2) + (scaledIconSize / 2) + ((i - 1) * step)
 		end
 
 		iconFrame:SetPoint("CENTER", container, "CENTER", x, y)
@@ -1754,19 +1769,22 @@ function Reminder:ApplySamplePreview(iconSize, scale, iconGap)
 		sample:SetAlpha(i == 1 and 1 or 0.85)
 		sample:Show()
 
-		if i == 1 then
-			if growFromCenter then
-				sample:SetPoint("CENTER", frame, "CENTER", 0, 0)
+		if growFromCenter then
+			local centeredOffset = centeredAxisOffset(i, count, spacing)
+			if direction == GROWTH_UP or direction == GROWTH_DOWN then
+				sample:SetPoint("CENTER", frame, "CENTER", 0, centeredOffset)
 			else
-				if direction == GROWTH_LEFT then
-					sample:SetPoint("RIGHT", frame, "LEFT", -spacing, 0)
-				elseif direction == GROWTH_UP then
-					sample:SetPoint("BOTTOM", frame, "TOP", 0, spacing)
-				elseif direction == GROWTH_DOWN then
-					sample:SetPoint("TOP", frame, "BOTTOM", 0, -spacing)
-				else
-					sample:SetPoint("LEFT", frame, "RIGHT", spacing, 0)
-				end
+				sample:SetPoint("CENTER", frame, "CENTER", centeredOffset, 0)
+			end
+		elseif i == 1 then
+			if direction == GROWTH_LEFT then
+				sample:SetPoint("RIGHT", frame, "LEFT", -spacing, 0)
+			elseif direction == GROWTH_UP then
+				sample:SetPoint("BOTTOM", frame, "TOP", 0, spacing)
+			elseif direction == GROWTH_DOWN then
+				sample:SetPoint("TOP", frame, "BOTTOM", 0, -spacing)
+			else
+				sample:SetPoint("LEFT", frame, "RIGHT", spacing, 0)
 			end
 		else
 			local prev = frame.sampleIcons[i - 1]
