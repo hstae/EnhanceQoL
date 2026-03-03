@@ -13,6 +13,7 @@
 - Shared Media: Added new sound `Wrestling Bell`.
 - Class Buff Reminder: Added `Grow from center` and expanded self-buff/enchant coverage for Paladin (`Rites`), Rogue (`Lethal + Non-lethal Poisons`), and Shaman (`Skyfury`, `Earthliving`, `Tidecaller's Guard`).
 - Class Buff Reminder (Evoker): Added `Source of Magic` tracking with healer-target-aware logic (only when at least one other healer target exists).
+- Class Buff Reminder: Added optional flask tracking (shared with Flask Macro preferences), only showing when a matching flask is available in bags.
 - Resource Bars (Rogue): Added charged combo point styling with Rogue-only options (toggle, custom fill/background colors, highlight strength, and alpha).
 
 ### 🐛 Fixed

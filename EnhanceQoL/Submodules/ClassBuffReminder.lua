@@ -47,6 +47,7 @@ local DB_MISSING_SOUND = "classBuffReminderMissingSound"
 local DB_DISPLAY_MODE = "classBuffReminderDisplayMode"
 local DB_GROWTH_DIRECTION = "classBuffReminderGrowthDirection"
 local DB_GROWTH_FROM_CENTER = "classBuffReminderGrowthFromCenter"
+local DB_TRACK_FLASKS = "classBuffReminderTrackFlasks"
 local DB_SCALE = "classBuffReminderScale"
 local DB_ICON_SIZE = "classBuffReminderIconSize"
 local DB_FONT_SIZE = "classBuffReminderFontSize"
@@ -71,6 +72,7 @@ Reminder.defaults = Reminder.defaults
 		displayMode = DISPLAY_MODE_ICON_ONLY,
 		growthDirection = GROWTH_RIGHT,
 		growthFromCenter = false,
+		trackFlasks = false,
 		scale = 1,
 		iconSize = 64,
 		fontSize = 13,
@@ -105,6 +107,19 @@ local EVOKER_BLESSING_OF_BRONZE_IDS = {
 
 local EVOKER_SOURCE_OF_MAGIC_IDS = {
 	369459, -- Source of Magic
+}
+
+-- Shared flask auras (TWW + Midnight). Used for reminder presence checks.
+local SHARED_FLASK_AURA_IDS = {
+	432021,
+	431971,
+	431972,
+	431973,
+	431974,
+	1235057,
+	1235108,
+	1235110,
+	1235111,
 }
 
 local PROVIDER_BY_CLASS = {
@@ -461,6 +476,13 @@ local function makeSelfMissingEntry(spellId, label, countMissing, countTotal)
 	}
 end
 
+local function appendMissingEntries(target, source)
+	if type(target) ~= "table" or type(source) ~= "table" then return end
+	for i = 1, #source do
+		target[#target + 1] = source[i]
+	end
+end
+
 local function buildSelfStatus(total, missingEntries)
 	local entries = type(missingEntries) == "table" and missingEntries or {}
 	local missing = #entries
@@ -572,6 +594,114 @@ function Reminder:GetCurrentSpecId()
 	specId = tonumber(specId)
 	if not specId or specId <= 0 then return nil end
 	return specId
+end
+
+function Reminder:IsFlaskTrackingEnabled() return getValue(DB_TRACK_FLASKS, defaults.trackFlasks) == true end
+
+function Reminder:InvalidateFlaskCache()
+	self.flaskCandidateCache = nil
+	self.flaskCandidateCacheSpecId = nil
+	self.flaskCandidateCacheTime = 0
+	self.flaskCandidateCacheReady = false
+	self.flaskCacheDirty = true
+end
+
+local function nowSeconds()
+	if GetTimePreciseSec then return tonumber(GetTimePreciseSec()) or 0 end
+	if GetTime then return tonumber(GetTime()) or 0 end
+	return 0
+end
+
+function Reminder:GetFlaskCandidatesForCurrentSpec()
+	if not self:IsFlaskTrackingEnabled() then return nil, nil end
+	if not (addon.Flasks and addon.Flasks.functions and addon.Flasks.functions.getAvailableCandidatesForSpec) then return nil, nil end
+
+	local specId = self:GetCurrentSpecId()
+	local now = nowSeconds()
+	if self.flaskCacheDirty ~= true
+		and self.flaskCandidateCacheReady == true
+		and self.flaskCandidateCacheSpecId == specId
+		and (now - (tonumber(self.flaskCandidateCacheTime) or 0)) <= 0.75
+	then
+		return self.flaskCandidateCache, self.flaskSelectedType
+	end
+
+	local candidates, selectedType = addon.Flasks.functions.getAvailableCandidatesForSpec(specId)
+	if type(selectedType) ~= "string" then selectedType = nil end
+	if selectedType == "none" then
+		candidates = nil
+	elseif type(candidates) ~= "table" or #candidates <= 0 then
+		candidates = nil
+	end
+
+	self.flaskCandidateCache = candidates
+	self.flaskCandidateCacheSpecId = specId
+	self.flaskSelectedType = selectedType
+	self.flaskCandidateCacheTime = now
+	self.flaskCandidateCacheReady = true
+	self.flaskCacheDirty = false
+
+	return candidates, selectedType
+end
+
+function Reminder:GetFlaskMissingEntry()
+	local candidates = self:GetFlaskCandidatesForCurrentSpec()
+	if type(candidates) ~= "table" or #candidates <= 0 then return nil end
+
+	local hasFlaskAura = self:UnitHasAnyAuraSpellId("player", SHARED_FLASK_AURA_IDS)
+	local dynamicSpellIds = self.runtimeFlaskSpellIds or {}
+	local dynamicAuraNames = self.runtimeFlaskAuraNames or {}
+	self.runtimeFlaskSpellIds = dynamicSpellIds
+	self.runtimeFlaskAuraNames = dynamicAuraNames
+	wipeTable(dynamicSpellIds)
+	wipeTable(dynamicAuraNames)
+
+	local displaySpellId
+	local displayLabel
+	for i = 1, #candidates do
+		local itemId = tonumber(candidates[i] and candidates[i].id)
+		if itemId and itemId > 0 then
+			local spellName, spellId
+			if C_Item and C_Item.GetItemSpell then
+				spellName, spellId = C_Item.GetItemSpell(itemId)
+			elseif GetItemSpell then
+				spellName, spellId = GetItemSpell(itemId)
+			end
+
+			spellId = normalizeSpellId(spellId)
+			if not displaySpellId and spellId then displaySpellId = spellId end
+			if spellId then dynamicSpellIds[#dynamicSpellIds + 1] = spellId end
+
+			if type(spellName) == "string" and spellName ~= "" then
+				dynamicAuraNames[#dynamicAuraNames + 1] = spellName
+				if not displayLabel then displayLabel = spellName end
+			end
+
+			local itemName
+			if C_Item and C_Item.GetItemNameByID then itemName = C_Item.GetItemNameByID(itemId) end
+			if (not itemName or itemName == "") and GetItemInfo then itemName = GetItemInfo(itemId) end
+			if type(itemName) == "string" and itemName ~= "" then
+				dynamicAuraNames[#dynamicAuraNames + 1] = itemName
+				if not displayLabel then displayLabel = itemName end
+			end
+		end
+	end
+
+	if not hasFlaskAura and #dynamicSpellIds > 0 and self:UnitHasAnyAuraSpellId("player", dynamicSpellIds) then hasFlaskAura = true end
+	if not hasFlaskAura and #dynamicAuraNames > 0 and self:UnitHasAnyAuraName("player", dynamicAuraNames) then hasFlaskAura = true end
+	if hasFlaskAura then return nil end
+
+	if not displaySpellId then displaySpellId = normalizeSpellId(SHARED_FLASK_AURA_IDS[1]) end
+	if type(displayLabel) ~= "string" or displayLabel == "" then displayLabel = "Flask" end
+	return makeSelfMissingEntry(displaySpellId, displayLabel)
+end
+
+function Reminder:GetSupplementalMissingEntries()
+	if not self:IsFlaskTrackingEnabled() then return nil end
+	if not (UnitExists and UnitExists("player") and UnitIsConnected and UnitIsConnected("player") and not UnitIsDeadOrGhost("player")) then return nil end
+	local flaskEntry = self:GetFlaskMissingEntry()
+	if not flaskEntry then return nil end
+	return { flaskEntry }
 end
 
 function Reminder:UnitHasAnyAuraSpellId(unit, spellIds)
@@ -2071,16 +2201,33 @@ function Reminder:ShouldRegisterRuntimeEvents()
 	return true
 end
 
-function Reminder:Render(provider, missing, total)
+function Reminder:Render(provider, missing, total, supplementalEntries, effectiveMissing)
 	local frame = self:EnsureFrame()
 	if not frame then return end
 
 	local displayMode = normalizeDisplayMode(getValue(DB_DISPLAY_MODE, defaults.displayMode))
 	local title = self:GetProviderName(provider)
 	local selfMissingEntries = self:GetSelfMissingEntries(provider)
+	local supplemental = type(supplementalEntries) == "table" and supplementalEntries or nil
+	local iconEntries
+	local summaryEntries
+
+	if provider and provider.scope == PROVIDER_SCOPE_SELF then
+		summaryEntries = {}
+		if type(selfMissingEntries) == "table" and #selfMissingEntries > 0 then appendMissingEntries(summaryEntries, selfMissingEntries) end
+		if supplemental and #supplemental > 0 then appendMissingEntries(summaryEntries, supplemental) end
+		if #summaryEntries <= 0 then summaryEntries = nil end
+		iconEntries = summaryEntries
+	elseif supplemental and #supplemental > 0 then
+		summaryEntries = supplemental
+		iconEntries = {}
+		if tonumber(missing) and missing > 0 then iconEntries[#iconEntries + 1] = makeSelfMissingEntry(provider and provider.displaySpellId, title, missing, total) end
+		appendMissingEntries(iconEntries, supplemental)
+	end
+
 	self:HideSelfMissingIcons()
 	if displayMode == DISPLAY_MODE_ICON_ONLY then
-		if provider and provider.scope == PROVIDER_SCOPE_SELF then
+		if iconEntries and #iconEntries > 0 then
 			if frame.iconCountText then frame.iconCountText:SetText("") end
 		else
 			local shortFmt = L["ClassBuffReminderCountOnlyFmt"] or "%d/%d"
@@ -2089,7 +2236,20 @@ function Reminder:Render(provider, missing, total)
 	else
 		frame.nameText:SetText(title)
 		if provider and provider.scope == PROVIDER_SCOPE_SELF then
-			frame.countText:SetText(self:GetSelfMissingSummaryText(selfMissingEntries))
+			frame.countText:SetText(self:GetSelfMissingSummaryText(summaryEntries))
+		elseif summaryEntries and #summaryEntries > 0 then
+			if tonumber(missing) and missing > 0 then
+				local missingText = L["ClassBuffReminderMissingFmt"] or "%d/%d missing"
+				local buffMissingText = string.format(missingText, missing, total)
+				local supplementalText = self:GetSelfMissingSummaryText(summaryEntries)
+				if supplementalText and supplementalText ~= "" then
+					frame.countText:SetText(buffMissingText .. ", " .. supplementalText)
+				else
+					frame.countText:SetText(buffMissingText)
+				end
+			else
+				frame.countText:SetText(self:GetSelfMissingSummaryText(summaryEntries))
+			end
 		else
 			local missingText = L["ClassBuffReminderMissingFmt"] or "%d/%d missing"
 			frame.countText:SetText(string.format(missingText, missing, total))
@@ -2105,9 +2265,10 @@ function Reminder:Render(provider, missing, total)
 	end
 	frame.icon:SetTexture(providerIcon)
 	self:ApplyVisualSettings()
-	if displayMode == DISPLAY_MODE_ICON_ONLY and provider and provider.scope == PROVIDER_SCOPE_SELF and self.editModeActive ~= true then self:RenderSelfMissingIcons(selfMissingEntries) end
+	if displayMode == DISPLAY_MODE_ICON_ONLY and iconEntries and #iconEntries > 0 and self.editModeActive ~= true then self:RenderSelfMissingIcons(iconEntries) end
 	if displayMode ~= DISPLAY_MODE_ICON_ONLY then
-		if missing > 0 then
+		local hasVisibleMissing = (tonumber(effectiveMissing) or tonumber(missing) or 0) > 0
+		if hasVisibleMissing then
 			if frame.countText then frame.countText:SetTextColor(1, 0.25, 0.25, 1) end
 		else
 			if frame.countText then frame.countText:SetTextColor(0.35, 1, 0.35, 1) end
@@ -2115,7 +2276,7 @@ function Reminder:Render(provider, missing, total)
 	end
 	frame:Show()
 
-	local showGlow = getValue(DB_GLOW, defaults.glow) == true and missing > 0
+	local showGlow = getValue(DB_GLOW, defaults.glow) == true and ((tonumber(effectiveMissing) or tonumber(missing) or 0) > 0)
 	self:SetGlowShown(showGlow)
 end
 
@@ -2181,14 +2342,18 @@ function Reminder:UpdateDisplay()
 	end
 
 	local missing, total = self:ComputeMissing(provider)
-	if total <= 0 then
+	local supplementalEntries = self:GetSupplementalMissingEntries()
+	local supplementalMissing = type(supplementalEntries) == "table" and #supplementalEntries or 0
+	if total <= 0 and supplementalMissing <= 0 then
 		self:SetGlowShown(false)
 		self.missingActive = false
 		frame:Hide()
 		return
 	end
 
-	if self.suppressNextMissingSound == true and missing <= 0 then
+	local effectiveMissing = (tonumber(missing) or 0) + supplementalMissing
+
+	if self.suppressNextMissingSound == true and effectiveMissing <= 0 then
 		self.suppressNextMissingSound = false
 		self:WriteSoundDebug("play-suppress-cleared", {
 			reason = "no-missing-on-initial-check",
@@ -2196,16 +2361,16 @@ function Reminder:UpdateDisplay()
 		})
 	end
 
-	if missing <= 0 then
+	if effectiveMissing <= 0 then
 		self:SetGlowShown(false)
 		self.missingActive = false
 		frame:Hide()
 		return
 	end
 
-	self:UpdateMissingStateAndSound(missing)
+	self:UpdateMissingStateAndSound(effectiveMissing)
 
-	self:Render(provider, missing, total)
+	self:Render(provider, missing, total, supplementalEntries, effectiveMissing)
 end
 
 function Reminder:RequestUpdate(immediate)
@@ -2228,11 +2393,21 @@ function Reminder:HandleEvent(event, unit, updateInfo)
 	if event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" then self:ScheduleInitialSoundSync(event) end
 
 	if event == "UNIT_INVENTORY_CHANGED" then
-		if unit == "player" then self:RequestUpdate(false) end
+		if unit == "player" then
+			self:InvalidateFlaskCache()
+			self:RequestUpdate(false)
+		end
 		return
 	end
 
 	if event == "PLAYER_EQUIPMENT_CHANGED" then
+		self:InvalidateFlaskCache()
+		self:RequestUpdate(false)
+		return
+	end
+
+	if event == "BAG_UPDATE_DELAYED" or event == "PLAYER_LEVEL_UP" then
+		self:InvalidateFlaskCache()
 		self:RequestUpdate(false)
 		return
 	end
@@ -2260,6 +2435,7 @@ function Reminder:HandleEvent(event, unit, updateInfo)
 	end
 
 	self:InvalidateAuraStates()
+	self:InvalidateFlaskCache()
 	self:RequestUpdate(true)
 end
 
@@ -2283,6 +2459,8 @@ function Reminder:RegisterEvents()
 	self.eventFrame:RegisterEvent("UNIT_AURA")
 	self.eventFrame:RegisterEvent("UNIT_INVENTORY_CHANGED")
 	self.eventFrame:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
+	self.eventFrame:RegisterEvent("BAG_UPDATE_DELAYED")
+	self.eventFrame:RegisterEvent("PLAYER_LEVEL_UP")
 	self.eventFrame:SetScript("OnEvent", function(_, event, ...) Reminder:HandleEvent(event, ...) end)
 
 	self.eventsRegistered = true
@@ -2335,6 +2513,12 @@ function Reminder:RegisterEditMode()
 	local function setGrowthFromCenter(value)
 		if addon.db then addon.db[DB_GROWTH_FROM_CENTER] = value == true end
 		Reminder:ApplyVisualSettings()
+		Reminder:RequestUpdate(true)
+	end
+
+	local function setTrackFlasks(value)
+		if addon.db then addon.db[DB_TRACK_FLASKS] = value == true end
+		Reminder:InvalidateFlaskCache()
 		Reminder:RequestUpdate(true)
 	end
 
@@ -2392,6 +2576,13 @@ function Reminder:RegisterEditMode()
 				default = defaults.showSolo,
 				get = function() return getValue(DB_SHOW_SOLO, defaults.showSolo) == true end,
 				set = function(_, value) setBool(DB_SHOW_SOLO, value) end,
+			},
+			{
+				name = L["ClassBuffReminderTrackFlasks"] or "Track missing flask buff",
+				kind = SettingType.Checkbox,
+				default = defaults.trackFlasks == true,
+				get = function() return getValue(DB_TRACK_FLASKS, defaults.trackFlasks) == true end,
+				set = function(_, value) setTrackFlasks(value) end,
 			},
 			{
 				name = L["ClassBuffReminderGlow"] or "Glow when missing",
@@ -2681,6 +2872,7 @@ function Reminder:OnSettingChanged()
 	end
 	self:ApplyVisualSettings()
 	self:InvalidateAuraStates()
+	self:InvalidateFlaskCache()
 
 	if runtimeActive then
 		self:RegisterEvents()

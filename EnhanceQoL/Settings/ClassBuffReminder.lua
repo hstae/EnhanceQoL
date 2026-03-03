@@ -16,6 +16,7 @@ local DB_MISSING_SOUND = "classBuffReminderMissingSound"
 local DB_DISPLAY_MODE = "classBuffReminderDisplayMode"
 local DB_GROWTH_DIRECTION = "classBuffReminderGrowthDirection"
 local DB_GROWTH_FROM_CENTER = "classBuffReminderGrowthFromCenter"
+local DB_TRACK_FLASKS = "classBuffReminderTrackFlasks"
 local DB_SCALE = "classBuffReminderScale"
 local DB_ICON_SIZE = "classBuffReminderIconSize"
 local DB_FONT_SIZE = "classBuffReminderFontSize"
@@ -38,6 +39,7 @@ local defaults = (Reminder and Reminder.defaults)
 		displayMode = "ICON_ONLY",
 		growthDirection = "RIGHT",
 		growthFromCenter = false,
+		trackFlasks = false,
 		scale = 1,
 		iconSize = 64,
 		fontSize = 13,
@@ -51,6 +53,24 @@ local defaults = (Reminder and Reminder.defaults)
 
 local function refreshReminder()
 	if Reminder and Reminder.OnSettingChanged then Reminder:OnSettingChanged() end
+end
+
+local function openFlaskSettings()
+	if addon.functions and addon.functions.OpenFlaskMacroSettings then
+		addon.functions.OpenFlaskMacroSettings()
+		return
+	end
+
+	if not (Settings and Settings.OpenToCategory) then return end
+	local gameplayCategory = addon.SettingsLayout and addon.SettingsLayout.rootGAMEPLAY
+	if not gameplayCategory then return end
+
+	if InCombatLockdown and InCombatLockdown() then
+		if UIErrorsFrame and ERR_NOT_IN_COMBAT then UIErrorsFrame:AddMessage(ERR_NOT_IN_COMBAT, 1, 0, 0) end
+		return
+	end
+
+	Settings.OpenToCategory(gameplayCategory:GetID(), "Flask Macro")
 end
 
 local expandable = addon.functions.SettingsCreateExpandableSection(cat, {
@@ -78,6 +98,29 @@ addon.functions.SettingsCreateCheckbox(cat, {
 	parentSection = expandable,
 })
 
+addon.functions.SettingsCreateCheckbox(cat, {
+	var = DB_TRACK_FLASKS,
+	text = L["ClassBuffReminderTrackFlasks"] or "Track missing flask buff",
+	desc = L["ClassBuffReminderTrackFlasksDesc"] or "Shows a flask reminder only when a matching flask is available in your bags.",
+	func = function(value)
+		addon.db[DB_TRACK_FLASKS] = value == true
+		refreshReminder()
+	end,
+	parentSection = expandable,
+})
+
+addon.functions.SettingsCreateText(cat, L["ClassBuffReminderFlaskSharedHint"] or "Flask preferences are shared with Flask Macro (Gameplay -> Macros & Consumables).", {
+	parentSection = expandable,
+})
+
+addon.functions.SettingsCreateButton(cat, {
+	var = "classBuffReminderOpenFlaskSettings",
+	text = L["ClassBuffReminderOpenFlaskSettings"] or "Open Flask settings",
+	desc = L["ClassBuffReminderOpenFlaskSettingsDesc"] or "Jumps to Gameplay -> Macros & Consumables and focuses Flask Macro settings.",
+	func = openFlaskSettings,
+	parentSection = expandable,
+})
+
 function addon.functions.initClassBuffReminder()
 	if not addon.functions or not addon.functions.InitDBValue then return end
 	local init = addon.functions.InitDBValue
@@ -92,6 +135,7 @@ function addon.functions.initClassBuffReminder()
 	init(DB_DISPLAY_MODE, defaults.displayMode)
 	init(DB_GROWTH_DIRECTION, defaults.growthDirection)
 	init(DB_GROWTH_FROM_CENTER, defaults.growthFromCenter)
+	init(DB_TRACK_FLASKS, defaults.trackFlasks)
 	init(DB_SCALE, defaults.scale)
 	init(DB_ICON_SIZE, defaults.iconSize)
 	init(DB_FONT_SIZE, defaults.fontSize)
