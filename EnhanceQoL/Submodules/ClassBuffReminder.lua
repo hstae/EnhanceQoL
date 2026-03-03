@@ -46,6 +46,7 @@ local DB_SOUND_ON_MISSING = "classBuffReminderSoundOnMissing"
 local DB_MISSING_SOUND = "classBuffReminderMissingSound"
 local DB_DISPLAY_MODE = "classBuffReminderDisplayMode"
 local DB_GROWTH_DIRECTION = "classBuffReminderGrowthDirection"
+local DB_GROWTH_FROM_CENTER = "classBuffReminderGrowthFromCenter"
 local DB_SCALE = "classBuffReminderScale"
 local DB_ICON_SIZE = "classBuffReminderIconSize"
 local DB_FONT_SIZE = "classBuffReminderFontSize"
@@ -69,6 +70,7 @@ Reminder.defaults = Reminder.defaults
 		missingSound = "",
 		displayMode = DISPLAY_MODE_ICON_ONLY,
 		growthDirection = GROWTH_RIGHT,
+		growthFromCenter = false,
 		scale = 1,
 		iconSize = 64,
 		fontSize = 13,
@@ -82,24 +84,32 @@ Reminder.defaults = Reminder.defaults
 
 local defaults = Reminder.defaults
 
+local PROVIDER_SCOPE_GROUP = "GROUP"
+local PROVIDER_SCOPE_SELF = "SELF"
+
 local PROVIDER_BY_CLASS = {
 	DRUID = {
+		scope = PROVIDER_SCOPE_GROUP,
 		spellIds = { 1126 },
 		fallbackName = "Mark of the Wild",
 	},
 	MAGE = {
+		scope = PROVIDER_SCOPE_GROUP,
 		spellIds = { 1459 },
 		fallbackName = "Arcane Intellect",
 	},
 	PRIEST = {
+		scope = PROVIDER_SCOPE_GROUP,
 		spellIds = { 21562 },
 		fallbackName = "Power Word: Fortitude",
 	},
 	WARRIOR = {
+		scope = PROVIDER_SCOPE_GROUP,
 		spellIds = { 6673 },
 		fallbackName = "Battle Shout",
 	},
 	EVOKER = {
+		scope = PROVIDER_SCOPE_GROUP,
 		spellIds = {
 			381732,
 			381741,
@@ -118,9 +128,70 @@ local PROVIDER_BY_CLASS = {
 		fallbackName = "Blessing of the Bronze",
 	},
 	SHAMAN = {
+		scope = PROVIDER_SCOPE_GROUP,
 		spellIds = { 462854 },
 		fallbackName = "Skyfury",
 	},
+}
+
+local PALADIN_RITES = {
+	adjuration = {
+		spellId = 433583,
+		buffIds = { 433583 },
+		fallbackName = "Rite of Adjuration",
+		enchantId = 7144,
+	},
+	sanctification = {
+		spellId = 433568,
+		buffIds = { 433568 },
+		fallbackName = "Rite of Sanctification",
+		enchantId = 7143,
+	},
+}
+
+local ROGUE_POISON_LETHAL_IDS = {
+	315584, -- Instant Poison
+	2823, -- Deadly Poison
+	8679, -- Wound Poison
+	381664, -- Amplifying Poison
+}
+
+local ROGUE_POISON_UTILITY_IDS = {
+	3408, -- Crippling Poison
+	5761, -- Numbing Poison
+	381637, -- Atrophic Poison
+}
+
+local SHAMAN_SPEC_ENHANCEMENT = 263
+local SHAMAN_SPEC_RESTORATION = 264
+
+local SHAMAN_ENHANCEMENT_WINDFURY_IDS = {
+	319773, -- Windfury Weapon (modern aura id)
+	33757, -- Windfury Weapon (legacy aura id)
+}
+
+local SHAMAN_ENHANCEMENT_FLAMETONGUE_IDS = {
+	319778, -- Flametongue Weapon (modern aura id)
+	318038, -- Flametongue Weapon (legacy aura id)
+}
+
+local SHAMAN_RESTORATION_EARTHLIVING_IDS = {
+	382021,
+	382022,
+	382024, -- Earthliving Weapon (aura variant)
+}
+
+local SHAMAN_RESTORATION_TIDECALLER_IDS = {
+	457481, -- Tidecaller's Guard
+	457496, -- Tidecaller's Guard
+}
+
+local SHAMAN_RESTORATION_EARTHLIVING_AURA_NAMES = {
+	"Earthliving Weapon",
+}
+
+local SHAMAN_RESTORATION_TIDECALLER_AURA_NAMES = {
+	"Tidecaller's Guard",
 }
 
 local function clamp(value, minValue, maxValue, fallback)
@@ -164,9 +235,27 @@ end
 local function isAIFollowerUnit(unit)
 	if type(unit) ~= "string" or unit == "player" then return false end
 	if not UnitInPartyIsAI then return false end
-	local ok, isAI = pcall(UnitInPartyIsAI, unit)
-	if not ok then return false end
+	local isAI = UnitInPartyIsAI(unit)
 	return isAI == true
+end
+
+local function isPlayerOffhandShield()
+	if not GetItemInfoInstant then return false end
+
+	local offhandSlot = INVSLOT_OFFHAND or 17
+	if GetInventoryItemID then
+		local offhandItemId = GetInventoryItemID("player", offhandSlot)
+		if offhandItemId then
+			local equipLocById = select(4, GetItemInfoInstant(offhandItemId))
+			if equipLocById == "INVTYPE_SHIELD" then return true end
+		end
+	end
+
+	if not GetInventoryItemLink then return false end
+	local offhandLink = GetInventoryItemLink("player", offhandSlot)
+	if type(offhandLink) ~= "string" or offhandLink == "" then return false end
+	local equipLoc = select(4, GetItemInfoInstant(offhandLink))
+	return equipLoc == "INVTYPE_SHIELD"
 end
 
 local function safeGetSpellName(spellId)
@@ -189,7 +278,7 @@ local function requestSpellDataLoad(spellId)
 	spellId = tonumber(spellId)
 	if not spellId then return end
 	if spellId <= 0 then return end
-	if C_Spell and C_Spell.RequestLoadSpellData then pcall(C_Spell.RequestLoadSpellData, spellId) end
+	if C_Spell and C_Spell.RequestLoadSpellData then C_Spell.RequestLoadSpellData(spellId) end
 end
 
 local function getSpellIconRaw(spellId)
@@ -260,24 +349,154 @@ local function textOutlineFlags(value)
 	return "OUTLINE"
 end
 
+local function safeIsPlayerSpell(spellId)
+	spellId = normalizeSpellId(spellId)
+	if not spellId then return false end
+
+	if C_SpellBook and C_SpellBook.IsSpellKnown then
+		if C_SpellBook.IsSpellKnown(spellId) then return true end
+	end
+
+	if IsPlayerSpell and IsPlayerSpell(spellId) then return true end
+
+	return false
+end
+
+local function hasKnownSpellInList(spellIds)
+	if type(spellIds) ~= "table" then return false end
+	for i = 1, #spellIds do
+		if safeIsPlayerSpell(spellIds[i]) then return true end
+	end
+	return false
+end
+
+local function unitHasAuraBySpellId(unit, spellId)
+	spellId = normalizeSpellId(spellId)
+	if not spellId then return false end
+	if type(unit) ~= "string" or unit == "" then return false end
+
+	if C_UnitAuras and C_UnitAuras.GetUnitAuraBySpellID then
+		if C_UnitAuras.GetUnitAuraBySpellID(unit, spellId) ~= nil then return true end
+	end
+
+	if AuraUtil and AuraUtil.FindAuraBySpellID then
+		if AuraUtil.FindAuraBySpellID(spellId, unit, AURA_FILTER_HELPFUL) ~= nil then return true end
+	end
+
+	-- Some weapon-imbue auras can surface with an alternate spellID but keep the same aura name.
+	if AuraUtil and AuraUtil.FindAuraByName then
+		local spellName = safeGetSpellName(spellId)
+		if type(spellName) == "string" and spellName ~= "" then
+			if AuraUtil.FindAuraByName(spellName, unit, AURA_FILTER_HELPFUL) ~= nil then return true end
+		end
+	end
+
+	return false
+end
+
+local function playerHasEnchantId(enchantId)
+	enchantId = tonumber(enchantId)
+	if not enchantId or enchantId <= 0 then return false end
+	if not GetWeaponEnchantInfo then return false end
+
+	local hasMain, _, _, mainEnchantId, hasOff, _, _, offEnchantId = GetWeaponEnchantInfo()
+	if hasMain and tonumber(mainEnchantId) == enchantId then return true end
+	if hasOff and tonumber(offEnchantId) == enchantId then return true end
+	return false
+end
+
+local function resetProviderRuntimeCache(provider)
+	if type(provider) ~= "table" then return end
+	provider.spellSet = nil
+	provider.spellNameSet = nil
+	provider.spellNameSetReady = nil
+	provider.spellNameRefreshAttempts = nil
+	provider.displaySpellId = nil
+	provider.cachedName = nil
+	provider.cachedIcon = nil
+	provider._presentationReady = nil
+end
+
+local function setProviderDisplaySpellId(provider, spellId)
+	if type(provider) ~= "table" then return end
+	local sid = normalizeSpellId(spellId)
+	if not sid then return end
+	if provider.displaySpellId == sid and provider.cachedIcon and provider.cachedIcon ~= "" then return end
+	provider.displaySpellId = sid
+	provider.cachedName = nil
+	provider.cachedIcon = nil
+	provider._presentationReady = nil
+end
+
+local function makeSelfMissingEntry(spellId, label, countMissing, countTotal)
+	return {
+		spellId = normalizeSpellId(spellId),
+		label = label,
+		countMissing = tonumber(countMissing),
+		countTotal = tonumber(countTotal),
+	}
+end
+
+local function buildSelfStatus(total, missingEntries)
+	local entries = type(missingEntries) == "table" and missingEntries or {}
+	local missing = #entries
+	local normalizedTotal = tonumber(total) or 1
+	if normalizedTotal < missing then normalizedTotal = missing end
+	if normalizedTotal < 0 then normalizedTotal = 0 end
+	return {
+		total = normalizedTotal,
+		missing = missing,
+		missingEntries = entries,
+	}
+end
+
 local function resolveProviderPresentation(provider)
 	if not provider then return end
 
 	local resolvedId
 	local resolvedName
 	local resolvedIcon
+	local preferredId = normalizeSpellId(provider.displaySpellId)
+	if preferredId then resolvedId = preferredId end
+
+	if preferredId then
+		requestSpellDataLoad(preferredId)
+		local preferredName = safeGetSpellName(preferredId)
+		local preferredIcon = getSpellIconRaw(preferredId)
+		if preferredName and preferredName ~= "" then
+			resolvedName = preferredName
+			resolvedId = preferredId
+		end
+		if preferredIcon and preferredIcon ~= "" then
+			resolvedIcon = preferredIcon
+			resolvedId = preferredId
+		end
+		if resolvedName and resolvedIcon then
+			provider.displaySpellId = preferredId
+			provider.cachedName = resolvedName
+			provider.cachedIcon = resolvedIcon
+			provider._presentationReady = true
+			return
+		end
+	end
 
 	for i = 1, #provider.spellIds do
 		local sid = normalizeSpellId(provider.spellIds[i])
 		if sid then
+			if preferredId and sid == preferredId then
+				if resolvedName and resolvedIcon then
+					break
+				end
+				-- Continue with additional IDs only to fill missing name/icon fields.
+			end
 			requestSpellDataLoad(sid)
-			resolvedId = resolvedId or sid
+			if not resolvedId then resolvedId = sid end
 			local name = safeGetSpellName(sid)
 			local icon = getSpellIconRaw(sid)
 			if name and not resolvedName then resolvedName = name end
 			if icon and not resolvedIcon then resolvedIcon = icon end
 			if name and icon then
-				resolvedId = sid
+				if not preferredId then resolvedId = sid end
 				resolvedName = name
 				resolvedIcon = icon
 				break
@@ -285,7 +504,7 @@ local function resolveProviderPresentation(provider)
 		end
 	end
 
-	provider.displaySpellId = resolvedId or normalizeSpellId(provider.spellIds[1]) or provider.displaySpellId or provider.spellIds[1]
+	provider.displaySpellId = resolvedId or preferredId or normalizeSpellId(provider.spellIds[1]) or provider.displaySpellId or provider.spellIds[1]
 	provider.cachedName = resolvedName or provider.fallbackName or "Buff"
 	provider.cachedIcon = resolvedIcon or ICON_MISSING
 	provider._presentationReady = true
@@ -320,10 +539,412 @@ end
 
 function Reminder:GetClassToken() return (addon.variables and addon.variables.unitClass) or select(2, UnitClass("player")) end
 
+function Reminder:GetCurrentSpecId()
+	local sid = addon.variables and addon.variables.unitSpecId
+	sid = tonumber(sid)
+	if sid and sid > 0 then return sid end
+
+	local specIndex = GetSpecialization and GetSpecialization() or nil
+	if not specIndex or not GetSpecializationInfo then return nil end
+	local specId = GetSpecializationInfo(specIndex)
+	specId = tonumber(specId)
+	if not specId or specId <= 0 then return nil end
+	return specId
+end
+
+function Reminder:UnitHasAnyAuraSpellId(unit, spellIds)
+	if type(spellIds) ~= "table" then return false end
+	for i = 1, #spellIds do
+		local sid = normalizeSpellId(spellIds[i])
+		if sid and unitHasAuraBySpellId(unit, sid) then return true end
+	end
+	return false
+end
+
+function Reminder:UnitHasAnyAuraName(unit, auraNames)
+	if type(auraNames) ~= "table" then return false end
+	if type(unit) ~= "string" or unit == "" then return false end
+	if not (AuraUtil and AuraUtil.FindAuraByName) then return false end
+
+	for i = 1, #auraNames do
+		local auraName = auraNames[i]
+		if type(auraName) == "string" and auraName ~= "" then
+			if AuraUtil.FindAuraByName(auraName, unit, AURA_FILTER_HELPFUL) ~= nil then return true end
+		end
+	end
+
+	return false
+end
+
+function Reminder:GetGroupBuffMissingCountBySpellIds(spellIds)
+	if type(spellIds) ~= "table" then return 0, 0 end
+	self.runtimeUnits = self.runtimeUnits or {}
+	local units = self:CollectUnits(self.runtimeUnits)
+
+	local total = 0
+	local missing = 0
+	for i = 1, #units do
+		local unit = units[i]
+		if isAIFollowerUnit(unit) then
+			-- Skip AI followers for group-buff requirements.
+		elseif UnitExists(unit) and UnitIsConnected(unit) and not UnitIsDeadOrGhost(unit) then
+			total = total + 1
+			if not self:UnitHasAnyAuraSpellId(unit, spellIds) then missing = missing + 1 end
+		end
+	end
+
+	return missing, total
+end
+
+local function paladinRitesHasUnitBuff(provider, unit, reminder)
+	if unit ~= "player" then return false end
+	if type(reminder) ~= "table" then return false end
+	if reminder:UnitHasAnyAuraSpellId(unit, provider and provider.spellIds) then return true end
+	return provider and playerHasEnchantId(provider.enchantId) or false
+end
+
+local function paladinRitesGetSelfStatus(provider, reminder)
+	if type(provider) ~= "table" or type(reminder) ~= "table" then return buildSelfStatus(1, {}) end
+
+	local activeSpellId = normalizeSpellId(provider.spellIds and provider.spellIds[1]) or normalizeSpellId(provider.displaySpellId)
+	local hasRite = false
+	if reminder:UnitHasAnyAuraSpellId("player", provider.spellIds) then
+		hasRite = true
+	elseif provider.enchantId and playerHasEnchantId(provider.enchantId) then
+		hasRite = true
+	end
+
+	local missingEntries = {}
+	if not hasRite then
+		missingEntries[1] = makeSelfMissingEntry(activeSpellId, provider.fallbackName or "Rite")
+		setProviderDisplaySpellId(provider, activeSpellId)
+	else
+		setProviderDisplaySpellId(provider, activeSpellId)
+	end
+
+	return buildSelfStatus(1, missingEntries)
+end
+
+local function getRoguePoisonPresence(provider, reminder)
+	local hasLethal = reminder:UnitHasAnyAuraSpellId("player", provider.lethalSpellIds)
+	local hasUtility = reminder:UnitHasAnyAuraSpellId("player", provider.utilitySpellIds)
+
+	-- Fallback for clients where poisons are only exposed as temporary enchants.
+	if not hasLethal and not hasUtility and GetWeaponEnchantInfo then
+		local hasMainHandEnchant, _, _, _, hasOffHandEnchant = GetWeaponEnchantInfo()
+		if hasMainHandEnchant and hasOffHandEnchant then
+			hasLethal = true
+			hasUtility = true
+		end
+	end
+
+	return hasLethal, hasUtility
+end
+
+local function roguePoisonsGetSelfStatus(provider, reminder)
+	if type(provider) ~= "table" or type(reminder) ~= "table" then return buildSelfStatus(2, {}) end
+
+	local lethalDisplayId = normalizeSpellId(provider.lethalDisplaySpellId) or normalizeSpellId(provider.lethalSpellIds and provider.lethalSpellIds[1])
+	local utilityDisplayId = normalizeSpellId(provider.utilityDisplaySpellId) or normalizeSpellId(provider.utilitySpellIds and provider.utilitySpellIds[1])
+	local hasLethal, hasUtility = getRoguePoisonPresence(provider, reminder)
+
+	local missingEntries = {}
+	if not hasLethal then
+		missingEntries[#missingEntries + 1] = makeSelfMissingEntry(lethalDisplayId, "Lethal Poison")
+	end
+	if not hasUtility then
+		missingEntries[#missingEntries + 1] = makeSelfMissingEntry(utilityDisplayId, "Non-lethal Poison")
+	end
+
+	if #missingEntries > 0 then
+		setProviderDisplaySpellId(provider, missingEntries[1].spellId)
+	else
+		setProviderDisplaySpellId(provider, lethalDisplayId or utilityDisplayId)
+	end
+
+	return buildSelfStatus(2, missingEntries)
+end
+
+local function roguePoisonsHasUnitBuff(provider, unit, reminder)
+	if unit ~= "player" then return false end
+	local status = roguePoisonsGetSelfStatus(provider, reminder)
+	return status and status.missing <= 0
+end
+
+local function shamanEnhancementGetSelfStatus(provider, reminder)
+	if type(provider) ~= "table" or type(reminder) ~= "table" then return buildSelfStatus(2, {}) end
+
+	local totalRequirements = 2
+	local missingEntries = {}
+
+	local skyfuryDisplayId = normalizeSpellId(provider.skyfuryDisplaySpellId) or normalizeSpellId(provider.skyfurySpellIds and provider.skyfurySpellIds[1])
+	local skyfuryMissingCount, skyfuryTotal = reminder:GetGroupBuffMissingCountBySpellIds(provider.skyfurySpellIds)
+	if skyfuryTotal > 0 then
+		totalRequirements = totalRequirements + 1
+		if skyfuryMissingCount > 0 then
+			missingEntries[#missingEntries + 1] = makeSelfMissingEntry(skyfuryDisplayId, provider.skyfuryLabel or "Skyfury", skyfuryMissingCount, skyfuryTotal)
+		end
+	end
+
+	local windfuryDisplayId = normalizeSpellId(provider.windfuryDisplaySpellId) or normalizeSpellId(provider.windfurySpellIds and provider.windfurySpellIds[1])
+	local flametongueDisplayId = normalizeSpellId(provider.flametongueDisplaySpellId) or normalizeSpellId(provider.flametongueSpellIds and provider.flametongueSpellIds[1])
+	local hasWindfury = reminder:UnitHasAnyAuraSpellId("player", provider.windfurySpellIds)
+	local hasFlametongue = reminder:UnitHasAnyAuraSpellId("player", provider.flametongueSpellIds)
+
+	-- Fallback for clients where imbues are only visible as temporary enchants.
+	if not hasWindfury and not hasFlametongue and GetWeaponEnchantInfo then
+		local hasMainHandEnchant, _, _, _, hasOffHandEnchant = GetWeaponEnchantInfo()
+		if hasMainHandEnchant and hasOffHandEnchant then
+			hasWindfury = true
+			hasFlametongue = true
+		end
+	end
+
+	if not hasWindfury then
+		missingEntries[#missingEntries + 1] = makeSelfMissingEntry(windfuryDisplayId, "Windfury Weapon")
+	end
+	if not hasFlametongue then
+		missingEntries[#missingEntries + 1] = makeSelfMissingEntry(flametongueDisplayId, "Flametongue Weapon")
+	end
+
+	if #missingEntries > 0 then
+		setProviderDisplaySpellId(provider, missingEntries[1].spellId)
+	else
+		setProviderDisplaySpellId(provider, skyfuryDisplayId or windfuryDisplayId or flametongueDisplayId)
+	end
+
+	return buildSelfStatus(totalRequirements, missingEntries)
+end
+
+local function shamanEnhancementImbuesHasUnitBuff(provider, unit, reminder)
+	if unit ~= "player" then return false end
+	local status = shamanEnhancementGetSelfStatus(provider, reminder)
+	return status and status.missing <= 0
+end
+
+local function shamanRestorationGetSelfStatus(provider, reminder)
+	if type(provider) ~= "table" or type(reminder) ~= "table" then return buildSelfStatus(1, {}) end
+
+	local totalRequirements = 1
+	local missingEntries = {}
+
+	local skyfuryDisplayId = normalizeSpellId(provider.skyfuryDisplaySpellId) or normalizeSpellId(provider.skyfurySpellIds and provider.skyfurySpellIds[1])
+	local skyfuryMissingCount, skyfuryTotal = reminder:GetGroupBuffMissingCountBySpellIds(provider.skyfurySpellIds)
+	if skyfuryTotal > 0 then
+		totalRequirements = totalRequirements + 1
+		if skyfuryMissingCount > 0 then
+			missingEntries[#missingEntries + 1] = makeSelfMissingEntry(skyfuryDisplayId, provider.skyfuryLabel or "Skyfury", skyfuryMissingCount, skyfuryTotal)
+		end
+	end
+
+	local earthlivingDisplaySpellId = normalizeSpellId(provider.earthlivingDisplaySpellId) or normalizeSpellId(provider.primaryDisplaySpellId) or normalizeSpellId(provider.earthlivingSpellIds and provider.earthlivingSpellIds[1]) or normalizeSpellId(provider.displaySpellId)
+	local hasEarthliving = reminder:UnitHasAnyAuraSpellId("player", provider.earthlivingSpellIds or provider.spellIds)
+	if not hasEarthliving then
+		hasEarthliving = reminder:UnitHasAnyAuraName("player", provider.earthlivingAuraNames)
+	end
+	if not hasEarthliving and GetWeaponEnchantInfo then
+		local hasMainHandEnchant, _, _, mainHandEnchantId = GetWeaponEnchantInfo()
+		local expectedEnchantId = tonumber(provider.enchantId)
+		if expectedEnchantId and tonumber(mainHandEnchantId) == expectedEnchantId then
+			hasEarthliving = true
+		elseif expectedEnchantId and mainHandEnchantId == nil and hasMainHandEnchant then
+			hasEarthliving = true
+		end
+	end
+
+	if not hasEarthliving then
+		missingEntries[#missingEntries + 1] = makeSelfMissingEntry(earthlivingDisplaySpellId, provider.earthlivingLabel or provider.fallbackName or "Earthliving Weapon")
+	end
+
+	local shouldTrackTidecaller = hasKnownSpellInList(provider.tidecallerKnownSpellIds or provider.tidecallerSpellIds)
+	if shouldTrackTidecaller and provider.requireShieldForTidecaller == true and not isPlayerOffhandShield() then shouldTrackTidecaller = false end
+	if shouldTrackTidecaller then
+		totalRequirements = totalRequirements + 1
+
+		local tidecallerDisplaySpellId = normalizeSpellId(provider.tidecallerDisplaySpellId) or normalizeSpellId(provider.tidecallerSpellIds and provider.tidecallerSpellIds[1])
+		local hasTidecaller = reminder:UnitHasAnyAuraSpellId("player", provider.tidecallerSpellIds)
+		if not hasTidecaller then
+			hasTidecaller = reminder:UnitHasAnyAuraName("player", provider.tidecallerAuraNames)
+		end
+		if not hasTidecaller and GetWeaponEnchantInfo then
+			local _, _, _, _, hasOffHandEnchant, _, _, offHandEnchantId = GetWeaponEnchantInfo()
+			local expectedTidecallerEnchantId = tonumber(provider.tidecallerEnchantId)
+			if expectedTidecallerEnchantId and tonumber(offHandEnchantId) == expectedTidecallerEnchantId then
+				hasTidecaller = true
+			elseif provider.acceptAnyOffhandEnchantWhenKnown == true and hasOffHandEnchant then
+				hasTidecaller = true
+			end
+		end
+
+		if not hasTidecaller then
+			missingEntries[#missingEntries + 1] = makeSelfMissingEntry(tidecallerDisplaySpellId, provider.tidecallerLabel or "Tidecaller's Guard")
+		end
+	end
+
+	setProviderDisplaySpellId(provider, missingEntries[1] and missingEntries[1].spellId or skyfuryDisplayId or earthlivingDisplaySpellId)
+	return buildSelfStatus(totalRequirements, missingEntries)
+end
+
+local function shamanRestorationEarthlivingHasUnitBuff(provider, unit, reminder)
+	if unit ~= "player" then return false end
+	local status = shamanRestorationGetSelfStatus(provider, reminder)
+	return status and status.missing <= 0
+end
+
+function Reminder:GetPaladinRitesProvider()
+	local activeRite
+	if safeIsPlayerSpell(PALADIN_RITES.adjuration.spellId) then
+		activeRite = PALADIN_RITES.adjuration
+	elseif safeIsPlayerSpell(PALADIN_RITES.sanctification.spellId) then
+		activeRite = PALADIN_RITES.sanctification
+	else
+		return nil
+	end
+
+	self.paladinRitesProvider = self.paladinRitesProvider
+		or {
+			scope = PROVIDER_SCOPE_SELF,
+			spellIds = { activeRite.spellId },
+			fallbackName = activeRite.fallbackName,
+			enchantId = activeRite.enchantId,
+			hasUnitBuffFunc = paladinRitesHasUnitBuff,
+			getSelfStatusFunc = paladinRitesGetSelfStatus,
+			activeKey = nil,
+		}
+
+	local provider = self.paladinRitesProvider
+	local nextKey = tostring(activeRite.spellId)
+	if provider.activeKey ~= nextKey then
+		provider.activeKey = nextKey
+		provider.spellIds = { activeRite.spellId }
+		provider.fallbackName = activeRite.fallbackName
+		provider.enchantId = activeRite.enchantId
+		resetProviderRuntimeCache(provider)
+	end
+
+	return provider
+end
+
+function Reminder:GetRoguePoisonsProvider()
+	self.roguePoisonsProvider = self.roguePoisonsProvider
+		or {
+			scope = PROVIDER_SCOPE_SELF,
+			spellIds = {
+				315584,
+				2823,
+				8679,
+				381664,
+				3408,
+				5761,
+				381637,
+			},
+			lethalSpellIds = ROGUE_POISON_LETHAL_IDS,
+			utilitySpellIds = ROGUE_POISON_UTILITY_IDS,
+			lethalDisplaySpellId = 315584,
+			utilityDisplaySpellId = 3408,
+			fallbackName = "Poisons",
+			hasUnitBuffFunc = roguePoisonsHasUnitBuff,
+			getSelfStatusFunc = roguePoisonsGetSelfStatus,
+		}
+	return self.roguePoisonsProvider
+end
+
+function Reminder:GetShamanEnhancementProvider()
+	self.shamanEnhancementProvider = self.shamanEnhancementProvider
+		or {
+			scope = PROVIDER_SCOPE_SELF,
+			spellIds = {
+				319773,
+				33757,
+				319778,
+				318038,
+			},
+				windfurySpellIds = SHAMAN_ENHANCEMENT_WINDFURY_IDS,
+				flametongueSpellIds = SHAMAN_ENHANCEMENT_FLAMETONGUE_IDS,
+				windfuryDisplaySpellId = 319773,
+				flametongueDisplaySpellId = 319778,
+				skyfurySpellIds = PROVIDER_BY_CLASS.SHAMAN.spellIds,
+				skyfuryDisplaySpellId = 462854,
+				skyfuryLabel = PROVIDER_BY_CLASS.SHAMAN.fallbackName or "Skyfury",
+				fallbackName = "Weapon Imbues",
+				hasUnitBuffFunc = shamanEnhancementImbuesHasUnitBuff,
+				getSelfStatusFunc = shamanEnhancementGetSelfStatus,
+			}
+	return self.shamanEnhancementProvider
+end
+
+function Reminder:GetShamanRestorationProvider()
+	local earthlivingDisplaySpellId = 382021
+	if safeIsPlayerSpell(382024) then
+		earthlivingDisplaySpellId = 382024
+	elseif safeIsPlayerSpell(382022) then
+		earthlivingDisplaySpellId = 382022
+	end
+
+	local tidecallerDisplaySpellId = 457481
+	if safeIsPlayerSpell(457496) then tidecallerDisplaySpellId = 457496 end
+
+	self.shamanRestorationProvider = self.shamanRestorationProvider
+				or {
+					scope = PROVIDER_SCOPE_SELF,
+					spellIds = {
+						382021,
+						382022,
+						382024,
+						457481,
+						457496,
+					},
+					earthlivingSpellIds = SHAMAN_RESTORATION_EARTHLIVING_IDS,
+					earthlivingAuraNames = SHAMAN_RESTORATION_EARTHLIVING_AURA_NAMES,
+					earthlivingLabel = "Earthliving Weapon",
+					enchantId = 6498,
+					earthlivingDisplaySpellId = earthlivingDisplaySpellId,
+					tidecallerSpellIds = SHAMAN_RESTORATION_TIDECALLER_IDS,
+					tidecallerKnownSpellIds = SHAMAN_RESTORATION_TIDECALLER_IDS,
+					tidecallerAuraNames = SHAMAN_RESTORATION_TIDECALLER_AURA_NAMES,
+					tidecallerLabel = "Tidecaller's Guard",
+					tidecallerDisplaySpellId = tidecallerDisplaySpellId,
+					requireShieldForTidecaller = true,
+					acceptAnyOffhandEnchantWhenKnown = true,
+					skyfurySpellIds = PROVIDER_BY_CLASS.SHAMAN.spellIds,
+					skyfuryDisplaySpellId = 462854,
+					skyfuryLabel = PROVIDER_BY_CLASS.SHAMAN.fallbackName or "Skyfury",
+					fallbackName = "Earthliving Weapon",
+					hasUnitBuffFunc = shamanRestorationEarthlivingHasUnitBuff,
+					getSelfStatusFunc = shamanRestorationGetSelfStatus,
+				}
+
+	if self.shamanRestorationProvider.earthlivingDisplaySpellId ~= earthlivingDisplaySpellId or self.shamanRestorationProvider.tidecallerDisplaySpellId ~= tidecallerDisplaySpellId then
+		self.shamanRestorationProvider.earthlivingDisplaySpellId = earthlivingDisplaySpellId
+		self.shamanRestorationProvider.tidecallerDisplaySpellId = tidecallerDisplaySpellId
+		resetProviderRuntimeCache(self.shamanRestorationProvider)
+	end
+
+	return self.shamanRestorationProvider
+end
+
+function Reminder:GetShamanProvider()
+	local specId = self:GetCurrentSpecId()
+	if specId == SHAMAN_SPEC_ENHANCEMENT then return self:GetShamanEnhancementProvider() or PROVIDER_BY_CLASS.SHAMAN end
+	if specId == SHAMAN_SPEC_RESTORATION then return self:GetShamanRestorationProvider() or PROVIDER_BY_CLASS.SHAMAN end
+	return PROVIDER_BY_CLASS.SHAMAN
+end
+
 function Reminder:GetProvider()
 	local classToken = self:GetClassToken()
-	local provider = classToken and PROVIDER_BY_CLASS[classToken] or nil
+	local provider
+	if classToken == "PALADIN" then
+		provider = self:GetPaladinRitesProvider()
+	elseif classToken == "ROGUE" then
+		provider = self:GetRoguePoisonsProvider()
+	elseif classToken == "SHAMAN" then
+		provider = self:GetShamanProvider()
+	else
+		provider = classToken and PROVIDER_BY_CLASS[classToken] or nil
+	end
 	if not provider then return nil end
+	if provider.scope == nil then provider.scope = PROVIDER_SCOPE_GROUP end
+	if type(provider.spellIds) ~= "table" or #provider.spellIds <= 0 then return nil end
 
 	if not provider.spellSet then
 		provider.spellSet = {}
@@ -382,6 +1003,7 @@ function Reminder:RequestProviderPresentationRefresh(provider)
 end
 
 function Reminder:GetGrowthDirection() return normalizeGrowthDirection(getValue(DB_GROWTH_DIRECTION, defaults.growthDirection)) end
+function Reminder:GetGrowthFromCenter() return getValue(DB_GROWTH_FROM_CENTER, defaults.growthFromCenter) == true end
 
 function Reminder:GetIconCountTextStyle()
 	local size = clamp(getValue(DB_XY_TEXT_SIZE, defaults.xyTextSize), 8, 64, defaults.xyTextSize)
@@ -394,8 +1016,8 @@ end
 
 local function soundDebugTimestamp()
 	if date then
-		local ok, stamp = pcall(date, "%H:%M:%S")
-		if ok and type(stamp) == "string" and stamp ~= "" then return stamp end
+		local stamp = date("%H:%M:%S")
+		if type(stamp) == "string" and stamp ~= "" then return stamp end
 	end
 	local timeValue = 0
 	if GetTimePreciseSec then
@@ -821,6 +1443,13 @@ function Reminder:EnsureFrame()
 	iconCountText:Hide()
 	frame.iconCountText = iconCountText
 
+	local missingIconContainer = CreateFrame("Frame", nil, frame)
+	missingIconContainer:SetPoint("CENTER", frame, "CENTER", 0, 0)
+	missingIconContainer:SetSize(defaults.iconSize, defaults.iconSize)
+	missingIconContainer:Hide()
+	frame.missingIconContainer = missingIconContainer
+	frame.missingIcons = {}
+
 	local sampleContainer = CreateFrame("Frame", nil, frame)
 	sampleContainer:SetAllPoints(frame)
 	sampleContainer:Hide()
@@ -846,18 +1475,248 @@ function Reminder:EnsureFrame()
 	return frame
 end
 
+function Reminder:GetSelfProviderStatus(provider, forceRefresh)
+	if type(provider) ~= "table" or provider.scope ~= PROVIDER_SCOPE_SELF then return nil end
+	if not forceRefresh and self.selfProviderStatusProvider == provider and type(self.selfProviderStatus) == "table" then return self.selfProviderStatus end
+	if type(provider.getSelfStatusFunc) ~= "function" then return nil end
+
+	local status = provider.getSelfStatusFunc(provider, self)
+	if type(status) ~= "table" then return nil end
+
+	local entries = type(status.missingEntries) == "table" and status.missingEntries or {}
+	local missing = tonumber(status.missing)
+	if missing == nil then missing = #entries end
+	if missing < 0 then missing = 0 end
+	local total = tonumber(status.total)
+	if total == nil then total = math.max(1, missing) end
+	if total < missing then total = missing end
+	if total < 0 then total = 0 end
+
+	status.missingEntries = entries
+	status.missing = missing
+	status.total = total
+
+	self.selfProviderStatusProvider = provider
+	self.selfProviderStatus = status
+	return status
+end
+
+function Reminder:GetSelfMissingEntries(provider)
+	local status = self:GetSelfProviderStatus(provider, false)
+	if not status then return nil end
+	return status.missingEntries
+end
+
+function Reminder:GetSelfMissingSummaryText(entries)
+	if type(entries) ~= "table" or #entries <= 0 then return "" end
+	local parts = {}
+	for i = 1, #entries do
+		local entry = entries[i]
+		local label = type(entry) == "table" and entry.label or nil
+		if type(label) ~= "string" or label == "" then
+			local sid = type(entry) == "table" and normalizeSpellId(entry.spellId) or nil
+			label = sid and safeGetSpellName(sid) or nil
+		end
+		if type(label) ~= "string" or label == "" then label = L["ClassBuffReminderMissing"] or "Missing" end
+		local cm = type(entry) == "table" and tonumber(entry.countMissing) or nil
+		local ct = type(entry) == "table" and tonumber(entry.countTotal) or nil
+		if cm and ct and ct > 0 then
+			cm = math.max(0, math.floor(cm + 0.5))
+			ct = math.max(0, math.floor(ct + 0.5))
+			label = string.format("%s (%d/%d)", label, cm, ct)
+		end
+		parts[#parts + 1] = label
+	end
+	return table.concat(parts, ", ")
+end
+
+function Reminder:EnsureSelfMissingIconFrames(requiredCount)
+	local frame = self:EnsureFrame()
+	if not frame then return nil, nil end
+	frame.missingIcons = frame.missingIcons or {}
+	frame.missingIconContainer = frame.missingIconContainer or CreateFrame("Frame", nil, frame)
+	local container = frame.missingIconContainer
+
+	for i = 1, requiredCount do
+		local iconFrame = frame.missingIcons[i]
+		if not iconFrame then
+			iconFrame = CreateFrame("Frame", nil, container)
+			iconFrame:SetSize(defaults.iconSize, defaults.iconSize)
+			local icon = iconFrame:CreateTexture(nil, "ARTWORK")
+			icon:SetAllPoints(iconFrame)
+			icon:SetTexture(ICON_MISSING)
+			iconFrame.icon = icon
+
+			local countText = iconFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+			countText:SetPoint("CENTER", iconFrame, "CENTER", 0, 0)
+			countText:SetJustifyH("CENTER")
+			countText:SetShadowOffset(1, -1)
+			countText:SetShadowColor(0, 0, 0, 1)
+			countText:SetText("")
+			iconFrame.countText = countText
+
+			frame.missingIcons[i] = iconFrame
+		end
+	end
+
+	return container, frame.missingIcons
+end
+
+function Reminder:HideSelfMissingIcons()
+	local frame = self.frame
+	if not frame then return end
+	if frame.missingIconContainer then frame.missingIconContainer:Hide() end
+	if frame.missingIcons then
+		for i = 1, #frame.missingIcons do
+			local iconFrame = frame.missingIcons[i]
+			if iconFrame then iconFrame:Hide() end
+		end
+	end
+	if frame.iconHolder then frame.iconHolder:Show() end
+end
+
+function Reminder:RenderSelfMissingIcons(missingEntries)
+	local frame = self.frame
+	if not frame then return false end
+	if type(missingEntries) ~= "table" or #missingEntries <= 0 then
+		self:HideSelfMissingIcons()
+		return false
+	end
+
+	local scale = clamp(getValue(DB_SCALE, defaults.scale), 0.5, 2, defaults.scale)
+	local iconSize = clamp(getValue(DB_ICON_SIZE, defaults.iconSize), 14, 120, defaults.iconSize)
+	local iconGap = clamp(getValue(DB_ICON_GAP, defaults.iconGap), 0, 40, defaults.iconGap)
+	local xyTextSize, xyTextOutline, xyTextR, xyTextG, xyTextB, xyTextA, xyOffsetX, xyOffsetY = self:GetIconCountTextStyle()
+	local scaledIconSize = math.max(14, math.floor((iconSize * scale) + 0.5))
+	local scaledIconGap = math.max(0, math.floor((iconGap * scale) + 0.5))
+	local scaledXYTextSize = math.max(8, math.floor((xyTextSize * scale) + 0.5))
+	local scaledXYOffsetX = math.floor((xyOffsetX * scale) + 0.5)
+	local scaledXYOffsetY = math.floor((xyOffsetY * scale) + 0.5)
+	local step = scaledIconSize + scaledIconGap
+	local direction = self:GetGrowthDirection()
+	local growFromCenter = self:GetGrowthFromCenter()
+	local count = #missingEntries
+	local fontPath = (addon.variables and addon.variables.defaultFont) or STANDARD_TEXT_FONT
+
+	local width, height
+	if direction == GROWTH_UP or direction == GROWTH_DOWN then
+		width = scaledIconSize
+		height = scaledIconSize + ((count - 1) * step)
+	else
+		width = scaledIconSize + ((count - 1) * step)
+		height = scaledIconSize
+	end
+
+	local container, icons = self:EnsureSelfMissingIconFrames(count)
+	if not (container and icons) then return false end
+
+	container:ClearAllPoints()
+	container:SetPoint("CENTER", frame, "CENTER", 0, 0)
+	container:SetSize(width, height)
+
+	for i = 1, #icons do
+		if icons[i] then icons[i]:Hide() end
+	end
+
+	for i = 1, count do
+		local iconFrame = icons[i]
+		local entry = missingEntries[i]
+		local sid = type(entry) == "table" and normalizeSpellId(entry.spellId) or nil
+		local texture = sid and safeGetSpellIcon(sid) or ICON_MISSING
+
+		iconFrame:SetSize(scaledIconSize, scaledIconSize)
+		iconFrame:ClearAllPoints()
+
+		local x = 0
+		local y = 0
+		if direction == GROWTH_LEFT then
+			x = growFromCenter and -((i - 1) * step) or ((width / 2) - (scaledIconSize / 2) - ((i - 1) * step))
+		elseif direction == GROWTH_UP then
+			y = growFromCenter and ((i - 1) * step) or (-(height / 2) + (scaledIconSize / 2) + ((i - 1) * step))
+		elseif direction == GROWTH_DOWN then
+			y = growFromCenter and -((i - 1) * step) or ((height / 2) - (scaledIconSize / 2) - ((i - 1) * step))
+		else
+			x = growFromCenter and ((i - 1) * step) or (-(width / 2) + (scaledIconSize / 2) + ((i - 1) * step))
+		end
+
+		iconFrame:SetPoint("CENTER", container, "CENTER", x, y)
+		if iconFrame.icon then iconFrame.icon:SetTexture(texture) end
+		if iconFrame.countText then
+			if iconFrame.countText.SetFont then iconFrame.countText:SetFont(fontPath, scaledXYTextSize, textOutlineFlags(xyTextOutline)) end
+			iconFrame.countText:SetTextColor(xyTextR, xyTextG, xyTextB, xyTextA)
+			iconFrame.countText:ClearAllPoints()
+			iconFrame.countText:SetPoint("CENTER", iconFrame, "CENTER", scaledXYOffsetX, scaledXYOffsetY)
+			local cm = type(entry) == "table" and tonumber(entry.countMissing) or nil
+			local ct = type(entry) == "table" and tonumber(entry.countTotal) or nil
+			if cm and ct and ct > 0 then
+				cm = math.max(0, math.floor(cm + 0.5))
+				ct = math.max(0, math.floor(ct + 0.5))
+				iconFrame.countText:SetText(string.format("%d/%d", cm, ct))
+			else
+				iconFrame.countText:SetText("")
+			end
+		end
+		iconFrame:Show()
+	end
+
+	if frame.iconHolder then frame.iconHolder:Hide() end
+	container:Show()
+	frame:SetSize(width + 2, height + 2)
+	return true
+end
+
+function Reminder:GetGlowTargets()
+	local frame = self.frame
+	if not frame then return nil end
+
+	if frame.missingIconContainer and frame.missingIconContainer:IsShown() and type(frame.missingIcons) == "table" then
+		local targets = {}
+		for i = 1, #frame.missingIcons do
+			local iconFrame = frame.missingIcons[i]
+			if iconFrame and iconFrame:IsShown() then targets[#targets + 1] = iconFrame end
+		end
+		if #targets > 0 then return targets end
+	end
+
+	if frame.iconHolder then return { frame.iconHolder } end
+	return nil
+end
+
 function Reminder:SetGlowShown(show)
 	if not LBG then return end
-	local target = self.frame and self.frame.iconHolder
-	if not target then return end
 
-	if show and not self.glowShown then
-		LBG.ShowOverlayGlow(target)
-		self.glowShown = true
-	elseif not show and self.glowShown then
-		LBG.HideOverlayGlow(target)
+	self.glowTargets = self.glowTargets or {}
+	if show ~= true then
+		for target in pairs(self.glowTargets) do
+			LBG.HideOverlayGlow(target)
+			self.glowTargets[target] = nil
+		end
 		self.glowShown = false
+		return
 	end
+
+	local targets = self:GetGlowTargets() or {}
+	local nextTargets = {}
+	for i = 1, #targets do
+		local target = targets[i]
+		if target then nextTargets[target] = true end
+	end
+
+	for target in pairs(self.glowTargets) do
+		if not nextTargets[target] then
+			LBG.HideOverlayGlow(target)
+			self.glowTargets[target] = nil
+		end
+	end
+
+	for target in pairs(nextTargets) do
+		if not self.glowTargets[target] then
+			LBG.ShowOverlayGlow(target)
+			self.glowTargets[target] = true
+		end
+	end
+
+	self.glowShown = next(self.glowTargets) ~= nil
 end
 
 function Reminder:HideSamplePreview()
@@ -880,6 +1739,7 @@ function Reminder:ApplySamplePreview(iconSize, scale, iconGap)
 	end
 
 	local direction = self:GetGrowthDirection()
+	local growFromCenter = self:GetGrowthFromCenter()
 	local spacing = iconGap
 	if type(spacing) ~= "number" then spacing = math.floor((6 * (scale or 1)) + 0.5) end
 	if spacing < 0 then spacing = 0 end
@@ -895,14 +1755,18 @@ function Reminder:ApplySamplePreview(iconSize, scale, iconGap)
 		sample:Show()
 
 		if i == 1 then
-			if direction == GROWTH_LEFT then
-				sample:SetPoint("RIGHT", frame, "LEFT", -spacing, 0)
-			elseif direction == GROWTH_UP then
-				sample:SetPoint("BOTTOM", frame, "TOP", 0, spacing)
-			elseif direction == GROWTH_DOWN then
-				sample:SetPoint("TOP", frame, "BOTTOM", 0, -spacing)
+			if growFromCenter then
+				sample:SetPoint("CENTER", frame, "CENTER", 0, 0)
 			else
-				sample:SetPoint("LEFT", frame, "RIGHT", spacing, 0)
+				if direction == GROWTH_LEFT then
+					sample:SetPoint("RIGHT", frame, "LEFT", -spacing, 0)
+				elseif direction == GROWTH_UP then
+					sample:SetPoint("BOTTOM", frame, "TOP", 0, spacing)
+				elseif direction == GROWTH_DOWN then
+					sample:SetPoint("TOP", frame, "BOTTOM", 0, -spacing)
+				else
+					sample:SetPoint("LEFT", frame, "RIGHT", spacing, 0)
+				end
 			end
 		else
 			local prev = frame.sampleIcons[i - 1]
@@ -1029,7 +1893,13 @@ function Reminder:CollectUnits(target)
 end
 
 function Reminder:UnitHasProviderBuff(unit, provider)
-	if not (unit and provider and provider.spellSet) then return false end
+	if not (unit and provider) then return false end
+	if provider.scope == PROVIDER_SCOPE_SELF then
+		local status = self:GetSelfProviderStatus(provider, false)
+		if status then return status.missing <= 0 end
+	end
+	if type(provider.hasUnitBuffFunc) == "function" then return provider.hasUnitBuffFunc(provider, unit, self) == true end
+	if not provider.spellSet then return false end
 	local state = self:GetUnitAuraState(unit)
 	if not state then return false end
 	if not state.initialized then state = self:FullRefreshUnitAuraState(unit, provider) end
@@ -1037,6 +1907,20 @@ function Reminder:UnitHasProviderBuff(unit, provider)
 end
 
 function Reminder:ComputeMissing(provider)
+	if provider and provider.scope == PROVIDER_SCOPE_SELF then
+		self.selfProviderStatusProvider = nil
+		self.selfProviderStatus = nil
+		if not (UnitExists and UnitExists("player") and UnitIsConnected and UnitIsConnected("player") and not UnitIsDeadOrGhost("player")) then return 0, 0 end
+
+		local status = self:GetSelfProviderStatus(provider, true)
+		if status then return status.missing, status.total end
+
+		if self:UnitHasProviderBuff("player", provider) then return 0, 1 end
+		return 1, 1
+	end
+	self.selfProviderStatusProvider = nil
+	self.selfProviderStatus = nil
+
 	self.runtimeUnits = self.runtimeUnits or {}
 	local units = self:CollectUnits(self.runtimeUnits)
 
@@ -1074,13 +1958,23 @@ function Reminder:Render(provider, missing, total)
 
 	local displayMode = normalizeDisplayMode(getValue(DB_DISPLAY_MODE, defaults.displayMode))
 	local title = self:GetProviderName(provider)
+	local selfMissingEntries = self:GetSelfMissingEntries(provider)
+	self:HideSelfMissingIcons()
 	if displayMode == DISPLAY_MODE_ICON_ONLY then
-		local shortFmt = L["ClassBuffReminderCountOnlyFmt"] or "%d/%d"
-		if frame.iconCountText then frame.iconCountText:SetText(string.format(shortFmt, missing, total)) end
+		if provider and provider.scope == PROVIDER_SCOPE_SELF then
+			if frame.iconCountText then frame.iconCountText:SetText("") end
+		else
+			local shortFmt = L["ClassBuffReminderCountOnlyFmt"] or "%d/%d"
+			if frame.iconCountText then frame.iconCountText:SetText(string.format(shortFmt, missing, total)) end
+		end
 	else
-		local missingText = L["ClassBuffReminderMissingFmt"] or "%d/%d missing"
 		frame.nameText:SetText(title)
-		frame.countText:SetText(string.format(missingText, missing, total))
+		if provider and provider.scope == PROVIDER_SCOPE_SELF then
+			frame.countText:SetText(self:GetSelfMissingSummaryText(selfMissingEntries))
+		else
+			local missingText = L["ClassBuffReminderMissingFmt"] or "%d/%d missing"
+			frame.countText:SetText(string.format(missingText, missing, total))
+		end
 	end
 
 	local providerIcon = self:GetProviderIcon(provider)
@@ -1092,6 +1986,9 @@ function Reminder:Render(provider, missing, total)
 	end
 	frame.icon:SetTexture(providerIcon)
 	self:ApplyVisualSettings()
+	if displayMode == DISPLAY_MODE_ICON_ONLY and provider and provider.scope == PROVIDER_SCOPE_SELF and self.editModeActive ~= true then
+		self:RenderSelfMissingIcons(selfMissingEntries)
+	end
 	if displayMode ~= DISPLAY_MODE_ICON_ONLY then
 		if missing > 0 then
 			if frame.countText then frame.countText:SetTextColor(1, 0.25, 0.25, 1) end
@@ -1142,6 +2039,7 @@ function Reminder:UpdateDisplay()
 	if frame.iconCountText then frame.iconCountText:SetText("") end
 	if frame.countText then frame.countText:SetText("") end
 	self:HideSamplePreview()
+	self:HideSelfMissingIcons()
 
 	if getValue(DB_ENABLED, defaults.enabled) ~= true then
 		self:SetGlowShown(false)
@@ -1212,14 +2110,28 @@ function Reminder:HandleEvent(event, unit, updateInfo)
 
 	if event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" then self:ScheduleInitialSoundSync(event) end
 
+	if event == "UNIT_INVENTORY_CHANGED" then
+		if unit == "player" then self:RequestUpdate(false) end
+		return
+	end
+
+	if event == "PLAYER_EQUIPMENT_CHANGED" then
+		self:RequestUpdate(false)
+		return
+	end
+
 	if event == "UNIT_AURA" then
 		if not isTrackedUnit(unit) then return end
+		local provider = self:GetProvider()
+		if provider and provider.scope == PROVIDER_SCOPE_SELF then
+			if unit == "player" then self:RequestUpdate(false) end
+			return
+		end
 		if isAIFollowerUnit(unit) then
 			local state = self:GetUnitAuraState(unit)
 			if state then self:ResetUnitAuraState(state) end
 			return
 		end
-		local provider = self:GetProvider()
 		if provider then
 			self:ApplyDeltaToUnitAuraState(unit, updateInfo, provider)
 		else
@@ -1250,6 +2162,8 @@ function Reminder:RegisterEvents()
 	self.eventFrame:RegisterEvent("PLAYER_TALENT_UPDATE")
 	self.eventFrame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
 	self.eventFrame:RegisterEvent("UNIT_AURA")
+	self.eventFrame:RegisterEvent("UNIT_INVENTORY_CHANGED")
+	self.eventFrame:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
 	self.eventFrame:SetScript("OnEvent", function(_, event, ...) Reminder:HandleEvent(event, ...) end)
 
 	self.eventsRegistered = true
@@ -1295,6 +2209,12 @@ function Reminder:RegisterEditMode()
 
 	local function setGrowthDirection(value)
 		if addon.db then addon.db[DB_GROWTH_DIRECTION] = normalizeGrowthDirection(value) end
+		Reminder:ApplyVisualSettings()
+		Reminder:RequestUpdate(true)
+	end
+
+	local function setGrowthFromCenter(value)
+		if addon.db then addon.db[DB_GROWTH_FROM_CENTER] = value == true end
 		Reminder:ApplyVisualSettings()
 		Reminder:RequestUpdate(true)
 	end
@@ -1436,6 +2356,13 @@ function Reminder:RegisterEditMode()
 						function() setGrowthDirection(GROWTH_DOWN) end
 					)
 				end,
+			},
+			{
+				name = L["ClassBuffReminderGrowthFromCenter"] or L["UFPowerDetachedGrowFromCenter"] or "Grow from center",
+				kind = SettingType.Checkbox,
+				default = defaults.growthFromCenter == true,
+				get = function() return getValue(DB_GROWTH_FROM_CENTER, defaults.growthFromCenter) == true end,
+				set = function(_, value) setGrowthFromCenter(value) end,
 			},
 			{
 				name = L["ClassBuffReminderScale"] or "Scale",

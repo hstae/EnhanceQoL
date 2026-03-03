@@ -15,6 +15,7 @@ local DB_SOUND_ON_MISSING = "classBuffReminderSoundOnMissing"
 local DB_MISSING_SOUND = "classBuffReminderMissingSound"
 local DB_DISPLAY_MODE = "classBuffReminderDisplayMode"
 local DB_GROWTH_DIRECTION = "classBuffReminderGrowthDirection"
+local DB_GROWTH_FROM_CENTER = "classBuffReminderGrowthFromCenter"
 local DB_SCALE = "classBuffReminderScale"
 local DB_ICON_SIZE = "classBuffReminderIconSize"
 local DB_FONT_SIZE = "classBuffReminderFontSize"
@@ -36,6 +37,7 @@ local defaults = (Reminder and Reminder.defaults)
 		missingSound = "",
 		displayMode = "ICON_ONLY",
 		growthDirection = "RIGHT",
+		growthFromCenter = false,
 		scale = 1,
 		iconSize = 64,
 		fontSize = 13,
@@ -89,6 +91,7 @@ function addon.functions.initClassBuffReminder()
 	init(DB_MISSING_SOUND, defaults.missingSound)
 	init(DB_DISPLAY_MODE, defaults.displayMode)
 	init(DB_GROWTH_DIRECTION, defaults.growthDirection)
+	init(DB_GROWTH_FROM_CENTER, defaults.growthFromCenter)
 	init(DB_SCALE, defaults.scale)
 	init(DB_ICON_SIZE, defaults.iconSize)
 	init(DB_FONT_SIZE, defaults.fontSize)
