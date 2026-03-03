@@ -31,10 +31,12 @@ Helper.RULE_DEFINITIONS = {
 	{ key = "INSTANCE_ARENA", label = L["VisibilityCondInstanceArena"] or "Instance: Arena", order = 100 },
 	{ key = "INSTANCE_SCENARIO", label = L["VisibilityCondInstanceScenario"] or "Instance: Scenario", order = 110 },
 	{ key = "MOUNTED", label = L["VisibilityCondMounted"] or "Mounted", order = 120 },
-	{ key = "SKYRIDING", label = L["VisibilityCondSkyriding"] or "Skyriding", order = 130 },
-	{ key = "HAS_TARGET", label = L["VisibilityCondHasTarget"] or "Has target", order = 140 },
-	{ key = "CASTING", label = L["VisibilityCondCasting"] or "Casting", order = 150 },
-	{ key = "MOUSEOVER", label = L["VisibilityCondMouseover"] or "Mouseover", order = 160 },
+	{ key = "IN_VEHICLE", label = L["VisibilityCondInVehicle"] or "In vehicle", order = 130 },
+	{ key = "IN_PET_BATTLE", label = L["VisibilityCondInPetBattle"] or "During pet battle", order = 140 },
+	{ key = "SKYRIDING", label = L["VisibilityCondSkyriding"] or "Skyriding", order = 150 },
+	{ key = "HAS_TARGET", label = L["VisibilityCondHasTarget"] or "Has target", order = 160 },
+	{ key = "CASTING", label = L["VisibilityCondCasting"] or "Casting", order = 170 },
+	{ key = "MOUSEOVER", label = L["VisibilityCondMouseover"] or "Mouseover", order = 180 },
 }
 
 Helper.RULE_LABELS = Helper.RULE_LABELS or {}
@@ -110,6 +112,16 @@ local function normalizeRuleNode(node)
 		local negate = node.negate and true or false
 		if node.key == "OUT_OF_COMBAT" then
 			node.key = "IN_COMBAT"
+			negate = not negate
+		elseif node.key == "VEHICLE" then
+			node.key = "IN_VEHICLE"
+		elseif node.key == "NOT_VEHICLE" then
+			node.key = "IN_VEHICLE"
+			negate = not negate
+		elseif node.key == "PET_BATTLE" then
+			node.key = "IN_PET_BATTLE"
+		elseif node.key == "NOT_PET_BATTLE" then
+			node.key = "IN_PET_BATTLE"
 			negate = not negate
 		elseif node.key == "NOT_MOUNTED" then
 			node.key = "MOUNTED"
@@ -323,6 +335,11 @@ function Helper.BuildContext(runtime)
 	local solo = not inGroup
 	local inInstance, instanceType = IsInInstance()
 	local mounted = (IsMounted and IsMounted()) or Helper.IsInDruidTravelForm()
+	local inVehicle = false
+	if UnitInVehicle then inVehicle = UnitInVehicle("player") and true or false end
+	if not inVehicle and UnitHasVehicleUI then inVehicle = UnitHasVehicleUI("player") and true or false end
+	if not inVehicle and HasVehicleActionBar then inVehicle = HasVehicleActionBar() and true or false end
+	local inPetBattle = C_PetBattles and C_PetBattles.IsInBattle and (C_PetBattles.IsInBattle() == true) or false
 	local hasTarget = UnitExists and UnitExists("target") and true or false
 	local casting = (UnitCastingInfo and UnitCastingInfo("player")) or (UnitChannelInfo and UnitChannelInfo("player"))
 	local isCasting = casting and true or false
@@ -338,11 +355,13 @@ function Helper.BuildContext(runtime)
 		INSTANCE_PARTY = inInstance and instanceType == "party",
 		INSTANCE_RAID = inInstance and instanceType == "raid",
 		INSTANCE_PVP = inInstance and instanceType == "pvp",
-		INSTANCE_ARENA = inInstance and instanceType == "arena",
-		INSTANCE_SCENARIO = inInstance and instanceType == "scenario",
-		MOUNTED = mounted and true or false,
-		NOT_MOUNTED = not mounted,
-		SKYRIDING = isSkyriding,
+			INSTANCE_ARENA = inInstance and instanceType == "arena",
+			INSTANCE_SCENARIO = inInstance and instanceType == "scenario",
+			MOUNTED = mounted and true or false,
+			IN_VEHICLE = inVehicle and true or false,
+			IN_PET_BATTLE = inPetBattle and true or false,
+			NOT_MOUNTED = not mounted,
+			SKYRIDING = isSkyriding,
 		NOT_SKYRIDING = not isSkyriding,
 		HAS_TARGET = hasTarget,
 		CASTING = isCasting,

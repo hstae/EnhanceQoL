@@ -8,9 +8,11 @@ addon.variables.NewVersionTableEQOL = {
 
 	-- Expandable section id in Settings/ClassBuffReminder.lua
 	["EQOL_ProfilesAddOn"] = true,
+	["EQOL_DungeonsMythicPlus"] = true,
 
 	-- Feature setting keys
 	["EQOL_globalFontFace"] = true,
 	["EQOL_teleportsPreferredHearthstone"] = true,
 	["EQOL_Teleports"] = true,
+	["EQOL_mythicPlusBloodlustTrackerEnabled"] = true,
 }

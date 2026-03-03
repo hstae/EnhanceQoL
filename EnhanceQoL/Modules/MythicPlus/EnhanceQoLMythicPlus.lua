@@ -119,6 +119,13 @@ local function safeRegisterUnitEvent(frame, event, ...)
 	return ok
 end
 
+local function setFrameClickThrough(frame)
+	if not frame then return end
+	frame:EnableMouse(false)
+	if frame.SetMouseClickEnabled then frame:SetMouseClickEnabled(false) end
+	if frame.SetMouseMotionEnabled then frame:SetMouseMotionEnabled(false) end
+end
+
 local function syncBloodlustUnitAuraRegistration()
 	local enabled = addon and addon.db and addon.db["mythicPlusBloodlustTrackerEnabled"] == true
 
@@ -307,6 +314,7 @@ local function createBRFrame()
 		brButton = CreateFrame("Button", nil, UIParent)
 		brButton:SetSize(size, size)
 		brButton:SetPoint(point, UIParent, relativePoint, xOfs, yOfs)
+		setFrameClickThrough(brButton)
 
 		local bg = brButton:CreateTexture(nil, "BACKGROUND")
 		bg:SetAllPoints(brButton)
@@ -1250,6 +1258,7 @@ local function createBloodlustFrame()
 		bloodlustButton = CreateFrame("Button", nil, UIParent)
 		bloodlustButton:SetSize(size, size)
 		bloodlustButton:SetPoint(point, UIParent, relativePoint, xOfs, yOfs)
+		setFrameClickThrough(bloodlustButton)
 
 		local bg = bloodlustButton:CreateTexture(nil, "BACKGROUND")
 		bg:SetAllPoints(bloodlustButton)
