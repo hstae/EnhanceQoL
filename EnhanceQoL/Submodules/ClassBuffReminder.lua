@@ -87,6 +87,26 @@ local defaults = Reminder.defaults
 local PROVIDER_SCOPE_GROUP = "GROUP"
 local PROVIDER_SCOPE_SELF = "SELF"
 
+local EVOKER_BLESSING_OF_BRONZE_IDS = {
+	381732,
+	381741,
+	381746,
+	381748,
+	381749,
+	381750,
+	381751,
+	381752,
+	381753,
+	381754,
+	381756,
+	381757,
+	381758,
+}
+
+local EVOKER_SOURCE_OF_MAGIC_IDS = {
+	369459, -- Source of Magic
+}
+
 local PROVIDER_BY_CLASS = {
 	DRUID = {
 		scope = PROVIDER_SCOPE_GROUP,
@@ -110,21 +130,7 @@ local PROVIDER_BY_CLASS = {
 	},
 	EVOKER = {
 		scope = PROVIDER_SCOPE_GROUP,
-		spellIds = {
-			381732,
-			381741,
-			381746,
-			381748,
-			381749,
-			381750,
-			381751,
-			381752,
-			381753,
-			381754,
-			381756,
-			381757,
-			381758,
-		},
+		spellIds = EVOKER_BLESSING_OF_BRONZE_IDS,
 		fallbackName = "Blessing of the Bronze",
 	},
 	SHAMAN = {
@@ -237,6 +243,14 @@ local function isAIFollowerUnit(unit)
 	if not UnitInPartyIsAI then return false end
 	local isAI = UnitInPartyIsAI(unit)
 	return isAI == true
+end
+
+local function isUnitHealerRole(unit)
+	if type(unit) ~= "string" or unit == "" then return false end
+	if not UnitGroupRolesAssigned then return false end
+	local role = UnitGroupRolesAssigned(unit)
+	if issecretvalue and issecretvalue(role) then return false end
+	return role == "HEALER"
 end
 
 local function isPlayerOffhandShield()
@@ -365,6 +379,8 @@ local function safeIsPlayerSpell(spellId)
 		if C_SpellBook.IsSpellKnown(spellId) then return true end
 	end
 
+	if IsSpellKnownOrOverridesKnown and IsSpellKnownOrOverridesKnown(spellId) then return true end
+
 	if IsPlayerSpell and IsPlayerSpell(spellId) then return true end
 
 	return false
@@ -492,9 +508,7 @@ local function resolveProviderPresentation(provider)
 		local sid = normalizeSpellId(provider.spellIds[i])
 		if sid then
 			if preferredId and sid == preferredId then
-				if resolvedName and resolvedIcon then
-					break
-				end
+				if resolvedName and resolvedIcon then break end
 				-- Continue with additional IDs only to fill missing name/icon fields.
 			end
 			requestSpellDataLoad(sid)
@@ -657,12 +671,8 @@ local function roguePoisonsGetSelfStatus(provider, reminder)
 	local hasLethal, hasUtility = getRoguePoisonPresence(provider, reminder)
 
 	local missingEntries = {}
-	if not hasLethal then
-		missingEntries[#missingEntries + 1] = makeSelfMissingEntry(lethalDisplayId, "Lethal Poison")
-	end
-	if not hasUtility then
-		missingEntries[#missingEntries + 1] = makeSelfMissingEntry(utilityDisplayId, "Non-lethal Poison")
-	end
+	if not hasLethal then missingEntries[#missingEntries + 1] = makeSelfMissingEntry(lethalDisplayId, "Lethal Poison") end
+	if not hasUtility then missingEntries[#missingEntries + 1] = makeSelfMissingEntry(utilityDisplayId, "Non-lethal Poison") end
 
 	if #missingEntries > 0 then
 		setProviderDisplaySpellId(provider, missingEntries[1].spellId)
@@ -689,9 +699,7 @@ local function shamanEnhancementGetSelfStatus(provider, reminder)
 	local skyfuryMissingCount, skyfuryTotal = reminder:GetGroupBuffMissingCountBySpellIds(provider.skyfurySpellIds)
 	if skyfuryTotal > 0 then
 		totalRequirements = totalRequirements + 1
-		if skyfuryMissingCount > 0 then
-			missingEntries[#missingEntries + 1] = makeSelfMissingEntry(skyfuryDisplayId, provider.skyfuryLabel or "Skyfury", skyfuryMissingCount, skyfuryTotal)
-		end
+		if skyfuryMissingCount > 0 then missingEntries[#missingEntries + 1] = makeSelfMissingEntry(skyfuryDisplayId, provider.skyfuryLabel or "Skyfury", skyfuryMissingCount, skyfuryTotal) end
 	end
 
 	local windfuryDisplayId = normalizeSpellId(provider.windfuryDisplaySpellId) or normalizeSpellId(provider.windfurySpellIds and provider.windfurySpellIds[1])
@@ -708,12 +716,8 @@ local function shamanEnhancementGetSelfStatus(provider, reminder)
 		end
 	end
 
-	if not hasWindfury then
-		missingEntries[#missingEntries + 1] = makeSelfMissingEntry(windfuryDisplayId, "Windfury Weapon")
-	end
-	if not hasFlametongue then
-		missingEntries[#missingEntries + 1] = makeSelfMissingEntry(flametongueDisplayId, "Flametongue Weapon")
-	end
+	if not hasWindfury then missingEntries[#missingEntries + 1] = makeSelfMissingEntry(windfuryDisplayId, "Windfury Weapon") end
+	if not hasFlametongue then missingEntries[#missingEntries + 1] = makeSelfMissingEntry(flametongueDisplayId, "Flametongue Weapon") end
 
 	if #missingEntries > 0 then
 		setProviderDisplaySpellId(provider, missingEntries[1].spellId)
@@ -740,16 +744,15 @@ local function shamanRestorationGetSelfStatus(provider, reminder)
 	local skyfuryMissingCount, skyfuryTotal = reminder:GetGroupBuffMissingCountBySpellIds(provider.skyfurySpellIds)
 	if skyfuryTotal > 0 then
 		totalRequirements = totalRequirements + 1
-		if skyfuryMissingCount > 0 then
-			missingEntries[#missingEntries + 1] = makeSelfMissingEntry(skyfuryDisplayId, provider.skyfuryLabel or "Skyfury", skyfuryMissingCount, skyfuryTotal)
-		end
+		if skyfuryMissingCount > 0 then missingEntries[#missingEntries + 1] = makeSelfMissingEntry(skyfuryDisplayId, provider.skyfuryLabel or "Skyfury", skyfuryMissingCount, skyfuryTotal) end
 	end
 
-	local earthlivingDisplaySpellId = normalizeSpellId(provider.earthlivingDisplaySpellId) or normalizeSpellId(provider.primaryDisplaySpellId) or normalizeSpellId(provider.earthlivingSpellIds and provider.earthlivingSpellIds[1]) or normalizeSpellId(provider.displaySpellId)
+	local earthlivingDisplaySpellId = normalizeSpellId(provider.earthlivingDisplaySpellId)
+		or normalizeSpellId(provider.primaryDisplaySpellId)
+		or normalizeSpellId(provider.earthlivingSpellIds and provider.earthlivingSpellIds[1])
+		or normalizeSpellId(provider.displaySpellId)
 	local hasEarthliving = reminder:UnitHasAnyAuraSpellId("player", provider.earthlivingSpellIds or provider.spellIds)
-	if not hasEarthliving then
-		hasEarthliving = reminder:UnitHasAnyAuraName("player", provider.earthlivingAuraNames)
-	end
+	if not hasEarthliving then hasEarthliving = reminder:UnitHasAnyAuraName("player", provider.earthlivingAuraNames) end
 	if not hasEarthliving and GetWeaponEnchantInfo then
 		local hasMainHandEnchant, _, _, mainHandEnchantId = GetWeaponEnchantInfo()
 		local expectedEnchantId = tonumber(provider.enchantId)
@@ -760,9 +763,7 @@ local function shamanRestorationGetSelfStatus(provider, reminder)
 		end
 	end
 
-	if not hasEarthliving then
-		missingEntries[#missingEntries + 1] = makeSelfMissingEntry(earthlivingDisplaySpellId, provider.earthlivingLabel or provider.fallbackName or "Earthliving Weapon")
-	end
+	if not hasEarthliving then missingEntries[#missingEntries + 1] = makeSelfMissingEntry(earthlivingDisplaySpellId, provider.earthlivingLabel or provider.fallbackName or "Earthliving Weapon") end
 
 	local shouldTrackTidecaller = hasKnownSpellInList(provider.tidecallerKnownSpellIds or provider.tidecallerSpellIds)
 	if shouldTrackTidecaller and provider.requireShieldForTidecaller == true and not isPlayerOffhandShield() then shouldTrackTidecaller = false end
@@ -771,9 +772,7 @@ local function shamanRestorationGetSelfStatus(provider, reminder)
 
 		local tidecallerDisplaySpellId = normalizeSpellId(provider.tidecallerDisplaySpellId) or normalizeSpellId(provider.tidecallerSpellIds and provider.tidecallerSpellIds[1])
 		local hasTidecaller = reminder:UnitHasAnyAuraSpellId("player", provider.tidecallerSpellIds)
-		if not hasTidecaller then
-			hasTidecaller = reminder:UnitHasAnyAuraName("player", provider.tidecallerAuraNames)
-		end
+		if not hasTidecaller then hasTidecaller = reminder:UnitHasAnyAuraName("player", provider.tidecallerAuraNames) end
 		if not hasTidecaller and GetWeaponEnchantInfo then
 			local _, _, _, _, hasOffHandEnchant, _, _, offHandEnchantId = GetWeaponEnchantInfo()
 			local expectedTidecallerEnchantId = tonumber(provider.tidecallerEnchantId)
@@ -784,9 +783,7 @@ local function shamanRestorationGetSelfStatus(provider, reminder)
 			end
 		end
 
-		if not hasTidecaller then
-			missingEntries[#missingEntries + 1] = makeSelfMissingEntry(tidecallerDisplaySpellId, provider.tidecallerLabel or "Tidecaller's Guard")
-		end
+		if not hasTidecaller then missingEntries[#missingEntries + 1] = makeSelfMissingEntry(tidecallerDisplaySpellId, provider.tidecallerLabel or "Tidecaller's Guard") end
 	end
 
 	setProviderDisplaySpellId(provider, missingEntries[1] and missingEntries[1].spellId or skyfuryDisplayId or earthlivingDisplaySpellId)
@@ -797,6 +794,92 @@ local function shamanRestorationEarthlivingHasUnitBuff(provider, unit, reminder)
 	if unit ~= "player" then return false end
 	local status = shamanRestorationGetSelfStatus(provider, reminder)
 	return status and status.missing <= 0
+end
+
+local function evokerSupportGetSelfStatus(provider, reminder)
+	if type(provider) ~= "table" or type(reminder) ~= "table" then return buildSelfStatus(0, {}) end
+
+	local totalRequirements = 0
+	local missingEntries = {}
+
+	local sourceDisplaySpellId = normalizeSpellId(provider.sourceDisplaySpellId) or normalizeSpellId(provider.sourceSpellIds and provider.sourceSpellIds[1])
+	local shouldTrackSource = hasKnownSpellInList(provider.sourceKnownSpellIds or provider.sourceSpellIds)
+	if shouldTrackSource then
+		reminder.runtimeHealerUnits = reminder.runtimeHealerUnits or {}
+		local healerUnits = reminder:CollectOtherHealerUnits(reminder.runtimeHealerUnits)
+		if #healerUnits > 0 then
+			totalRequirements = totalRequirements + 1
+			local hasSourceOnTarget = false
+			for i = 1, #healerUnits do
+				local unit = healerUnits[i]
+				if reminder:UnitHasAnyAuraSpellId(unit, provider.sourceSpellIds) then
+					hasSourceOnTarget = true
+					break
+				end
+				if reminder:UnitHasAnyAuraName(unit, provider.sourceAuraNames) then
+					hasSourceOnTarget = true
+					break
+				end
+			end
+
+			if not hasSourceOnTarget then missingEntries[#missingEntries + 1] = makeSelfMissingEntry(sourceDisplaySpellId, provider.sourceLabel or "Source of Magic") end
+		end
+	end
+
+	local bronzeDisplaySpellId = normalizeSpellId(provider.bronzeDisplaySpellId) or normalizeSpellId(provider.bronzeSpellIds and provider.bronzeSpellIds[1])
+	local bronzeMissingCount, bronzeTotal = reminder:GetGroupBuffMissingCountBySpellIds(provider.bronzeSpellIds)
+	if bronzeTotal > 0 then
+		totalRequirements = totalRequirements + 1
+		if bronzeMissingCount > 0 then
+			missingEntries[#missingEntries + 1] = makeSelfMissingEntry(bronzeDisplaySpellId, provider.bronzeLabel or "Blessing of the Bronze", bronzeMissingCount, bronzeTotal)
+		end
+	end
+
+	setProviderDisplaySpellId(provider, missingEntries[1] and missingEntries[1].spellId or sourceDisplaySpellId or bronzeDisplaySpellId)
+	return buildSelfStatus(totalRequirements, missingEntries)
+end
+
+local function evokerSupportHasUnitBuff(provider, unit, reminder)
+	if unit ~= "player" then return false end
+	local status = evokerSupportGetSelfStatus(provider, reminder)
+	return status and status.missing <= 0
+end
+
+function Reminder:GetEvokerSupportProvider()
+	self.evokerSupportProvider = self.evokerSupportProvider
+		or {
+			scope = PROVIDER_SCOPE_SELF,
+			spellIds = {
+				369459,
+				381732,
+				381741,
+				381746,
+				381748,
+				381749,
+				381750,
+				381751,
+				381752,
+				381753,
+				381754,
+				381756,
+				381757,
+				381758,
+			},
+			sourceSpellIds = EVOKER_SOURCE_OF_MAGIC_IDS,
+			sourceKnownSpellIds = EVOKER_SOURCE_OF_MAGIC_IDS,
+			sourceAuraNames = { "Source of Magic" },
+			sourceLabel = "Source of Magic",
+			sourceDisplaySpellId = 369459,
+			bronzeSpellIds = EVOKER_BLESSING_OF_BRONZE_IDS,
+			bronzeLabel = "Blessing of the Bronze",
+			bronzeDisplaySpellId = 381748,
+			fallbackName = "Source of Magic",
+			tracksExternalUnitAuras = true,
+			hasUnitBuffFunc = evokerSupportHasUnitBuff,
+			getSelfStatusFunc = evokerSupportGetSelfStatus,
+		}
+
+	return self.evokerSupportProvider
 end
 
 function Reminder:GetPaladinRitesProvider()
@@ -867,17 +950,17 @@ function Reminder:GetShamanEnhancementProvider()
 				319778,
 				318038,
 			},
-				windfurySpellIds = SHAMAN_ENHANCEMENT_WINDFURY_IDS,
-				flametongueSpellIds = SHAMAN_ENHANCEMENT_FLAMETONGUE_IDS,
-				windfuryDisplaySpellId = 319773,
-				flametongueDisplaySpellId = 319778,
-				skyfurySpellIds = PROVIDER_BY_CLASS.SHAMAN.spellIds,
-				skyfuryDisplaySpellId = 462854,
-				skyfuryLabel = PROVIDER_BY_CLASS.SHAMAN.fallbackName or "Skyfury",
-				fallbackName = "Weapon Imbues",
-				hasUnitBuffFunc = shamanEnhancementImbuesHasUnitBuff,
-				getSelfStatusFunc = shamanEnhancementGetSelfStatus,
-			}
+			windfurySpellIds = SHAMAN_ENHANCEMENT_WINDFURY_IDS,
+			flametongueSpellIds = SHAMAN_ENHANCEMENT_FLAMETONGUE_IDS,
+			windfuryDisplaySpellId = 319773,
+			flametongueDisplaySpellId = 319778,
+			skyfurySpellIds = PROVIDER_BY_CLASS.SHAMAN.spellIds,
+			skyfuryDisplaySpellId = 462854,
+			skyfuryLabel = PROVIDER_BY_CLASS.SHAMAN.fallbackName or "Skyfury",
+			fallbackName = "Weapon Imbues",
+			hasUnitBuffFunc = shamanEnhancementImbuesHasUnitBuff,
+			getSelfStatusFunc = shamanEnhancementGetSelfStatus,
+		}
 	return self.shamanEnhancementProvider
 end
 
@@ -893,34 +976,34 @@ function Reminder:GetShamanRestorationProvider()
 	if safeIsPlayerSpell(457496) then tidecallerDisplaySpellId = 457496 end
 
 	self.shamanRestorationProvider = self.shamanRestorationProvider
-				or {
-					scope = PROVIDER_SCOPE_SELF,
-					spellIds = {
-						382021,
-						382022,
-						382024,
-						457481,
-						457496,
-					},
-					earthlivingSpellIds = SHAMAN_RESTORATION_EARTHLIVING_IDS,
-					earthlivingAuraNames = SHAMAN_RESTORATION_EARTHLIVING_AURA_NAMES,
-					earthlivingLabel = "Earthliving Weapon",
-					enchantId = 6498,
-					earthlivingDisplaySpellId = earthlivingDisplaySpellId,
-					tidecallerSpellIds = SHAMAN_RESTORATION_TIDECALLER_IDS,
-					tidecallerKnownSpellIds = SHAMAN_RESTORATION_TIDECALLER_IDS,
-					tidecallerAuraNames = SHAMAN_RESTORATION_TIDECALLER_AURA_NAMES,
-					tidecallerLabel = "Tidecaller's Guard",
-					tidecallerDisplaySpellId = tidecallerDisplaySpellId,
-					requireShieldForTidecaller = true,
-					acceptAnyOffhandEnchantWhenKnown = true,
-					skyfurySpellIds = PROVIDER_BY_CLASS.SHAMAN.spellIds,
-					skyfuryDisplaySpellId = 462854,
-					skyfuryLabel = PROVIDER_BY_CLASS.SHAMAN.fallbackName or "Skyfury",
-					fallbackName = "Earthliving Weapon",
-					hasUnitBuffFunc = shamanRestorationEarthlivingHasUnitBuff,
-					getSelfStatusFunc = shamanRestorationGetSelfStatus,
-				}
+		or {
+			scope = PROVIDER_SCOPE_SELF,
+			spellIds = {
+				382021,
+				382022,
+				382024,
+				457481,
+				457496,
+			},
+			earthlivingSpellIds = SHAMAN_RESTORATION_EARTHLIVING_IDS,
+			earthlivingAuraNames = SHAMAN_RESTORATION_EARTHLIVING_AURA_NAMES,
+			earthlivingLabel = "Earthliving Weapon",
+			enchantId = 6498,
+			earthlivingDisplaySpellId = earthlivingDisplaySpellId,
+			tidecallerSpellIds = SHAMAN_RESTORATION_TIDECALLER_IDS,
+			tidecallerKnownSpellIds = SHAMAN_RESTORATION_TIDECALLER_IDS,
+			tidecallerAuraNames = SHAMAN_RESTORATION_TIDECALLER_AURA_NAMES,
+			tidecallerLabel = "Tidecaller's Guard",
+			tidecallerDisplaySpellId = tidecallerDisplaySpellId,
+			requireShieldForTidecaller = true,
+			acceptAnyOffhandEnchantWhenKnown = true,
+			skyfurySpellIds = PROVIDER_BY_CLASS.SHAMAN.spellIds,
+			skyfuryDisplaySpellId = 462854,
+			skyfuryLabel = PROVIDER_BY_CLASS.SHAMAN.fallbackName or "Skyfury",
+			fallbackName = "Earthliving Weapon",
+			hasUnitBuffFunc = shamanRestorationEarthlivingHasUnitBuff,
+			getSelfStatusFunc = shamanRestorationGetSelfStatus,
+		}
 
 	if self.shamanRestorationProvider.earthlivingDisplaySpellId ~= earthlivingDisplaySpellId or self.shamanRestorationProvider.tidecallerDisplaySpellId ~= tidecallerDisplaySpellId then
 		self.shamanRestorationProvider.earthlivingDisplaySpellId = earthlivingDisplaySpellId
@@ -945,6 +1028,8 @@ function Reminder:GetProvider()
 		provider = self:GetPaladinRitesProvider()
 	elseif classToken == "ROGUE" then
 		provider = self:GetRoguePoisonsProvider()
+	elseif classToken == "EVOKER" then
+		provider = self:GetEvokerSupportProvider()
 	elseif classToken == "SHAMAN" then
 		provider = self:GetShamanProvider()
 	else
@@ -1910,6 +1995,22 @@ function Reminder:CollectUnits(target)
 	return target
 end
 
+function Reminder:CollectOtherHealerUnits(target)
+	if not target then target = {} end
+	for i = #target, 1, -1 do
+		target[i] = nil
+	end
+
+	self.runtimeUnits = self.runtimeUnits or {}
+	local units = self:CollectUnits(self.runtimeUnits)
+	for i = 1, #units do
+		local unit = units[i]
+		if unit ~= "player" and not isAIFollowerUnit(unit) and UnitExists(unit) and UnitIsConnected(unit) and not UnitIsDeadOrGhost(unit) and isUnitHealerRole(unit) then target[#target + 1] = unit end
+	end
+
+	return target
+end
+
 function Reminder:UnitHasProviderBuff(unit, provider)
 	if not (unit and provider) then return false end
 	if provider.scope == PROVIDER_SCOPE_SELF then
@@ -2004,9 +2105,7 @@ function Reminder:Render(provider, missing, total)
 	end
 	frame.icon:SetTexture(providerIcon)
 	self:ApplyVisualSettings()
-	if displayMode == DISPLAY_MODE_ICON_ONLY and provider and provider.scope == PROVIDER_SCOPE_SELF and self.editModeActive ~= true then
-		self:RenderSelfMissingIcons(selfMissingEntries)
-	end
+	if displayMode == DISPLAY_MODE_ICON_ONLY and provider and provider.scope == PROVIDER_SCOPE_SELF and self.editModeActive ~= true then self:RenderSelfMissingIcons(selfMissingEntries) end
 	if displayMode ~= DISPLAY_MODE_ICON_ONLY then
 		if missing > 0 then
 			if frame.countText then frame.countText:SetTextColor(1, 0.25, 0.25, 1) end
@@ -2142,7 +2241,7 @@ function Reminder:HandleEvent(event, unit, updateInfo)
 		if not isTrackedUnit(unit) then return end
 		local provider = self:GetProvider()
 		if provider and provider.scope == PROVIDER_SCOPE_SELF then
-			if unit == "player" then self:RequestUpdate(false) end
+			if unit == "player" or provider.tracksExternalUnitAuras == true then self:RequestUpdate(false) end
 			return
 		end
 		if isAIFollowerUnit(unit) then
@@ -2176,6 +2275,8 @@ function Reminder:RegisterEvents()
 	self.eventFrame:RegisterEvent("PLAYER_LOGIN")
 	self.eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 	self.eventFrame:RegisterEvent("GROUP_ROSTER_UPDATE")
+	self.eventFrame:RegisterEvent("PLAYER_ROLES_ASSIGNED")
+	self.eventFrame:RegisterEvent("ROLE_CHANGED_INFORM")
 	self.eventFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
 	self.eventFrame:RegisterEvent("PLAYER_TALENT_UPDATE")
 	self.eventFrame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
