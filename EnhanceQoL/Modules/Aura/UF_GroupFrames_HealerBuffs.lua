@@ -33,6 +33,8 @@ local format = string.format
 local wipe = _G.wipe or (table and table.wipe)
 local issecretvalue = _G.issecretvalue
 local UnitIsUnit = _G.UnitIsUnit
+local UnitExists = _G.UnitExists
+local UnitIsPlayer = _G.UnitIsPlayer
 
 local EMPTY = {}
 
@@ -170,13 +172,14 @@ HB.GROWTH_OPTIONS = GFH and GFH.auraGrowthOptions
 
 local FAMILY_DATA = {
 	-- Shared class buffs
-	{ id = "druid_mark_of_the_wild", classToken = "DRUID", spellIds = { 1126 }, fallbackName = "Mark of the Wild" },
-	{ id = "mage_arcane_intellect", classToken = "MAGE", spellIds = { 1459 }, fallbackName = "Arcane Intellect" },
-	{ id = "priest_power_word_fortitude", classToken = "PRIEST", spellIds = { 21562 }, fallbackName = "Power Word: Fortitude" },
-	{ id = "warrior_battle_shout", classToken = "WARRIOR", spellIds = { 6673 }, fallbackName = "Battle Shout" },
+	{ id = "druid_mark_of_the_wild", classToken = "DRUID", spellIds = { 1126 }, fallbackName = "Mark of the Wild", ignoreForNpcUnits = true },
+	{ id = "mage_arcane_intellect", classToken = "MAGE", spellIds = { 1459 }, fallbackName = "Arcane Intellect", ignoreForNpcUnits = true },
+	{ id = "priest_power_word_fortitude", classToken = "PRIEST", spellIds = { 21562 }, fallbackName = "Power Word: Fortitude", ignoreForNpcUnits = true },
+	{ id = "warrior_battle_shout", classToken = "WARRIOR", spellIds = { 6673 }, fallbackName = "Battle Shout", ignoreForNpcUnits = true },
 	{
 		id = "evoker_blessing_of_the_bronze",
 		classToken = "EVOKER",
+		ignoreForNpcUnits = true,
 		spellIds = {
 			381732,
 			381741,
@@ -194,7 +197,7 @@ local FAMILY_DATA = {
 		},
 		fallbackName = "Blessing of the Bronze",
 	},
-	{ id = "shaman_skyfury", classToken = "SHAMAN", spellIds = { 462854 }, fallbackName = "Skyfury" },
+	{ id = "shaman_skyfury", classToken = "SHAMAN", spellIds = { 462854 }, fallbackName = "Skyfury", ignoreForNpcUnits = true },
 
 	-- Preservation Evoker
 	{ id = "evoker_pres_dream_breath", classToken = "EVOKER", spec = "Preservation", spellIds = { 355941 }, fallbackName = "Dream Breath" },
@@ -1128,13 +1131,37 @@ local function resetState(state)
 	wipeTable(state.renderHashByStyle)
 end
 
-local function getFamilyForAura(compiled, aura)
+local function isNpcUnit(unit)
+	if type(unit) ~= "string" or unit == "" then return false end
+	if issecretvalue and issecretvalue(unit) then return false end
+
+	if UnitExists then
+		local exists = UnitExists(unit)
+		if issecretvalue and issecretvalue(exists) then return false end
+		if exists ~= true then return false end
+	end
+
+	if not UnitIsPlayer then return false end
+	local isPlayer = UnitIsPlayer(unit)
+	if issecretvalue and issecretvalue(isPlayer) then return false end
+	return isPlayer == false
+end
+
+local function shouldIgnoreFamilyForUnit(familyId, unit)
+	if familyId == nil then return false end
+	local family = FAMILY_BY_ID[tostring(familyId)]
+	if not (family and family.ignoreForNpcUnits == true) then return false end
+	return isNpcUnit(unit)
+end
+
+local function getFamilyForAura(compiled, aura, unit)
 	if not (compiled and aura) then return nil end
 	local spellId = aura.spellId
 	if spellId == nil then return nil end
 	if issecretvalue and issecretvalue(spellId) then return nil end
 	local familyId = compiled.spellToFamily[tonumber(spellId)]
 	if familyId == nil then return nil end
+	if shouldIgnoreFamilyForUnit(familyId, unit) then return nil end
 
 	local isFromPlayerOrPlayerPet = aura.isFromPlayerOrPlayerPet
 	if issecretvalue and issecretvalue(isFromPlayerOrPlayerPet) then return nil end
@@ -1148,16 +1175,16 @@ local function getFamilyForAura(compiled, aura)
 	return familyId
 end
 
-function HB.ShouldSuppressRegularBuffAura(kind, cfg, aura, compiled)
+function HB.ShouldSuppressRegularBuffAura(kind, cfg, aura, compiled, unit)
 	if aura == nil or cfg == nil then return false end
 	compiled = compiled or compile(kind, cfg)
 	if not (compiled and compiled.enabled) then return false end
-	local familyId = getFamilyForAura(compiled, aura)
+	local familyId = getFamilyForAura(compiled, aura, unit)
 	if familyId == nil then return false end
 	return compiled.suppressedFamilies and compiled.suppressedFamilies[familyId] == true
 end
 
-local function rebuildFamilyStateFromCache(state, compiled, cache)
+local function rebuildFamilyStateFromCache(state, compiled, cache, unit)
 	wipeTable(state.auraFamilyByInstance)
 	wipeTable(state.familyCounts)
 	wipeTable(state.familyAura)
@@ -1169,7 +1196,7 @@ local function rebuildFamilyStateFromCache(state, compiled, cache)
 		local auraId = order[i]
 		local aura = auraId and auras[auraId]
 		if aura and auraId then
-			local familyId = getFamilyForAura(compiled, aura)
+			local familyId = getFamilyForAura(compiled, aura, unit)
 			if familyId then
 				state.auraFamilyByInstance[auraId] = familyId
 				state.familyCounts[familyId] = (state.familyCounts[familyId] or 0) + 1
@@ -1206,9 +1233,9 @@ local function markFamilyChanged(changedFamilies, familyId)
 	if familyId then changedFamilies[familyId] = true end
 end
 
-local function updateFamilyFromAura(state, compiled, auraId, aura, changedFamilies)
+local function updateFamilyFromAura(state, compiled, auraId, aura, changedFamilies, unit)
 	local oldFamily = state.auraFamilyByInstance[auraId]
-	local newFamily = aura and getFamilyForAura(compiled, aura) or nil
+	local newFamily = aura and getFamilyForAura(compiled, aura, unit) or nil
 	if oldFamily == newFamily then
 		if newFamily then
 			state.familyAura[newFamily] = aura
@@ -1245,7 +1272,7 @@ local function updateFamilyFromAura(state, compiled, auraId, aura, changedFamili
 	end
 end
 
-local function applyDeltaToFamilyState(state, compiled, cache, updateInfo)
+local function applyDeltaToFamilyState(state, compiled, cache, updateInfo, unit)
 	local changedFamilies = state.changedFamilies
 	wipeTable(changedFamilies)
 	if not updateInfo then return changedFamilies end
@@ -1253,7 +1280,7 @@ local function applyDeltaToFamilyState(state, compiled, cache, updateInfo)
 	if updateInfo.removedAuraInstanceIDs then
 		for i = 1, #updateInfo.removedAuraInstanceIDs do
 			local auraId = updateInfo.removedAuraInstanceIDs[i]
-			if auraId then updateFamilyFromAura(state, compiled, auraId, nil, changedFamilies) end
+			if auraId then updateFamilyFromAura(state, compiled, auraId, nil, changedFamilies, unit) end
 		end
 	end
 
@@ -1261,7 +1288,7 @@ local function applyDeltaToFamilyState(state, compiled, cache, updateInfo)
 		for i = 1, #updateInfo.addedAuras do
 			local aura = updateInfo.addedAuras[i]
 			local auraId = aura and aura.auraInstanceID
-			if auraId then updateFamilyFromAura(state, compiled, auraId, aura, changedFamilies) end
+			if auraId then updateFamilyFromAura(state, compiled, auraId, aura, changedFamilies, unit) end
 		end
 	end
 
@@ -1270,7 +1297,7 @@ local function applyDeltaToFamilyState(state, compiled, cache, updateInfo)
 			local auraId = updateInfo.updatedAuraInstanceIDs[i]
 			if auraId then
 				local aura = cache.auras[auraId]
-				updateFamilyFromAura(state, compiled, auraId, aura, changedFamilies)
+				updateFamilyFromAura(state, compiled, auraId, aura, changedFamilies, unit)
 			end
 		end
 	end
@@ -1282,8 +1309,9 @@ local function applyDeltaToFamilyState(state, compiled, cache, updateInfo)
 	return changedFamilies
 end
 
-local function evaluateRuleActive(rule, familyCounts)
+local function evaluateRuleActive(rule, familyCounts, unit)
 	if not rule or rule.enabled == false then return false end
+	if shouldIgnoreFamilyForUnit(rule.spellFamilyId, unit) then return false end
 	if rule["not"] and not canPlayerProvideFamily(rule.spellFamilyId) then return false end
 	local active = (familyCounts[rule.spellFamilyId] or 0) > 0
 	if rule["not"] then active = not active end
@@ -1321,20 +1349,20 @@ local function evaluateGroupActive(state, compiled, groupId)
 	return changed
 end
 
-local function evaluateAllRulesAndGroups(state, compiled)
+local function evaluateAllRulesAndGroups(state, compiled, unit)
 	wipeTable(state.ruleActive)
 	wipeTable(state.groupActive)
 	for i = 1, #compiled.ruleOrder do
 		local ruleId = compiled.ruleOrder[i]
 		local rule = compiled.ruleById[ruleId]
-		if rule then state.ruleActive[ruleId] = evaluateRuleActive(rule, state.familyCounts) end
+		if rule then state.ruleActive[ruleId] = evaluateRuleActive(rule, state.familyCounts, unit) end
 	end
 	for i = 1, #compiled.groupOrder do
 		evaluateGroupActive(state, compiled, compiled.groupOrder[i])
 	end
 end
 
-local function evaluateDeltaRulesAndGroups(state, compiled, changedFamilies)
+local function evaluateDeltaRulesAndGroups(state, compiled, changedFamilies, unit)
 	local changedRules = state.changedRules
 	local changedGroups = state.changedGroups
 	wipeTable(changedRules)
@@ -1352,7 +1380,7 @@ local function evaluateDeltaRulesAndGroups(state, compiled, changedFamilies)
 	for ruleId in pairs(changedRules) do
 		local rule = compiled.ruleById[ruleId]
 		if rule then
-			local newActive = evaluateRuleActive(rule, state.familyCounts)
+			local newActive = evaluateRuleActive(rule, state.familyCounts, unit)
 			if state.ruleActive[ruleId] ~= newActive then
 				state.ruleActive[ruleId] = newActive
 				changedGroups[rule.groupId] = true
@@ -1844,10 +1872,11 @@ function HB.UpdateFromAuras(btn, updateInfo, cache, changed, isFullUpdate, compi
 	end
 
 	ensureVisualLayers(btn, st)
+	local unit = btn.unit
 
 	if isFullUpdate or not updateInfo then
-		rebuildFamilyStateFromCache(state, compiled, cache)
-		evaluateAllRulesAndGroups(state, compiled)
+		rebuildFamilyStateFromCache(state, compiled, cache, unit)
+		evaluateAllRulesAndGroups(state, compiled, unit)
 		wipeTable(state.changedFamilies)
 		for familyId in pairs(state.familyCounts) do
 			state.changedFamilies[familyId] = true
@@ -1856,8 +1885,8 @@ function HB.UpdateFromAuras(btn, updateInfo, cache, changed, isFullUpdate, compi
 		return
 	end
 
-	local changedFamilies = applyDeltaToFamilyState(state, compiled, cache, updateInfo)
-	evaluateDeltaRulesAndGroups(state, compiled, changedFamilies)
+	local changedFamilies = applyDeltaToFamilyState(state, compiled, cache, updateInfo, unit)
+	evaluateDeltaRulesAndGroups(state, compiled, changedFamilies, unit)
 	renderAll(btn, st, state, compiled, cfg, changedFamilies)
 end
 

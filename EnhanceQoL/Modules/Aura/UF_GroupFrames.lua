@@ -4426,7 +4426,7 @@ local function updateAuraType(self, unit, st, ac, kindKey, cache, changed, heale
 			elseif kindKey == "buff" then
 				match = hasAuraFlag(auraFlags, AURA_KIND_HELPFUL)
 				if match and externalsEnabled and hasAuraFlag(auraFlags, AURA_KIND_EXTERNAL) then match = false end
-				if match and suppressHealerBuffAura and suppressHealerBuffAura(suppressKind, suppressCfg, aura, healerBuffCompiled) then match = false end
+				if match and suppressHealerBuffAura and suppressHealerBuffAura(suppressKind, suppressCfg, aura, healerBuffCompiled, unit) then match = false end
 			elseif kindKey == "externals" then
 				match = hasAuraFlag(auraFlags, AURA_KIND_EXTERNAL)
 			end
