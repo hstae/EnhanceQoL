@@ -12,6 +12,7 @@
 - Mythic+ (Edit Mode): Bloodlust tracker is now fully movable and customizable (icon, text, border, sounds).
 - Shared Media: Added new sound `Wrestling Bell`.
 - Class Buff Reminder: Added `Grow from center` and expanded self-buff/enchant coverage for Paladin (`Rites`), Rogue (`Lethal + Non-lethal Poisons`), and Shaman (`Skyfury`, `Earthliving`, `Tidecaller's Guard`).
+- Resource Bars (Rogue): Added charged combo point styling with Rogue-only options (toggle, custom fill/background colors, highlight strength, and alpha).
 
 ### 🐛 Fixed
 

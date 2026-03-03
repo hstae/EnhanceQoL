@@ -22,6 +22,20 @@ local MAELSTROM_WEAPON_SEGMENTS = (ResourceBars and ResourceBars.MAELSTROM_WEAPO
 local MAELSTROM_WEAPON_MAX_STACKS = (ResourceBars and ResourceBars.MAELSTROM_WEAPON_MAX_STACKS) or 10
 local MAELSTROM_MID_STACK_DEFAULT = (ResourceBars and ResourceBars.MAELSTROM_WEAPON_MID_STACK_DEFAULT) or MAELSTROM_WEAPON_SEGMENTS
 local MAELSTROM_MID_STACK_MAX = math.max(1, MAELSTROM_WEAPON_MAX_STACKS - 1)
+local ROGUE_CHARGED_COMBO_DEFAULTS = (ResourceBars and ResourceBars.ROGUE_CHARGED_COMBO_DEFAULTS)
+	or {
+		enabled = true,
+		affectFill = true,
+		affectBackground = true,
+		fillUseCustomColor = false,
+		fillColor = { 1.0, 0.95, 0.45, 1.0 },
+		fillLighten = 0.35,
+		fillAlphaBoost = 0.10,
+		backgroundUseCustomColor = false,
+		backgroundColor = { 0.75, 0.60, 0.25, 0.75 },
+		backgroundLighten = 0.30,
+		backgroundAlphaBoost = 0.10,
+	}
 local STAGGER_EXTRA_THRESHOLD_HIGH = (ResourceBars and ResourceBars.STAGGER_EXTRA_THRESHOLD_HIGH) or 200
 local STAGGER_EXTRA_THRESHOLD_EXTREME = (ResourceBars and ResourceBars.STAGGER_EXTRA_THRESHOLD_EXTREME) or 300
 local STAGGER_EXTRA_COLORS = (ResourceBars and ResourceBars.STAGGER_EXTRA_COLORS) or { high = { 0.62, 0.2, 1, 1 }, extreme = { 1, 0.2, 0.8, 1 } }
@@ -2524,6 +2538,281 @@ local function registerEditModeBars()
 							queueRefresh()
 						end,
 						hasOpacity = true,
+						parentId = "colorsetting",
+					}
+				end
+
+				if addon.variables.unitClass == "ROGUE" and barType == "COMBO_POINTS" then
+					local function chargedCfg()
+						local c = curSpecCfg()
+						if not c then return nil end
+						if ResourceBars and ResourceBars.EnsureRogueChargedComboDefaults then ResourceBars.EnsureRogueChargedComboDefaults(c, "COMBO_POINTS") end
+						return c
+					end
+
+					local function percentFromUnit(value, fallback)
+						local n = tonumber(value)
+						if n == nil then n = tonumber(fallback) or 0 end
+						if n < 0 then
+							n = 0
+						elseif n > 1 then
+							n = 1
+						end
+						return math.floor((n * 100) + 0.5)
+					end
+
+					local function unitFromPercent(value, fallback)
+						local n = tonumber(value)
+						if n == nil then n = tonumber(fallback) or 0 end
+						n = n / 100
+						if n < 0 then
+							n = 0
+						elseif n > 1 then
+							n = 1
+						end
+						return n
+					end
+
+					settingsList[#settingsList + 1] = {
+						name = L["Charged combo point styling"] or "Charged combo point styling",
+						kind = settingType.Checkbox,
+						field = "useChargedComboStyling",
+						default = ROGUE_CHARGED_COMBO_DEFAULTS.enabled ~= false,
+						get = function()
+							local c = chargedCfg()
+							return c and c.useChargedComboStyling ~= false
+						end,
+						set = function(_, value)
+							local c = chargedCfg()
+							if not c then return end
+							c.useChargedComboStyling = value and true or false
+							queueRefresh()
+							refreshSettingsUI()
+						end,
+						parentId = "colorsetting",
+					}
+
+					settingsList[#settingsList + 1] = {
+						name = L["Affect charged fill"] or "Affect charged fill",
+						kind = settingType.Checkbox,
+						field = "chargedComboAffectFill",
+						default = ROGUE_CHARGED_COMBO_DEFAULTS.affectFill ~= false,
+						get = function()
+							local c = chargedCfg()
+							return c and c.chargedComboAffectFill ~= false
+						end,
+						set = function(_, value)
+							local c = chargedCfg()
+							if not c then return end
+							c.chargedComboAffectFill = value and true or false
+							queueRefresh()
+							refreshSettingsUI()
+						end,
+						isEnabled = function()
+							local c = chargedCfg()
+							return c and c.useChargedComboStyling ~= false
+						end,
+						parentId = "colorsetting",
+					}
+
+					settingsList[#settingsList + 1] = {
+						name = L["Custom charged fill color"] or "Custom charged fill color",
+						kind = settingType.CheckboxColor,
+						field = "chargedComboUseCustomFillColor",
+						default = ROGUE_CHARGED_COMBO_DEFAULTS.fillUseCustomColor == true,
+						get = function()
+							local c = chargedCfg()
+							return c and c.chargedComboUseCustomFillColor == true
+						end,
+						set = function(_, value)
+							local c = chargedCfg()
+							if not c then return end
+							c.chargedComboUseCustomFillColor = value and true or false
+							queueRefresh()
+							refreshSettingsUI()
+						end,
+						colorDefault = toUIColor(ROGUE_CHARGED_COMBO_DEFAULTS.fillColor, { 1.0, 0.95, 0.45, 1.0 }),
+						colorGet = function()
+							local c = chargedCfg()
+							local col = (c and c.chargedComboFillColor) or ROGUE_CHARGED_COMBO_DEFAULTS.fillColor or { 1.0, 0.95, 0.45, 1.0 }
+							local r, g, b, a = toColorComponents(col, { 1.0, 0.95, 0.45, 1.0 })
+							return { r = r, g = g, b = b, a = a }
+						end,
+						colorSet = function(_, value)
+							local c = chargedCfg()
+							if not c then return end
+							c.chargedComboFillColor = toColorArray(value, ROGUE_CHARGED_COMBO_DEFAULTS.fillColor or { 1.0, 0.95, 0.45, 1.0 })
+							queueRefresh()
+						end,
+						hasOpacity = true,
+						isEnabled = function()
+							local c = chargedCfg()
+							return c and c.useChargedComboStyling ~= false and c.chargedComboAffectFill ~= false
+						end,
+						parentId = "colorsetting",
+					}
+
+					settingsList[#settingsList + 1] = {
+						name = L["Auto charged fill highlight"] or "Auto charged fill highlight (%)",
+						kind = settingType.Slider,
+						allowInput = true,
+						field = "chargedComboFillLighten",
+						minValue = 0,
+						maxValue = 100,
+						valueStep = 1,
+						default = percentFromUnit(ROGUE_CHARGED_COMBO_DEFAULTS.fillLighten, 0.35),
+						get = function()
+							local c = chargedCfg()
+							return percentFromUnit(c and c.chargedComboFillLighten, ROGUE_CHARGED_COMBO_DEFAULTS.fillLighten or 0.35)
+						end,
+						set = function(_, value)
+							local c = chargedCfg()
+							if not c then return end
+							c.chargedComboFillLighten = unitFromPercent(value, percentFromUnit(ROGUE_CHARGED_COMBO_DEFAULTS.fillLighten, 0.35))
+							queueRefresh()
+						end,
+						isEnabled = function()
+							local c = chargedCfg()
+							return c and c.useChargedComboStyling ~= false and c.chargedComboAffectFill ~= false and c.chargedComboUseCustomFillColor ~= true
+						end,
+						parentId = "colorsetting",
+					}
+
+					settingsList[#settingsList + 1] = {
+						name = L["Auto charged fill alpha"] or "Auto charged fill alpha boost (%)",
+						kind = settingType.Slider,
+						allowInput = true,
+						field = "chargedComboFillAlphaBoost",
+						minValue = 0,
+						maxValue = 100,
+						valueStep = 1,
+						default = percentFromUnit(ROGUE_CHARGED_COMBO_DEFAULTS.fillAlphaBoost, 0.10),
+						get = function()
+							local c = chargedCfg()
+							return percentFromUnit(c and c.chargedComboFillAlphaBoost, ROGUE_CHARGED_COMBO_DEFAULTS.fillAlphaBoost or 0.10)
+						end,
+						set = function(_, value)
+							local c = chargedCfg()
+							if not c then return end
+							c.chargedComboFillAlphaBoost = unitFromPercent(value, percentFromUnit(ROGUE_CHARGED_COMBO_DEFAULTS.fillAlphaBoost, 0.10))
+							queueRefresh()
+						end,
+						isEnabled = function()
+							local c = chargedCfg()
+							return c and c.useChargedComboStyling ~= false and c.chargedComboAffectFill ~= false and c.chargedComboUseCustomFillColor ~= true
+						end,
+						parentId = "colorsetting",
+					}
+
+					settingsList[#settingsList + 1] = {
+						name = L["Affect charged background"] or "Affect charged background",
+						kind = settingType.Checkbox,
+						field = "chargedComboAffectBackground",
+						default = ROGUE_CHARGED_COMBO_DEFAULTS.affectBackground ~= false,
+						get = function()
+							local c = chargedCfg()
+							return c and c.chargedComboAffectBackground ~= false
+						end,
+						set = function(_, value)
+							local c = chargedCfg()
+							if not c then return end
+							c.chargedComboAffectBackground = value and true or false
+							queueRefresh()
+							refreshSettingsUI()
+						end,
+						isEnabled = function()
+							local c = chargedCfg()
+							return c and c.useChargedComboStyling ~= false
+						end,
+						parentId = "colorsetting",
+					}
+
+					settingsList[#settingsList + 1] = {
+						name = L["Custom charged background color"] or "Custom charged background color",
+						kind = settingType.CheckboxColor,
+						field = "chargedComboUseCustomBackgroundColor",
+						default = ROGUE_CHARGED_COMBO_DEFAULTS.backgroundUseCustomColor == true,
+						get = function()
+							local c = chargedCfg()
+							return c and c.chargedComboUseCustomBackgroundColor == true
+						end,
+						set = function(_, value)
+							local c = chargedCfg()
+							if not c then return end
+							c.chargedComboUseCustomBackgroundColor = value and true or false
+							queueRefresh()
+							refreshSettingsUI()
+						end,
+						colorDefault = toUIColor(ROGUE_CHARGED_COMBO_DEFAULTS.backgroundColor, { 0.75, 0.60, 0.25, 0.75 }),
+						colorGet = function()
+							local c = chargedCfg()
+							local col = (c and c.chargedComboBackgroundColor) or ROGUE_CHARGED_COMBO_DEFAULTS.backgroundColor or { 0.75, 0.60, 0.25, 0.75 }
+							local r, g, b, a = toColorComponents(col, { 0.75, 0.60, 0.25, 0.75 })
+							return { r = r, g = g, b = b, a = a }
+						end,
+						colorSet = function(_, value)
+							local c = chargedCfg()
+							if not c then return end
+							c.chargedComboBackgroundColor = toColorArray(value, ROGUE_CHARGED_COMBO_DEFAULTS.backgroundColor or { 0.75, 0.60, 0.25, 0.75 })
+							queueRefresh()
+						end,
+						hasOpacity = true,
+						isEnabled = function()
+							local c = chargedCfg()
+							return c and c.useChargedComboStyling ~= false and c.chargedComboAffectBackground ~= false
+						end,
+						parentId = "colorsetting",
+					}
+
+					settingsList[#settingsList + 1] = {
+						name = L["Auto charged background highlight"] or "Auto charged background highlight (%)",
+						kind = settingType.Slider,
+						allowInput = true,
+						field = "chargedComboBackgroundLighten",
+						minValue = 0,
+						maxValue = 100,
+						valueStep = 1,
+						default = percentFromUnit(ROGUE_CHARGED_COMBO_DEFAULTS.backgroundLighten, 0.30),
+						get = function()
+							local c = chargedCfg()
+							return percentFromUnit(c and c.chargedComboBackgroundLighten, ROGUE_CHARGED_COMBO_DEFAULTS.backgroundLighten or 0.30)
+						end,
+						set = function(_, value)
+							local c = chargedCfg()
+							if not c then return end
+							c.chargedComboBackgroundLighten = unitFromPercent(value, percentFromUnit(ROGUE_CHARGED_COMBO_DEFAULTS.backgroundLighten, 0.30))
+							queueRefresh()
+						end,
+						isEnabled = function()
+							local c = chargedCfg()
+							return c and c.useChargedComboStyling ~= false and c.chargedComboAffectBackground ~= false and c.chargedComboUseCustomBackgroundColor ~= true
+						end,
+						parentId = "colorsetting",
+					}
+
+					settingsList[#settingsList + 1] = {
+						name = L["Auto charged background alpha"] or "Auto charged background alpha boost (%)",
+						kind = settingType.Slider,
+						allowInput = true,
+						field = "chargedComboBackgroundAlphaBoost",
+						minValue = 0,
+						maxValue = 100,
+						valueStep = 1,
+						default = percentFromUnit(ROGUE_CHARGED_COMBO_DEFAULTS.backgroundAlphaBoost, 0.10),
+						get = function()
+							local c = chargedCfg()
+							return percentFromUnit(c and c.chargedComboBackgroundAlphaBoost, ROGUE_CHARGED_COMBO_DEFAULTS.backgroundAlphaBoost or 0.10)
+						end,
+						set = function(_, value)
+							local c = chargedCfg()
+							if not c then return end
+							c.chargedComboBackgroundAlphaBoost = unitFromPercent(value, percentFromUnit(ROGUE_CHARGED_COMBO_DEFAULTS.backgroundAlphaBoost, 0.10))
+							queueRefresh()
+						end,
+						isEnabled = function()
+							local c = chargedCfg()
+							return c and c.useChargedComboStyling ~= false and c.chargedComboAffectBackground ~= false and c.chargedComboUseCustomBackgroundColor ~= true
+						end,
 						parentId = "colorsetting",
 					}
 				end

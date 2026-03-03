@@ -88,6 +88,19 @@ local ResourcebarVars = {
 	VOID_META_TALENT_SOUL_GLUTTON_SPELL_ID = 1247534,
 	COLLAPSING_STAR_SPELL_ID = 1227702,
 	DEFAULT_MAELSTROM_WEAPON_FIVE_COLOR = { 0.10, 0.85, 0.55, 1 },
+	ROGUE_CHARGED_COMBO_DEFAULTS = {
+		enabled = true,
+		affectFill = true,
+		affectBackground = true,
+		fillUseCustomColor = false,
+		fillColor = { 1.0, 0.95, 0.45, 1.0 },
+		fillLighten = 0.35,
+		fillAlphaBoost = 0.10,
+		backgroundUseCustomColor = false,
+		backgroundColor = { 0.75, 0.60, 0.25, 0.75 },
+		backgroundLighten = 0.30,
+		backgroundAlphaBoost = 0.10,
+	},
 	CUSTOM_POWER_COLORS = {
 		MAELSTROM_WEAPON = { 0.15, 0.45, 1.00 },
 		ICICLES = { 0.45, 0.80, 1.00 },
@@ -200,6 +213,17 @@ local COSMETIC_BAR_KEYS = {
 	"maelstromMidStack",
 	"useHolyThreeColor",
 	"holyThreeColor",
+	"useChargedComboStyling",
+	"chargedComboAffectFill",
+	"chargedComboUseCustomFillColor",
+	"chargedComboFillColor",
+	"chargedComboFillLighten",
+	"chargedComboFillAlphaBoost",
+	"chargedComboAffectBackground",
+	"chargedComboUseCustomBackgroundColor",
+	"chargedComboBackgroundColor",
+	"chargedComboBackgroundLighten",
+	"chargedComboBackgroundAlphaBoost",
 	"runeCooldownColor",
 	"absorbEnabled",
 	"absorbUseCustomColor",
@@ -695,6 +719,56 @@ local function ensureAuraPowerDefaults(pType, cfg)
 	if def and def.useMaxColorDefault and cfg.useMaxColor == nil then cfg.useMaxColor = true end
 	if cfg.useMaxColor and not cfg.maxColor then cfg.maxColor = CopyTable(RB.DEFAULT_MAX_COLOR) end
 	if pType == "MAELSTROM_WEAPON" then ensureMaelstromWeaponDefaults(cfg) end
+end
+
+function ResourceBars.EnsureRogueChargedComboDefaults(cfg, pType)
+	if addon.variables.unitClass ~= "ROGUE" or pType ~= "COMBO_POINTS" then return end
+	if not cfg then return end
+	local defaults = RB.ROGUE_CHARGED_COMBO_DEFAULTS or {}
+
+	if cfg.useChargedComboStyling == nil then cfg.useChargedComboStyling = defaults.enabled ~= false end
+	if cfg.chargedComboAffectFill == nil then cfg.chargedComboAffectFill = defaults.affectFill ~= false end
+	if cfg.chargedComboAffectBackground == nil then cfg.chargedComboAffectBackground = defaults.affectBackground ~= false end
+	if cfg.chargedComboUseCustomFillColor == nil then cfg.chargedComboUseCustomFillColor = defaults.fillUseCustomColor == true end
+	if cfg.chargedComboUseCustomBackgroundColor == nil then cfg.chargedComboUseCustomBackgroundColor = defaults.backgroundUseCustomColor == true end
+	if not cfg.chargedComboFillColor then cfg.chargedComboFillColor = CopyTable(defaults.fillColor or { 1.0, 0.95, 0.45, 1.0 }) end
+	if not cfg.chargedComboBackgroundColor then cfg.chargedComboBackgroundColor = CopyTable(defaults.backgroundColor or { 0.75, 0.60, 0.25, 0.75 }) end
+
+	local fillLighten = tonumber(cfg.chargedComboFillLighten)
+	if fillLighten == nil then fillLighten = tonumber(defaults.fillLighten) or 0.35 end
+	if fillLighten < 0 then
+		fillLighten = 0
+	elseif fillLighten > 1 then
+		fillLighten = 1
+	end
+	cfg.chargedComboFillLighten = fillLighten
+
+	local fillAlphaBoost = tonumber(cfg.chargedComboFillAlphaBoost)
+	if fillAlphaBoost == nil then fillAlphaBoost = tonumber(defaults.fillAlphaBoost) or 0.10 end
+	if fillAlphaBoost < 0 then
+		fillAlphaBoost = 0
+	elseif fillAlphaBoost > 1 then
+		fillAlphaBoost = 1
+	end
+	cfg.chargedComboFillAlphaBoost = fillAlphaBoost
+
+	local backgroundLighten = tonumber(cfg.chargedComboBackgroundLighten)
+	if backgroundLighten == nil then backgroundLighten = tonumber(defaults.backgroundLighten) or 0.30 end
+	if backgroundLighten < 0 then
+		backgroundLighten = 0
+	elseif backgroundLighten > 1 then
+		backgroundLighten = 1
+	end
+	cfg.chargedComboBackgroundLighten = backgroundLighten
+
+	local backgroundAlphaBoost = tonumber(cfg.chargedComboBackgroundAlphaBoost)
+	if backgroundAlphaBoost == nil then backgroundAlphaBoost = tonumber(defaults.backgroundAlphaBoost) or 0.10 end
+	if backgroundAlphaBoost < 0 then
+		backgroundAlphaBoost = 0
+	elseif backgroundAlphaBoost > 1 then
+		backgroundAlphaBoost = 1
+	end
+	cfg.chargedComboBackgroundAlphaBoost = backgroundAlphaBoost
 end
 
 local function ensureGlobalStore()
@@ -2848,6 +2922,7 @@ function getBarSettings(pType)
 		if cfg then
 			if cfg._rbType ~= pType then cfg._rbType = pType end
 			if isAuraPowerType and isAuraPowerType(pType) then ensureAuraPowerDefaults(pType, cfg) end
+			if ResourceBars.EnsureRogueChargedComboDefaults then ResourceBars.EnsureRogueChargedComboDefaults(cfg, pType) end
 			ensureDruidShowFormsDefaults(cfg, pType, specInfo)
 			ensureRelativeFrameFallback(cfg.anchor, pType, specInfo)
 			return cfg
@@ -2888,6 +2963,7 @@ function getBarSettings(pType)
 				if crossTypeTemplate or unsupportedRelative then copied.anchor = nil end
 				specCfg[pType] = copied
 				if isAuraPowerType and isAuraPowerType(pType) then ensureAuraPowerDefaults(pType, specCfg[pType]) end
+				if ResourceBars.EnsureRogueChargedComboDefaults then ResourceBars.EnsureRogueChargedComboDefaults(specCfg[pType], pType) end
 				ensureDruidShowFormsDefaults(specCfg[pType], pType, specInfo)
 				ensureRelativeFrameFallback(specCfg[pType].anchor, pType, specInfo)
 				if secondaryIdx and secondaryIdx > 1 then
@@ -3541,6 +3617,25 @@ function updatePowerBar(type, runeSlot)
 		displayCur = (curPower or 0) / 10
 		displayMax = (maxPower or 0) / 10
 	end
+	local chargedPowerPointMap
+	if type == "COMBO_POINTS" and addon.variables.unitClass == "ROGUE" then
+		if ResourceBars.EnsureRogueChargedComboDefaults then ResourceBars.EnsureRogueChargedComboDefaults(cfg, type) end
+		local chargedCache = bar._rbChargedPowerPointMap or {}
+		for index in pairs(chargedCache) do
+			chargedCache[index] = nil
+		end
+		if cfg.useChargedComboStyling ~= false and _G.GetUnitChargedPowerPoints then
+			local chargedPoints = _G.GetUnitChargedPowerPoints("player")
+			if _G.type(chargedPoints) == "table" then
+				for i = 1, #chargedPoints do
+					local pointIndex = tonumber(chargedPoints[i])
+					if pointIndex and pointIndex > 0 then chargedCache[pointIndex] = true end
+				end
+			end
+		end
+		bar._rbChargedPowerPointMap = chargedCache
+		if next(chargedCache) ~= nil then chargedPowerPointMap = chargedCache end
+	end
 
 	local style = bar._style or ((type == "MANA") and "PERCENT" or "CURMAX")
 	local smooth = cfg.smoothFill == true and type ~= "ESSENCE"
@@ -3751,7 +3846,7 @@ function updatePowerBar(type, runeSlot)
 	else
 		local discreteCur = isSoulShards and displayCur or curPower
 		local discreteMax = isSoulShards and displayMax or maxPower
-		usingDiscreteSegments = refreshDiscreteSegmentsForBar(type, bar, cfg, discreteCur, discreteMax)
+		usingDiscreteSegments = refreshDiscreteSegmentsForBar(type, bar, cfg, discreteCur, discreteMax, nil, chargedPowerPointMap)
 	end
 
 	configureSpecialTexture(bar, type, cfg)
@@ -3797,7 +3892,7 @@ shouldUseDiscreteSeparatorSegments = function(pType, cfg)
 	return cfg.useGradient == true
 end
 
-refreshDiscreteSegmentsForBar = function(pType, bar, cfg, value, maxValue, rawValue)
+refreshDiscreteSegmentsForBar = function(pType, bar, cfg, value, maxValue, rawValue, chargedPoints)
 	if not bar then return false end
 	if not shouldUseDiscreteSeparatorSegments(pType, cfg) then
 		if ResourceBars.HideDiscreteSegments then ResourceBars.HideDiscreteSegments(bar) end
@@ -3827,7 +3922,8 @@ refreshDiscreteSegmentsForBar = function(pType, bar, cfg, value, maxValue, rawVa
 			bar._lastColor or bar._baseColor or RB.WHITE,
 			resolveTexture(cfg),
 			separatorThickness,
-			(cfg and cfg.separatorColor) or RB.SEP_DEFAULT
+			(cfg and cfg.separatorColor) or RB.SEP_DEFAULT,
+			chargedPoints
 		)
 		setParentBarTextureVisible(bar, false)
 		return true
@@ -4506,6 +4602,7 @@ RB.EVENTS_TO_REGISTER = {
 	"UNIT_POWER_FREQUENT",
 	"UNIT_DISPLAYPOWER",
 	"UNIT_MAXPOWER",
+	"UNIT_POWER_POINT_CHARGE",
 	"UPDATE_SHAPESHIFT_FORM",
 }
 local function classUsesAuraPowers(class)
@@ -5429,6 +5526,9 @@ local function eventHandler(self, event, unit, arg1)
 		updatePowerBar(arg1)
 	elseif event == "UNIT_POWER_FREQUENT" and powerbar[arg1] and powerbar[arg1]:IsShown() and powerfrequent[arg1] then
 		updatePowerBar(arg1)
+	elseif event == "UNIT_POWER_POINT_CHARGE" then
+		local comboBar = powerbar["COMBO_POINTS"]
+		if comboBar and comboBar:IsShown() then updatePowerBar("COMBO_POINTS") end
 	elseif event == "UNIT_MAXPOWER" and powerbar[arg1] and powerbar[arg1]:IsShown() then
 		local enum = POWER_ENUM[arg1]
 		local bar = powerbar[arg1]
@@ -6123,6 +6223,7 @@ ResourceBars.MIN_RESOURCE_BAR_WIDTH = RB.MIN_RESOURCE_BAR_WIDTH
 ResourceBars.MAELSTROM_WEAPON_SEGMENTS = RB.MAELSTROM_WEAPON_SEGMENTS
 ResourceBars.MAELSTROM_WEAPON_MAX_STACKS = RB.MAELSTROM_WEAPON_MAX_STACKS
 ResourceBars.MAELSTROM_WEAPON_MID_STACK_DEFAULT = RB.MAELSTROM_WEAPON_MID_STACK_DEFAULT
+ResourceBars.ROGUE_CHARGED_COMBO_DEFAULTS = RB.ROGUE_CHARGED_COMBO_DEFAULTS
 ResourceBars.THRESHOLD_THICKNESS = RB.THRESHOLD_THICKNESS
 ResourceBars.THRESHOLD_DEFAULT = RB.THRESHOLD_DEFAULT
 ResourceBars.DEFAULT_THRESHOLDS = RB.DEFAULT_THRESHOLDS
