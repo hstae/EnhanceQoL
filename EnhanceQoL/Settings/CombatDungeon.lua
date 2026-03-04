@@ -562,8 +562,8 @@ function addon.functions.initDungeonFrame()
 
 	addon.functions.SettingsCreateCheckbox(addon.SettingsLayout.characterInspectCategory, {
 		var = "randomMountCastSlowFallWhenFalling",
-		text = L["randomMountCastSlowFallWhenFalling"] or "Cast Slow Fall/Levitate while falling",
-		desc = L["randomMountCastSlowFallWhenFallingDesc"] or "Only applies to Mages (Slow Fall) and Priests (Levitate).",
+		text = L["randomMountCastSlowFallWhenFalling"] or "Cast Slow Fall/Levitate/Travel Form while falling",
+		desc = L["randomMountCastSlowFallWhenFallingDesc"] or "Only applies to Mages (Slow Fall), Druids (Travel Form) and Priests (Levitate).",
 		func = function(value) addon.db["randomMountCastSlowFallWhenFalling"] = value and true or false end,
 		default = false,
 		parentSection = expandable,
