@@ -138,10 +138,9 @@ end
 
 local function BuildLSMBorderCache()
 	local cache = {}
-	if LSM and LSM.HashTable then
-		for _, path in pairs(LSM:HashTable("border") or {}) do
-			if type(path) == "string" and path ~= "" then cache[path] = true end
-		end
+	local hash = addon.functions and addon.functions.GetLSMMediaHash and addon.functions.GetLSMMediaHash("border") or {}
+	for _, path in pairs(hash) do
+		if type(path) == "string" and path ~= "" then cache[path] = true end
 	end
 	Labels._lsmBorderCache = cache
 end

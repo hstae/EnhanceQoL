@@ -490,13 +490,14 @@ function Helper.GetFontOptions(defaultPath)
 		seen[key] = true
 		list[#list + 1] = { value = path, label = label }
 	end
-	if LSM and LSM.HashTable then
-		for name, path in pairs(LSM:HashTable("font") or {}) do
-			add(path, tostring(name))
-		end
+	local names = addon.functions and addon.functions.GetLSMMediaNames and addon.functions.GetLSMMediaNames("font") or {}
+	local hash = addon.functions and addon.functions.GetLSMMediaHash and addon.functions.GetLSMMediaHash("font") or {}
+	for i = 1, #names do
+		local name = names[i]
+		local path = hash[name]
+		add(path, tostring(name))
 	end
 	if defaultPath then add(defaultPath, DEFAULT) end
-	table.sort(list, function(a, b) return tostring(a.label) < tostring(b.label) end)
 	table.insert(list, 1, { value = globalFontKey, label = globalFontLabel })
 	return list
 end

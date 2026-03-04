@@ -1491,8 +1491,16 @@ local function rebuildTextureCache()
 		["Interface\\TargetingFrame\\UI-StatusBar"] = "Blizzard Unit Frame",
 		["Interface\\UnitPowerBarAlt\\Generic1Texture"] = "Alternate Power",
 	}
-	for name, path in pairs(LSM and LSM:HashTable("statusbar") or {}) do
-		if type(path) == "string" and path ~= "" then map[path] = tostring(name) end
+	local names = addon.functions and addon.functions.GetLSMMediaNames and addon.functions.GetLSMMediaNames("statusbar") or {}
+	local hash = addon.functions and addon.functions.GetLSMMediaHash and addon.functions.GetLSMMediaHash("statusbar") or {}
+	local pathCache = {}
+	for i = 1, #names do
+		local name = names[i]
+		local path = hash[name]
+		if type(path) == "string" and path ~= "" then
+			map[path] = tostring(name)
+			pathCache[path] = true
+		end
 	end
 	local noDefault = {}
 	for k, v in pairs(map) do
@@ -1512,6 +1520,8 @@ local function rebuildTextureCache()
 	RB.TEXTURE_LIST_CACHE.noDefaultOrder = orderNoDefault
 	RB.TEXTURE_LIST_CACHE.fullList = sortedWithDefault
 	RB.TEXTURE_LIST_CACHE.fullOrder = orderWithDefault
+	RB.TEXTURE_LIST_CACHE.statusbarPathCache = pathCache
+	RB.TEXTURE_LIST_CACHE.statusbarVersion = (addon.functions and addon.functions.GetLSMMediaVersion and addon.functions.GetLSMMediaVersion("statusbar")) or 0
 	RB.TEXTURE_LIST_CACHE.dirty = false
 end
 
@@ -1609,13 +1619,10 @@ local function isValidStatusbarPath(path)
 	if path == RB.BLIZZARD_TEX then return true end
 	if path == "Interface\\Buttons\\WHITE8x8" then return true end
 	if path == "Interface\\Tooltips\\UI-Tooltip-Background" then return true end
-	if LSM and LSM.HashTable then
-		local ht = LSM:HashTable("statusbar")
-		for _, p in pairs(ht or {}) do
-			if p == path then return true end
-		end
-	end
-	return false
+	local cache = RB.TEXTURE_LIST_CACHE or {}
+	local version = (addon.functions and addon.functions.GetLSMMediaVersion and addon.functions.GetLSMMediaVersion("statusbar")) or 0
+	if cache.dirty or not cache.statusbarPathCache or cache.statusbarVersion ~= version then rebuildTextureCache() end
+	return RB.TEXTURE_LIST_CACHE and RB.TEXTURE_LIST_CACHE.statusbarPathCache and RB.TEXTURE_LIST_CACHE.statusbarPathCache[path] == true
 end
 
 local function resolveTexture(cfg)

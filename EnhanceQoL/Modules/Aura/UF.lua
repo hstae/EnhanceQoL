@@ -1036,6 +1036,11 @@ local defaults = {
 				STAGGER = true,
 				VOID_METAMORPHOSIS = true,
 			},
+			staggerHighColors = false,
+			staggerHighThreshold = 200,
+			staggerExtremeThreshold = 300,
+			staggerHighColor = { 0.62, 0.2, 1.0, 1 },
+			staggerExtremeColor = { 1.0, 0.2, 0.8, 1 },
 			detached = false,
 			detachedGrowFromCenter = false,
 			detachedMatchHealthWidth = false,
@@ -5567,8 +5572,9 @@ local function updatePower(cfg, unit)
 			local secondaryColorDirty = st._secondaryPowerColorDirty
 			if not secondaryColorDirty and st._secondaryPowerColorEnum ~= enumId then secondaryColorDirty = true end
 			if not secondaryColorDirty and st._secondaryPowerColorToken ~= resolvedToken then secondaryColorDirty = true end
+			if not secondaryColorDirty and resolvedToken == "STAGGER" then secondaryColorDirty = true end
 			if secondaryColorDirty or st._secondaryPowerColorR == nil then
-				local cr, cg, cb, ca = UFHelper.getPowerColor(enumId, resolvedToken)
+				local cr, cg, cb, ca = UFHelper.getPowerColor(enumId, resolvedToken, secondaryCfg, unit)
 				st._secondaryPowerColorR, st._secondaryPowerColorG, st._secondaryPowerColorB, st._secondaryPowerColorA = cr, cg, cb, ca
 				st._secondaryPowerColorDesaturated = UFHelper.isPowerDesaturated(enumId, resolvedToken)
 				st._secondaryPowerColorEnum = enumId

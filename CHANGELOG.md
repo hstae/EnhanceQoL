@@ -5,6 +5,10 @@
 ### 🐛 Fixed
 
 - Resource Bars (Druid): Fixed Cat/Bear shapeshift flicker in combat when combining `Show in` (form filters) with `Show when` visibility rules by merging form-based hides into the secure visibility driver.
+- Mythic+ (Teleports): Added missing Haranir racial teleport `Rootwalking` (`1238686`) to class/race teleports (only shown for Haranir/Harronir).
+- Shared Media (Performance): Fixed settings freezes with very large SharedMedia libraries by introducing a global, sorted media cache for `sound`/`font`/`border`/`statusbar`/`background` instead of rebuilding lists on each settings open.
+- Shared Media (Live Updates): New media registrations now invalidate the relevant cache via the `LibSharedMedia_Registered` callback, so newly added sounds/fonts/textures appear without repeated full rescans.
+- Settings Dropdowns: Reworked affected dropdown providers (including Mythic+ Bloodlust Tracker, Class Buff Reminder, UI/Aura/Food/Sound related settings) to consume cached values directly, preventing repeated per-open sorting and list reconstruction.
 
 ---
 

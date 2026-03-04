@@ -55,12 +55,13 @@ local function borderOptions()
 		list[#list + 1] = { value = value, label = label }
 	end
 	add("DEFAULT", "Default (Border)")
-	if not LSM then return list end
-	local hash = LSM:HashTable("border") or {}
-	for name, path in pairs(hash) do
+	local names = addon.functions and addon.functions.GetLSMMediaNames and addon.functions.GetLSMMediaNames("border") or {}
+	local hash = addon.functions and addon.functions.GetLSMMediaHash and addon.functions.GetLSMMediaHash("border") or {}
+	for i = 1, #names do
+		local name = names[i]
+		local path = hash[name]
 		if type(path) == "string" and path ~= "" then add(name, tostring(name)) end
 	end
-	table.sort(list, function(a, b) return tostring(a.label) < tostring(b.label) end)
 	return list
 end
 
@@ -74,138 +75,6 @@ local EDIT_MODE_SAMPLE_MAX = 100
 local AURA_FILTERS = GFH.AuraFilters
 local SECRET_TEXT_UPDATE_INTERVAL = 0.1
 local FONT_DROPDOWN_SCROLL_HEIGHT = 220
-
-GF._pushGroupGlowTrace = function() end
-GF._cleanupGroupGlowTraceNonAlpha = function() end
-GF._getDispelAuraTraceCounts = function()
-	return nil, nil, nil, nil
-end
-GF._traceAuraUpdateCounts = function() end
-GF._groupGlowTraceMax = 2000000
-GF._groupGlowTracePruneChunk = 200000
-
---@alpha@
-function GF._pushGroupGlowTrace(eventName, frame, payload)
-	local db = addon and addon.db
-	if type(db) ~= "table" then return end
-
-	local trace = db["ufGroupGlowTrace"]
-	if type(trace) ~= "table" then
-		trace = {}
-		db["ufGroupGlowTrace"] = trace
-	end
-
-	local st = frame and frame._eqolUFState or nil
-	local frameName
-	if frame and frame.GetName then frameName = frame:GetName() end
-	if frameName == nil and frame ~= nil then frameName = tostring(frame) end
-
-	local entry = {
-		t = (date and date("%H:%M:%S")) or tostring(GetTime and GetTime() or 0),
-		e = tostring(eventName or "unknown"),
-		f = frameName,
-		u = frame and frame.unit or nil,
-		g = st and st._guid or nil,
-	}
-
-	if type(payload) == "table" then
-		for key, value in pairs(payload) do
-			local t = type(value)
-			if t == "string" then
-				entry[key] = value
-			elseif t == "number" then
-				entry[key] = tostring(value)
-			elseif t == "boolean" then
-				entry[key] = value and "1" or "0"
-			end
-		end
-	end
-
-	trace[#trace + 1] = entry
-	local count = #trace
-	local maxEntries = tonumber(GF._groupGlowTraceMax) or 20000
-	local pruneChunk = tonumber(GF._groupGlowTracePruneChunk) or 2000
-	if pruneChunk < 1 then pruneChunk = 1 end
-	if count > (maxEntries + pruneChunk) then
-		local overflow = count - maxEntries
-		local keep = count - overflow
-		local write = 1
-		for read = overflow + 1, count do
-			trace[write] = trace[read]
-			write = write + 1
-		end
-		for i = keep + 1, count do
-			trace[i] = nil
-		end
-	end
-end
-
-function GF._getDispelAuraTraceCounts(st, cache, requiredFlag)
-	local auraCount = 0
-	local dispelCount = 0
-	local order = cache and cache.order
-	local flagsById = st and st._auraKindById
-	if type(order) == "table" then
-		auraCount = #order
-		if auraCount > 0 and requiredFlag and requiredFlag > 0 and type(flagsById) == "table" then
-			local threshold = requiredFlag * 2
-			for i = 1, auraCount do
-				local auraId = order[i]
-				local flags = auraId and flagsById[auraId]
-				if flags and flags % threshold >= requiredFlag then dispelCount = dispelCount + 1 end
-			end
-		end
-	end
-	local dispelTracked = (st and st._dispelAuraId) and 1 or 0
-	local dispelDirty = (st and st._dispelAuraIdDirty) and 1 or 0
-	return auraCount, dispelCount, dispelTracked, dispelDirty
-end
-
-function GF._traceAuraUpdateCounts(frame, updateInfo, st, cache, requiredFlag)
-	local added = 0
-	local updated = 0
-	local removed = 0
-	if type(updateInfo) == "table" then
-		local addedAuras = updateInfo.addedAuras
-		if type(addedAuras) == "table" then
-			for i = 1, #addedAuras do
-				local aura = addedAuras[i]
-				if aura and aura.auraInstanceID then added = added + 1 end
-			end
-		end
-		local updatedIds = updateInfo.updatedAuraInstanceIDs
-		if type(updatedIds) == "table" then updated = #updatedIds end
-		local removedIds = updateInfo.removedAuraInstanceIDs
-		if type(removedIds) == "table" then removed = #removedIds end
-	end
-	local auraCount, dispelCount, dispelTracked, dispelDirty = GF._getDispelAuraTraceCounts(st, cache, requiredFlag)
-	GF._pushGroupGlowTrace("aura_ids", frame, {
-		full = (not updateInfo or updateInfo.isFullUpdate) and 1 or 0,
-		ids = added + updated + removed,
-		added = added,
-		updated = updated,
-		removed = removed,
-		auraCount = auraCount,
-		dispelCount = dispelCount,
-		dispelTracked = dispelTracked,
-		dispelDirty = dispelDirty,
-	})
-end
---@end-alpha@
-
---@non-alpha@
-function GF._cleanupGroupGlowTraceNonAlpha()
-	local db = _G and _G.EnhanceQoLDB
-	if type(db) ~= "table" then return end
-	local profiles = db.profiles
-	if type(profiles) == "table" then
-		for _, profile in pairs(profiles) do
-			if type(profile) == "table" then profile.ufGroupGlowTrace = nil end
-		end
-	end
-	if addon and type(addon.db) == "table" then addon.db.ufGroupGlowTrace = nil end
-end
---@end-non-alpha@
 
 function GF.NormalizeBuffHelpfulFilterMode(value)
 	value = tostring(value or ""):upper()
@@ -3114,7 +2983,6 @@ function GF:BuildButton(self)
 			local s = getState(btn)
 			hideDispelTint(s)
 			stopDispelGlow((s and s.barGroup) or btn)
-			GF._pushGroupGlowTrace("btn_hide_cleanup", btn, { reason = "OnHide" })
 		end)
 	end
 
@@ -4852,7 +4720,6 @@ function GF:UpdateAuras(self, updateInfo)
 			auraQueryMax,
 			auraContextKind
 		)
-		GF._traceAuraUpdateCounts(self, updateInfo, st, allCache, AURA_KIND_DISPEL)
 		if wantsAuras then
 			if wantBuff then updateAuraType(self, unit, st, ac, "buff", allCache, nil, healerBuffCompiled) end
 			if wantDebuff then updateAuraType(self, unit, st, ac, "debuff", allCache, nil, healerBuffCompiled) end
@@ -4904,7 +4771,6 @@ function GF:UpdateAuras(self, updateInfo)
 	end
 
 	updateGroupAuraCache(unit, st, updateInfo, ac, helpfulFilter, harmfulFilter, externalFilter, dispelFilter, wantsHealerBuffPlacement, auraContextKind)
-	GF._traceAuraUpdateCounts(self, updateInfo, st, allCache, AURA_KIND_DISPEL)
 	local changed = st._auraChanged
 	if updateInfo then
 		if not changed then
@@ -5461,9 +5327,6 @@ end
 function GF:UpdateDispelTint(self, cache, dispelFilter, allowSample, requiredFlag)
 	local st = getState(self)
 	if not st then return end
-	local traceRequiredFlag = requiredFlag or AURA_KIND_DISPEL
-	local traceAuraCount, traceDispelCount, traceDispelTracked, traceDispelDirty =
-		GF._getDispelAuraTraceCounts(st, cache, traceRequiredFlag)
 	local kind = self._eqolGroupKind or "party"
 	local cfg = self._eqolCfg or getCfg(kind)
 	local scfg = cfg and cfg.status or {}
@@ -5476,13 +5339,6 @@ function GF:UpdateDispelTint(self, cache, dispelFilter, allowSample, requiredFla
 	if not overlayEnabled and not glowEnabled then
 		hideDispelTint(st)
 		stopDispelGlow(st.barGroup or self)
-		GF._pushGroupGlowTrace("tint_stop", self, {
-			reason = "overlay_and_glow_off",
-			auraCount = traceAuraCount,
-			dispelCount = traceDispelCount,
-			dispelTracked = traceDispelTracked,
-			dispelDirty = traceDispelDirty,
-		})
 		return
 	end
 	if allowSample then
@@ -5491,13 +5347,6 @@ function GF:UpdateDispelTint(self, cache, dispelFilter, allowSample, requiredFla
 		if not showSample then
 			hideDispelTint(st)
 			stopDispelGlow(st.barGroup or self)
-			GF._pushGroupGlowTrace("tint_stop", self, {
-				reason = "sample_hidden",
-				auraCount = traceAuraCount,
-				dispelCount = traceDispelCount,
-				dispelTracked = traceDispelTracked,
-				dispelDirty = traceDispelDirty,
-			})
 			return
 		end
 	end
@@ -5574,9 +5423,6 @@ function GF:UpdateDispelTint(self, cache, dispelFilter, allowSample, requiredFla
 		end
 	end
 
-	traceAuraCount, traceDispelCount, traceDispelTracked, traceDispelDirty =
-		GF._getDispelAuraTraceCounts(st, cache, traceRequiredFlag)
-
 	if overlayEnabled then
 		if r then
 			applyDispelTint(st, r, g or 0, b or 0, alpha, fr, fg, fb, bgAlpha)
@@ -5588,41 +5434,16 @@ function GF:UpdateDispelTint(self, cache, dispelFilter, allowSample, requiredFla
 	end
 
 	if glowEnabled then
-		GF:UpdateDispelGlow(self, r, g, b, traceAuraCount, traceDispelCount, traceDispelTracked, traceDispelDirty)
+		GF:UpdateDispelGlow(self, r, g, b)
 	else
 		stopDispelGlow(st.barGroup or self)
-		GF._pushGroupGlowTrace("glow_stop", self, {
-			reason = "glow_disabled",
-			auraCount = traceAuraCount,
-			dispelCount = traceDispelCount,
-			dispelTracked = traceDispelTracked,
-			dispelDirty = traceDispelDirty,
-		})
 	end
 end
 
-function GF:UpdateDispelGlow(self, r, g, b, traceAuraCount, traceDispelCount, traceDispelTracked, traceDispelDirty)
+function GF:UpdateDispelGlow(self, r, g, b)
 	local st = getState(self)
 	if not st then return end
-	if
-		traceAuraCount == nil
-		or traceDispelCount == nil
-		or traceDispelTracked == nil
-		or traceDispelDirty == nil
-	then
-		traceAuraCount, traceDispelCount, traceDispelTracked, traceDispelDirty =
-			GF._getDispelAuraTraceCounts(st, st._auraCache, AURA_KIND_DISPEL)
-	end
-	if not (LCG and LCG.PixelGlow_Start) then
-		GF._pushGroupGlowTrace("glow_skip", self, {
-			reason = "lcg_unavailable",
-			auraCount = traceAuraCount,
-			dispelCount = traceDispelCount,
-			dispelTracked = traceDispelTracked,
-			dispelDirty = traceDispelDirty,
-		})
-		return
-	end
+	if not (LCG and LCG.PixelGlow_Start) then return end
 	local kind = self._eqolGroupKind or "party"
 	local cfg = self._eqolCfg or getCfg(kind)
 	local scfg = cfg and cfg.status or {}
@@ -5632,24 +5453,10 @@ function GF:UpdateDispelGlow(self, r, g, b, traceAuraCount, traceDispelCount, tr
 	if glowEnabled == nil then glowEnabled = defDispel.glowEnabled == true end
 	if not glowEnabled then
 		stopDispelGlow(st.barGroup or self)
-		GF._pushGroupGlowTrace("glow_stop", self, {
-			reason = "glow_disabled",
-			auraCount = traceAuraCount,
-			dispelCount = traceDispelCount,
-			dispelTracked = traceDispelTracked,
-			dispelDirty = traceDispelDirty,
-		})
 		return
 	end
 	if not (r and g and b) then
 		stopDispelGlow(st.barGroup or self)
-		GF._pushGroupGlowTrace("glow_stop", self, {
-			reason = "no_color",
-			auraCount = traceAuraCount,
-			dispelCount = traceDispelCount,
-			dispelTracked = traceDispelTracked,
-			dispelDirty = traceDispelDirty,
-		})
 		return
 	end
 
@@ -5676,19 +5483,6 @@ function GF:UpdateDispelGlow(self, r, g, b, traceAuraCount, traceDispelCount, tr
 	local target = st.barGroup or self
 	stopDispelGlow(target)
 	local glowColor = { cr, cg, cb, 1 }
-	GF._pushGroupGlowTrace("glow_start", self, {
-		effect = effect,
-		lines = lines,
-		freq = freq,
-		thickness = thickness,
-		x = xoff,
-		y = yoff,
-		colorMode = colorMode,
-		auraCount = traceAuraCount,
-		dispelCount = traceDispelCount,
-		dispelTracked = traceDispelTracked,
-		dispelDirty = traceDispelDirty,
-	})
 	if effect == "SHINE" and LCG.AutoCastGlow_Start then
 		LCG.AutoCastGlow_Start(target, glowColor, lines, freq, scale, xoff, yoff, DISPEL_GLOW_KEY)
 	elseif effect == "BLIZZARD" and LCG.ButtonGlow_Start then
@@ -6408,7 +6202,6 @@ function GF:UnitButton_ClearUnit(self)
 		GFH.CancelReadyCheckIconTimer(st)
 		hideDispelTint(st)
 		stopDispelGlow(st.barGroup or self)
-		GF._pushGroupGlowTrace("unit_clear", self, { reason = "UnitButton_ClearUnit" })
 		st._guid = nil
 		st._unitToken = nil
 		st._class = nil
@@ -6490,13 +6283,11 @@ end
 function GF.UnitButton_OnAttributeChanged(self, name, value)
 	if name ~= "unit" then return end
 	if value == nil or value == "" then
-		GF._pushGroupGlowTrace("unit_attr_clear", self, { reason = "attribute_empty" })
 		GF:UnitButton_ClearUnit(self)
 		GF:UpdateAll(self)
 		return
 	end
 	if self.unit == value then return end
-	GF._pushGroupGlowTrace("unit_attr_set", self, { toUnit = tostring(value) })
 	GF:UnitButton_SetUnit(self, value)
 end
 
@@ -20311,7 +20102,6 @@ do
 	GF._eventFrame:RegisterEvent("CLIENT_SCENE_CLOSED")
 	GF._eventFrame:SetScript("OnEvent", function(_, event, ...)
 		if event == "PLAYER_LOGIN" then
-			GF._cleanupGroupGlowTraceNonAlpha()
 			if isFeatureEnabled() then
 				registerFeatureEvents(_)
 				GF:EnsureHeaders()
@@ -20410,10 +20200,8 @@ do
 			local cfg = getCfg("raid")
 			local custom = cfg and GFH and GFH.EnsureCustomSortConfig and GFH.EnsureCustomSortConfig(cfg)
 			if custom and custom.separateMeleeRanged == true and resolveSortMethod(cfg) == "NAMELIST" and GFH and GFH.QueueInspectGroup then GFH.QueueInspectGroup() end
-			GF._pushGroupGlowTrace("event_refresh_all_auras", nil, { reason = event })
 			refreshAllAuras()
 		elseif event == "PLAYER_TALENT_UPDATE" or event == "TRAIT_CONFIG_UPDATED" or event == "SPELLS_CHANGED" or event == "ACTIVE_TALENT_GROUP_CHANGED" then
-			GF._pushGroupGlowTrace("event_refresh_all_auras", nil, { reason = event })
 			refreshAllAuras()
 		end
 	end)

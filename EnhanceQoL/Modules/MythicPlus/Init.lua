@@ -995,6 +995,7 @@ addon.MythicPlus.variables.portalCompendium = {
 			[265225] = { text = RACIAL_TRAITS_TOOLTIP, isRaceTP = "DarkIronDwarf" },
 			[312372] = { text = RACIAL_TRAITS_TOOLTIP, isRaceTP = "Vulpera" },
 			[430265] = { text = "Gilneas", isRaceTP = "Worgen", isToy = true, toyID = 211788, isHearthstone = true, icon = 133939, x = 0.5939, y = 0.4820, zoneID = 218, locID = 217 },
+			[1238686] = { text = RACIAL_TRAITS_TOOLTIP, isRaceTP = "Harronir" }, -- Rootwalking
 		},
 	},
 }

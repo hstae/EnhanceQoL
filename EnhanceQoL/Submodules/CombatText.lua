@@ -67,6 +67,22 @@ local DB_COLOR = "combatTextColor"
 local DB_ENTER_COLOR = "combatTextEnterColor"
 local DB_LEAVE_COLOR = "combatTextLeaveColor"
 
+local function getCachedMediaNames(mediaType)
+	if addon.functions and addon.functions.GetLSMMediaNames then
+		local names = addon.functions.GetLSMMediaNames(mediaType)
+		if type(names) == "table" then return names end
+	end
+	return {}
+end
+
+local function getCachedMediaHash(mediaType)
+	if addon.functions and addon.functions.GetLSMMediaHash then
+		local hash = addon.functions.GetLSMMediaHash(mediaType)
+		if type(hash) == "table" then return hash end
+	end
+	return {}
+end
+
 local function getValue(key, fallback)
 	if not addon.db then return fallback end
 	local value = addon.db[key]
@@ -122,17 +138,17 @@ local function fontFaceOptions()
 	local list = {}
 	local defaultPath = defaultFontFace()
 	local hasDefault = false
-	if LSM and LSM.HashTable then
-		local hash = LSM:HashTable("font") or {}
-		for name, path in pairs(hash) do
-			if type(path) == "string" and path ~= "" then
-				list[#list + 1] = { value = path, label = tostring(name) }
-				if path == defaultPath then hasDefault = true end
-			end
+	local names = getCachedMediaNames("font")
+	local hash = getCachedMediaHash("font")
+	for i = 1, #names do
+		local name = names[i]
+		local path = hash[name]
+		if type(path) == "string" and path ~= "" then
+			list[#list + 1] = { value = path, label = tostring(name) }
+			if path == defaultPath then hasDefault = true end
 		end
 	end
 	if defaultPath and not hasDefault then list[#list + 1] = { value = defaultPath, label = DEFAULT } end
-	table.sort(list, function(a, b) return tostring(a.label) < tostring(b.label) end)
 	table.insert(list, 1, { value = globalFontConfigKey(), label = globalFontConfigLabel() })
 	return list
 end

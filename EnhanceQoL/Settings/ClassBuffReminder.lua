@@ -17,6 +17,7 @@ local DB_DISPLAY_MODE = "classBuffReminderDisplayMode"
 local DB_GROWTH_DIRECTION = "classBuffReminderGrowthDirection"
 local DB_GROWTH_FROM_CENTER = "classBuffReminderGrowthFromCenter"
 local DB_TRACK_FLASKS = "classBuffReminderTrackFlasks"
+local DB_TRACK_FLASKS_INSTANCE_ONLY = "classBuffReminderTrackFlasksInstanceOnly"
 local DB_SCALE = "classBuffReminderScale"
 local DB_ICON_SIZE = "classBuffReminderIconSize"
 local DB_FONT_SIZE = "classBuffReminderFontSize"
@@ -40,6 +41,7 @@ local defaults = (Reminder and Reminder.defaults)
 		growthDirection = "RIGHT",
 		growthFromCenter = false,
 		trackFlasks = false,
+		trackFlasksInstanceOnly = false,
 		scale = 1,
 		iconSize = 64,
 		fontSize = 13,
@@ -109,6 +111,17 @@ addon.functions.SettingsCreateCheckbox(cat, {
 	parentSection = expandable,
 })
 
+addon.functions.SettingsCreateCheckbox(cat, {
+	var = DB_TRACK_FLASKS_INSTANCE_ONLY,
+	text = L["ClassBuffReminderTrackFlasksInstanceOnly"] or "Only in dungeons/raids",
+	desc = L["ClassBuffReminderTrackFlasksInstanceOnlyDesc"] or "Limits flask reminder checks to dungeon and raid instances.",
+	func = function(value)
+		addon.db[DB_TRACK_FLASKS_INSTANCE_ONLY] = value == true
+		refreshReminder()
+	end,
+	parentSection = expandable,
+})
+
 addon.functions.SettingsCreateText(cat, L["ClassBuffReminderFlaskSharedHint"] or "Flask preferences are shared with Flask Macro (Gameplay -> Macros & Consumables).", {
 	parentSection = expandable,
 })
@@ -136,6 +149,7 @@ function addon.functions.initClassBuffReminder()
 	init(DB_GROWTH_DIRECTION, defaults.growthDirection)
 	init(DB_GROWTH_FROM_CENTER, defaults.growthFromCenter)
 	init(DB_TRACK_FLASKS, defaults.trackFlasks)
+	init(DB_TRACK_FLASKS_INSTANCE_ONLY, defaults.trackFlasksInstanceOnly)
 	init(DB_SCALE, defaults.scale)
 	init(DB_ICON_SIZE, defaults.iconSize)
 	init(DB_FONT_SIZE, defaults.fontSize)

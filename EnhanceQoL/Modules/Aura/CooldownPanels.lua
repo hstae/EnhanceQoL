@@ -668,12 +668,13 @@ local function iconBorderOptions()
 		list[#list + 1] = { value = value, label = label or value }
 	end
 	add(ICON_BORDER_TEXTURE_DEFAULT, _G.DEFAULT or (L and L["Default"]) or "Default")
-	if not LSM then return list end
-	local hash = LSM:HashTable("border") or {}
-	for name, path in pairs(hash) do
+	local names = addon.functions and addon.functions.GetLSMMediaNames and addon.functions.GetLSMMediaNames("border") or {}
+	local hash = addon.functions and addon.functions.GetLSMMediaHash and addon.functions.GetLSMMediaHash("border") or {}
+	for i = 1, #names do
+		local name = names[i]
+		local path = hash[name]
 		if type(path) == "string" and path ~= "" then add(name, tostring(name)) end
 	end
-	table.sort(list, function(a, b) return tostring(a.label) < tostring(b.label) end)
 	return list
 end
 
@@ -902,14 +903,12 @@ local function getSoundOptions()
 		seen[key] = true
 		list[#list + 1] = name
 	end
-	if LSM and LSM.HashTable then
-		for name in pairs(LSM:HashTable("sound") or {}) do
-			add(name)
-		end
+	local names = addon.functions and addon.functions.GetLSMMediaNames and addon.functions.GetLSMMediaNames("sound") or {}
+	for i = 1, #names do
+		add(names[i])
 	end
 	add((LSM and LSM.DefaultMedia and LSM.DefaultMedia.sound) or nil)
 	add((Helper and Helper.ENTRY_DEFAULTS and Helper.ENTRY_DEFAULTS.soundReadyFile) or nil)
-	table.sort(list, function(a, b) return tostring(a) < tostring(b) end)
 	for i, name in ipairs(list) do
 		if name == "None" then
 			table.remove(list, i)

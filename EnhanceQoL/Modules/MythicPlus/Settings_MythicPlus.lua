@@ -12,7 +12,6 @@ addon.MythicPlus.functions = addon.MythicPlus.functions or {}
 addon.MythicPlus.variables = addon.MythicPlus.variables or {}
 
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_MythicPlus")
-local LSM = LibStub("LibSharedMedia-3.0")
 local wipe = wipe
 
 local function buildSettings()
@@ -178,14 +177,43 @@ local function buildSettings()
 		return list
 	end
 
+	local talentSoundOptions = {}
+	local talentSoundOrder = {}
+	local talentSoundCacheVersion = -1
 	local function buildTalentSoundOptions()
-		local soundList = {}
-		if addon.ChatIM and addon.ChatIM.BuildSoundTable and not addon.ChatIM.availableSounds then addon.ChatIM:BuildSoundTable() end
-		local soundTable = (addon.ChatIM and addon.ChatIM.availableSounds) or (LSM and LSM:HashTable("sound"))
-		for name, file in pairs(soundTable or {}) do
-			if type(name) == "string" and name ~= "" then soundList[name] = { value = name, label = name, file = file } end
+		local version = (addon.functions and addon.functions.GetLSMMediaVersion and addon.functions.GetLSMMediaVersion("sound")) or 0
+		if talentSoundCacheVersion == version then return talentSoundOptions end
+		talentSoundCacheVersion = version
+
+		local list, order
+		if addon.functions and addon.functions.GetLSMMediaDropdown then
+			list, order = addon.functions.GetLSMMediaDropdown("sound", false)
+		else
+			list, order = {}, {}
+			local soundTable = (addon.ChatIM and addon.ChatIM.availableSounds) or {}
+			for name in pairs(soundTable) do
+				if type(name) == "string" and name ~= "" then
+					list[name] = name
+					order[#order + 1] = name
+				end
+			end
+			table.sort(order, function(a, b)
+				local al = string.lower(a)
+				local bl = string.lower(b)
+				if al == bl then return a < b end
+				return al < bl
+			end)
 		end
-		return soundList
+
+		wipe(talentSoundOptions)
+		for key, value in pairs(list or {}) do
+			talentSoundOptions[key] = value
+		end
+		wipe(talentSoundOrder)
+		for i = 1, #(order or {}) do
+			talentSoundOrder[i] = order[i]
+		end
+		return talentSoundOptions
 	end
 
 	local talentEnable = addon.functions.SettingsCreateCheckbox(cGameplay, {
@@ -249,6 +277,7 @@ local function buildSettings()
 		var = "talentReminderCustomSoundFile",
 		text = L["talentReminderCustomSound"],
 		listFunc = buildTalentSoundOptions,
+		order = talentSoundOrder,
 		default = "",
 		get = function()
 			local value = addon.db["talentReminderCustomSoundFile"]
@@ -256,7 +285,8 @@ local function buildSettings()
 		end,
 		set = function(value) addon.db["talentReminderCustomSoundFile"] = value end,
 		callback = function(value)
-			local soundTable = (addon.ChatIM and addon.ChatIM.availableSounds) or (LSM and LSM:HashTable("sound"))
+			local soundTable = (addon.ChatIM and addon.ChatIM.availableSounds)
+				or (addon.functions and addon.functions.GetLSMMediaHash and addon.functions.GetLSMMediaHash("sound"))
 			local file = soundTable and soundTable[value]
 			if file then PlaySoundFile(file, "Master") end
 		end,

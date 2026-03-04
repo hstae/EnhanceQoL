@@ -35,6 +35,13 @@ local MIN_WIDTH = 50
 local OFFSET_RANGE = 3000
 local defaultStrata = "LOW"
 local defaultLevel = (_G.PlayerFrame and _G.PlayerFrame.GetFrameLevel and _G.PlayerFrame:GetFrameLevel()) or 0
+local AuraResourceBars = addon.Aura and addon.Aura.ResourceBars
+local STAGGER_EXTRA_THRESHOLD_HIGH = (AuraResourceBars and AuraResourceBars.STAGGER_EXTRA_THRESHOLD_HIGH) or 200
+local STAGGER_EXTRA_THRESHOLD_EXTREME = (AuraResourceBars and AuraResourceBars.STAGGER_EXTRA_THRESHOLD_EXTREME) or 300
+local STAGGER_EXTRA_COLORS = (AuraResourceBars and AuraResourceBars.STAGGER_EXTRA_COLORS) or {
+	high = { r = 0.62, g = 0.2, b = 1.0, a = 1 },
+	extreme = { r = 1.0, g = 0.2, b = 0.8, a = 1 },
+}
 
 local strataOptions = {
 	{ value = "BACKGROUND", label = "BACKGROUND" },
@@ -901,22 +908,26 @@ local function hideFrameReset(frame)
 	if frame and lib and lib.SetFrameSettingsResetVisible then lib:SetFrameSettingsResetVisible(frame, false) end
 end
 
+local function getCachedLSMMedia(mediaType)
+	local names = addon.functions and addon.functions.GetLSMMediaNames and addon.functions.GetLSMMediaNames(mediaType)
+	local hash = addon.functions and addon.functions.GetLSMMediaHash and addon.functions.GetLSMMediaHash(mediaType)
+	if type(names) == "table" and type(hash) == "table" then return names, hash end
+	return {}, {}
+end
+
 local function fontOptions()
 	local list = {}
 	local defaultPath = defaultFontPath()
 	local globalOption = { value = globalFontConfigKey(), label = globalFontConfigLabel() }
-	if not LSM then
-		list[#list + 1] = globalOption
-		return list
-	end
-	local hash = LSM:HashTable("font") or {}
+	local names, hash = getCachedLSMMedia("font")
 	local hasDefault = false
-	for name, path in pairs(hash) do
+	for i = 1, #names do
+		local name = names[i]
+		local path = hash[name]
 		if type(path) == "string" and path ~= "" then list[#list + 1] = { value = path, label = tostring(name) } end
 		if path == defaultPath then hasDefault = true end
 	end
 	if defaultPath and not hasDefault then list[#list + 1] = { value = defaultPath, label = DEFAULT } end
-	table.sort(list, function(a, b) return tostring(a.label) < tostring(b.label) end)
 	table.insert(list, 1, globalOption)
 	return list
 end
@@ -932,9 +943,10 @@ local function textureOptions()
 	end
 	add("DEFAULT", "Default (Blizzard)")
 	add("SOLID", "Solid")
-	if not LSM then return list end
-	local hash = LSM:HashTable("statusbar") or {}
-	for name, path in pairs(hash) do
+	local names, hash = getCachedLSMMedia("statusbar")
+	for i = 1, #names do
+		local name = names[i]
+		local path = hash[name]
 		if type(path) == "string" and path ~= "" then add(name, tostring(name)) end
 	end
 	table.sort(list, function(a, b) return tostring(a.label) < tostring(b.label) end)
@@ -951,9 +963,10 @@ local function borderOptions()
 		list[#list + 1] = { value = value, label = label }
 	end
 	add("DEFAULT", DEFAULT)
-	if not LSM then return list end
-	local hash = LSM:HashTable("border") or {}
-	for name, path in pairs(hash) do
+	local names, hash = getCachedLSMMedia("border")
+	for i = 1, #names do
+		local name = names[i]
+		local path = hash[name]
 		if type(path) == "string" and path ~= "" then add(name, tostring(name)) end
 	end
 	table.sort(list, function(a, b) return tostring(a.label) < tostring(b.label) end)
@@ -1345,6 +1358,11 @@ local function appendSecondaryPowerSettings(list, unit, def, textureOpts, addDiv
 	local function isSecondaryPowerEnabled() return getValue(unit, { "secondaryPower", "enabled" }, secondaryDef.enabled == true) ~= false end
 	local function isSecondaryPowerDetached() return getValue(unit, { "secondaryPower", "detached" }, secondaryDef.detached == true) == true end
 	local function isSecondaryPowerDetachedEnabled() return isSecondaryPowerEnabled() and isSecondaryPowerDetached() end
+	local function isSecondaryStaggerAllowed() return isSecondaryAllowedTypeSelected("STAGGER") end
+	local function isSecondaryStaggerSettingsShown() return isSecondaryPowerEnabled() and isSecondaryStaggerAllowed() end
+	local function isSecondaryStaggerExtendedEnabled()
+		return getValue(unit, { "secondaryPower", "staggerHighColors" }, secondaryDef.staggerHighColors == true) == true
+	end
 	local function isDetachedSecondaryWidthMatched() return getValue(unit, { "secondaryPower", "detachedMatchHealthWidth" }, secondaryDef.detachedMatchHealthWidth == true) == true end
 	local function isDetachedSecondaryBorderEnabled()
 		local border = getValue(unit, { "border" }, def.border or {})
@@ -1905,6 +1923,140 @@ local function appendSecondaryPowerSettings(list, unit, def, textureOpts, addDiv
 		colorDefault = { r = 0, g = 0, b = 0, a = 0.6 },
 		isEnabled = isSecondaryPowerEnabled,
 	})
+
+	local staggerColorsSection = {
+		name = L["UFSecondaryStaggerColors"] or "Stagger colors",
+		kind = settingType.Collapsible,
+		id = "secondaryPowerStaggerColors",
+		parentId = "secondaryPower",
+		defaultCollapsed = true,
+	}
+	staggerColorsSection.isEnabled = isSecondaryStaggerSettingsShown
+	staggerColorsSection.isShown = isSecondaryStaggerSettingsShown
+	list[#list + 1] = staggerColorsSection
+
+	local staggerHighDefaultColor = secondaryDef.staggerHighColor or (STAGGER_EXTRA_COLORS and STAGGER_EXTRA_COLORS.high) or { 0.62, 0.2, 1, 1 }
+	local staggerExtremeDefaultColor = secondaryDef.staggerExtremeColor or (STAGGER_EXTRA_COLORS and STAGGER_EXTRA_COLORS.extreme) or { 1, 0.2, 0.8, 1 }
+
+	local staggerUseExtended = checkbox(
+		L["UFSecondaryStaggerUseExtended"] or "Use extended stagger colors",
+		isSecondaryStaggerExtendedEnabled,
+		function(val)
+			setValue(unit, { "secondaryPower", "staggerHighColors" }, val and true or false)
+			refresh()
+			refreshSettingsUI()
+		end,
+		secondaryDef.staggerHighColors == true,
+		"secondaryPowerStaggerColors",
+		isSecondaryStaggerSettingsShown
+	)
+	staggerUseExtended.isShown = isSecondaryStaggerSettingsShown
+	list[#list + 1] = staggerUseExtended
+
+	local staggerHighThreshold = slider(
+		L["UFSecondaryStaggerHighThreshold"] or "Stagger high threshold (%)",
+		100,
+		1000,
+		10,
+		function() return getValue(unit, { "secondaryPower", "staggerHighThreshold" }, secondaryDef.staggerHighThreshold or STAGGER_EXTRA_THRESHOLD_HIGH) end,
+		function(val)
+			local high = clampNumber(val, 100, 1000, STAGGER_EXTRA_THRESHOLD_HIGH)
+			setValue(unit, { "secondaryPower", "staggerHighThreshold" }, high)
+			local extreme = clampNumber(
+				getValue(unit, { "secondaryPower", "staggerExtremeThreshold" }, secondaryDef.staggerExtremeThreshold or STAGGER_EXTRA_THRESHOLD_EXTREME),
+				100,
+				1000,
+				STAGGER_EXTRA_THRESHOLD_EXTREME
+			)
+			if extreme < high then setValue(unit, { "secondaryPower", "staggerExtremeThreshold" }, high) end
+			refresh()
+		end,
+		secondaryDef.staggerHighThreshold or STAGGER_EXTRA_THRESHOLD_HIGH,
+		"secondaryPowerStaggerColors",
+		true,
+		function(value) return tostring(value) .. "%" end
+	)
+	staggerHighThreshold.isEnabled = function() return isSecondaryStaggerSettingsShown() and isSecondaryStaggerExtendedEnabled() end
+	staggerHighThreshold.isShown = isSecondaryStaggerSettingsShown
+	list[#list + 1] = staggerHighThreshold
+
+	local staggerHighColor = {
+		name = L["UFSecondaryStaggerHighColor"] or "Stagger high color",
+		kind = settingType.Color,
+		parentId = "secondaryPowerStaggerColors",
+		isEnabled = function() return isSecondaryStaggerSettingsShown() and isSecondaryStaggerExtendedEnabled() end,
+		isShown = isSecondaryStaggerSettingsShown,
+		get = function() return getValue(unit, { "secondaryPower", "staggerHighColor" }, staggerHighDefaultColor) end,
+		set = function(_, color)
+			setColor(unit, { "secondaryPower", "staggerHighColor" }, color.r, color.g, color.b, color.a)
+			refresh()
+		end,
+		colorGet = function() return getValue(unit, { "secondaryPower", "staggerHighColor" }, staggerHighDefaultColor) end,
+		colorSet = function(_, color)
+			setColor(unit, { "secondaryPower", "staggerHighColor" }, color.r, color.g, color.b, color.a)
+			refresh()
+		end,
+		colorDefault = {
+			r = select(1, toRGBA(staggerHighDefaultColor, { 0.62, 0.2, 1, 1 })),
+			g = select(2, toRGBA(staggerHighDefaultColor, { 0.62, 0.2, 1, 1 })),
+			b = select(3, toRGBA(staggerHighDefaultColor, { 0.62, 0.2, 1, 1 })),
+			a = select(4, toRGBA(staggerHighDefaultColor, { 0.62, 0.2, 1, 1 })),
+		},
+		hasOpacity = true,
+	}
+	list[#list + 1] = staggerHighColor
+
+	local staggerExtremeThreshold = slider(
+		L["UFSecondaryStaggerExtremeThreshold"] or "Stagger extreme threshold (%)",
+		100,
+		1000,
+		10,
+		function() return getValue(unit, { "secondaryPower", "staggerExtremeThreshold" }, secondaryDef.staggerExtremeThreshold or STAGGER_EXTRA_THRESHOLD_EXTREME) end,
+		function(val)
+			local high = clampNumber(
+				getValue(unit, { "secondaryPower", "staggerHighThreshold" }, secondaryDef.staggerHighThreshold or STAGGER_EXTRA_THRESHOLD_HIGH),
+				100,
+				1000,
+				STAGGER_EXTRA_THRESHOLD_HIGH
+			)
+			local extreme = clampNumber(val, high, 1000, STAGGER_EXTRA_THRESHOLD_EXTREME)
+			setValue(unit, { "secondaryPower", "staggerExtremeThreshold" }, extreme)
+			refresh()
+		end,
+		secondaryDef.staggerExtremeThreshold or STAGGER_EXTRA_THRESHOLD_EXTREME,
+		"secondaryPowerStaggerColors",
+		true,
+		function(value) return tostring(value) .. "%" end
+	)
+	staggerExtremeThreshold.isEnabled = function() return isSecondaryStaggerSettingsShown() and isSecondaryStaggerExtendedEnabled() end
+	staggerExtremeThreshold.isShown = isSecondaryStaggerSettingsShown
+	list[#list + 1] = staggerExtremeThreshold
+
+	local staggerExtremeColor = {
+		name = L["UFSecondaryStaggerExtremeColor"] or "Stagger extreme color",
+		kind = settingType.Color,
+		parentId = "secondaryPowerStaggerColors",
+		isEnabled = function() return isSecondaryStaggerSettingsShown() and isSecondaryStaggerExtendedEnabled() end,
+		isShown = isSecondaryStaggerSettingsShown,
+		get = function() return getValue(unit, { "secondaryPower", "staggerExtremeColor" }, staggerExtremeDefaultColor) end,
+		set = function(_, color)
+			setColor(unit, { "secondaryPower", "staggerExtremeColor" }, color.r, color.g, color.b, color.a)
+			refresh()
+		end,
+		colorGet = function() return getValue(unit, { "secondaryPower", "staggerExtremeColor" }, staggerExtremeDefaultColor) end,
+		colorSet = function(_, color)
+			setColor(unit, { "secondaryPower", "staggerExtremeColor" }, color.r, color.g, color.b, color.a)
+			refresh()
+		end,
+		colorDefault = {
+			r = select(1, toRGBA(staggerExtremeDefaultColor, { 1, 0.2, 0.8, 1 })),
+			g = select(2, toRGBA(staggerExtremeDefaultColor, { 1, 0.2, 0.8, 1 })),
+			b = select(3, toRGBA(staggerExtremeDefaultColor, { 1, 0.2, 0.8, 1 })),
+			a = select(4, toRGBA(staggerExtremeDefaultColor, { 1, 0.2, 0.8, 1 })),
+		},
+		hasOpacity = true,
+	}
+	list[#list + 1] = staggerExtremeColor
 end
 
 addon.Aura = addon.Aura or {}

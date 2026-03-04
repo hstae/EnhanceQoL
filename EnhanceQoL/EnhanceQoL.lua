@@ -5549,6 +5549,7 @@ local function setAllHooks()
 
 	LSM:RegisterCallback("LibSharedMedia_Registered", function(event, mediaType, ...)
 		local mediaKey = ...
+		if addon.functions and addon.functions.InvalidateLSMMediaCache and mediaType then addon.functions.InvalidateLSMMediaCache(mediaType) end
 		if mediaType == "sound" then
 			if not lsmSoundDirty then
 				lsmSoundDirty = true

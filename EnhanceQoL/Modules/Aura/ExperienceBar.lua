@@ -124,6 +124,22 @@ local TEXT_SIZE_MAX = 30
 local DEFAULT_SETTINGS_MAX_HEIGHT = 900
 local DEFAULT_SETTINGS_SCREEN_MARGIN = 200
 
+local function getCachedMediaNames(mediaType)
+	if addon.functions and addon.functions.GetLSMMediaNames then
+		local names = addon.functions.GetLSMMediaNames(mediaType)
+		if type(names) == "table" then return names end
+	end
+	return {}
+end
+
+local function getCachedMediaHash(mediaType)
+	if addon.functions and addon.functions.GetLSMMediaHash then
+		local hash = addon.functions.GetLSMMediaHash(mediaType)
+		if type(hash) == "table" then return hash end
+	end
+	return {}
+end
+
 local BLIZZARD_TRACKING_FRAMES = {
 	"MainStatusTrackingBarContainer",
 	"SecondaryStatusTrackingBarContainer",
@@ -206,14 +222,13 @@ local function textureOptions()
 
 	add("DEFAULT", _G.DEFAULT)
 	add("SOLID", "Solid")
-
-	if LSM and LSM.HashTable then
-		for name, path in pairs(LSM:HashTable("statusbar") or {}) do
-			if type(path) == "string" and path ~= "" then add(name, tostring(name)) end
-		end
+	local names = getCachedMediaNames("statusbar")
+	local hash = getCachedMediaHash("statusbar")
+	for i = 1, #names do
+		local name = names[i]
+		local path = hash[name]
+		if type(path) == "string" and path ~= "" then add(name, tostring(name)) end
 	end
-
-	table.sort(list, function(a, b) return tostring(a.label) < tostring(b.label) end)
 	return list
 end
 
@@ -229,14 +244,13 @@ local function borderOptions()
 
 	add("DEFAULT", _G.DEFAULT)
 	add("SOLID", "Solid")
-
-	if LSM and LSM.HashTable then
-		for name, path in pairs(LSM:HashTable("border") or {}) do
-			if type(path) == "string" and path ~= "" then add(name, tostring(name)) end
-		end
+	local names = getCachedMediaNames("border")
+	local hash = getCachedMediaHash("border")
+	for i = 1, #names do
+		local name = names[i]
+		local path = hash[name]
+		if type(path) == "string" and path ~= "" then add(name, tostring(name)) end
 	end
-
-	table.sort(list, function(a, b) return tostring(a.label) < tostring(b.label) end)
 	return list
 end
 
@@ -252,13 +266,13 @@ local function fontOptions()
 
 	add(globalFontConfigKey(), globalFontConfigLabel())
 	add("DEFAULT", _G.DEFAULT)
-	if LSM and LSM.HashTable then
-		for name, path in pairs(LSM:HashTable("font") or {}) do
-			if type(path) == "string" and path ~= "" then add(name, tostring(name)) end
-		end
+	local names = getCachedMediaNames("font")
+	local hash = getCachedMediaHash("font")
+	for i = 1, #names do
+		local name = names[i]
+		local path = hash[name]
+		if type(path) == "string" and path ~= "" then add(name, tostring(name)) end
 	end
-
-	table.sort(list, function(a, b) return tostring(a.label) < tostring(b.label) end)
 	local globalKey = globalFontConfigKey()
 	for idx, option in ipairs(list) do
 		if option.value == globalKey then

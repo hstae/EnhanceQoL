@@ -58,6 +58,13 @@ local squareMinimapStatsAnchorOptions = {
 	BOTTOMRIGHT = L["squareMinimapStatsAnchorBottomRight"] or "Bottom Right",
 }
 
+local function getCachedFontMedia()
+	local names = addon.functions and addon.functions.GetLSMMediaNames and addon.functions.GetLSMMediaNames("font")
+	local hash = addon.functions and addon.functions.GetLSMMediaHash and addon.functions.GetLSMMediaHash("font")
+	if type(names) == "table" and type(hash) == "table" then return names, hash end
+	return {}, {}
+end
+
 local function getGlobalFontConfigKey()
 	if addon.functions and addon.functions.GetGlobalFontConfigKey then return addon.functions.GetGlobalFontConfigKey() end
 	return "__EQOL_GLOBAL_FONT__"
@@ -99,11 +106,11 @@ local function buildSquareMinimapStatsFontDropdown()
 		[defaultFont] = L["actionBarFontDefault"] or "Blizzard font",
 		[globalFontKey] = globalFontLabel,
 	}
-	local LSM = LibStub("LibSharedMedia-3.0", true)
-	if LSM and LSM.HashTable then
-		for name, path in pairs(LSM:HashTable("font") or {}) do
-			if type(path) == "string" and path ~= "" then map[path] = tostring(name) end
-		end
+	local names, hash = getCachedFontMedia()
+	for i = 1, #names do
+		local name = names[i]
+		local path = hash[name]
+		if type(path) == "string" and path ~= "" then map[path] = tostring(name) end
 	end
 	local list, order = addon.functions.prepareListForDropdown(map)
 	wipe(squareMinimapStatsFontOrder)

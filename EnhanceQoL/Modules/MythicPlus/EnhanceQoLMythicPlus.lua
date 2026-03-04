@@ -376,12 +376,39 @@ local function isLikelyFilePath(value)
 	return value:find("/", 1, true) ~= nil or value:find("\\", 1, true) ~= nil
 end
 
+local function getCachedMediaHash(mediaType)
+	if addon.functions and addon.functions.GetLSMMediaHash then
+		local hash = addon.functions.GetLSMMediaHash(mediaType)
+		if type(hash) == "table" then return hash end
+	end
+	return {}
+end
+
+local function getCachedMediaNames(mediaType)
+	if addon.functions and addon.functions.GetLSMMediaNames then
+		local names = addon.functions.GetLSMMediaNames(mediaType)
+		if type(names) == "table" then return names end
+	end
+
+	local names = {}
+	for name in pairs(getCachedMediaHash(mediaType)) do
+		if type(name) == "string" and name ~= "" then names[#names + 1] = name end
+	end
+	table.sort(names, function(a, b)
+		local al = string.lower(a)
+		local bl = string.lower(b)
+		if al == bl then return a < b end
+		return al < bl
+	end)
+	return names
+end
+
 local function normalizeBloodlustBorderTexture(value)
 	if type(value) ~= "string" or value == "" then return "DEFAULT" end
 	if value == "DEFAULT" or value == "SOLID" then return value end
 	if isLikelyFilePath(value) then return value end
 	if LSM and LSM.IsValid and LSM:IsValid("border", value) then return value end
-	local borderTable = LSM and LSM:HashTable("border")
+	local borderTable = getCachedMediaHash("border")
 	if borderTable and borderTable[value] then return value end
 	return "DEFAULT"
 end
@@ -476,7 +503,7 @@ local function normalizeBloodlustCooldownFontFace(value)
 	if value == BLOODLUST_GLOBAL_FONT_KEY then return value end
 	if value:find("\\", 1, true) or value:find("/", 1, true) then return value end
 	if LSM and LSM.IsValid and LSM:IsValid("font", value) then return value end
-	local fontTable = LSM and LSM:HashTable("font")
+	local fontTable = getCachedMediaHash("font")
 	if fontTable and fontTable[value] then return value end
 	return BLOODLUST_GLOBAL_FONT_KEY
 end
@@ -732,17 +759,8 @@ local function ensureBloodlustAnchor()
 		local settings
 		if settingType then
 			local function buildSoundEntries()
-				local entries = {}
-				local soundTable = LSM and LSM:HashTable("sound") or {}
-				for name in pairs(soundTable) do
-					if type(name) == "string" and name ~= "" then entries[#entries + 1] = name end
-				end
-				table.sort(entries, function(a, b)
-					local al = string.lower(a)
-					local bl = string.lower(b)
-					if al == bl then return a < b end
-					return al < bl
-				end)
+				local entries = getCachedMediaNames("sound")
+				local soundTable = getCachedMediaHash("sound")
 				return entries, soundTable
 			end
 
@@ -763,17 +781,8 @@ local function ensureBloodlustAnchor()
 			end
 
 			local function buildFontEntries()
-				local entries = {}
-				local fontTable = LSM and LSM:HashTable("font") or {}
-				for name in pairs(fontTable) do
-					if type(name) == "string" and name ~= "" then entries[#entries + 1] = name end
-				end
-				table.sort(entries, function(a, b)
-					local al = string.lower(a)
-					local bl = string.lower(b)
-					if al == bl then return a < b end
-					return al < bl
-				end)
+				local entries = getCachedMediaNames("font")
+				local fontTable = getCachedMediaHash("font")
 				return entries, fontTable
 			end
 
@@ -782,16 +791,11 @@ local function ensureBloodlustAnchor()
 					{ value = "DEFAULT", label = _G.DEFAULT or "Default" },
 					{ value = "SOLID", label = "Solid" },
 				}
-				local borderTable = LSM and LSM:HashTable("border") or {}
-				for name in pairs(borderTable) do
-					if type(name) == "string" and name ~= "" then entries[#entries + 1] = { value = name, label = name } end
+				local names = getCachedMediaNames("border")
+				for i = 1, #names do
+					local name = names[i]
+					entries[#entries + 1] = { value = name, label = name }
 				end
-				table.sort(entries, function(a, b)
-					local av = string.lower(tostring(a and a.label or ""))
-					local bv = string.lower(tostring(b and b.label or ""))
-					if av == bv then return tostring(a and a.value or "") < tostring(b and b.value or "") end
-					return av < bv
-				end)
 				return entries
 			end
 
@@ -1425,7 +1429,7 @@ local function getCustomSoundFile(settingKey)
 	if not addon.db then return nil end
 	local soundName = addon.db[settingKey]
 	if type(soundName) ~= "string" or soundName == "" then return nil end
-	local soundTable = LSM and LSM:HashTable("sound")
+	local soundTable = getCachedMediaHash("sound")
 	return soundTable and soundTable[soundName] or nil
 end
 

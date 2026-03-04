@@ -105,6 +105,13 @@ local enchantDisplayModeOptions = {
 	WARNING = L["gearEnchantDisplayModeWarningOnly"] or "Warning only",
 }
 
+local function getCachedFontMedia()
+	local names = addon.functions and addon.functions.GetLSMMediaNames and addon.functions.GetLSMMediaNames("font")
+	local hash = addon.functions and addon.functions.GetLSMMediaHash and addon.functions.GetLSMMediaHash("font")
+	if type(names) == "table" and type(hash) == "table" then return names, hash end
+	return {}, {}
+end
+
 local function buildIlvlFontDropdown()
 	local map = {
 		[addon.variables.defaultFont] = L["actionBarFontDefault"] or "Blizzard font",
@@ -112,11 +119,11 @@ local function buildIlvlFontDropdown()
 	local globalFontKey = addon.functions and addon.functions.GetGlobalFontConfigKey and addon.functions.GetGlobalFontConfigKey() or "__EQOL_GLOBAL_FONT__"
 	local globalFontLabel = addon.functions and addon.functions.GetGlobalFontConfigLabel and addon.functions.GetGlobalFontConfigLabel() or "Use global font config"
 	map[globalFontKey] = globalFontLabel
-	local LSM = LibStub("LibSharedMedia-3.0", true)
-	if LSM and LSM.HashTable then
-		for name, path in pairs(LSM:HashTable("font") or {}) do
-			if type(path) == "string" and path ~= "" then map[path] = tostring(name) end
-		end
+	local names, hash = getCachedFontMedia()
+	for i = 1, #names do
+		local name = names[i]
+		local path = hash[name]
+		if type(path) == "string" and path ~= "" then map[path] = tostring(name) end
 	end
 	local list, order = addon.functions.prepareListForDropdown(map)
 	wipe(ilvlFontOrder)

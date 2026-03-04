@@ -14,7 +14,6 @@ local L = LibStub("AceLocale-3.0"):GetLocale(parentAddonName)
 local EditMode = addon.EditMode
 local SettingType = EditMode and EditMode.lib and EditMode.lib.SettingType
 local LBG = LibStub("LibButtonGlow-1.0", true)
-local LSM = LibStub("LibSharedMedia-3.0", true)
 local issecretvalue = _G.issecretvalue
 local UnitInPartyIsAI = _G.UnitInPartyIsAI
 local GetTimePreciseSec = _G.GetTimePreciseSec
@@ -48,6 +47,7 @@ local DB_DISPLAY_MODE = "classBuffReminderDisplayMode"
 local DB_GROWTH_DIRECTION = "classBuffReminderGrowthDirection"
 local DB_GROWTH_FROM_CENTER = "classBuffReminderGrowthFromCenter"
 local DB_TRACK_FLASKS = "classBuffReminderTrackFlasks"
+local DB_TRACK_FLASKS_INSTANCE_ONLY = "classBuffReminderTrackFlasksInstanceOnly"
 local DB_SCALE = "classBuffReminderScale"
 local DB_ICON_SIZE = "classBuffReminderIconSize"
 local DB_FONT_SIZE = "classBuffReminderFontSize"
@@ -73,6 +73,7 @@ Reminder.defaults = Reminder.defaults
 		growthDirection = GROWTH_RIGHT,
 		growthFromCenter = false,
 		trackFlasks = false,
+		trackFlasksInstanceOnly = false,
 		scale = 1,
 		iconSize = 64,
 		fontSize = 13,
@@ -471,6 +472,16 @@ local function playerHasEnchantId(enchantId)
 	return false
 end
 
+local function playerHasAnyEnchantId(enchantIds)
+	if type(enchantIds) == "table" then
+		for i = 1, #enchantIds do
+			if playerHasEnchantId(enchantIds[i]) then return true end
+		end
+		return false
+	end
+	return playerHasEnchantId(enchantIds)
+end
+
 local function resetProviderRuntimeCache(provider)
 	if type(provider) ~= "table" then return end
 	provider.spellSet = nil
@@ -625,6 +636,21 @@ end
 
 function Reminder:IsFlaskTrackingEnabled() return getValue(DB_TRACK_FLASKS, defaults.trackFlasks) == true end
 
+function Reminder:IsFlaskInstanceOnlyEnabled() return getValue(DB_TRACK_FLASKS_INSTANCE_ONLY, defaults.trackFlasksInstanceOnly) == true end
+
+function Reminder:IsDungeonOrRaidInstance()
+	if not IsInInstance then return false end
+	local inInstance, instanceType = IsInInstance()
+	if inInstance ~= true then return false end
+	return instanceType == "party" or instanceType == "raid"
+end
+
+function Reminder:CanCheckFlaskReminder()
+	if not self:IsFlaskTrackingEnabled() then return false end
+	if not self:IsFlaskInstanceOnlyEnabled() then return true end
+	return self:IsDungeonOrRaidInstance()
+end
+
 function Reminder:InvalidateFlaskCache()
 	self.flaskCandidateCache = nil
 	self.flaskCandidateCacheSpecId = nil
@@ -639,14 +665,39 @@ local function nowSeconds()
 	return 0
 end
 
+function Reminder:GetSharedFlaskCandidates(specId)
+	if type(specId) ~= "number" then return nil, nil, false end
+	if not addon.Flasks then return nil, nil, false end
+	if addon.Flasks.lastSpecID ~= specId then return nil, nil, false end
+
+	local selectedType = addon.Flasks.lastSelectedType
+	if type(selectedType) ~= "string" then selectedType = nil end
+	if selectedType == "none" then return nil, selectedType, true end
+
+	local shared = addon.Flasks.filteredFlasks
+	if type(shared) ~= "table" then return nil, selectedType, false end
+	if #shared <= 0 then return nil, selectedType, true end
+	return shared, selectedType, true
+end
+
 function Reminder:GetFlaskCandidatesForCurrentSpec()
-	if not self:IsFlaskTrackingEnabled() then return nil, nil end
+	if not self:CanCheckFlaskReminder() then return nil, nil end
 	if not (addon.Flasks and addon.Flasks.functions and addon.Flasks.functions.getAvailableCandidatesForSpec) then return nil, nil end
 
 	local specId = self:GetCurrentSpecId()
+	if self.flaskCacheDirty ~= true and self.flaskCandidateCacheReady == true and self.flaskCandidateCacheSpecId == specId then return self.flaskCandidateCache, self.flaskSelectedType end
+
 	local now = nowSeconds()
-	if self.flaskCacheDirty ~= true and self.flaskCandidateCacheReady == true and self.flaskCandidateCacheSpecId == specId and (now - (tonumber(self.flaskCandidateCacheTime) or 0)) <= 0.75 then
-		return self.flaskCandidateCache, self.flaskSelectedType
+	local canUseShared = addon.db and addon.db.flaskMacroEnabled == true
+	local sharedCandidates, sharedType, sharedReady = self:GetSharedFlaskCandidates(specId)
+	if canUseShared and sharedReady then
+		self.flaskCandidateCache = sharedCandidates
+		self.flaskCandidateCacheSpecId = specId
+		self.flaskSelectedType = sharedType
+		self.flaskCandidateCacheTime = now
+		self.flaskCandidateCacheReady = true
+		self.flaskCacheDirty = false
+		return sharedCandidates, sharedType
 	end
 
 	local candidates, selectedType = addon.Flasks.functions.getAvailableCandidatesForSpec(specId)
@@ -720,7 +771,7 @@ function Reminder:GetFlaskMissingEntry()
 end
 
 function Reminder:GetSupplementalMissingEntries()
-	if not self:IsFlaskTrackingEnabled() then return nil end
+	if not self:CanCheckFlaskReminder() then return nil end
 	if not (UnitExists and UnitExists("player") and UnitIsConnected and UnitIsConnected("player") and not UnitIsDeadOrGhost("player")) then return nil end
 	local flaskEntry = self:GetFlaskMissingEntry()
 	if not flaskEntry then return nil end
@@ -806,7 +857,9 @@ local function paladinRitesHasUnitBuff(provider, unit, reminder)
 	if unit ~= "player" then return false end
 	if type(reminder) ~= "table" then return false end
 	if reminder:UnitHasAnyAuraSpellId(unit, provider and provider.spellIds) then return true end
-	return provider and playerHasEnchantId(provider.enchantId) or false
+	if not provider then return false end
+	if type(provider.enchantIds) == "table" and #provider.enchantIds > 0 then return playerHasAnyEnchantId(provider.enchantIds) end
+	return playerHasEnchantId(provider.enchantId)
 end
 
 local function paladinRitesGetSelfStatus(provider, reminder)
@@ -815,6 +868,8 @@ local function paladinRitesGetSelfStatus(provider, reminder)
 	local activeSpellId = normalizeSpellId(provider.spellIds and provider.spellIds[1]) or normalizeSpellId(provider.displaySpellId)
 	local hasRite = false
 	if reminder:UnitHasAnyAuraSpellId("player", provider.spellIds) then
+		hasRite = true
+	elseif type(provider.enchantIds) == "table" and #provider.enchantIds > 0 and playerHasAnyEnchantId(provider.enchantIds) then
 		hasRite = true
 	elseif provider.enchantId and playerHasEnchantId(provider.enchantId) then
 		hasRite = true
@@ -1067,36 +1122,65 @@ function Reminder:GetEvokerSupportProvider()
 end
 
 function Reminder:GetPaladinRitesProvider()
-	local activeRite
-	if safeIsPlayerSpell(PALADIN_RITES.adjuration.spellId) then
-		activeRite = PALADIN_RITES.adjuration
-	elseif safeIsPlayerSpell(PALADIN_RITES.sanctification.spellId) then
-		activeRite = PALADIN_RITES.sanctification
+	local adjurationKnown = safeIsPlayerSpell(PALADIN_RITES.adjuration.spellId)
+	local sanctificationKnown = safeIsPlayerSpell(PALADIN_RITES.sanctification.spellId)
+	if not adjurationKnown and not sanctificationKnown then return nil end
+
+	local spellIds
+	local enchantIds
+	local fallbackName
+	local nextKey
+	local displaySpellId
+
+	if adjurationKnown and not sanctificationKnown then
+		spellIds = { PALADIN_RITES.adjuration.spellId }
+		enchantIds = { PALADIN_RITES.adjuration.enchantId }
+		fallbackName = PALADIN_RITES.adjuration.fallbackName
+		nextKey = tostring(PALADIN_RITES.adjuration.spellId)
+		displaySpellId = PALADIN_RITES.adjuration.spellId
+	elseif sanctificationKnown and not adjurationKnown then
+		spellIds = { PALADIN_RITES.sanctification.spellId }
+		enchantIds = { PALADIN_RITES.sanctification.enchantId }
+		fallbackName = PALADIN_RITES.sanctification.fallbackName
+		nextKey = tostring(PALADIN_RITES.sanctification.spellId)
+		displaySpellId = PALADIN_RITES.sanctification.spellId
 	else
-		return nil
+		spellIds = { PALADIN_RITES.adjuration.spellId, PALADIN_RITES.sanctification.spellId }
+		enchantIds = { PALADIN_RITES.adjuration.enchantId, PALADIN_RITES.sanctification.enchantId }
+		fallbackName = "Rite"
+		nextKey = "both"
+		displaySpellId = PALADIN_RITES.adjuration.spellId
+		if self:UnitHasAnyAuraSpellId("player", { PALADIN_RITES.sanctification.spellId }) or playerHasEnchantId(PALADIN_RITES.sanctification.enchantId) then
+			displaySpellId = PALADIN_RITES.sanctification.spellId
+		elseif self:UnitHasAnyAuraSpellId("player", { PALADIN_RITES.adjuration.spellId }) or playerHasEnchantId(PALADIN_RITES.adjuration.enchantId) then
+			displaySpellId = PALADIN_RITES.adjuration.spellId
+		end
 	end
 
 	self.paladinRitesProvider = self.paladinRitesProvider
 		or {
 			scope = PROVIDER_SCOPE_SELF,
-			spellIds = { activeRite.spellId },
-			fallbackName = activeRite.fallbackName,
-			enchantId = activeRite.enchantId,
+			spellIds = spellIds,
+			fallbackName = fallbackName,
+			enchantId = enchantIds[1],
+			enchantIds = enchantIds,
 			hasUnitBuffFunc = paladinRitesHasUnitBuff,
 			getSelfStatusFunc = paladinRitesGetSelfStatus,
 			activeKey = nil,
 		}
 
 	local provider = self.paladinRitesProvider
-	local nextKey = tostring(activeRite.spellId)
+	provider.spellIds = spellIds
+	provider.fallbackName = fallbackName
+	provider.enchantIds = enchantIds
+	provider.enchantId = (#enchantIds == 1) and enchantIds[1] or nil
+
 	if provider.activeKey ~= nextKey then
 		provider.activeKey = nextKey
-		provider.spellIds = { activeRite.spellId }
-		provider.fallbackName = activeRite.fallbackName
-		provider.enchantId = activeRite.enchantId
 		resetProviderRuntimeCache(provider)
 	end
 
+	setProviderDisplaySpellId(provider, displaySpellId)
 	return provider
 end
 
@@ -1203,6 +1287,17 @@ function Reminder:GetShamanProvider()
 	if specId == SHAMAN_SPEC_ENHANCEMENT then return self:GetShamanEnhancementProvider() or PROVIDER_BY_CLASS.SHAMAN end
 	if specId == SHAMAN_SPEC_RESTORATION then return self:GetShamanRestorationProvider() or PROVIDER_BY_CLASS.SHAMAN end
 	return PROVIDER_BY_CLASS.SHAMAN
+end
+
+function Reminder:GetFlaskOnlyProvider()
+	self.flaskOnlyProvider = self.flaskOnlyProvider
+		or {
+			scope = PROVIDER_SCOPE_SELF,
+			spellIds = SHARED_FLASK_AURA_IDS,
+			fallbackName = "Flask",
+			displaySpellId = normalizeSpellId(SHARED_FLASK_AURA_IDS[1]),
+		}
+	return self.flaskOnlyProvider
 end
 
 function Reminder:GetProvider()
@@ -1338,28 +1433,33 @@ function Reminder:WriteSoundDebug(eventName, payload)
 end
 
 function Reminder:BuildMissingSoundOptions()
+	local version = (addon.functions and addon.functions.GetLSMMediaVersion and addon.functions.GetLSMMediaVersion("sound")) or 0
+	if self.missingSoundCacheVersion == version and self.missingSoundKeys and self.missingSoundMap and self.missingSoundPathToKey then
+		return self.missingSoundKeys, self.missingSoundMap, self.missingSoundPathToKey
+	end
+
 	local keys = {}
 	local map = {}
 	local pathToKey = {}
-	if LSM and LSM.HashTable then
-		local hash = LSM:HashTable("sound") or {}
-		for name, path in pairs(hash) do
+
+	local names = (addon.functions and addon.functions.GetLSMMediaNames and addon.functions.GetLSMMediaNames("sound")) or nil
+	local hash = (addon.functions and addon.functions.GetLSMMediaHash and addon.functions.GetLSMMediaHash("sound")) or nil
+	if type(names) == "table" and type(hash) == "table" then
+		for i = 1, #names do
+			local name = names[i]
+			local path = hash[name]
 			if type(name) == "string" and name ~= "" and type(path) == "string" and path ~= "" then
 				keys[#keys + 1] = name
 				map[name] = path
 			end
 		end
 	end
-	table.sort(keys, function(a, b)
-		local al, bl = tostring(a):lower(), tostring(b):lower()
-		if al == bl then return tostring(a) < tostring(b) end
-		return al < bl
-	end)
 	for i = 1, #keys do
 		local name = keys[i]
 		local path = map[name]
 		if type(path) == "string" and path ~= "" and pathToKey[path] == nil then pathToKey[path] = name end
 	end
+	self.missingSoundCacheVersion = version
 	self.missingSoundKeys = keys
 	self.missingSoundMap = map
 	self.missingSoundPathToKey = pathToKey
@@ -2251,8 +2351,8 @@ end
 
 function Reminder:ShouldRegisterRuntimeEvents()
 	if getValue(DB_ENABLED, defaults.enabled) ~= true then return false end
-	if not self:HasProvider() then return false end
-	return true
+	if self:HasProvider() then return true end
+	return self:IsFlaskTrackingEnabled()
 end
 
 function Reminder:Render(provider, missing, total, supplementalEntries, effectiveMissing)
@@ -2381,11 +2481,16 @@ function Reminder:UpdateDisplay()
 	end
 
 	local provider = self:GetProvider()
+	local classProvider = provider
 	if not provider then
-		self:SetGlowShown(false)
-		self.missingActive = false
-		frame:Hide()
-		return
+		if self:IsFlaskTrackingEnabled() then
+			provider = self:GetFlaskOnlyProvider()
+		else
+			self:SetGlowShown(false)
+			self.missingActive = false
+			frame:Hide()
+			return
+		end
 	end
 
 	if not self:IsGroupModeAllowed() then
@@ -2395,8 +2500,17 @@ function Reminder:UpdateDisplay()
 		return
 	end
 
-	local missing, total = self:ComputeMissing(provider)
+	local missing, total = 0, 0
+	if classProvider then
+		missing, total = self:ComputeMissing(provider)
+	end
 	local supplementalEntries = self:GetSupplementalMissingEntries()
+	if not classProvider and type(supplementalEntries) == "table" and supplementalEntries[1] and supplementalEntries[1].spellId then
+		provider.displaySpellId = normalizeSpellId(supplementalEntries[1].spellId) or provider.displaySpellId
+		provider.cachedIcon = nil
+		provider.cachedName = provider.fallbackName or "Flask"
+		provider._presentationReady = false
+	end
 	local supplementalMissing = type(supplementalEntries) == "table" and #supplementalEntries or 0
 	if total <= 0 and supplementalMissing <= 0 then
 		self:SetGlowShown(false)
@@ -2489,7 +2603,6 @@ function Reminder:HandleEvent(event, unit, updateInfo)
 	end
 
 	self:InvalidateAuraStates()
-	self:InvalidateFlaskCache()
 	self:RequestUpdate(true)
 end
 
@@ -2509,7 +2622,9 @@ function Reminder:RegisterEvents()
 	self.eventFrame:RegisterEvent("ROLE_CHANGED_INFORM")
 	self.eventFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
 	self.eventFrame:RegisterEvent("PLAYER_TALENT_UPDATE")
+	self.eventFrame:RegisterEvent("TRAIT_CONFIG_UPDATED")
 	self.eventFrame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
+	self.eventFrame:RegisterEvent("SPELLS_CHANGED")
 	self.eventFrame:RegisterEvent("UNIT_AURA")
 	self.eventFrame:RegisterEvent("UNIT_INVENTORY_CHANGED")
 	self.eventFrame:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
@@ -2576,6 +2691,12 @@ function Reminder:RegisterEditMode()
 		Reminder:RequestUpdate(true)
 	end
 
+	local function setTrackFlasksInstanceOnly(value)
+		if addon.db then addon.db[DB_TRACK_FLASKS_INSTANCE_ONLY] = value == true end
+		Reminder:InvalidateFlaskCache()
+		Reminder:RequestUpdate(true)
+	end
+
 	local function setTextOutline(value)
 		if addon.db then addon.db[DB_XY_TEXT_OUTLINE] = normalizeTextOutline(value) end
 		Reminder:ApplyVisualSettings()
@@ -2611,8 +2732,15 @@ function Reminder:RegisterEditMode()
 	if SettingType then
 		settings = {
 			{
+				name = L["ClassBuffReminderSectionClassBuffs"] or "Class Buffs",
+				kind = SettingType.Collapsible,
+				id = "classBuffs",
+				defaultCollapsed = false,
+			},
+			{
 				name = L["ClassBuffReminderShowParty"] or "Track in party",
 				kind = SettingType.Checkbox,
+				parentId = "classBuffs",
 				default = defaults.showParty,
 				get = function() return getValue(DB_SHOW_PARTY, defaults.showParty) == true end,
 				set = function(_, value) setBool(DB_SHOW_PARTY, value) end,
@@ -2620,6 +2748,7 @@ function Reminder:RegisterEditMode()
 			{
 				name = L["ClassBuffReminderShowRaid"] or "Track in raid",
 				kind = SettingType.Checkbox,
+				parentId = "classBuffs",
 				default = defaults.showRaid,
 				get = function() return getValue(DB_SHOW_RAID, defaults.showRaid) == true end,
 				set = function(_, value) setBool(DB_SHOW_RAID, value) end,
@@ -2627,27 +2756,52 @@ function Reminder:RegisterEditMode()
 			{
 				name = L["ClassBuffReminderShowSolo"] or "Show while solo",
 				kind = SettingType.Checkbox,
+				parentId = "classBuffs",
 				default = defaults.showSolo,
 				get = function() return getValue(DB_SHOW_SOLO, defaults.showSolo) == true end,
 				set = function(_, value) setBool(DB_SHOW_SOLO, value) end,
 			},
 			{
-				name = L["ClassBuffReminderTrackFlasks"] or "Track missing flask buff",
-				kind = SettingType.Checkbox,
-				default = defaults.trackFlasks == true,
-				get = function() return getValue(DB_TRACK_FLASKS, defaults.trackFlasks) == true end,
-				set = function(_, value) setTrackFlasks(value) end,
-			},
-			{
 				name = L["ClassBuffReminderGlow"] or "Glow when missing",
 				kind = SettingType.Checkbox,
+				parentId = "classBuffs",
 				default = defaults.glow,
 				get = function() return getValue(DB_GLOW, defaults.glow) == true end,
 				set = function(_, value) setBool(DB_GLOW, value) end,
 			},
 			{
+				name = L["ClassBuffReminderSectionFlasks"] or "Flasks",
+				kind = SettingType.Collapsible,
+				id = "flasks",
+				defaultCollapsed = false,
+			},
+			{
+				name = L["ClassBuffReminderTrackFlasks"] or "Track missing flask buff",
+				kind = SettingType.Checkbox,
+				parentId = "flasks",
+				default = defaults.trackFlasks == true,
+				get = function() return getValue(DB_TRACK_FLASKS, defaults.trackFlasks) == true end,
+				set = function(_, value) setTrackFlasks(value) end,
+			},
+			{
+				name = L["ClassBuffReminderTrackFlasksInstanceOnly"] or "Only in dungeons/raids",
+				kind = SettingType.Checkbox,
+				parentId = "flasks",
+				default = defaults.trackFlasksInstanceOnly == true,
+				get = function() return getValue(DB_TRACK_FLASKS_INSTANCE_ONLY, defaults.trackFlasksInstanceOnly) == true end,
+				set = function(_, value) setTrackFlasksInstanceOnly(value) end,
+				isShown = function() return getValue(DB_TRACK_FLASKS, defaults.trackFlasks) == true end,
+			},
+			{
+				name = L["ClassBuffReminderSectionSound"] or "Sound",
+				kind = SettingType.Collapsible,
+				id = "sound",
+				defaultCollapsed = true,
+			},
+			{
 				name = L["ClassBuffReminderSoundOnMissing"] or "Play sound when missing",
 				kind = SettingType.Checkbox,
+				parentId = "sound",
 				default = defaults.soundOnMissing,
 				get = function() return getValue(DB_SOUND_ON_MISSING, defaults.soundOnMissing) == true end,
 				set = function(_, value) setBool(DB_SOUND_ON_MISSING, value) end,
@@ -2655,6 +2809,7 @@ function Reminder:RegisterEditMode()
 			{
 				name = L["ClassBuffReminderMissingSound"] or "Missing sound",
 				kind = SettingType.Dropdown,
+				parentId = "sound",
 				height = 260,
 				get = function()
 					Reminder:BuildMissingSoundOptions()
@@ -2674,8 +2829,15 @@ function Reminder:RegisterEditMode()
 				isEnabled = function() return getValue(DB_SOUND_ON_MISSING, defaults.soundOnMissing) == true end,
 			},
 			{
+				name = L["ClassBuffReminderSectionAnchorSize"] or "Anchor & Size",
+				kind = SettingType.Collapsible,
+				id = "anchorSize",
+				defaultCollapsed = true,
+			},
+			{
 				name = L["ClassBuffReminderDisplayMode"] or "Display mode",
 				kind = SettingType.Dropdown,
+				parentId = "anchorSize",
 				height = 80,
 				get = function() return normalizeDisplayMode(getValue(DB_DISPLAY_MODE, defaults.displayMode)) end,
 				set = function(_, value) setDisplayMode(value) end,
@@ -2695,6 +2857,7 @@ function Reminder:RegisterEditMode()
 			{
 				name = L["ClassBuffReminderGrowthDirection"] or "Growth direction",
 				kind = SettingType.Dropdown,
+				parentId = "anchorSize",
 				height = 120,
 				get = function() return normalizeGrowthDirection(getValue(DB_GROWTH_DIRECTION, defaults.growthDirection)) end,
 				set = function(_, value) setGrowthDirection(value) end,
@@ -2724,6 +2887,7 @@ function Reminder:RegisterEditMode()
 			{
 				name = L["ClassBuffReminderGrowthFromCenter"] or L["UFPowerDetachedGrowFromCenter"] or "Grow from center",
 				kind = SettingType.Checkbox,
+				parentId = "anchorSize",
 				default = defaults.growthFromCenter == true,
 				get = function() return getValue(DB_GROWTH_FROM_CENTER, defaults.growthFromCenter) == true end,
 				set = function(_, value) setGrowthFromCenter(value) end,
@@ -2731,6 +2895,7 @@ function Reminder:RegisterEditMode()
 			{
 				name = L["ClassBuffReminderScale"] or "Scale",
 				kind = SettingType.Slider,
+				parentId = "anchorSize",
 				default = defaults.scale,
 				minValue = 0.5,
 				maxValue = 2,
@@ -2742,6 +2907,7 @@ function Reminder:RegisterEditMode()
 			{
 				name = L["ClassBuffReminderIconSize"] or "Icon size",
 				kind = SettingType.Slider,
+				parentId = "anchorSize",
 				default = defaults.iconSize,
 				minValue = 14,
 				maxValue = 120,
@@ -2753,6 +2919,7 @@ function Reminder:RegisterEditMode()
 			{
 				name = L["ClassBuffReminderIconGap"] or "Icon gap",
 				kind = SettingType.Slider,
+				parentId = "anchorSize",
 				default = defaults.iconGap,
 				minValue = 0,
 				maxValue = 40,
@@ -2764,6 +2931,7 @@ function Reminder:RegisterEditMode()
 			{
 				name = L["ClassBuffReminderFontSize"] or "Font size",
 				kind = SettingType.Slider,
+				parentId = "anchorSize",
 				default = defaults.fontSize,
 				minValue = 9,
 				maxValue = 30,
@@ -2776,6 +2944,7 @@ function Reminder:RegisterEditMode()
 			{
 				name = L["ClassBuffReminderXYTextSize"] or "X/Y text size",
 				kind = SettingType.Slider,
+				parentId = "anchorSize",
 				default = defaults.xyTextSize,
 				minValue = 8,
 				maxValue = 64,
@@ -2788,6 +2957,7 @@ function Reminder:RegisterEditMode()
 			{
 				name = L["ClassBuffReminderXYTextOutline"] or "X/Y text outline",
 				kind = SettingType.Dropdown,
+				parentId = "anchorSize",
 				height = 120,
 				get = function() return normalizeTextOutline(getValue(DB_XY_TEXT_OUTLINE, defaults.xyTextOutline)) end,
 				set = function(_, value) setTextOutline(value) end,
@@ -2818,6 +2988,7 @@ function Reminder:RegisterEditMode()
 			{
 				name = L["ClassBuffReminderXYTextColor"] or "X/Y text color",
 				kind = SettingType.Color,
+				parentId = "anchorSize",
 				default = defaults.xyTextColor,
 				hasOpacity = true,
 				get = function()
@@ -2830,6 +3001,7 @@ function Reminder:RegisterEditMode()
 			{
 				name = L["ClassBuffReminderXYTextOffsetX"] or "X/Y offset X",
 				kind = SettingType.Slider,
+				parentId = "anchorSize",
 				default = defaults.xyTextOffsetX,
 				minValue = -60,
 				maxValue = 60,
@@ -2842,6 +3014,7 @@ function Reminder:RegisterEditMode()
 			{
 				name = L["ClassBuffReminderXYTextOffsetY"] or "X/Y offset Y",
 				kind = SettingType.Slider,
+				parentId = "anchorSize",
 				default = defaults.xyTextOffsetY,
 				minValue = -60,
 				maxValue = 60,

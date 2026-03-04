@@ -226,21 +226,37 @@ local function resolveBorderTexture(key)
 	return key
 end
 
+local function getCachedMediaNames(mediaType)
+	if addon.functions and addon.functions.GetLSMMediaNames then
+		local names = addon.functions.GetLSMMediaNames(mediaType)
+		if type(names) == "table" then return names end
+	end
+	return {}
+end
+
+local function getCachedMediaHash(mediaType)
+	if addon.functions and addon.functions.GetLSMMediaHash then
+		local hash = addon.functions.GetLSMMediaHash(mediaType)
+		if type(hash) == "table" then return hash end
+	end
+	return {}
+end
+
 local function fontFaceOptions()
 	local list = {}
 	local defaultPath = defaultFontFace()
 	local hasDefault = false
-	if LSM and LSM.HashTable then
-		local hash = LSM:HashTable("font") or {}
-		for name, path in pairs(hash) do
-			if type(path) == "string" and path ~= "" then
-				list[#list + 1] = { value = path, label = tostring(name) }
-				if path == defaultPath then hasDefault = true end
-			end
+	local names = getCachedMediaNames("font")
+	local hash = getCachedMediaHash("font")
+	for i = 1, #names do
+		local name = names[i]
+		local path = hash[name]
+		if type(path) == "string" and path ~= "" then
+			list[#list + 1] = { value = path, label = tostring(name) }
+			if path == defaultPath then hasDefault = true end
 		end
 	end
 	if defaultPath and not hasDefault then list[#list + 1] = { value = defaultPath, label = DEFAULT } end
-	table.sort(list, function(a, b) return tostring(a.label) < tostring(b.label) end)
 	table.insert(list, 1, { value = globalFontConfigKey(), label = globalFontConfigLabel() })
 	return list
 end
@@ -256,12 +272,13 @@ local function backgroundTextureOptions()
 	end
 	add("DEFAULT", _G.DEFAULT or "Default")
 	add("SOLID", "Solid")
-	if LSM and LSM.HashTable then
-		for name, path in pairs(LSM:HashTable("background") or {}) do
-			if type(path) == "string" and path ~= "" then add(name, tostring(name)) end
-		end
+	local names = getCachedMediaNames("background")
+	local hash = getCachedMediaHash("background")
+	for i = 1, #names do
+		local name = names[i]
+		local path = hash[name]
+		if type(path) == "string" and path ~= "" then add(name, tostring(name)) end
 	end
-	table.sort(list, function(a, b) return tostring(a.label) < tostring(b.label) end)
 	return list
 end
 
@@ -276,12 +293,13 @@ local function borderTextureOptions()
 	end
 	add("DEFAULT", _G.DEFAULT or "Default")
 	add("SOLID", "Solid")
-	if LSM and LSM.HashTable then
-		for name, path in pairs(LSM:HashTable("border") or {}) do
-			if type(path) == "string" and path ~= "" then add(name, tostring(name)) end
-		end
+	local names = getCachedMediaNames("border")
+	local hash = getCachedMediaHash("border")
+	for i = 1, #names do
+		local name = names[i]
+		local path = hash[name]
+		if type(path) == "string" and path ~= "" then add(name, tostring(name)) end
 	end
-	table.sort(list, function(a, b) return tostring(a.label) < tostring(b.label) end)
 	return list
 end
 

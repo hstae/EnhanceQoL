@@ -46,6 +46,13 @@ local fontOrder = {}
 local borderOrder = {}
 local QUICK_SLOT_BORDER = "Interface\\Buttons\\UI-Quickslot2"
 
+local function getCachedLSMMedia(mediaType)
+	local names = addon.functions and addon.functions.GetLSMMediaNames and addon.functions.GetLSMMediaNames(mediaType)
+	local hash = addon.functions and addon.functions.GetLSMMediaHash and addon.functions.GetLSMMediaHash(mediaType)
+	if type(names) == "table" and type(hash) == "table" then return names, hash end
+	return {}, {}
+end
+
 local function getGlobalFontConfigKey()
 	if addon.functions and addon.functions.GetGlobalFontConfigKey then return addon.functions.GetGlobalFontConfigKey() end
 	return "__EQOL_GLOBAL_FONT__"
@@ -116,11 +123,11 @@ local function buildFontDropdown(targetOrder, includeGlobalOption)
 	}
 	local globalKey = getGlobalFontConfigKey()
 	if includeGlobalOption ~= false then map[globalKey] = getGlobalFontConfigLabel() end
-	local LSM = LibStub("LibSharedMedia-3.0", true)
-	if LSM and LSM.HashTable then
-		for name, path in pairs(LSM:HashTable("font") or {}) do
-			if type(path) == "string" and path ~= "" then map[path] = tostring(name) end
-		end
+	local names, hash = getCachedLSMMedia("font")
+	for i = 1, #names do
+		local name = names[i]
+		local path = hash[name]
+		if type(path) == "string" and path ~= "" then map[path] = tostring(name) end
 	end
 	local list, order = addon.functions.prepareListForDropdown(map)
 	wipe(targetOrder)
@@ -145,16 +152,11 @@ local function buildBorderDropdown()
 	add("DEFAULT", L["actionBarBorderDefault"] or "Default (Blizzard)")
 	add(QUICK_SLOT_BORDER, L["actionBarBorderQuickslot"] or "Quickslot (Bartender-style)")
 
-	local LSM = LibStub("LibSharedMedia-3.0", true)
-	if LSM and LSM.HashTable then
-		local entries = {}
-		for name, path in pairs(LSM:HashTable("border") or {}) do
-			if type(path) == "string" and path ~= "" then entries[#entries + 1] = { name = tostring(name), path = path } end
-		end
-		table.sort(entries, function(a, b) return a.name < b.name end)
-		for _, entry in ipairs(entries) do
-			add(entry.path, entry.name)
-		end
+	local names, hash = getCachedLSMMedia("border")
+	for i = 1, #names do
+		local name = names[i]
+		local path = hash[name]
+		if type(path) == "string" and path ~= "" then add(path, tostring(name)) end
 	end
 
 	wipe(borderOrder)

@@ -301,6 +301,12 @@ L["UFBorderSize"] = "Border size"
 L["UFUseClassColor"] = "Use class color (players)"
 L["UFUseClassColorPower"] = "Use power color"
 L["UFPowerColor"] = "Custom power color"
+L["UFSecondaryStaggerColors"] = "Stagger colors"
+L["UFSecondaryStaggerUseExtended"] = "Use extended stagger colors"
+L["UFSecondaryStaggerHighThreshold"] = "Stagger high threshold (%)"
+L["UFSecondaryStaggerHighColor"] = "Stagger high color"
+L["UFSecondaryStaggerExtremeThreshold"] = "Stagger extreme threshold (%)"
+L["UFSecondaryStaggerExtremeColor"] = "Stagger extreme color"
 L["Unit Frame Buffs/Debuffs"] = "Unit Frame Buffs/Debuffs"
 L["UFPlusHint"] =
 	'Configure EnhanceQoL\'s custom Player/Target/ToT frames.\nEnable each unit frame and tweak size, position, texts, colors, auras, and castbar options.\n"Default" texture keeps the Blizzard atlas; custom textures come from SharedMedia.'

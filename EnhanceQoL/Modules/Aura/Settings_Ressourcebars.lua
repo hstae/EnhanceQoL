@@ -54,6 +54,13 @@ local AUTO_ENABLE_OPTIONS = {
 }
 local AUTO_ENABLE_ORDER = { "HEALTH", "MAIN", "SECONDARY" }
 
+local function getCachedLSMMedia(mediaType)
+	local names = addon.functions and addon.functions.GetLSMMediaNames and addon.functions.GetLSMMediaNames(mediaType)
+	local hash = addon.functions and addon.functions.GetLSMMediaHash and addon.functions.GetLSMMediaHash(mediaType)
+	if type(names) == "table" and type(hash) == "table" then return names, hash end
+	return {}, {}
+end
+
 local specSettingVars = {}
 local function getActiveSpecIndex()
 	local apiSpec = C_SpecializationInfo and C_SpecializationInfo.GetSpecialization and C_SpecializationInfo.GetSpecialization()
@@ -580,13 +587,11 @@ local function registerEditModeBars()
 					["Interface\\DialogFrame\\UI-DialogBox-Background"] = "Dialog Background",
 					["Interface\\Buttons\\WHITE8x8"] = "Solid (tintable)",
 				}
-				if LibStub then
-					local media = LibStub("LibSharedMedia-3.0", true)
-					if media then
-						for name, path in pairs(media:HashTable("background") or {}) do
-							if type(path) == "string" and path ~= "" then map[path] = tostring(name) end
-						end
-					end
+				local names, hash = getCachedLSMMedia("background")
+				for i = 1, #names do
+					local name = names[i]
+					local path = hash[name]
+					if type(path) == "string" and path ~= "" then map[path] = tostring(name) end
 				end
 				return addon.functions.prepareListForDropdown(map)
 			end
@@ -596,13 +601,11 @@ local function registerEditModeBars()
 				for id, label in pairs(customBorderOptions() or {}) do
 					map[id] = label
 				end
-				if LibStub then
-					local media = LibStub("LibSharedMedia-3.0", true)
-					if media then
-						for name, path in pairs(media:HashTable("border") or {}) do
-							if type(path) == "string" and path ~= "" then map[path] = tostring(name) end
-						end
-					end
+				local names, hash = getCachedLSMMedia("border")
+				for i = 1, #names do
+					local name = names[i]
+					local path = hash[name]
+					if type(path) == "string" and path ~= "" then map[path] = tostring(name) end
 				end
 				return addon.functions.prepareListForDropdown(map)
 			end
@@ -1813,11 +1816,9 @@ local function registerEditModeBars()
 							queueRefresh()
 						end)
 						local seen = {}
-						if not LibStub then return end
-						local media = LibStub("LibSharedMedia-3.0", true)
-						if not media then return end
-						local hash = media:HashTable("font") or {}
-						for _, name in ipairs(media:List("font") or {}) do
+						local names, hash = getCachedLSMMedia("font")
+						for i = 1, #names do
+							local name = names[i]
 							local path = hash[name] or name
 							seen[path] = name
 							root:CreateCheckbox(name, function() return (not isGlobalSelected()) and currentFontPath() == path end, function()
@@ -2124,11 +2125,9 @@ local function registerEditModeBars()
 							queueRefresh()
 						end)
 						local seen = {}
-						if not LibStub then return end
-						local media = LibStub("LibSharedMedia-3.0", true)
-						if not media then return end
-						local hash = media:HashTable("font") or {}
-						for _, name in ipairs(media:List("font") or {}) do
+						local names, hash = getCachedLSMMedia("font")
+						for i = 1, #names do
+							local name = names[i]
 							local path = hash[name] or name
 							seen[path] = name
 							root:CreateCheckbox(name, function() return (not isGlobalSelected()) and currentFontPath() == path end, function()
