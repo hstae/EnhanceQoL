@@ -2597,7 +2597,9 @@ function updateHealthBar(evt)
 			end
 		end
 		if ResourceBars.RefreshStatusBarGradient then ResourceBars.RefreshStatusBarGradient(healthBar, settings) end
-		setBarDesaturated(healthBar, true)
+		-- Keep custom textures tintable; unconditional desaturation turns them white/gray after reload.
+		local shouldDesaturateHealth = settings.useClassColor == true or isDefaultTextureSelection(settings, "HEALTH")
+		setBarDesaturated(healthBar, shouldDesaturateHealth)
 
 		local absorbBar = healthBar.absorbBar
 		if absorbBar then
