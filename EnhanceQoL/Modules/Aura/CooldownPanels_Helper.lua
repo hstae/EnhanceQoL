@@ -117,6 +117,7 @@ Helper.PANEL_LAYOUT_DEFAULTS = {
 	rangeOverlayEnabled = false,
 	rangeOverlayColor = { 1, 0.1, 0.1, 0.35 },
 	readyGlowColor = { 1, 0.82, 0.2, 1 },
+	noDesaturation = false,
 	checkPower = false,
 	powerTintColor = { 0.5, 0.5, 1, 1 },
 	unusableTintColor = { 0.6, 0.6, 0.6, 1 },
@@ -156,6 +157,7 @@ Helper.PANEL_LAYOUT_DEFAULTS = {
 	cooldownGcdDrawEdge = false,
 	cooldownGcdDrawBling = false,
 	cooldownGcdDrawSwipe = false,
+	cooldownTextColor = { 1, 1, 1, 1 },
 	showChargesCooldown = false,
 	showTooltips = false,
 }
@@ -741,6 +743,8 @@ function Helper.NormalizePanel(panel, defaults)
 		if panel.layout[key] == nil then panel.layout[key] = value end
 	end
 	panel.layout.readyGlowColor = Helper.NormalizeColor(panel.layout.readyGlowColor, layoutDefaults.readyGlowColor or Helper.PANEL_LAYOUT_DEFAULTS.readyGlowColor)
+	panel.layout.noDesaturation = panel.layout.noDesaturation == true
+	panel.layout.cooldownTextColor = Helper.NormalizeColor(panel.layout.cooldownTextColor, layoutDefaults.cooldownTextColor or Helper.PANEL_LAYOUT_DEFAULTS.cooldownTextColor)
 	if type(panel.anchor) ~= "table" then panel.anchor = {} end
 	local anchor = panel.anchor
 	if anchor.point == nil then anchor.point = panel.point or "CENTER" end

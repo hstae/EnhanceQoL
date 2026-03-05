@@ -2762,6 +2762,7 @@ local function applyIconLayout(frame, count, layout)
 	local cooldownTextFont = layout.cooldownTextFont
 	local cooldownTextSize = layout.cooldownTextSize
 	local cooldownTextStyle = layout.cooldownTextStyle
+	local cooldownTextColor = Helper.NormalizeColor(layout.cooldownTextColor, Helper.PANEL_LAYOUT_DEFAULTS.cooldownTextColor)
 	local cooldownTextX = Helper.ClampInt(layout.cooldownTextX, -Helper.OFFSET_RANGE, Helper.OFFSET_RANGE, 0)
 	local cooldownTextY = Helper.ClampInt(layout.cooldownTextY, -Helper.OFFSET_RANGE, Helper.OFFSET_RANGE, 0)
 
@@ -2915,6 +2916,7 @@ local function applyIconLayout(frame, count, layout)
 				fontString:SetFont(fontPath, fontSize, fontStyle)
 				fontString:ClearAllPoints()
 				fontString:SetPoint("CENTER", icon.cooldown, "CENTER", cooldownTextX, cooldownTextY)
+				fontString:SetTextColor(cooldownTextColor[1] or 1, cooldownTextColor[2] or 1, cooldownTextColor[3] or 1, cooldownTextColor[4] or 1)
 			end
 		end
 		if icon.previewGlow then
@@ -3474,6 +3476,7 @@ function CooldownPanels:SyncEditModeDataFromPanel(panelId, editModeId)
 	data.radialRotation = Helper.ClampNumber(layout.radialRotation, -(Helper.RADIAL_ROTATION_RANGE or 360), Helper.RADIAL_ROTATION_RANGE or 360, Helper.PANEL_LAYOUT_DEFAULTS.radialRotation)
 	data.rangeOverlayEnabled = layout.rangeOverlayEnabled == true
 	data.rangeOverlayColor = layout.rangeOverlayColor or Helper.PANEL_LAYOUT_DEFAULTS.rangeOverlayColor
+	data.noDesaturation = layout.noDesaturation == true
 	data.checkPower = layout.checkPower == true
 	data.powerTintColor = layout.powerTintColor or Helper.PANEL_LAYOUT_DEFAULTS.powerTintColor
 	data.strata = Helper.NormalizeStrata(layout.strata, Helper.PANEL_LAYOUT_DEFAULTS.strata)
@@ -3519,6 +3522,7 @@ function CooldownPanels:SyncEditModeDataFromPanel(panelId, editModeId)
 	data.cooldownTextFont = layout.cooldownTextFont or data.cooldownTextFont
 	data.cooldownTextSize = layout.cooldownTextSize or data.cooldownTextSize
 	data.cooldownTextStyle = Helper.NormalizeFontStyleChoice(layout.cooldownTextStyle, data.cooldownTextStyle)
+	data.cooldownTextColor = Helper.NormalizeColor(layout.cooldownTextColor, Helper.PANEL_LAYOUT_DEFAULTS.cooldownTextColor)
 	data.cooldownTextX = layout.cooldownTextX or 0
 	data.cooldownTextY = layout.cooldownTextY or 0
 end
@@ -5183,6 +5187,7 @@ function CooldownPanels:UpdatePreviewIcons(panelId, countOverride)
 	local showTooltips = layout.showTooltips == true
 	local showKeybinds = layout.keybindsEnabled == true
 	local showIconTexture = layout.showIconTexture ~= false
+	local noDesaturation = layout.noDesaturation == true
 	local staticFontPath, staticFontSize, staticFontStyle = Helper.GetCountFontDefaults(frame)
 	local previewEntryIds = getPreviewEntryIds and getPreviewEntryIds(panel) or nil
 	local count = countOverride or getPreviewCount(panel)
@@ -5220,8 +5225,8 @@ function CooldownPanels:UpdatePreviewIcons(panelId, countOverride)
 		applyStaticText(icon, entry, staticFontPath, staticFontSize, staticFontStyle, staticCooldown)
 		if showCooldown then
 			setExampleCooldown(icon.cooldown)
-			icon.texture:SetDesaturated(true)
-			icon.texture:SetAlpha(0.6)
+			icon.texture:SetDesaturated(not noDesaturation)
+			icon.texture:SetAlpha(noDesaturation and 1 or 0.6)
 			if icon.previewBling then icon.previewBling:SetShown(layout.cooldownDrawBling ~= false) end
 		else
 			icon.texture:SetDesaturated(false)
@@ -5358,6 +5363,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 	local showTooltips = layout.showTooltips == true
 	local showKeybinds = layout.keybindsEnabled == true
 	local showIconTexture = layout.showIconTexture ~= false
+	local noDesaturation = layout.noDesaturation == true
 	local checkPower = layout.checkPower == true
 	local staticFontPath, staticFontSize, staticFontStyle = Helper.GetCountFontDefaults(frame)
 	local readyGlowColor = Helper.NormalizeColor(layout.readyGlowColor, Helper.PANEL_LAYOUT_DEFAULTS.readyGlowColor)
@@ -5382,6 +5388,20 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 	local assistedSuggestedSpellId = assistedHighlightEnabled and Api.GetAssistedCombatNextSpell and tonumber(Api.GetAssistedCombatNextSpell()) or nil
 	local assistedSuggestedBaseId = assistedSuggestedSpellId and getBaseSpellId(assistedSuggestedSpellId) or nil
 	local assistedSuggestedEffectiveId = assistedSuggestedSpellId and getEffectiveSpellId(assistedSuggestedSpellId) or nil
+	local function setIconDesaturated(texture, enabled)
+		if noDesaturation then
+			texture:SetDesaturated(false)
+		else
+			texture:SetDesaturated(enabled == true)
+		end
+	end
+	local function setIconDesaturation(texture, value)
+		if noDesaturation then
+			texture:SetDesaturation(0)
+		else
+			texture:SetDesaturation(value or 0)
+		end
+	end
 	local function isAssistedSuggested(baseSpellId, effectiveSpellId)
 		if not (assistedSuggestedSpellId and baseSpellId) then return false end
 		if baseSpellId == assistedSuggestedSpellId or baseSpellId == assistedSuggestedBaseId or baseSpellId == assistedSuggestedEffectiveId then return true end
@@ -5769,7 +5789,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 		if data.emptyItem then desaturate = true end
 
 		if not isSafeNumber(cooldownRate) then cooldownRate = 1 end
-		icon.texture:SetDesaturated(desaturate)
+		setIconDesaturated(icon.texture, desaturate)
 		if hideOnCooldown then
 			icon:SetAlphaFromBoolean(hidden, 0, 1)
 		elseif showOnCooldown then
@@ -5817,7 +5837,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 					else
 						if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", onCooldownDone) end
 						setCooldownDrawState(icon.cooldown, drawEdge, drawBling, drawSwipe)
-						icon.texture:SetDesaturation(cooldownDurationObject:EvaluateRemainingDuration(curveDesat))
+						setIconDesaturation(icon.texture, cooldownDurationObject:EvaluateRemainingDuration(curveDesat))
 						if hideOnCooldown then
 							icon:SetAlpha(cooldownDurationObject:EvaluateRemainingDuration(curveAlpha))
 						elseif showOnCooldown then
@@ -5836,7 +5856,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			elseif durationActive then
 				icon.cooldown:SetCooldownFromDurationObject(cooldownDurationObject)
 				if data.cooldownGCD then
-					icon.texture:SetDesaturation(0)
+					setIconDesaturation(icon.texture, 0)
 					if hideOnCooldown then
 						icon:SetAlpha(1)
 					elseif showOnCooldown then
@@ -5849,7 +5869,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 					setCooldownDrawState(icon.cooldown, drawEdge, drawBling, drawSwipe)
 
 					local desat = cooldownDurationObject:EvaluateRemainingDuration(curveDesat)
-					icon.texture:SetDesaturation(desat)
+					setIconDesaturation(icon.texture, desat)
 					if hideOnCooldown then
 						icon:SetAlpha(cooldownDurationObject:EvaluateRemainingDuration(curveAlpha))
 					elseif showOnCooldown then
@@ -5863,7 +5883,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			elseif cooldownActive then
 				icon.cooldown:SetCooldown(cooldownStart, cooldownDuration, cooldownRate)
 				desaturate = true
-				icon.texture:SetDesaturated(desaturate)
+				setIconDesaturated(icon.texture, desaturate)
 				if hideOnCooldown then
 					icon:SetAlpha(0)
 				elseif showOnCooldown then
@@ -5881,7 +5901,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			icon.cooldown:Clear()
 			if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", nil) end
 		end
-		if not hidden then icon.texture:SetAlphaFromBoolean(desaturate, 0.5, 1) end
+		if not hidden then icon.texture:SetAlphaFromBoolean((not noDesaturation) and desaturate, 0.5, 1) end
 		if data.spellUnusable then
 			icon.texture:SetVertexColor(unusableTintR or 0.6, unusableTintG or 0.6, unusableTintB or 0.6)
 		elseif data.powerInsufficient then
@@ -6248,6 +6268,8 @@ local function applyEditLayout(panelId, field, value, skipRefresh)
 		layout.rangeOverlayColor = Helper.NormalizeColor(value, Helper.PANEL_LAYOUT_DEFAULTS.rangeOverlayColor)
 	elseif field == "readyGlowColor" then
 		layout.readyGlowColor = Helper.NormalizeColor(value, Helper.PANEL_LAYOUT_DEFAULTS.readyGlowColor)
+	elseif field == "noDesaturation" then
+		layout.noDesaturation = value == true
 	elseif field == "checkPower" then
 		layout.checkPower = value == true
 		CooldownPanels:RebuildPowerIndex()
@@ -6344,6 +6366,8 @@ local function applyEditLayout(panelId, field, value, skipRefresh)
 		layout.cooldownTextSize = Helper.ClampInt(value, 6, 64, layout.cooldownTextSize or 12)
 	elseif field == "cooldownTextStyle" then
 		layout.cooldownTextStyle = Helper.NormalizeFontStyleChoice(value, layout.cooldownTextStyle or Helper.PANEL_LAYOUT_DEFAULTS.cooldownTextStyle)
+	elseif field == "cooldownTextColor" then
+		layout.cooldownTextColor = Helper.NormalizeColor(value, Helper.PANEL_LAYOUT_DEFAULTS.cooldownTextColor)
 	elseif field == "cooldownTextX" then
 		layout.cooldownTextX = Helper.ClampInt(value, -Helper.OFFSET_RANGE, Helper.OFFSET_RANGE, layout.cooldownTextX or 0)
 	elseif field == "cooldownTextY" then
@@ -6416,6 +6440,7 @@ function CooldownPanels:ApplyEditMode(panelId, data)
 	applyEditLayout(panelId, "radialRotation", data.radialRotation, true)
 	applyEditLayout(panelId, "rangeOverlayEnabled", data.rangeOverlayEnabled, true)
 	applyEditLayout(panelId, "rangeOverlayColor", data.rangeOverlayColor, true)
+	applyEditLayout(panelId, "noDesaturation", data.noDesaturation, true)
 	applyEditLayout(panelId, "checkPower", data.checkPower, true)
 	applyEditLayout(panelId, "powerTintColor", data.powerTintColor, true)
 	applyEditLayout(panelId, "strata", data.strata, true)
@@ -6462,6 +6487,7 @@ function CooldownPanels:ApplyEditMode(panelId, data)
 	applyEditLayout(panelId, "cooldownTextFont", data.cooldownTextFont, true)
 	applyEditLayout(panelId, "cooldownTextSize", data.cooldownTextSize, true)
 	applyEditLayout(panelId, "cooldownTextStyle", data.cooldownTextStyle, true)
+	applyEditLayout(panelId, "cooldownTextColor", data.cooldownTextColor, true)
 	applyEditLayout(panelId, "cooldownTextX", data.cooldownTextX, true)
 	applyEditLayout(panelId, "cooldownTextY", data.cooldownTextY, true)
 	applyEditLayout(panelId, "opacityOutOfCombat", data.opacityOutOfCombat, true)
@@ -7437,6 +7463,18 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				end,
 			},
 			{
+				name = L["CooldownPanelCooldownTextColor"] or "Cooldown text color",
+				kind = SettingType.Color,
+				parentId = "cooldownPanelCooldownText",
+				hasOpacity = true,
+				default = Helper.NormalizeColor(layout.cooldownTextColor, Helper.PANEL_LAYOUT_DEFAULTS.cooldownTextColor),
+				get = function()
+					local color = Helper.NormalizeColor(layout.cooldownTextColor, Helper.PANEL_LAYOUT_DEFAULTS.cooldownTextColor)
+					return { r = color[1], g = color[2], b = color[3], a = color[4] }
+				end,
+				set = function(_, value) applyEditLayout(panelId, "cooldownTextColor", value) end,
+			},
+			{
 				name = L["CooldownPanelCooldownTextOffsetX"] or "Cooldown text offset X",
 				kind = SettingType.Slider,
 				field = "cooldownTextX",
@@ -7668,6 +7706,14 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 					return { r = color[1], g = color[2], b = color[3], a = color[4] }
 				end,
 				set = function(_, value) applyEditLayout(panelId, "readyGlowColor", value) end,
+			},
+			{
+				name = L["CooldownPanelNoDesaturation"] or "No desaturation",
+				kind = SettingType.Checkbox,
+				parentId = "cooldownPanelOverlays",
+				default = layout.noDesaturation == true,
+				get = function() return layout.noDesaturation == true end,
+				set = function(_, value) applyEditLayout(panelId, "noDesaturation", value) end,
 			},
 			{
 				name = L["CooldownPanelPowerTint"] or "Check power",
@@ -8088,6 +8134,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 			radialRotation = layout.radialRotation or Helper.PANEL_LAYOUT_DEFAULTS.radialRotation,
 			rangeOverlayEnabled = layout.rangeOverlayEnabled == true,
 			rangeOverlayColor = layout.rangeOverlayColor or Helper.PANEL_LAYOUT_DEFAULTS.rangeOverlayColor,
+			noDesaturation = layout.noDesaturation == true,
 			checkPower = layout.checkPower == true,
 			powerTintColor = layout.powerTintColor or Helper.PANEL_LAYOUT_DEFAULTS.powerTintColor,
 			strata = Helper.NormalizeStrata(layout.strata, Helper.PANEL_LAYOUT_DEFAULTS.strata),
@@ -8136,6 +8183,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 			cooldownTextFont = layout.cooldownTextFont,
 			cooldownTextSize = layout.cooldownTextSize or 12,
 			cooldownTextStyle = Helper.NormalizeFontStyleChoice(layout.cooldownTextStyle, "NONE"),
+			cooldownTextColor = Helper.NormalizeColor(layout.cooldownTextColor, Helper.PANEL_LAYOUT_DEFAULTS.cooldownTextColor),
 			cooldownTextX = layout.cooldownTextX or 0,
 			cooldownTextY = layout.cooldownTextY or 0,
 		},
