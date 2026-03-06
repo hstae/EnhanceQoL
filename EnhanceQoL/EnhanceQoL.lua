@@ -5500,6 +5500,12 @@ local function setAllHooks()
 		end
 	end
 
+	local function refreshGCDBarForMedia(mediaType, mediaKey)
+		local gcdBar = addon.GCDBar
+		if not (gcdBar and gcdBar.OnMediaRegistered) then return end
+		gcdBar:OnMediaRegistered(mediaType, mediaKey)
+	end
+
 	local function refreshGlobalFontConsumers()
 		if ActionBarLabels then
 			if ActionBarLabels.RefreshAllMacroNameVisibility then ActionBarLabels.RefreshAllMacroNameVisibility() end
@@ -5565,9 +5571,11 @@ local function setAllHooks()
 			if addon.MythicPlus and addon.MythicPlus.functions and addon.MythicPlus.functions.applyPotionBarTexture then addon.MythicPlus.functions.applyPotionBarTexture() end
 			if addon.Aura and addon.Aura.ResourceBars and addon.Aura.ResourceBars.RefreshTextureDropdown then addon.Aura.ResourceBars.RefreshTextureDropdown() end
 			refreshExperienceBarForMedia(mediaType, mediaKey)
+			refreshGCDBarForMedia(mediaType, mediaKey)
 		elseif mediaType == "border" then
 			if ActionBarLabels and ActionBarLabels.ResetBorderCache then ActionBarLabels.ResetBorderCache() end
 			refreshExperienceBarForMedia(mediaType, mediaKey)
+			refreshGCDBarForMedia(mediaType, mediaKey)
 		elseif mediaType == "font" then
 			refreshExperienceBarForMedia(mediaType, mediaKey)
 			queueGlobalFontRefresh()
