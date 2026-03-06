@@ -216,6 +216,53 @@ local SHAMAN_RESTORATION_TIDECALLER_AURA_NAMES = {
 	"Tidecaller's Guard",
 }
 
+local spellPresentationCache = {}
+local spellDataLoadRequested = {}
+
+local function normalizeCachedSpellId(value)
+	local spellId = tonumber(value)
+	if not spellId or spellId <= 0 then return nil end
+	return spellId
+end
+
+local function getCachedSpellPresentation(spellId)
+	spellId = normalizeCachedSpellId(spellId)
+	if not spellId then return nil, nil end
+
+	local cached = spellPresentationCache[spellId]
+	if cached and cached.name and cached.icon then return cached.name, cached.icon end
+
+	local name
+	local icon
+
+	if C_Spell and C_Spell.GetSpellInfo then
+		local info = C_Spell.GetSpellInfo(spellId)
+		if type(info) == "table" then
+			if type(info.name) == "string" and info.name ~= "" then name = info.name end
+			if info.iconID and info.iconID ~= "" then icon = info.iconID end
+		end
+	end
+
+	if not name and C_Spell and C_Spell.GetSpellName then
+		local directName = C_Spell.GetSpellName(spellId)
+		if type(directName) == "string" and directName ~= "" then name = directName end
+	end
+
+	if not icon and C_Spell.GetSpellTexture then
+		local fallbackIcon = C_Spell.GetSpellTexture(spellId)
+		if fallbackIcon and fallbackIcon ~= "" then icon = fallbackIcon end
+	end
+
+	if not cached then
+		cached = {}
+		spellPresentationCache[spellId] = cached
+	end
+	if name and name ~= "" then cached.name = name end
+	if icon and icon ~= "" then cached.icon = icon end
+
+	return cached.name, cached.icon
+end
+
 local function clamp(value, minValue, maxValue, fallback)
 	local n = tonumber(value)
 	if n == nil then return fallback end
@@ -297,38 +344,21 @@ local function isPlayerOffhandShield()
 end
 
 local function safeGetSpellName(spellId)
-	if C_Spell and C_Spell.GetSpellInfo then
-		local info = C_Spell.GetSpellInfo(spellId)
-		if type(info) == "table" and type(info.name) == "string" and info.name ~= "" then return info.name end
-	end
-	if C_Spell and C_Spell.GetSpellName then
-		local name = C_Spell.GetSpellName(spellId)
-		if type(name) == "string" and name ~= "" then return name end
-	end
-	if GetSpellInfo then
-		local name = GetSpellInfo(spellId)
-		if type(name) == "string" and name ~= "" then return name end
-	end
-	return nil
+	local name = getCachedSpellPresentation(spellId)
+	return name
 end
 
 local function requestSpellDataLoad(spellId)
-	spellId = tonumber(spellId)
+	spellId = normalizeCachedSpellId(spellId)
 	if not spellId then return end
-	if spellId <= 0 then return end
+	if spellDataLoadRequested[spellId] == true then return end
+	spellDataLoadRequested[spellId] = true
 	if C_Spell and C_Spell.RequestLoadSpellData then C_Spell.RequestLoadSpellData(spellId) end
 end
 
 local function getSpellIconRaw(spellId)
-	if C_Spell and C_Spell.GetSpellInfo then
-		local info = C_Spell.GetSpellInfo(spellId)
-		if type(info) == "table" and info.iconID then return info.iconID end
-	end
-	if GetSpellTexture then
-		local icon = GetSpellTexture(spellId)
-		if icon and icon ~= "" then return icon end
-	end
-	return nil
+	local _, icon = getCachedSpellPresentation(spellId)
+	return icon
 end
 
 local function safeGetSpellIcon(spellId) return getSpellIconRaw(spellId) or ICON_MISSING end
@@ -500,6 +530,9 @@ local function resetProviderRuntimeCache(provider)
 	provider.cachedName = nil
 	provider.cachedIcon = nil
 	provider._presentationReady = nil
+	provider._presentationAttempted = nil
+	provider.presentationRetryPending = nil
+	provider.presentationRetryCount = nil
 end
 
 local function setProviderDisplaySpellId(provider, spellId)
@@ -511,6 +544,7 @@ local function setProviderDisplaySpellId(provider, spellId)
 	provider.cachedName = nil
 	provider.cachedIcon = nil
 	provider._presentationReady = nil
+	provider._presentationAttempted = nil
 end
 
 local function makeSelfMissingEntry(spellId, label, countMissing, countTotal)
@@ -542,8 +576,14 @@ local function buildSelfStatus(total, missingEntries)
 	}
 end
 
-local function resolveProviderPresentation(provider)
+local function resolveProviderPresentation(provider, force)
 	if not provider then return end
+	if force ~= true then
+		if provider._presentationReady == true then return end
+		if provider._presentationAttempted == true then return end
+		if provider.presentationRetryPending == true then return end
+	end
+	provider._presentationAttempted = true
 
 	local resolvedId
 	local resolvedName
@@ -597,7 +637,7 @@ local function resolveProviderPresentation(provider)
 	provider.displaySpellId = resolvedId or preferredId or normalizeSpellId(provider.spellIds[1]) or provider.displaySpellId or provider.spellIds[1]
 	provider.cachedName = resolvedName or provider.fallbackName or "Buff"
 	provider.cachedIcon = resolvedIcon or ICON_MISSING
-	provider._presentationReady = true
+	provider._presentationReady = (resolvedName ~= nil and resolvedIcon ~= nil)
 end
 
 local function refreshProviderSpellNameSet(provider)
@@ -1330,16 +1370,15 @@ function Reminder:GetProvider()
 			if sid then provider.spellSet[sid] = true end
 		end
 	end
-	if provider.spellNameSet == nil or provider.spellNameSetReady ~= true then refreshProviderSpellNameSet(provider) end
 	if not provider.displaySpellId then provider.displaySpellId = normalizeSpellId(provider.spellIds[1]) or provider.spellIds[1] end
-	if not provider._presentationReady or provider.cachedIcon == ICON_MISSING or not provider.cachedName or provider.cachedName == provider.fallbackName then resolveProviderPresentation(provider) end
 
 	return provider
 end
 
 function Reminder:GetProviderName(provider)
 	if not provider then return L["Class Buff Reminder"] or "Class Buff Reminder" end
-	resolveProviderPresentation(provider)
+	if provider.cachedName and provider.cachedName ~= "" and provider.cachedName ~= provider.fallbackName then return provider.cachedName end
+	if provider._presentationAttempted ~= true then resolveProviderPresentation(provider) end
 	if provider.cachedName and provider.cachedName ~= "" then return provider.cachedName end
 	local name = safeGetSpellName(provider.displaySpellId) or provider.fallbackName or (L["Class Buff Reminder"] or "Class Buff Reminder")
 	provider.cachedName = name
@@ -1348,14 +1387,11 @@ end
 
 function Reminder:GetProviderIcon(provider)
 	if not provider then return ICON_MISSING end
-	resolveProviderPresentation(provider)
+	if provider.cachedIcon and provider.cachedIcon ~= "" and provider.cachedIcon ~= ICON_MISSING then return provider.cachedIcon end
+	if provider._presentationAttempted ~= true then resolveProviderPresentation(provider) end
 	if provider.cachedIcon and provider.cachedIcon ~= "" and provider.cachedIcon ~= ICON_MISSING then return provider.cachedIcon end
 	self:RequestProviderPresentationRefresh(provider)
-	if provider.cachedIcon and provider.cachedIcon ~= "" then return provider.cachedIcon end
-	local icon = safeGetSpellIcon(provider.displaySpellId)
-	provider.cachedIcon = icon
-	if icon == ICON_MISSING then self:RequestProviderPresentationRefresh(provider) end
-	return icon
+	return provider.cachedIcon or ICON_MISSING
 end
 
 function Reminder:RequestProviderPresentationRefresh(provider)
@@ -1373,11 +1409,13 @@ function Reminder:RequestProviderPresentationRefresh(provider)
 	C_Timer.After(0.25, function()
 		provider.presentationRetryPending = false
 		provider.presentationRetryCount = (tonumber(provider.presentationRetryCount) or 0) + 1
-		resolveProviderPresentation(provider)
+		resolveProviderPresentation(provider, true)
 		if provider.cachedIcon and provider.cachedIcon ~= "" and provider.cachedIcon ~= ICON_MISSING then provider.presentationRetryCount = 0 end
 		Reminder:RequestUpdate(true)
 	end)
 end
+
+function Reminder:InvalidateProviderAvailabilityCache() self.hasProviderCached = nil end
 
 function Reminder:GetGrowthDirection() return normalizeGrowthDirection(getValue(DB_GROWTH_DIRECTION, defaults.growthDirection)) end
 function Reminder:GetGrowthFromCenter() return getValue(DB_GROWTH_FROM_CENTER, defaults.growthFromCenter) == true end
@@ -1781,7 +1819,11 @@ function Reminder:ApplyDeltaToUnitAuraState(unit, updateInfo, provider)
 	return state
 end
 
-function Reminder:HasProvider() return self:GetProvider() ~= nil end
+function Reminder:HasProvider()
+	if self.hasProviderCached ~= nil then return self.hasProviderCached end
+	self.hasProviderCached = self:GetProvider() ~= nil
+	return self.hasProviderCached
+end
 
 function Reminder:EnsureFrame()
 	if self.frame then return self.frame end
@@ -2614,6 +2656,7 @@ function Reminder:HandleEvent(event, unit, updateInfo)
 		return
 	end
 
+	self:InvalidateProviderAvailabilityCache()
 	self:InvalidateAuraStates()
 	self:RequestUpdate(true)
 end
@@ -3113,6 +3156,7 @@ function Reminder:OnSettingChanged()
 		self:UnregisterEditMode()
 	end
 	self:ApplyVisualSettings()
+	self:InvalidateProviderAvailabilityCache()
 	self:InvalidateAuraStates()
 	self:InvalidateFlaskCache()
 
