@@ -192,41 +192,53 @@ local function getTotemCooldownInfo(frame)
 	return startTime, duration, modRate
 end
 
+local function isUsableSpellID(value) return type(value) == "number" and not isSecretValue(value) and value > 0 end
+
+local function getFirstUsableSpellID(...)
+	for i = 1, select("#", ...) do
+		local spellID = select(i, ...)
+		if isUsableSpellID(spellID) then return spellID end
+	end
+	return nil
+end
+
+local function getCooldownViewerInfo(cooldownID)
+	if not (type(cooldownID) == "number" and C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo) then return nil end
+	return C_CooldownViewer.GetCooldownViewerCooldownInfo(cooldownID)
+end
+
 local function resolveSpellFromCooldownID(cooldownID, frame)
 	local spellID
 	local buffName
 	local iconTextureID
 
-	if type(cooldownID) == "number" and C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo then
-		local info = C_CooldownViewer.GetCooldownViewerCooldownInfo(cooldownID)
-		if info then
-			local baseSpellID = tonumber(info.spellID) or 0
-			local overrideSpellID = tonumber(info.overrideSpellID) or nil
-			local linkedSpellIDs = info.linkedSpellIDs
-			local firstLinkedSpellID = linkedSpellIDs and linkedSpellIDs[1]
-			local displaySpellID = firstLinkedSpellID or overrideSpellID or baseSpellID
-			spellID = tonumber(displaySpellID) or tonumber(baseSpellID)
-			if spellID and spellID > 0 then
-				buffName = getSpellName(spellID)
-				iconTextureID = getSpellTexture(spellID)
-			end
-			if (not buffName or not iconTextureID) and overrideSpellID then
-				buffName = buffName or getSpellName(overrideSpellID)
-				iconTextureID = iconTextureID or getSpellTexture(overrideSpellID)
-			end
-			if (not buffName or not iconTextureID) and baseSpellID and baseSpellID > 0 then
-				buffName = buffName or getSpellName(baseSpellID)
-				iconTextureID = iconTextureID or getSpellTexture(baseSpellID)
-			end
+	local frameInfo = frame and frame.cooldownInfo or nil
+	local info = getCooldownViewerInfo(cooldownID) or frameInfo
+	if info then
+		local auraSpellID = frame and frame.auraSpellID or nil
+		local linkedSpellID = frameInfo and frameInfo.linkedSpellID or nil
+		local baseSpellID = info.spellID
+		local overrideSpellID = info.overrideSpellID
+		local overrideTooltipSpellID = info.overrideTooltipSpellID
+		local linkedSpellIDs = info.linkedSpellIDs
+		local firstLinkedSpellID = linkedSpellIDs and linkedSpellIDs[1] or nil
+		local displaySpellID = getFirstUsableSpellID(auraSpellID, linkedSpellID, overrideTooltipSpellID, firstLinkedSpellID, overrideSpellID, baseSpellID)
+		spellID = spellID or displaySpellID or getFirstUsableSpellID(overrideTooltipSpellID, firstLinkedSpellID, overrideSpellID, baseSpellID)
+		if spellID then
+			buffName = getSpellName(spellID)
+			iconTextureID = getSpellTexture(spellID)
 		end
-	end
-
-	if frame and frame.cooldownInfo then
-		local info = frame.cooldownInfo
-		spellID = spellID or tonumber(info.overrideSpellID) or tonumber(info.spellID)
-		if spellID and spellID > 0 then
-			buffName = buffName or getSpellName(spellID)
-			iconTextureID = iconTextureID or getSpellTexture(spellID)
+		if (not buffName or not iconTextureID) and isUsableSpellID(overrideTooltipSpellID) then
+			buffName = buffName or getSpellName(overrideTooltipSpellID)
+			iconTextureID = iconTextureID or getSpellTexture(overrideTooltipSpellID)
+		end
+		if (not buffName or not iconTextureID) and isUsableSpellID(overrideSpellID) then
+			buffName = buffName or getSpellName(overrideSpellID)
+			iconTextureID = iconTextureID or getSpellTexture(overrideSpellID)
+		end
+		if (not buffName or not iconTextureID) and isUsableSpellID(baseSpellID) then
+			buffName = buffName or getSpellName(baseSpellID)
+			iconTextureID = iconTextureID or getSpellTexture(baseSpellID)
 		end
 	end
 
@@ -460,12 +472,43 @@ end
 
 local function isFrameShowingTrackedSpell(frame, entry)
 	if not (frame and entry and entry.spellID) then return true end
-	local cooldownInfo = frame.cooldownInfo
-	local linkedSpellID = cooldownInfo and cooldownInfo.linkedSpellID
-	if linkedSpellID == nil then return true end
-	local ok, matches = pcall(function() return linkedSpellID == entry.spellID end)
-	if ok then return matches end
-	return true
+	local trackedSpellID = entry.spellID
+	local hadSecretComparison = false
+	local sawAssociatedSpellID = false
+	local sawLinkedSpellList = false
+
+	local function matchesSpellID(candidateSpellID)
+		if not candidateSpellID then return false end
+		sawAssociatedSpellID = true
+		local ok, matches = pcall(function() return candidateSpellID == trackedSpellID end)
+		if ok then return matches end
+		hadSecretComparison = true
+		return false
+	end
+
+	if matchesSpellID(frame.auraSpellID) then return true end
+
+	local function checkCooldownInfo(info)
+		if not info then return false end
+		if matchesSpellID(info.linkedSpellID) then return true end
+		if matchesSpellID(info.overrideTooltipSpellID) then return true end
+		if matchesSpellID(info.overrideSpellID) then return true end
+		if matchesSpellID(info.spellID) then return true end
+		local linkedSpellIDs = info.linkedSpellIDs
+		if type(linkedSpellIDs) == "table" then
+			sawLinkedSpellList = true
+			for i = 1, #linkedSpellIDs do
+				if matchesSpellID(linkedSpellIDs[i]) then return true end
+			end
+		end
+		return false
+	end
+
+	if checkCooldownInfo(frame.cooldownInfo) then return true end
+	if checkCooldownInfo(getCooldownViewerInfo(entry.cooldownID)) then return true end
+	if not sawAssociatedSpellID then return true end
+	if hadSecretComparison and not sawLinkedSpellList then return true end
+	return false
 end
 
 function CDMAuras:HandleFrameAuraMutation(frame, wasCleared)

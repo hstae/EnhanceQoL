@@ -3061,7 +3061,7 @@ local function createPanelFrame(panelId, panel)
 	editMoveHandle.panelId = panelId
 	editMoveHandle.label = editMoveHandle:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 	editMoveHandle.label:SetPoint("CENTER")
-	editMoveHandle.label:SetText(L["Move"] or "Move")
+	editMoveHandle.label:SetText(L["CooldownPanelMoveHandle"] or "Move")
 	editMoveHandle.label:SetTextColor(1, 0.86, 0.24, 1)
 	editMoveHandle:SetScript("OnMouseDown", function(self, btn)
 		if btn ~= "LeftButton" then return end
