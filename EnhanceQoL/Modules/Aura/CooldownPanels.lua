@@ -602,6 +602,14 @@ local function syncEditModeSelectionStrata(frame)
 	local currentIndex = STRATA_INDEX[currentStrata]
 	local targetStrata = (currentIndex and currentIndex > baseIndex) and currentStrata or baseStrata
 	if selection.GetFrameStrata and selection:GetFrameStrata() ~= targetStrata then selection:SetFrameStrata(targetStrata) end
+	if frame.editMoveHandle then
+		frame.editMoveHandle:SetFrameStrata(targetStrata)
+		frame.editMoveHandle:SetFrameLevel((selection.GetFrameLevel and selection:GetFrameLevel() or frame:GetFrameLevel()) + 20)
+	end
+	if frame.editDropZone then
+		frame.editDropZone:SetFrameStrata(frame:GetFrameStrata())
+		frame.editDropZone:SetFrameLevel(frame:GetFrameLevel())
+	end
 end
 
 local function refreshEditModePanelFrame(panelId, editModeId)
@@ -943,6 +951,8 @@ local function didLayoutShapeChange(runtime, layout, layoutCount)
 	local rowSize4 = rowSizes and rowSizes[4] or nil
 	local rowSize5 = rowSizes and rowSizes[5] or nil
 	local rowSize6 = rowSizes and rowSizes[6] or nil
+	local fixedGridColumns = layout.fixedGridColumns
+	local fixedGridRows = layout.fixedGridRows
 	local borderColor = layout.iconBorderColor
 	local borderColorR = borderColor and (borderColor.r or borderColor[1]) or nil
 	local borderColorG = borderColor and (borderColor.g or borderColor[2]) or nil
@@ -965,6 +975,8 @@ local function didLayoutShapeChange(runtime, layout, layoutCount)
 		and runtime._eqolLayoutRowSize4 == rowSize4
 		and runtime._eqolLayoutRowSize5 == rowSize5
 		and runtime._eqolLayoutRowSize6 == rowSize6
+		and runtime._eqolLayoutFixedGridColumns == fixedGridColumns
+		and runtime._eqolLayoutFixedGridRows == fixedGridRows
 		and runtime._eqolLayoutIconBorderEnabled == layout.iconBorderEnabled
 		and runtime._eqolLayoutIconBorderTexture == layout.iconBorderTexture
 		and runtime._eqolLayoutIconBorderSize == layout.iconBorderSize
@@ -992,6 +1004,8 @@ local function didLayoutShapeChange(runtime, layout, layoutCount)
 	runtime._eqolLayoutRowSize4 = rowSize4
 	runtime._eqolLayoutRowSize5 = rowSize5
 	runtime._eqolLayoutRowSize6 = rowSize6
+	runtime._eqolLayoutFixedGridColumns = fixedGridColumns
+	runtime._eqolLayoutFixedGridRows = fixedGridRows
 	runtime._eqolLayoutIconBorderEnabled = layout.iconBorderEnabled
 	runtime._eqolLayoutIconBorderTexture = layout.iconBorderTexture
 	runtime._eqolLayoutIconBorderSize = layout.iconBorderSize
@@ -1286,6 +1300,11 @@ end
 local getPreviewEntryIds
 local function getPreviewCount(panel)
 	if not panel or type(panel.order) ~= "table" then return Helper.DEFAULT_PREVIEW_COUNT end
+	if Helper.IsFixedLayout(panel.layout) then
+		local count = Helper.GetFixedSlotCount(panel, true)
+		if count > Helper.MAX_PREVIEW_COUNT then return Helper.MAX_PREVIEW_COUNT end
+		return count
+	end
 	local entries = getPreviewEntryIds and getPreviewEntryIds(panel) or nil
 	if not entries then
 		local count = #panel.order
@@ -1301,8 +1320,11 @@ end
 
 local function getEditorPreviewCount(panel, previewFrame, baseLayout, entries)
 	if not panel or type(panel.order) ~= "table" then return Helper.DEFAULT_PREVIEW_COUNT end
+	local layoutMode = Helper.NormalizeLayoutMode(baseLayout and baseLayout.layoutMode, Helper.PANEL_LAYOUT_DEFAULTS.layoutMode)
 	local count
-	if entries then
+	if layoutMode == "FIXED" then
+		count = Helper.GetFixedSlotCount(panel, true)
+	elseif entries then
 		count = #entries
 		if count <= 0 then return 0 end
 	else
@@ -1311,7 +1333,6 @@ local function getEditorPreviewCount(panel, previewFrame, baseLayout, entries)
 	end
 	if not previewFrame then return count end
 
-	local layoutMode = Helper.NormalizeLayoutMode(baseLayout and baseLayout.layoutMode, Helper.PANEL_LAYOUT_DEFAULTS.layoutMode)
 	if layoutMode == "RADIAL" then return count end
 
 	local spacing = Helper.ClampInt((baseLayout and baseLayout.spacing) or 0, 0, 50, Helper.PANEL_LAYOUT_DEFAULTS.spacing)
@@ -1950,6 +1971,7 @@ function CooldownPanels:AddEntry(panelId, entryType, idValue, overrides)
 	end
 	panel.entries[entryId] = entry
 	panel.order[#panel.order + 1] = entryId
+	if Helper.IsFixedLayout(panel.layout) then Helper.EnsureFixedSlotAssignments(panel) end
 	if entry.type == "ITEM" and entry.itemID then
 		updateItemCountCacheForItem(entry.itemID)
 	elseif entry.type == "MACRO" then
@@ -2307,29 +2329,30 @@ function CooldownPanels:AddEntrySafe(panelId, entryType, idValue, overrides)
 	return self:AddEntry(panelId, typeKey, baseValue, finalOverrides)
 end
 
-function CooldownPanels:HandleCursorDrop(panelId)
+function CooldownPanels:HandleCursorDrop(panelId, targetSlot)
 	panelId = normalizeId(panelId or self:GetSelectedPanel())
 	if not panelId then return false end
 	local cursorType, cursorId, _, cursorSpellId = Api.GetCursorInfo()
 	if not cursorType then return false end
 
 	local added = false
+	local addedEntryId
 	if cursorType == "spell" then
 		local spellId = cursorSpellId or cursorId
-		if spellId then added = self:AddEntrySafe(panelId, "SPELL", spellId) ~= nil end
+		if spellId then addedEntryId = self:AddEntrySafe(panelId, "SPELL", spellId) end
 	elseif cursorType == "item" then
-		if cursorId then added = self:AddEntrySafe(panelId, "ITEM", cursorId) ~= nil end
+		if cursorId then addedEntryId = self:AddEntrySafe(panelId, "ITEM", cursorId) end
 	elseif cursorType == "macro" then
 		if cursorId then
 			local macroName = Api.GetMacroInfo and Api.GetMacroInfo(cursorId) or nil
-			added = self:AddEntrySafe(panelId, "MACRO", cursorId, { macroName = macroName }) ~= nil
+			addedEntryId = self:AddEntrySafe(panelId, "MACRO", cursorId, { macroName = macroName })
 		end
 	elseif cursorType == "action" and Api.GetActionInfo then
 		local actionType, actionId = Api.GetActionInfo(cursorId)
 		if actionType == "spell" then
-			added = self:AddEntrySafe(panelId, "SPELL", actionId) ~= nil
+			addedEntryId = self:AddEntrySafe(panelId, "SPELL", actionId)
 		elseif actionType == "item" then
-			added = self:AddEntrySafe(panelId, "ITEM", actionId) ~= nil
+			addedEntryId = self:AddEntrySafe(panelId, "ITEM", actionId)
 		elseif actionType == "macro" then
 			local macroID = tonumber(actionId)
 			local macroName = Api.GetActionText and CooldownPanels.NormalizeMacroName(Api.GetActionText(cursorId)) or nil
@@ -2338,10 +2361,12 @@ function CooldownPanels:HandleCursorDrop(panelId)
 				if type(byName) == "number" and byName > 0 then macroID = byName end
 			end
 			if not macroName and macroID and Api.GetMacroInfo then macroName = CooldownPanels.NormalizeMacroName(Api.GetMacroInfo(macroID)) end
-			added = self:AddEntrySafe(panelId, "MACRO", macroID or macroName, { macroName = macroName }) ~= nil
+			addedEntryId = self:AddEntrySafe(panelId, "MACRO", macroID or macroName, { macroName = macroName })
 		end
 	end
 
+	added = addedEntryId ~= nil
+	if added and targetSlot then self:MoveEntryToFixedSlot(panelId, addedEntryId, targetSlot) end
 	if added then Api.ClearCursor() end
 	return added
 end
@@ -2351,12 +2376,15 @@ function CooldownPanels:SelectPanel(panelId)
 	if not root then return end
 	panelId = normalizeId(panelId)
 	if not root.panels or not root.panels[panelId] then return end
+	local previousPanelId = root.selectedPanel
 	root.selectedPanel = panelId
 	local editor = getEditor()
 	if editor then
 		editor.selectedPanelId = panelId
 		editor.selectedEntryId = nil
 	end
+	if previousPanelId and previousPanelId ~= panelId and self:GetPanel(previousPanelId) then self:RefreshPanel(previousPanelId) end
+	self:RefreshPanel(panelId)
 	self:RefreshEditor()
 end
 
@@ -2372,6 +2400,101 @@ function CooldownPanels:SelectEntry(entryId)
 	end
 	refreshEditModeSettingValues()
 	self:RefreshEditor()
+end
+
+function CooldownPanels:IsPanelLayoutEditActive(panelId)
+	panelId = normalizeId(panelId)
+	if not panelId then return false end
+	local editor = getEditor()
+	if not (editor and editor.frame and editor.frame:IsShown()) then return false end
+	if editor.layoutEditActive ~= true then return false end
+	if normalizeId(editor.selectedPanelId) ~= panelId then return false end
+	local panel = self:GetPanel(panelId)
+	if not panel then return false end
+	return Helper.NormalizeLayoutMode(panel.layout and panel.layout.layoutMode, Helper.PANEL_LAYOUT_DEFAULTS.layoutMode) ~= "RADIAL"
+end
+
+function CooldownPanels:IsAnyPanelLayoutEditActive()
+	local editor = getEditor()
+	return editor and editor.frame and editor.frame:IsShown() and editor.layoutEditActive == true
+end
+
+function CooldownPanels:SetEditorLayoutEditEnabled(enabled)
+	local editor = getEditor()
+	if not editor then return end
+	enabled = enabled == true
+	if editor.layoutEditActive == enabled then
+		self:RefreshEditor()
+		return
+	end
+	local previousPanelId = normalizeId(editor._eqolLayoutPanelId)
+	editor.layoutEditActive = enabled
+	local nextPanelId = enabled and normalizeId(editor.selectedPanelId) or nil
+	editor._eqolLayoutPanelId = nextPanelId
+	if previousPanelId and self:GetPanel(previousPanelId) then self:RefreshPanel(previousPanelId) end
+	if nextPanelId and self:GetPanel(nextPanelId) then self:RefreshPanel(nextPanelId) end
+	self:RefreshEditor()
+end
+
+function CooldownPanels:PreparePanelForFixedLayoutEdit(panelId)
+	panelId = normalizeId(panelId)
+	local panel = self:GetPanel(panelId)
+	if not panel then return false end
+	panel.layout = panel.layout or Helper.CopyTableShallow(Helper.PANEL_LAYOUT_DEFAULTS)
+	local layout = panel.layout
+	if Helper.NormalizeLayoutMode(layout.layoutMode, Helper.PANEL_LAYOUT_DEFAULTS.layoutMode) == "RADIAL" then return false end
+	local changed = false
+	if not Helper.IsFixedLayout(layout) then
+		layout.layoutMode = "FIXED"
+		if Helper.NormalizeFixedGridSize(layout.fixedGridColumns, 0) <= 0 then
+			local gridColumns = Helper.ClampInt(layout.wrapCount, 0, 40, Helper.PANEL_LAYOUT_DEFAULTS.wrapCount or 0)
+			if gridColumns <= 0 then gridColumns = math.min(math.max(type(panel.order) == "table" and #panel.order or 0, 4), 12) end
+			layout.fixedGridColumns = gridColumns
+		end
+		changed = true
+	end
+	local maxColumn, maxRow = Helper.EnsureFixedSlotAssignments(panel)
+	local nextColumns = math.max(Helper.NormalizeFixedGridSize(layout.fixedGridColumns, 0), maxColumn, 1)
+	local nextRows = math.max(Helper.NormalizeFixedGridSize(layout.fixedGridRows, 0), maxRow, 1)
+	if layout.fixedGridColumns ~= nextColumns then
+		layout.fixedGridColumns = nextColumns
+		changed = true
+	end
+	if layout.fixedGridRows ~= nextRows then
+		layout.fixedGridRows = nextRows
+		changed = true
+	end
+	if changed then
+		local runtime = getRuntime(panelId)
+		self:SyncEditModeDataFromPanel(panelId, runtime and runtime.editModeId)
+		refreshEditModeSettingValues()
+	end
+	return changed
+end
+
+function CooldownPanels:ProxyEditModeDragStart(panelId)
+	panelId = normalizeId(panelId)
+	local runtime = panelId and getRuntime(panelId) or nil
+	local frame = runtime and runtime.frame
+	local selection = frame and frame.Selection
+	if selection and selection.OnMouseDown then selection:OnMouseDown() end
+	if selection and selection.OnDragStart then
+		selection:OnDragStart()
+	elseif frame and frame.OnDragStart then
+		frame:OnDragStart()
+	end
+end
+
+function CooldownPanels:ProxyEditModeDragStop(panelId)
+	panelId = normalizeId(panelId)
+	local runtime = panelId and getRuntime(panelId) or nil
+	local frame = runtime and runtime.frame
+	local selection = frame and frame.Selection
+	if selection and selection.OnDragStop then
+		selection:OnDragStop()
+	elseif frame and frame.OnDragStop then
+		frame:OnDragStop()
+	end
 end
 
 function CooldownPanels.ShowIconTooltip(self)
@@ -2421,11 +2544,7 @@ end
 function CooldownPanels.ApplyIconTooltip(icon, entry, enabled)
 	if not icon then return end
 	icon._eqolTooltipEntry = entry
-	local allow = enabled and entry ~= nil
-	if icon._eqolTooltipEnabled ~= allow then
-		icon._eqolTooltipEnabled = allow
-		if icon.EnableMouse then icon:EnableMouse(allow) end
-	end
+	icon._eqolTooltipEnabled = enabled and entry ~= nil
 end
 
 local function applyStaticText(icon, entry, defaultFontPath, defaultFontSize, defaultFontStyle, cooldownActive)
@@ -2475,6 +2594,13 @@ local function createIconFrame(parent)
 	icon.overlay:SetFrameStrata(icon.cooldown:GetFrameStrata() or icon:GetFrameStrata())
 	icon.overlay:SetFrameLevel((icon.cooldown:GetFrameLevel() or icon:GetFrameLevel()) + 5)
 	icon.overlay:EnableMouse(false)
+
+	icon.layoutHandle = CreateFrame("Button", nil, icon)
+	icon.layoutHandle:SetAllPoints(icon)
+	icon.layoutHandle:SetFrameStrata(icon.overlay:GetFrameStrata() or icon:GetFrameStrata())
+	icon.layoutHandle:SetFrameLevel((icon.overlay:GetFrameLevel() or icon:GetFrameLevel()) + 20)
+	icon.layoutHandle:EnableMouse(false)
+	icon.layoutHandle:Hide()
 
 	icon.border = CreateFrame("Frame", nil, icon, "BackdropTemplate")
 	icon.border:SetFrameStrata(icon.cooldown:GetFrameStrata() or icon:GetFrameStrata())
@@ -2884,6 +3010,63 @@ local function createPanelFrame(panelId, panel)
 	label:Hide()
 	frame.label = label
 
+	local editDropZone = CreateFrame("Button", nil, frame)
+	editDropZone:SetAllPoints(frame)
+	editDropZone:SetFrameLevel(frame:GetFrameLevel())
+	editDropZone:EnableMouse(false)
+	editDropZone:RegisterForClicks("LeftButtonUp")
+	editDropZone:SetScript("OnReceiveDrag", function(self)
+		if not (CooldownPanels and CooldownPanels:IsPanelLayoutEditActive(self.panelId)) then return end
+		if CooldownPanels:HandleCursorDrop(self.panelId) then
+			CooldownPanels:RefreshPanel(self.panelId)
+			if CooldownPanels:IsEditorOpen() then CooldownPanels:RefreshEditor() end
+		end
+	end)
+	editDropZone:SetScript("OnMouseUp", function(self, btn)
+		if btn ~= "LeftButton" then return end
+		if not (CooldownPanels and CooldownPanels:IsPanelLayoutEditActive(self.panelId)) then return end
+		if CooldownPanels:HandleCursorDrop(self.panelId) then
+			CooldownPanels:RefreshPanel(self.panelId)
+			if CooldownPanels:IsEditorOpen() then CooldownPanels:RefreshEditor() end
+			return
+		end
+		CooldownPanels:SelectPanel(self.panelId)
+	end)
+	editDropZone:Hide()
+	editDropZone.panelId = panelId
+	frame.editDropZone = editDropZone
+
+	local editMoveHandle = CreateFrame("Button", nil, frame, "BackdropTemplate")
+	editMoveHandle:SetSize(72, 16)
+	editMoveHandle:SetPoint("BOTTOM", frame, "TOP", 0, 4)
+	editMoveHandle:SetBackdrop({
+		bgFile = "Interface\\Buttons\\WHITE8x8",
+		edgeFile = "Interface\\Buttons\\WHITE8x8",
+		edgeSize = 1,
+	})
+	editMoveHandle:SetBackdropColor(0, 0, 0, 0.72)
+	editMoveHandle:SetBackdropBorderColor(0.95, 0.82, 0.25, 0.95)
+	editMoveHandle:RegisterForClicks("LeftButtonUp")
+	editMoveHandle:RegisterForDrag("LeftButton")
+	editMoveHandle:EnableMouse(false)
+	editMoveHandle:Hide()
+	editMoveHandle.panelId = panelId
+	editMoveHandle.label = editMoveHandle:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+	editMoveHandle.label:SetPoint("CENTER")
+	editMoveHandle.label:SetText(L["Move"] or "Move")
+	editMoveHandle.label:SetTextColor(1, 0.86, 0.24, 1)
+	editMoveHandle:SetScript("OnMouseDown", function(self, btn)
+		if btn ~= "LeftButton" then return end
+		CooldownPanels:SelectPanel(self.panelId)
+	end)
+	editMoveHandle:SetScript("OnClick", function(self) CooldownPanels:SelectPanel(self.panelId) end)
+	editMoveHandle:SetScript("OnDragStart", function(self)
+		CooldownPanels:SelectPanel(self.panelId)
+		CooldownPanels:ProxyEditModeDragStart(self.panelId)
+	end)
+	editMoveHandle:SetScript("OnDragStop", function(self) CooldownPanels:ProxyEditModeDragStop(self.panelId) end)
+	frame.editMoveHandle = editMoveHandle
+
 	frame:RegisterForClicks("LeftButtonUp")
 	frame:SetScript("OnReceiveDrag", function(self)
 		if not (CooldownPanels and CooldownPanels.IsInEditMode and CooldownPanels:IsInEditMode()) then return end
@@ -2922,7 +3105,13 @@ end
 
 local function getPanelRowCount(panel, layout)
 	if not panel or not layout then return 1, true end
-	local count = panel.order and #panel.order or 0
+	local count
+	if Helper.IsFixedLayout(layout) then
+		local _, rows = Helper.GetFixedGridBounds(panel, false)
+		return rows > 0 and rows or 1, true
+	else
+		count = panel.order and #panel.order or 0
+	end
 	if count < 1 then count = 1 end
 	local wrapCount = Helper.ClampInt(layout.wrapCount, 0, 40, Helper.PANEL_LAYOUT_DEFAULTS.wrapCount or 0)
 	local direction = Helper.NormalizeDirection(layout.direction, Helper.PANEL_LAYOUT_DEFAULTS.direction)
@@ -3421,6 +3610,14 @@ local function hideEditorDragIcon(editor)
 	editor.dragIcon:Hide()
 end
 
+function CooldownPanels:GetCursorPositionOnUIParent()
+	if not (Api.GetCursorPosition and UIParent and UIParent.GetEffectiveScale) then return nil, nil end
+	local x, y = Api.GetCursorPosition()
+	local scale = UIParent:GetEffectiveScale()
+	if not (x and y and scale and scale > 0) then return nil, nil end
+	return x / scale, y / scale
+end
+
 local function showSlotMenu(owner, panelId)
 	if not panelId or not Api.MenuUtil or not Api.MenuUtil.CreateContextMenu then return end
 	local slotEntries = getSlotMenuEntries()
@@ -3755,6 +3952,8 @@ function CooldownPanels:SyncEditModeDataFromPanel(panelId, editModeId)
 	data.iconSize = layout.iconSize
 	data.spacing = layout.spacing
 	data.layoutMode = Helper.NormalizeLayoutMode(layout.layoutMode, Helper.PANEL_LAYOUT_DEFAULTS.layoutMode)
+	data.fixedSlotCount = Helper.NormalizeFixedGridSize(layout.fixedGridColumns, Helper.PANEL_LAYOUT_DEFAULTS.fixedGridColumns or 0)
+	data.fixedGridRows = Helper.NormalizeFixedGridSize(layout.fixedGridRows, Helper.PANEL_LAYOUT_DEFAULTS.fixedGridRows or 0)
 	data.direction = Helper.NormalizeDirection(layout.direction, Helper.PANEL_LAYOUT_DEFAULTS.direction)
 	data.wrapCount = layout.wrapCount or 0
 	data.wrapDirection = Helper.NormalizeDirection(layout.wrapDirection, Helper.PANEL_LAYOUT_DEFAULTS.wrapDirection or "DOWN")
@@ -4118,6 +4317,7 @@ local function ensureEditor()
 	local previewCanvas = CreateFrame("Frame", nil, previewFrame)
 	previewCanvas._eqolIsPreview = true
 	previewCanvas:SetPoint("CENTER", previewFrame, "CENTER")
+	previewCanvas:SetFrameLevel((previewFrame:GetFrameLevel() or 0) + 2)
 	previewFrame.canvas = previewCanvas
 
 	local previewHint = previewFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -4128,6 +4328,7 @@ local function ensureEditor()
 
 	local dropZone = CreateFrame("Button", nil, previewFrame)
 	dropZone:SetAllPoints(previewFrame)
+	dropZone:SetFrameLevel((previewFrame:GetFrameLevel() or 0) + 1)
 	dropZone:RegisterForClicks("LeftButtonUp")
 	dropZone:SetScript("OnReceiveDrag", function()
 		if CooldownPanels:HandleCursorDrop(runtime.editor and runtime.editor.selectedPanelId) then CooldownPanels:RefreshEditor() end
@@ -4182,6 +4383,9 @@ local function ensureEditor()
 	local editModeButton = Helper.CreateButton(middle, _G.HUD_EDIT_MODE_MENU or L["CooldownPanelEditModeButton"] or "Edit Mode", 110, 20)
 	editModeButton:SetPoint("BOTTOMRIGHT", middle, "BOTTOMRIGHT", -12, 44)
 
+	local layoutEditButton = Helper.CreateButton(middle, L["CooldownPanelLayoutEdit"] or "Layout edit", 110, 20)
+	layoutEditButton:SetPoint("RIGHT", editModeButton, "LEFT", -8, 0)
+
 	local slotButton = Helper.CreateButton(middle, L["CooldownPanelAddSlot"] or "Add more", 120, 20)
 	slotButton:SetPoint("BOTTOMRIGHT", middle, "BOTTOMRIGHT", -12, 18)
 
@@ -4199,6 +4403,7 @@ local function ensureEditor()
 
 	editModeButton:SetScript("OnClick", function()
 		if InCombatLockdown and InCombatLockdown() or addon.functions.isRestrictedContent() then return end
+		if CooldownPanels and CooldownPanels.IsAnyPanelLayoutEditActive and CooldownPanels:IsAnyPanelLayoutEditActive() then CooldownPanels:SetEditorLayoutEditEnabled(false) end
 		if EditModeManagerFrame and ShowUIPanel then ShowUIPanel(EditModeManagerFrame) end
 	end)
 
@@ -4213,10 +4418,15 @@ local function ensureEditor()
 		frame:UnregisterEvent("PLAYER_REGEN_ENABLED")
 		saveEditorPosition(frame)
 		if runtime and runtime.editor then
+			local previousLayoutPanelId = normalizeId(runtime.editor._eqolLayoutPanelId or runtime.editor.selectedPanelId)
 			hideEditorDragIcon(runtime.editor)
 			runtime.editor.draggingEntry = nil
 			runtime.editor.dragEntryId = nil
 			runtime.editor.dragTargetId = nil
+			runtime.editor.dragPreviewSlot = nil
+			runtime.editor.layoutEditActive = nil
+			runtime.editor._eqolLayoutPanelId = nil
+			if previousLayoutPanelId and CooldownPanels:GetPanel(previousLayoutPanelId) then CooldownPanels:RefreshPanel(previousLayoutPanelId) end
 		end
 	end)
 	frame:SetScript("OnEvent", function(_, event)
@@ -4225,6 +4435,7 @@ local function ensureEditor()
 
 	runtime.editor = {
 		frame = frame,
+		layoutEditActive = nil,
 		selectedPanelId = nil,
 		selectedEntryId = nil,
 		panelRows = {},
@@ -4233,10 +4444,12 @@ local function ensureEditor()
 		entryList = { scroll = entryScroll, content = entryContent },
 		previewFrame = previewFrame,
 		previewHintLabel = previewHintLabel,
+		entryHint = entryHint,
 		addPanel = addPanel,
 		deletePanel = deletePanel,
 		addSpellBox = addSpellBox,
 		addItemBox = addItemBox,
+		layoutEditButton = layoutEditButton,
 		slotButton = slotButton,
 		importCDMButton = importCDMButton,
 		filterButton = filterButton,
@@ -4307,6 +4520,8 @@ local function ensureEditor()
 		self:ClearFocus()
 		CooldownPanels:RefreshEditor()
 	end)
+
+	layoutEditButton:SetScript("OnClick", function() CooldownPanels:SetEditorLayoutEditEnabled(editor.layoutEditActive ~= true) end)
 
 	slotButton:SetScript("OnClick", function(self) showSlotMenu(self, editor.selectedPanelId) end)
 	importCDMButton:SetScript("OnClick", function(self)
@@ -4756,6 +4971,101 @@ local function moveEntryInOrder(panel, entryId, targetEntryId)
 	return true
 end
 
+function CooldownPanels:MoveEntryToFixedSlot(panelId, entryId, targetSlot)
+	panelId = normalizeId(panelId)
+	entryId = normalizeId(entryId)
+	local panel = self:GetPanel(panelId)
+	if not panel or not panel.entries then return false end
+	local targetColumn, targetRow
+	if type(targetSlot) == "table" then
+		targetColumn = Helper.NormalizeSlotCoordinate(targetSlot.column or targetSlot.slotColumn or targetSlot.x)
+		targetRow = Helper.NormalizeSlotCoordinate(targetSlot.row or targetSlot.slotRow or targetSlot.y)
+	else
+		local normalizedTargetSlot = Helper.NormalizeSlotIndex(targetSlot)
+		if normalizedTargetSlot then
+			local gridColumns = Helper.NormalizeFixedGridSize(panel.layout and panel.layout.fixedGridColumns, 0)
+			if gridColumns <= 0 then
+				local _, _, builtColumns = Helper.BuildFixedSlotEntryIds(panel, nil, false)
+				gridColumns = builtColumns or 0
+			end
+			if gridColumns > 0 then
+				targetColumn = ((normalizedTargetSlot - 1) % gridColumns) + 1
+				targetRow = math.floor((normalizedTargetSlot - 1) / gridColumns) + 1
+			end
+		end
+	end
+	if not (targetColumn and targetRow) then return false end
+	panel.layout = panel.layout or Helper.CopyTableShallow(Helper.PANEL_LAYOUT_DEFAULTS)
+	local layout = panel.layout
+	if Helper.NormalizeLayoutMode(layout.layoutMode, Helper.PANEL_LAYOUT_DEFAULTS.layoutMode) == "RADIAL" then return false end
+	if not Helper.IsFixedLayout(layout) then
+		layout.layoutMode = "FIXED"
+		Helper.EnsureFixedSlotAssignments(panel)
+		local gridColumns = Helper.NormalizeFixedGridSize(layout.fixedGridColumns, 0)
+		if gridColumns <= 0 then
+			gridColumns = Helper.ClampInt(layout.wrapCount, 0, 40, Helper.PANEL_LAYOUT_DEFAULTS.wrapCount or 0)
+			if not gridColumns or gridColumns <= 0 then gridColumns = math.min(math.max(type(panel.order) == "table" and #panel.order or 0, 4), 12) end
+			layout.fixedGridColumns = gridColumns
+		end
+	end
+	Helper.EnsureFixedSlotAssignments(panel)
+	local fromEntry = panel.entries[entryId]
+	if not fromEntry then return false end
+	local fromColumn = Helper.NormalizeSlotCoordinate(fromEntry.slotColumn)
+	local fromRow = Helper.NormalizeSlotCoordinate(fromEntry.slotRow)
+	if fromColumn == targetColumn and fromRow == targetRow then return false end
+	local swapId
+	for candidateId, candidate in pairs(panel.entries or {}) do
+		if
+			candidateId ~= entryId
+			and Helper.NormalizeSlotCoordinate(candidate and candidate.slotColumn) == targetColumn
+			and Helper.NormalizeSlotCoordinate(candidate and candidate.slotRow) == targetRow
+		then
+			swapId = candidateId
+			break
+		end
+	end
+	fromEntry.slotColumn = targetColumn
+	fromEntry.slotRow = targetRow
+	if swapId and fromColumn and fromRow then
+		local swapEntry = panel.entries[swapId]
+		if swapEntry then
+			swapEntry.slotColumn = fromColumn
+			swapEntry.slotRow = fromRow
+		end
+	end
+	layout.fixedGridColumns = math.max(Helper.NormalizeFixedGridSize(layout.fixedGridColumns, 0), targetColumn)
+	layout.fixedGridRows = math.max(Helper.NormalizeFixedGridSize(layout.fixedGridRows, 0), targetRow)
+	Helper.EnsureFixedSlotAssignments(panel)
+	return true
+end
+
+function CooldownPanels:GetLayoutEditCursorSlot(panelId)
+	panelId = normalizeId(panelId)
+	if not panelId then return nil end
+	local runtime = getRuntime(panelId)
+	local frame = runtime and runtime.frame
+	if not frame or not frame.icons then return nil end
+	local cursorX, cursorY = self:GetCursorPositionOnUIParent()
+	if not (cursorX and cursorY) then return nil end
+	for i = 1, #frame.icons do
+		local icon = frame.icons[i]
+		local handle = icon and icon.layoutHandle
+		if handle and handle.IsShown and handle:IsShown() then
+			local left = handle:GetLeft()
+			local right = handle:GetRight()
+			local top = handle:GetTop()
+			local bottom = handle:GetBottom()
+			if left and right and top and bottom and cursorX >= left and cursorX <= right and cursorY <= top and cursorY >= bottom then
+				local column = Helper.NormalizeSlotCoordinate(handle._eqolLayoutSlotColumn)
+				local row = Helper.NormalizeSlotCoordinate(handle._eqolLayoutSlotRow)
+				if column and row then return { column = column, row = row } end
+			end
+		end
+	end
+	return nil
+end
+
 local function refreshEntryList(editor, panel)
 	local list = editor.entryList
 	if not list then return end
@@ -4787,6 +5097,7 @@ local function refreshEntryList(editor, panel)
 						if not editor.selectedPanelId then return end
 						editor.dragEntryId = self.entryId
 						editor.dragTargetId = nil
+						editor.dragPreviewSlot = nil
 						editor.draggingEntry = true
 						showEditorDragIcon(editor, self.icon and self.icon:GetTexture())
 						self:SetAlpha(0.6)
@@ -4798,15 +5109,21 @@ local function refreshEntryList(editor, panel)
 						hideEditorDragIcon(editor)
 						local fromId = editor.dragEntryId
 						local targetId = editor.dragTargetId
+						local panelId = editor.selectedPanelId
+						local targetSlot = editor.dragPreviewSlot or CooldownPanels:GetLayoutEditCursorSlot(panelId)
 						editor.dragEntryId = nil
 						editor.dragTargetId = nil
-						if not fromId or not targetId or fromId == targetId then
+						editor.dragPreviewSlot = nil
+						if not fromId then
 							CooldownPanels:RefreshEditor()
 							return
 						end
-						local panelId = editor.selectedPanelId
 						local activePanel = panelId and CooldownPanels:GetPanel(panelId) or nil
-						if activePanel and moveEntryInOrder(activePanel, fromId, targetId) then CooldownPanels:RefreshPanel(panelId) end
+						if activePanel and targetSlot then
+							if CooldownPanels:MoveEntryToFixedSlot(panelId, fromId, targetSlot) then CooldownPanels:RefreshPanel(panelId) end
+						elseif activePanel and targetId and fromId ~= targetId and moveEntryInOrder(activePanel, fromId, targetId) then
+							CooldownPanels:RefreshPanel(panelId)
+						end
 						CooldownPanels:RefreshEditor()
 					end)
 					row:SetScript("OnEnter", function(self)
@@ -4884,6 +5201,10 @@ end
 getPreviewEntryIds = function(panel)
 	if not panel or type(panel.order) ~= "table" then return nil end
 	if #panel.order == 0 then return nil end
+	if Helper.IsFixedLayout(panel.layout) then
+		local slots = Helper.BuildFixedSlotEntryIds(panel)
+		return slots
+	end
 	local list = {}
 	for _, entryId in ipairs(panel.order) do
 		local entry = panel.entries and panel.entries[entryId]
@@ -4970,10 +5291,33 @@ local function refreshPreview(editor, panel)
 	end
 
 	local hasEntries = (panel.order and #panel.order or 0) > 0
-	if editor.previewHintLabel then editor.previewHintLabel:SetShown(hasEntries) end
 	local baseLayout = (panel and panel.layout) or Helper.PANEL_LAYOUT_DEFAULTS
-	local count = getEditorPreviewCount(panel, preview, baseLayout)
-	local layout = getPreviewLayout(panel, preview, count)
+	local fixedLayout = Helper.IsFixedLayout(baseLayout)
+	local previewLayoutSource = baseLayout
+	if editor.previewHintLabel then
+		editor.previewHintLabel:SetText(L["CooldownPanelPreviewHint"] or "Drag spells/items/macros here to add")
+		editor.previewHintLabel:SetShown(hasEntries)
+	end
+	if editor.entryHint then editor.entryHint:SetText(L["CooldownPanelEntriesHint"] or "Drag entries to reorder") end
+	local previewEntryIds, count, previewGridColumns, previewGridRows
+	if not hasEntries then
+		count = 0
+	elseif fixedLayout then
+		previewEntryIds = {}
+		for _, entryId in ipairs(panel.order or {}) do
+			local entry = panel.entries and panel.entries[entryId] or nil
+			if entry and entryIsAvailableForPreview(entry) then previewEntryIds[#previewEntryIds + 1] = entryId end
+		end
+		count = #previewEntryIds
+		previewLayoutSource = Helper.CopyTableShallow(baseLayout)
+		previewLayoutSource.layoutMode = "GRID"
+		previewLayoutSource.direction = "RIGHT"
+		previewLayoutSource.wrapDirection = "DOWN"
+		previewLayoutSource.wrapCount = 0
+	else
+		count = getEditorPreviewCount(panel, preview, baseLayout)
+	end
+	local layout = getPreviewLayout({ layout = previewLayoutSource }, preview, count)
 	applyIconLayout(canvas, count, layout)
 	canvas:ClearAllPoints()
 	canvas:SetPoint("CENTER", preview, "CENTER")
@@ -4983,7 +5327,12 @@ local function refreshPreview(editor, panel)
 
 	preview.entryByIndex = preview.entryByIndex or {}
 	for i = 1, count do
-		local entryId = panel.order and panel.order[i]
+		local entryId
+		if fixedLayout then
+			entryId = previewEntryIds and previewEntryIds[i] or nil
+		else
+			entryId = (previewEntryIds and previewEntryIds[i]) or (panel.order and panel.order[i])
+		end
 		local entry = entryId and panel.entries and panel.entries[entryId] or nil
 		local effectiveType = entry and entry.type or nil
 		if effectiveType == "MACRO" then
@@ -4993,17 +5342,54 @@ local function refreshPreview(editor, panel)
 		local icon = canvas.icons[i]
 		local showCooldown = entry and entry.showCooldown ~= false
 		local staticCooldown = entry and entry.staticTextShowOnCooldown == true or false
-		icon.texture:SetTexture(getEntryIcon(entry))
+		icon:Show()
+		icon.entryId = entryId
+		icon._eqolPreviewCellColumn = previewGridColumns and (((i - 1) % previewGridColumns) + 1) or i
+		icon._eqolPreviewCellRow = previewGridColumns and (math.floor((i - 1) / previewGridColumns) + 1) or 1
+		icon._eqolTooltipEntry = entry
+		icon._eqolTooltipEnabled = entry ~= nil
+		icon.texture:SetTexture(entry and getEntryIcon(entry) or Helper.PREVIEW_ICON)
+		icon.texture:SetShown(true)
+		icon.texture:SetVertexColor(1, 1, 1)
+		icon.texture:SetDesaturated(false)
+		icon.texture:SetAlpha(1)
 		if icon.cooldown.SetReverse then icon.cooldown:SetReverse(effectiveType == "CDM_AURA") end
 		if icon.cooldown.SetUseAuraDisplayTime then icon.cooldown:SetUseAuraDisplayTime(effectiveType == "CDM_AURA") end
-		icon.entryId = entryId
+		icon.cooldown:Clear()
 		icon.count:Hide()
 		icon.charges:Hide()
 		if icon.rangeOverlay then icon.rangeOverlay:Hide() end
 		if icon.keybind then icon.keybind:Hide() end
 		if icon.previewGlow then icon.previewGlow:Hide() end
+		if icon.previewBling then icon.previewBling:Hide() end
 		if icon.previewSoundBorder then icon.previewSoundBorder:Hide() end
-		applyStaticText(icon, entry, staticFontPath, staticFontSize, staticFontStyle, staticCooldown)
+		icon:EnableMouse(false)
+		icon._eqolPreviewSlotIndex = nil
+		icon._eqolPreviewSlotColumn = nil
+		icon._eqolPreviewSlotRow = nil
+		icon:SetScript("OnEnter", CooldownPanels.ShowIconTooltip)
+		icon:SetScript("OnLeave", CooldownPanels.HideIconTooltip)
+		icon:SetScript("OnDragStart", nil)
+		icon:SetScript("OnDragStop", nil)
+		icon:SetScript("OnReceiveDrag", nil)
+		icon:SetScript("OnMouseUp", nil)
+		if not entry then
+			if icon.staticText then
+				icon.staticText:ClearAllPoints()
+				icon.staticText:SetPoint("CENTER", icon.overlay, "CENTER", 0, 0)
+				icon.staticText:SetFont(staticFontPath, math.max(11, staticFontSize or 12), staticFontStyle or "")
+				icon.staticText:SetTextColor(0.62, 0.62, 0.62, 0.9)
+				icon.staticText:SetText(tostring(i))
+				icon.staticText:Show()
+			end
+			icon.texture:SetDesaturated(true)
+			icon.texture:SetAlpha(fixedLayout and 0.18 or 0.08)
+			CooldownPanels.ApplyIconTooltip(icon, nil, false)
+			preview.entryByIndex[i] = nil
+		else
+			applyStaticText(icon, entry, staticFontPath, staticFontSize, staticFontStyle, staticCooldown)
+			preview.entryByIndex[i] = entryId
+		end
 		if entry then
 			if effectiveType == "SPELL" then
 				if entry.showCharges then
@@ -5048,7 +5434,19 @@ local function refreshPreview(editor, panel)
 		end
 	end
 
-	if preview.dropHint then preview.dropHint:Hide() end
+	for i = count + 1, #(canvas.icons or {}) do
+		local icon = canvas.icons[i]
+		if icon then
+			icon:Hide()
+			icon.entryId = nil
+			icon._eqolTooltipEntry = nil
+			icon._eqolTooltipEnabled = nil
+			if icon.staticText then icon.staticText:Hide() end
+			if icon.cooldown and icon.cooldown.Clear then icon.cooldown:Clear() end
+		end
+	end
+
+	if preview.dropHint then preview.dropHint:SetShown(not hasEntries and not fixedLayout) end
 end
 
 local function layoutInspectorToggles(inspector, entry)
@@ -5388,6 +5786,7 @@ function CooldownPanels:RefreshEditor()
 	if not editor or not editor.frame or not editor.frame:IsShown() then return end
 	local root = ensureRoot()
 	if not root then return end
+	local previousLayoutPanelId = normalizeId(editor._eqolLayoutPanelId)
 
 	self:NormalizeAll()
 	Helper.SyncOrder(root.order, root.panels)
@@ -5420,6 +5819,7 @@ function CooldownPanels:RefreshEditor()
 	refreshPreview(editor, panel)
 
 	local panelActive = panel ~= nil
+	if not panelActive then editor.layoutEditActive = nil end
 	if editor.deletePanel then
 		if panelActive then
 			editor.deletePanel:Enable()
@@ -5455,12 +5855,30 @@ function CooldownPanels:RefreshEditor()
 			editor.importCDMButton:Disable()
 		end
 	end
+	if editor.layoutEditButton then
+		local enableLayoutEdit = panelActive and Helper.NormalizeLayoutMode(panel and panel.layout and panel.layout.layoutMode, Helper.PANEL_LAYOUT_DEFAULTS.layoutMode) ~= "RADIAL"
+		if enableLayoutEdit then
+			editor.layoutEditButton:Enable()
+		else
+			editor.layoutEditButton:Disable()
+		end
+		editor.layoutEditButton:SetText(editor.layoutEditActive == true and (L["CooldownPanelLayoutEditDone"] or "Done") or (L["CooldownPanelLayoutEdit"] or "Layout edit"))
+	end
 
 	local entryId = editor.selectedEntryId
 	if panel and entryId and not (panel.entries and panel.entries[entryId]) then entryId = nil end
 	editor.selectedEntryId = entryId
 	local entry = panel and entryId and panel.entries and panel.entries[entryId] or nil
 	refreshInspector(editor, panel, entry)
+
+	local currentLayoutPanelId = editor.layoutEditActive == true and normalizeId(panelId) or nil
+	editor._eqolLayoutPanelId = currentLayoutPanelId
+	if previousLayoutPanelId ~= currentLayoutPanelId then
+		if previousLayoutPanelId and self:GetPanel(previousLayoutPanelId) then self:RefreshPanel(previousLayoutPanelId) end
+		if currentLayoutPanelId and self:GetPanel(currentLayoutPanelId) then self:RefreshPanel(currentLayoutPanelId) end
+	elseif currentLayoutPanelId and self:GetPanel(currentLayoutPanelId) then
+		self:UpdatePanelMouseState(currentLayoutPanelId)
+	end
 end
 
 function CooldownPanels:OpenEditor()
@@ -5473,7 +5891,11 @@ end
 function CooldownPanels:CloseEditor()
 	local editor = getEditor()
 	if not editor then return end
+	local panelId = normalizeId(editor._eqolLayoutPanelId or editor.selectedPanelId)
 	editor.frame:Hide()
+	editor.layoutEditActive = nil
+	editor._eqolLayoutPanelId = nil
+	if panelId and self:GetPanel(panelId) then self:RefreshPanel(panelId) end
 end
 
 function CooldownPanels:ToggleEditor()
@@ -5516,13 +5938,131 @@ function CooldownPanels:ApplyLayout(panelId, countOverride)
 	CooldownPanels.ClearRuntimeResolvedLayoutCache(runtime)
 	panel.layout = panel.layout or Helper.CopyTableShallow(Helper.PANEL_LAYOUT_DEFAULTS)
 	local layout = panel.layout
+	local appliedLayout = layout
+	local fixedLayoutCount
+	if Helper.IsFixedLayout(layout) then
+		local _, slotCount, gridColumns = Helper.BuildFixedSlotEntryIds(panel, nil, false)
+		fixedLayoutCount = slotCount
+		appliedLayout = Helper.CopyTableShallow(layout)
+		appliedLayout.wrapCount = gridColumns or 0
+		appliedLayout.direction = "RIGHT"
+		appliedLayout.wrapDirection = "DOWN"
+	end
 
-	local count = countOverride or getPreviewCount(panel)
-	applyIconLayout(frame, count, layout)
+	local count = countOverride or fixedLayoutCount or getPreviewCount(panel)
+	applyIconLayout(frame, count, appliedLayout)
 
 	frame:SetFrameStrata(Helper.NormalizeStrata(layout.strata, Helper.PANEL_LAYOUT_DEFAULTS.strata))
 	syncEditModeSelectionStrata(frame)
 	if frame.label then frame.label:SetText(panel.name or "Cooldown Panel") end
+end
+
+function CooldownPanels:ConfigureEditModePanelIcon(panelId, icon, entryId, slotColumn, slotRow)
+	if not icon then return end
+	local handle = icon.layoutHandle
+	icon._eqolLayoutSlotColumn = nil
+	icon._eqolLayoutSlotRow = nil
+	if icon.EnableMouse then icon:EnableMouse(false) end
+	icon:SetScript("OnDragStart", nil)
+	icon:SetScript("OnDragStop", nil)
+	icon:SetScript("OnReceiveDrag", nil)
+	icon:SetScript("OnMouseUp", nil)
+	local active = self:IsPanelLayoutEditActive(panelId)
+	if not handle then return end
+	if not active then
+		handle:Hide()
+		handle:EnableMouse(false)
+		handle:SetScript("OnEnter", nil)
+		handle:SetScript("OnLeave", nil)
+		handle:SetScript("OnDragStart", nil)
+		handle:SetScript("OnDragStop", nil)
+		handle:SetScript("OnReceiveDrag", nil)
+		handle:SetScript("OnMouseUp", nil)
+		handle._eqolLayoutSlotColumn = nil
+		handle._eqolLayoutSlotRow = nil
+		return
+	end
+	handle:Show()
+	handle:EnableMouse(true)
+	handle:RegisterForDrag("LeftButton")
+	handle._eqolLayoutSlotColumn = slotColumn
+	handle._eqolLayoutSlotRow = slotRow
+	handle:SetScript("OnEnter", function(self)
+		local editor = getEditor()
+		if editor and editor.draggingEntry then
+			editor.dragPreviewSlot = {
+				column = self._eqolLayoutSlotColumn,
+				row = self._eqolLayoutSlotRow,
+			}
+			if icon.rangeOverlay then
+				icon.rangeOverlay:SetColorTexture(0.2, 0.7, 0.2, 0.28)
+				icon.rangeOverlay:Show()
+			end
+			return
+		end
+		CooldownPanels.ShowIconTooltip(icon)
+	end)
+	handle:SetScript("OnLeave", function(self)
+		local editor = getEditor()
+		local dragSlot = editor and editor.dragPreviewSlot or nil
+		if type(dragSlot) == "table" and dragSlot.column == self._eqolLayoutSlotColumn and dragSlot.row == self._eqolLayoutSlotRow then editor.dragPreviewSlot = nil end
+		if icon.rangeOverlay then icon.rangeOverlay:Hide() end
+		icon:SetAlpha(1)
+		CooldownPanels.HideIconTooltip(icon)
+	end)
+	handle:SetScript("OnDragStart", function()
+		if not entryId then return end
+		local editor = getEditor()
+		if not editor then return end
+		if CooldownPanels:PreparePanelForFixedLayoutEdit(panelId) then
+			CooldownPanels:RefreshPanel(panelId)
+			CooldownPanels:RefreshEditor()
+		end
+		editor.dragEntryId = entryId
+		editor.dragTargetId = nil
+		editor.dragPreviewSlot = nil
+		editor.draggingEntry = true
+		showEditorDragIcon(editor, icon.texture and icon.texture:GetTexture())
+		icon:SetAlpha(0.6)
+	end)
+	handle:SetScript("OnDragStop", function()
+		icon:SetAlpha(1)
+		local editor = getEditor()
+		if not (editor and editor.draggingEntry) then return end
+		editor.draggingEntry = nil
+		hideEditorDragIcon(editor)
+		local fromId = editor.dragEntryId
+		local targetSlot = editor.dragPreviewSlot or CooldownPanels:GetLayoutEditCursorSlot(panelId)
+		editor.dragEntryId = nil
+		editor.dragTargetId = nil
+		editor.dragPreviewSlot = nil
+		if panelId and fromId and targetSlot and CooldownPanels:MoveEntryToFixedSlot(panelId, fromId, targetSlot) then CooldownPanels:RefreshPanel(panelId) end
+		CooldownPanels:RefreshEditor()
+	end)
+	handle:SetScript("OnReceiveDrag", function()
+		local editor = getEditor()
+		if editor and editor.draggingEntry then return end
+		if CooldownPanels:HandleCursorDrop(panelId, { column = slotColumn, row = slotRow }) then
+			CooldownPanels:RefreshPanel(panelId)
+			CooldownPanels:RefreshEditor()
+		end
+	end)
+	handle:SetScript("OnMouseUp", function(_, btn)
+		if btn ~= "LeftButton" then return end
+		local editor = getEditor()
+		if editor and editor.draggingEntry then return end
+		if CooldownPanels:HandleCursorDrop(panelId, { column = slotColumn, row = slotRow }) then
+			CooldownPanels:RefreshPanel(panelId)
+			CooldownPanels:RefreshEditor()
+			return
+		end
+		CooldownPanels:SelectPanel(panelId)
+		if entryId then
+			CooldownPanels:SelectEntry(entryId)
+		else
+			CooldownPanels:RefreshEditor()
+		end
+	end)
 end
 
 function CooldownPanels:UpdatePreviewIcons(panelId, countOverride)
@@ -5533,17 +6073,37 @@ function CooldownPanels:UpdatePreviewIcons(panelId, countOverride)
 	if not frame then return end
 	panel.layout = panel.layout or Helper.CopyTableShallow(Helper.PANEL_LAYOUT_DEFAULTS)
 	local layout = panel.layout
+	local fixedLayout = Helper.IsFixedLayout(layout)
+	local layoutEditActive = self:IsPanelLayoutEditActive(panelId)
 	local showTooltips = layout.showTooltips == true
 	local showKeybinds = layout.keybindsEnabled == true
 	local showIconTexture = layout.showIconTexture ~= false
 	local noDesaturation = layout.noDesaturation == true
 	local staticFontPath, staticFontSize, staticFontStyle = Helper.GetCountFontDefaults(frame)
-	local previewEntryIds = getPreviewEntryIds and getPreviewEntryIds(panel) or nil
-	local count = countOverride or getPreviewCount(panel)
+	local previewEntryIds
+	local count = countOverride
+	local previewGridColumns
+	if fixedLayout then
+		previewEntryIds, count, previewGridColumns = Helper.BuildFixedSlotEntryIds(panel, nil, false)
+	end
+	if not count then
+		previewEntryIds = previewEntryIds or (getPreviewEntryIds and getPreviewEntryIds(panel) or nil)
+		count = getPreviewCount(panel)
+	end
+	local editGridColumns
+	if layoutEditActive and not fixedLayout then
+		editGridColumns = Helper.ClampInt(layout.wrapCount, 0, 40, Helper.PANEL_LAYOUT_DEFAULTS.wrapCount or 0)
+		if editGridColumns <= 0 then editGridColumns = math.min(math.max(type(panel.order) == "table" and #panel.order or 0, 4), 12) end
+	end
 	ensureIconCount(frame, count)
 
 	for i = 1, count do
-		local entryId = (previewEntryIds and previewEntryIds[i]) or (panel.order and panel.order[i])
+		local entryId
+		if fixedLayout then
+			entryId = previewEntryIds and previewEntryIds[i] or nil
+		else
+			entryId = (previewEntryIds and previewEntryIds[i]) or (panel.order and panel.order[i])
+		end
 		local entry = entryId and panel.entries and panel.entries[entryId] or nil
 		local macro = entry and entry.type == "MACRO" and CooldownPanels.ResolveMacroEntry(entry) or nil
 		local resolvedType = entry and ((macro and macro.kind) or entry.type) or nil
@@ -5557,9 +6117,14 @@ function CooldownPanels:UpdatePreviewIcons(panelId, countOverride)
 		local showStacks = entry and (resolvedType == "SPELL" or resolvedType == "CDM_AURA") and entry.showStacks == true
 		local showItemCount = entry and resolvedType == "ITEM" and entry.showItemCount ~= false
 		local showItemUses = entry and resolvedType == "ITEM" and entry.showItemUses == true
-		icon.texture:SetTexture(getEntryIcon(entry))
+		local slotColumn = previewGridColumns and (((i - 1) % previewGridColumns) + 1) or (editGridColumns and (((i - 1) % editGridColumns) + 1) or i)
+		local slotRow = previewGridColumns and (math.floor((i - 1) / previewGridColumns) + 1) or (editGridColumns and (math.floor((i - 1) / editGridColumns) + 1) or 1)
+		icon:Show()
+		icon._eqolPreviewCellColumn = slotColumn
+		icon._eqolPreviewCellRow = slotRow
+		icon.texture:SetTexture(entry and getEntryIcon(entry) or Helper.PREVIEW_ICON)
 		icon.texture:SetVertexColor(1, 1, 1)
-		icon.texture:SetShown(showIconTexture)
+		icon.texture:SetShown(showIconTexture or not entry)
 		if icon.cooldown.SetReverse then icon.cooldown:SetReverse(resolvedType == "CDM_AURA") end
 		if icon.cooldown.SetUseAuraDisplayTime then icon.cooldown:SetUseAuraDisplayTime(resolvedType == "CDM_AURA") end
 		icon.cooldown:SetHideCountdownNumbers(not showCooldownText)
@@ -5573,67 +6138,50 @@ function CooldownPanels:UpdatePreviewIcons(panelId, countOverride)
 		if icon.previewBling then icon.previewBling:Hide() end
 		setGlow(icon, false)
 		setAssistedHighlight(icon, false)
-		applyStaticText(icon, entry, staticFontPath, staticFontSize, staticFontStyle, staticCooldown)
-		if showCooldown then
-			setExampleCooldown(icon.cooldown)
-			icon.texture:SetDesaturated(not noDesaturation)
-			icon.texture:SetAlpha(noDesaturation and 1 or 0.6)
-			if icon.previewBling then icon.previewBling:SetShown(layout.cooldownDrawBling ~= false) end
+		if not entry then
+			if icon.staticText then icon.staticText:Hide() end
+			icon.texture:SetDesaturated(false)
+			icon.texture:SetAlpha(0)
+			icon.texture:SetShown(false)
+			CooldownPanels.ApplyIconTooltip(icon, nil, false)
 		else
+			applyStaticText(icon, entry, staticFontPath, staticFontSize, staticFontStyle, staticCooldown)
+			icon.texture:SetShown(showIconTexture)
 			icon.texture:SetDesaturated(false)
 			icon.texture:SetAlpha(1)
-		end
-		if showCharges then
-			icon.charges:SetText("2")
-			icon.charges:Show()
-		elseif showItemUses then
-			local usesValue
-			if previewItemId then usesValue = Api.GetItemCount(previewItemId, true, true) end
-			if isSafeGreaterThan(usesValue, 0) then
-				icon.charges:SetText(usesValue)
-			else
-				icon.charges:SetText("5")
+			if showItemUses and previewItemId then
+				local usesValue = Api.GetItemCount(previewItemId, true, true)
+				if isSafeGreaterThan(usesValue, 0) then
+					icon.charges:SetText(usesValue)
+					icon.charges:Show()
+				end
 			end
-			icon.charges:Show()
-		end
-		if showStacks then
-			if resolvedType == "CDM_AURA" then
-				local cdmAuras = CooldownPanels.CDMAuras
-				if cdmAuras and cdmAuras.ApplyPreview then
-					cdmAuras:ApplyPreview(icon, entry)
-				else
-					icon.count:SetText("2")
+			if showItemCount and previewItemId then
+				local countValue = Api.GetItemCount(previewItemId, true, false)
+				if isSafeGreaterThan(countValue, 0) then
+					icon.count:SetText(countValue)
 					icon.count:Show()
 				end
-			else
-				icon.count:SetText("3")
-				icon.count:Show()
 			end
-		elseif showItemCount then
-			local countValue
-			if previewItemId then countValue = Api.GetItemCount(previewItemId, true, false) end
-			if isSafeGreaterThan(countValue, 0) then
-				icon.count:SetText(countValue)
-			else
-				icon.count:SetText("20")
+			if showKeybinds and entry and icon.keybind then
+				local keyText = Keybinds.GetEntryKeybindText(entry, layout)
+				if keyText then
+					icon.keybind:SetText(keyText)
+					icon.keybind:Show()
+				else
+					icon.keybind:Hide()
+				end
 			end
-			icon.count:Show()
+			CooldownPanels.ApplyIconTooltip(icon, entry, showTooltips)
 		end
-		if showKeybinds and entry and icon.keybind then
-			local keyText = Keybinds.GetEntryKeybindText(entry, layout)
-			if not keyText and entry and entry.type == "SPELL" then keyText = "K" end
-			if keyText then
-				icon.keybind:SetText(keyText)
-				icon.keybind:Show()
-			else
-				icon.keybind:Hide()
-			end
-		end
-		CooldownPanels.ApplyIconTooltip(icon, entry, showTooltips)
+		self:ConfigureEditModePanelIcon(panelId, icon, entryId, slotColumn, slotRow)
 	end
 	for i = count + 1, #(frame.icons or {}) do
 		local icon = frame.icons[i]
-		if icon then setAssistedHighlight(icon, false) end
+		if icon then
+			icon:Hide()
+			setAssistedHighlight(icon, false)
+		end
 	end
 end
 
@@ -5721,6 +6269,8 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 	runtime._eqolHiddenByEligibility = nil
 	panel.layout = panel.layout or Helper.CopyTableShallow(Helper.PANEL_LAYOUT_DEFAULTS)
 	local layout = panel.layout
+	local fixedLayout = Helper.IsFixedLayout(layout)
+	if fixedLayout then Helper.EnsureFixedSlotAssignments(panel) end
 	local resolvedLayout = CooldownPanels.ResolveRuntimeLayout(runtime, frame, layout)
 	local showTooltips = resolvedLayout and resolvedLayout.showTooltips
 	local showKeybinds = resolvedLayout and resolvedLayout.showKeybinds
@@ -5785,6 +6335,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 		runtime.visibleEntries = visible
 	end
 	local visibleCount = 0
+	local visibleSlotsUsed = fixedLayout and {} or nil
 	local visiblePowerSpells = runtime.visiblePowerSpells
 	if not visiblePowerSpells then
 		visiblePowerSpells = {}
@@ -5801,6 +6352,12 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 	end
 
 	local order = panel.order or {}
+	local fixedSlotCount = 0
+	local fixedGridColumns = 0
+	local fixedGridRows = 0
+	if fixedLayout then
+		_, fixedSlotCount, fixedGridColumns, fixedGridRows = Helper.BuildFixedSlotEntryIds(panel, nil, false)
+	end
 	runtime.readyAt = runtime.readyAt or {}
 	runtime.glowTimers = runtime.glowTimers or {}
 	runtime.itemReadyPrimed = runtime.itemReadyPrimed or {}
@@ -6043,10 +6600,18 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 
 			if show then
 				visibleCount = visibleCount + 1
-				local data = visible[visibleCount]
+				local targetIndex = visibleCount
+				if fixedLayout then
+					local slotColumn = Helper.NormalizeSlotCoordinate(entry.slotColumn)
+					local slotRow = Helper.NormalizeSlotCoordinate(entry.slotRow)
+					if slotColumn and slotRow and fixedGridColumns > 0 then targetIndex = ((slotRow - 1) * fixedGridColumns) + slotColumn end
+					visibleSlotsUsed[targetIndex] = true
+					if targetIndex > fixedSlotCount then fixedSlotCount = targetIndex end
+				end
+				local data = visible[targetIndex]
 				if not data then
 					data = {}
-					visible[visibleCount] = data
+					visible[targetIndex] = data
 				end
 				data.icon = iconTexture or Helper.PREVIEW_ICON
 				data.showCooldown = showCooldown
@@ -6104,15 +6669,24 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 		end
 	end
 
-	for i = visibleCount + 1, #visible do
-		visible[i] = nil
+	if fixedLayout then
+		for i = 1, fixedSlotCount do
+			if not visibleSlotsUsed[i] then visible[i] = nil end
+		end
+		for i = fixedSlotCount + 1, #visible do
+			visible[i] = nil
+		end
+	else
+		for i = visibleCount + 1, #visible do
+			visible[i] = nil
+		end
 	end
 	for i = visiblePowerSpellCount + 1, #visiblePowerSpells do
 		visiblePowerSpells[i] = nil
 	end
 	runtime.visiblePowerSpellCount = visiblePowerSpellCount
 
-	local count = visibleCount
+	local count = fixedLayout and fixedSlotCount or visibleCount
 	local layoutCount = count > 0 and count or 1
 	if didLayoutShapeChange(runtime, layout, layoutCount) then self:ApplyLayout(panelId, layoutCount) end
 	ensureIconCount(frame, count)
@@ -6126,325 +6700,354 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 	for i = 1, count do
 		local data = visible[i]
 		local icon = frame.icons[i]
-		if showOnCooldown then
-			icon:SetAlpha(0)
-		elseif not hideOnCooldown then
-			icon:SetAlpha(1)
-		end
-		clearPreviewCooldown(icon.cooldown)
-		entryToIcon[data.entryId] = icon
-		icon.texture:SetTexture(data.icon or Helper.PREVIEW_ICON)
-		icon.texture:SetShown(showIconTexture)
-		CooldownPanels.ApplyIconTooltip(icon, data.entry, showTooltips)
-		icon.cooldown:SetHideCountdownNumbers(not data.showCooldownText)
-		if icon.cooldown.SetReverse then icon.cooldown:SetReverse(data.resolvedType == "CDM_AURA") end
-		if icon.cooldown.SetUseAuraDisplayTime then icon.cooldown:SetUseAuraDisplayTime(data.resolvedType == "CDM_AURA") end
+		self:ConfigureEditModePanelIcon(panelId, icon, nil, nil, nil)
+		if not data then
+			clearPreviewCooldown(icon.cooldown)
+			icon.cooldown:Clear()
+			icon.cooldown._eqolPanelId = nil
+			icon.cooldown._eqolEntryId = nil
+			icon.cooldown._eqolCooldownIsGCD = nil
+			icon.cooldown._eqolSoundReady = nil
+			icon.cooldown._eqolSoundName = nil
+			icon.cooldown._eqolGlowReady = nil
+			icon.cooldown._eqolGlowDuration = nil
+			if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", nil) end
+			if icon.cooldown.Resume then icon.cooldown:Resume() end
+			icon.count:Hide()
+			icon.charges:Hide()
+			if icon.rangeOverlay then icon.rangeOverlay:Hide() end
+			if icon.keybind then icon.keybind:Hide() end
+			if icon.staticText then icon.staticText:Hide() end
+			if icon.previewBling then icon.previewBling:Hide() end
+			icon.texture:SetDesaturated(false)
+			icon.texture:SetAlpha(1)
+			CooldownPanels.ApplyIconTooltip(icon, nil, false)
+			setAssistedHighlight(icon, false)
+			setGlow(icon, false)
+			icon:Hide()
+		else
+			icon:Show()
+			if showOnCooldown then
+				icon:SetAlpha(0)
+			elseif not hideOnCooldown then
+				icon:SetAlpha(1)
+			end
+			clearPreviewCooldown(icon.cooldown)
+			entryToIcon[data.entryId] = icon
+			icon.texture:SetTexture(data.icon or Helper.PREVIEW_ICON)
+			icon.texture:SetShown(showIconTexture)
+			CooldownPanels.ApplyIconTooltip(icon, data.entry, showTooltips)
+			icon.cooldown:SetHideCountdownNumbers(not data.showCooldownText)
+			if icon.cooldown.SetReverse then icon.cooldown:SetReverse(data.resolvedType == "CDM_AURA") end
+			if icon.cooldown.SetUseAuraDisplayTime then icon.cooldown:SetUseAuraDisplayTime(data.resolvedType == "CDM_AURA") end
 
-		-- Context for OnCooldownDone (sound/glow) - keep this in sync every update.
-		icon.cooldown._eqolPanelId = panelId
-		icon.cooldown._eqolEntryId = data.entryId
-		icon.cooldown._eqolCooldownIsGCD = data.cooldownGCD == true
-		icon.cooldown._eqolSoundReady = data.soundReady and not data.cooldownGCD
-		icon.cooldown._eqolSoundName = data.soundName
-		icon.cooldown._eqolGlowReady = data.glowReady
-		icon.cooldown._eqolGlowDuration = data.glowDuration
-		if icon.cooldown.Resume then icon.cooldown:Resume() end
-		if icon.previewGlow then icon.previewGlow:Hide() end
-		if icon.previewBling then icon.previewBling:Hide() end
+			-- Context for OnCooldownDone (sound/glow) - keep this in sync every update.
+			icon.cooldown._eqolPanelId = panelId
+			icon.cooldown._eqolEntryId = data.entryId
+			icon.cooldown._eqolCooldownIsGCD = data.cooldownGCD == true
+			icon.cooldown._eqolSoundReady = data.soundReady and not data.cooldownGCD
+			icon.cooldown._eqolSoundName = data.soundName
+			icon.cooldown._eqolGlowReady = data.glowReady
+			icon.cooldown._eqolGlowDuration = data.glowDuration
+			if icon.cooldown.Resume then icon.cooldown:Resume() end
+			if icon.previewGlow then icon.previewGlow:Hide() end
+			if icon.previewBling then icon.previewBling:Hide() end
 
-		local cooldownStart = data.cooldownStart or 0
-		local cooldownDuration = data.cooldownDuration or 0
-		local cooldownRate = data.cooldownRate or 1
-		local cooldownDurationObject = data.cooldownDurationObject
-		local cooldownEnabledOk = isSafeNotFalse(data.cooldownEnabled)
-		local cooldownRemaining = data.cooldownRemaining
-		local durationActive = cooldownDurationObject ~= nil and (cooldownRemaining == nil or cooldownRemaining > 0)
-		local cdmAuraActive = data.cdmAuraActive == true
-		local cdmAuraDurationActive = data.cdmAuraDurationActive == true
-		local cdmAuraUsesExpirationTime = data.cdmAuraUsesExpirationTime == true
-		local cdmAuraUsesStartTime = data.cdmAuraUsesStartTime == true
-		local cooldownActive = data.showCooldown and (durationActive or (cooldownEnabledOk and isCooldownActive(cooldownStart, cooldownDuration)))
-		local usingCooldown = false
-		local desaturate = false
-		local hidden = false
+			local cooldownStart = data.cooldownStart or 0
+			local cooldownDuration = data.cooldownDuration or 0
+			local cooldownRate = data.cooldownRate or 1
+			local cooldownDurationObject = data.cooldownDurationObject
+			local cooldownEnabledOk = isSafeNotFalse(data.cooldownEnabled)
+			local cooldownRemaining = data.cooldownRemaining
+			local durationActive = cooldownDurationObject ~= nil and (cooldownRemaining == nil or cooldownRemaining > 0)
+			local cdmAuraActive = data.cdmAuraActive == true
+			local cdmAuraDurationActive = data.cdmAuraDurationActive == true
+			local cdmAuraUsesExpirationTime = data.cdmAuraUsesExpirationTime == true
+			local cdmAuraUsesStartTime = data.cdmAuraUsesStartTime == true
+			local cooldownActive = data.showCooldown and (durationActive or (cooldownEnabledOk and isCooldownActive(cooldownStart, cooldownDuration)))
+			local usingCooldown = false
+			local desaturate = false
+			local hidden = false
 
-		if data.showCharges and data.chargesInfo and data.chargesInfo.maxCharges ~= nil then
-			if data.chargesInfo.currentCharges ~= nil then
-				icon.charges:SetText(data.chargesInfo.currentCharges)
-				icon.charges:Show()
+			if data.showCharges and data.chargesInfo and data.chargesInfo.maxCharges ~= nil then
+				if data.chargesInfo.currentCharges ~= nil then
+					icon.charges:SetText(data.chargesInfo.currentCharges)
+					icon.charges:Show()
+				else
+					icon.charges:Hide()
+				end
+				if data.showCooldown then
+					local chargesSecret = Api.issecretvalue and (Api.issecretvalue(data.chargesInfo.currentCharges) or Api.issecretvalue(data.chargesInfo.maxCharges))
+					if chargesSecret or isSafeLessThan(data.chargesInfo.currentCharges, data.chargesInfo.maxCharges) then
+						cooldownStart = data.chargesInfo.cooldownStartTime or cooldownStart
+						cooldownDuration = data.chargesInfo.cooldownDuration or cooldownDuration
+						cooldownRate = data.chargesInfo.chargeModRate or cooldownRate
+						cooldownActive = true
+						usingCooldown = true
+					end
+				end
+				if usingCooldown then
+					if isSafeNumber(data.chargesInfo.currentCharges) then
+						desaturate = data.chargesInfo.currentCharges == 0
+						if hideOnCooldown or showOnCooldown then hidden = desaturate end
+					else
+						-- local CCD = C_Spell.GetSpellChargeDuration(data.entry.spellID)
+						-- local SCD = C_Spell.GetSpellCooldownDuration(data.entry.spellID)
+						-- if CCD and SCD then
+						-- 	-- desaturate = true
+						-- 	-- icon.texture:SetDesaturation(SCD:GetRemainingDuration())
+						-- else
+						-- 	-- desaturate = false
+						-- 	-- icon.texture:SetDesaturated(false)
+						-- end
+					end
+				end
 			else
 				icon.charges:Hide()
+			end
+
+			if data.showItemUses then
+				if data.itemUses ~= nil then
+					icon.charges:SetText(data.itemUses)
+					icon.charges:Show()
+				else
+					icon.charges:Hide()
+				end
+			end
+
+			if data.emptyItem then desaturate = true end
+
+			if not isSafeNumber(cooldownRate) then cooldownRate = 1 end
+			setIconDesaturated(icon.texture, desaturate)
+			if hideOnCooldown then
+				icon:SetAlphaFromBoolean(hidden, 0, 1)
+			elseif showOnCooldown then
+				icon:SetAlphaFromBoolean(hidden, 1, 0)
 			end
 			if data.showCooldown then
-				local chargesSecret = Api.issecretvalue and (Api.issecretvalue(data.chargesInfo.currentCharges) or Api.issecretvalue(data.chargesInfo.maxCharges))
-				if chargesSecret or isSafeLessThan(data.chargesInfo.currentCharges, data.chargesInfo.maxCharges) then
-					cooldownStart = data.chargesInfo.cooldownStartTime or cooldownStart
-					cooldownDuration = data.chargesInfo.cooldownDuration or cooldownDuration
-					cooldownRate = data.chargesInfo.chargeModRate or cooldownRate
-					cooldownActive = true
-					usingCooldown = true
-				end
-			end
-			if usingCooldown then
-				if isSafeNumber(data.chargesInfo.currentCharges) then
-					desaturate = data.chargesInfo.currentCharges == 0
-					if hideOnCooldown or showOnCooldown then hidden = desaturate end
-				else
-					-- local CCD = C_Spell.GetSpellChargeDuration(data.entry.spellID)
-					-- local SCD = C_Spell.GetSpellCooldownDuration(data.entry.spellID)
-					-- if CCD and SCD then
-					-- 	-- desaturate = true
-					-- 	-- icon.texture:SetDesaturation(SCD:GetRemainingDuration())
-					-- else
-					-- 	-- desaturate = false
-					-- 	-- icon.texture:SetDesaturated(false)
-					-- end
-				end
-			end
-		else
-			icon.charges:Hide()
-		end
-
-		if data.showItemUses then
-			if data.itemUses ~= nil then
-				icon.charges:SetText(data.itemUses)
-				icon.charges:Show()
-			else
-				icon.charges:Hide()
-			end
-		end
-
-		if data.emptyItem then desaturate = true end
-
-		if not isSafeNumber(cooldownRate) then cooldownRate = 1 end
-		setIconDesaturated(icon.texture, desaturate)
-		if hideOnCooldown then
-			icon:SetAlphaFromBoolean(hidden, 0, 1)
-		elseif showOnCooldown then
-			icon:SetAlphaFromBoolean(hidden, 1, 0)
-		end
-		if data.showCooldown then
-			if usingCooldown then
-				-- if data.entry.spellID == 204019 then print(cooldownDurationObject:GetRemainingDuration(), cooldownStart, cooldownRate)end
-				-- icon.cooldown:SetCooldown(cooldownStart, cooldownDuration, cooldownRate)
-				setCooldownDrawState(icon.cooldown, drawEdge, drawBling, drawSwipe)
-				if data.showChargesCooldown then
-					local entrySpellId = data.entry and data.entry.spellID
-					local effectiveId = entrySpellId and getEffectiveSpellId(entrySpellId) or entrySpellId
-					local CCD = effectiveId and C_Spell.GetSpellChargeDuration(effectiveId)
-					if CCD and icon.cooldown.SetCooldownFromDurationObject then
+				if usingCooldown then
+					-- if data.entry.spellID == 204019 then print(cooldownDurationObject:GetRemainingDuration(), cooldownStart, cooldownRate)end
+					-- icon.cooldown:SetCooldown(cooldownStart, cooldownDuration, cooldownRate)
+					setCooldownDrawState(icon.cooldown, drawEdge, drawBling, drawSwipe)
+					if data.showChargesCooldown then
+						local entrySpellId = data.entry and data.entry.spellID
+						local effectiveId = entrySpellId and getEffectiveSpellId(entrySpellId) or entrySpellId
+						local CCD = effectiveId and C_Spell.GetSpellChargeDuration(effectiveId)
+						if CCD and icon.cooldown.SetCooldownFromDurationObject then
+							icon.cooldown:Clear()
+							icon.cooldown:SetCooldownFromDurationObject(CCD)
+						elseif isSafeNumber(cooldownStart) and isSafeNumber(cooldownDuration) then
+							icon.cooldown:Clear()
+							icon.cooldown:SetCooldown(cooldownStart, cooldownDuration, cooldownRate)
+						else
+							icon.cooldown:Clear()
+						end
+						if not data.cooldownGCD then
+							if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", onCooldownDone) end
+						end
+					else
 						icon.cooldown:Clear()
-						icon.cooldown:SetCooldownFromDurationObject(CCD)
+						if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", nil) end
+					end
+
+					-- local SCD = effectiveId and C_Spell.GetSpellCooldownDuration(effectiveId)
+					-- only when you have zero charges SCD will be true CCD is always true when one charge is missing
+					if cooldownDurationObject then
+						if data.cooldownGCD then
+							if data.showChargesCooldown then
+								local entrySpellId = data.entry and data.entry.spellID
+								local effectiveId = entrySpellId and getEffectiveSpellId(entrySpellId) or entrySpellId
+								local CCD = effectiveId and C_Spell.GetSpellChargeDuration(effectiveId)
+								-- icon.cooldown:SetCooldownFromDurationObject(CCD)
+							end
+						-- icon.texture:SetDesaturation(0)
+						-- desaturate = false
+						-- setCooldownDrawState(icon.cooldown, gcdDrawEdge, gcdDrawBling, gcdDrawSwipe)
+						else
+							if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", onCooldownDone) end
+							setCooldownDrawState(icon.cooldown, drawEdge, drawBling, drawSwipe)
+							setIconDesaturation(icon.texture, cooldownDurationObject:EvaluateRemainingDuration(curveDesat))
+							if hideOnCooldown then
+								icon:SetAlpha(cooldownDurationObject:EvaluateRemainingDuration(curveAlpha))
+							elseif showOnCooldown then
+								icon:SetAlpha(cooldownDurationObject:EvaluateRemainingDuration(curveDesat))
+							end
+							if data.showChargesCooldown then
+								local entrySpellId = data.entry and data.entry.spellID
+								local effectiveId = entrySpellId and getEffectiveSpellId(entrySpellId) or entrySpellId
+								local CCD = effectiveId and C_Spell.GetSpellChargeDuration(effectiveId)
+								icon.cooldown:SetCooldownFromDurationObject(CCD)
+							else
+								icon.cooldown:SetCooldownFromDurationObject(cooldownDurationObject)
+							end
+						end
+					end
+				elseif durationActive then
+					icon.cooldown:SetCooldownFromDurationObject(cooldownDurationObject)
+					if data.cooldownGCD then
+						setIconDesaturation(icon.texture, 0)
+						if hideOnCooldown then
+							icon:SetAlpha(1)
+						elseif showOnCooldown then
+							icon:SetAlpha(0)
+						end
+						desaturate = false
+						hidden = false
+						setCooldownDrawState(icon.cooldown, gcdDrawEdge, gcdDrawBling, gcdDrawSwipe)
+					else
+						setCooldownDrawState(icon.cooldown, drawEdge, drawBling, drawSwipe)
+
+						local desat = cooldownDurationObject:EvaluateRemainingDuration(curveDesat)
+						setIconDesaturation(icon.texture, desat)
+						if hideOnCooldown then
+							icon:SetAlpha(cooldownDurationObject:EvaluateRemainingDuration(curveAlpha))
+						elseif showOnCooldown then
+							icon:SetAlpha(cooldownDurationObject:EvaluateRemainingDuration(curveDesat))
+						end
+					end
+					if data.cooldownGCD then
+					else
+						if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", onCooldownDone) end
+					end
+				elseif cdmAuraDurationActive then
+					setCooldownDrawState(icon.cooldown, drawEdge, drawBling, drawSwipe)
+					if cdmAuraUsesExpirationTime and icon.cooldown.SetCooldownFromExpirationTime then
+						icon.cooldown:Clear()
+						icon.cooldown:SetCooldownFromExpirationTime(cooldownStart, cooldownDuration, cooldownRate)
+					elseif cdmAuraUsesStartTime then
+						icon.cooldown:Clear()
+						icon.cooldown:SetCooldown(cooldownStart or 0, cooldownDuration or 0, cooldownRate)
 					elseif isSafeNumber(cooldownStart) and isSafeNumber(cooldownDuration) then
 						icon.cooldown:Clear()
 						icon.cooldown:SetCooldown(cooldownStart, cooldownDuration, cooldownRate)
 					else
 						icon.cooldown:Clear()
 					end
-					if not data.cooldownGCD then
-						if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", onCooldownDone) end
+					setIconDesaturation(icon.texture, 0)
+					desaturate = false
+					if hideOnCooldown then
+						icon:SetAlpha(0)
+						hidden = true
+					elseif showOnCooldown then
+						icon:SetAlpha(1)
 					end
+					if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", onCooldownDone) end
+				elseif cooldownActive then
+					icon.cooldown:SetCooldown(cooldownStart, cooldownDuration, cooldownRate)
+					desaturate = true
+					setIconDesaturated(icon.texture, desaturate)
+					if hideOnCooldown then
+						icon:SetAlpha(0)
+					elseif showOnCooldown then
+						icon:SetAlpha(1)
+					end
+					setCooldownDrawState(icon.cooldown, drawEdge, drawBling, drawSwipe)
+					if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", onCooldownDone) end
+				elseif data.resolvedType == "CDM_AURA" and cdmAuraActive then
+					setCooldownDrawState(icon.cooldown, drawEdge, drawBling, drawSwipe)
+					icon.cooldown:Clear()
+					setIconDesaturation(icon.texture, 0)
+					desaturate = false
+					if hideOnCooldown then
+						icon:SetAlpha(0)
+						hidden = true
+					elseif showOnCooldown then
+						icon:SetAlpha(1)
+					end
+					if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", nil) end
 				else
+					setCooldownDrawState(icon.cooldown, drawEdge, drawBling, drawSwipe)
 					icon.cooldown:Clear()
 					if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", nil) end
 				end
+			else
+				setCooldownDrawState(icon.cooldown, drawEdge, drawBling, drawSwipe)
+				icon.cooldown:Clear()
+				if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", nil) end
+			end
+			if not hidden then icon.texture:SetAlphaFromBoolean((not noDesaturation) and desaturate, 0.5, 1) end
+			if data.spellUnusable then
+				icon.texture:SetVertexColor(unusableTintR or 0.6, unusableTintG or 0.6, unusableTintB or 0.6)
+			elseif data.powerInsufficient then
+				icon.texture:SetVertexColor(powerTintR or 0.5, powerTintG or 0.5, powerTintB or 1)
+			else
+				icon.texture:SetVertexColor(1, 1, 1)
+			end
 
-				-- local SCD = effectiveId and C_Spell.GetSpellCooldownDuration(effectiveId)
-				-- only when you have zero charges SCD will be true CCD is always true when one charge is missing
-				if cooldownDurationObject then
-					if data.cooldownGCD then
-						if data.showChargesCooldown then
-							local entrySpellId = data.entry and data.entry.spellID
-							local effectiveId = entrySpellId and getEffectiveSpellId(entrySpellId) or entrySpellId
-							local CCD = effectiveId and C_Spell.GetSpellChargeDuration(effectiveId)
-							-- icon.cooldown:SetCooldownFromDurationObject(CCD)
-						end
-						-- icon.texture:SetDesaturation(0)
-						-- desaturate = false
-						-- setCooldownDrawState(icon.cooldown, gcdDrawEdge, gcdDrawBling, gcdDrawSwipe)
+			if data.showItemCount and data.itemCount ~= nil then
+				icon.count:SetText(data.itemCount)
+				icon.count:Show()
+			elseif data.showStacks and data.stackCount then
+				icon.count:SetText(data.stackCount)
+				icon.count:Show()
+			else
+				icon.count:Hide()
+			end
+			if icon.keybind then
+				if data.showKeybinds and data.keybindText then
+					icon.keybind:SetText(data.keybindText)
+					icon.keybind:Show()
+				else
+					icon.keybind:Hide()
+				end
+			end
+			local staticTextCooldown = false
+			if data.entry and data.entry.staticTextShowOnCooldown == true then
+				staticTextCooldown = data.stanceActive == true or cdmAuraActive or durationActive or (cooldownEnabledOk and isCooldownActive(cooldownStart, cooldownDuration))
+			end
+			applyStaticText(icon, data.entry, staticFontPath, staticFontSize, staticFontStyle, staticTextCooldown)
+			if icon.rangeOverlay then
+				if data.rangeOverlay then
+					icon.rangeOverlay:SetColorTexture(rangeOverlayR or 1, rangeOverlayG or 0.1, rangeOverlayB or 0.1, rangeOverlayA or 0.35)
+					icon.rangeOverlay:Show()
+				else
+					icon.rangeOverlay:Hide()
+				end
+			end
+			setAssistedHighlight(icon, data.assistedSuggested == true)
+
+			local itemCooldownRunning
+			if data.resolvedType == "ITEM" or data.resolvedType == "SLOT" then
+				itemCooldownRunning = durationActive or (cooldownEnabledOk and isCooldownActive(cooldownStart, cooldownDuration))
+				if itemCooldownRunning then
+					CooldownPanels.ClearReadyGlowEntryState(panelId, data.entryId, true)
+					data.readyAt = nil
+				end
+			end
+			if (data.resolvedType == "ITEM" or data.resolvedType == "SLOT") and data.glowReady and data.showCooldown and data.canTriggerReadyGlow then
+				if data.readyAt then
+					itemReadyPrimed[data.entryId] = true
+				elseif not itemCooldownRunning and not itemReadyPrimed[data.entryId] then
+					triggerReadyGlow(panelId, data.entryId, data.glowDuration)
+					itemReadyPrimed[data.entryId] = true
+					data.readyAt = runtime.readyAt[data.entryId]
+				end
+			end
+
+			local overlayGlow = data.overlayGlow == true
+			if data.glowReady then
+				local ready = false
+				local duration = tonumber(data.glowDuration) or 0
+
+				if data.readyAt and Api.GetTime then
+					if duration > 0 then
+						ready = (Api.GetTime() - data.readyAt) <= duration
 					else
-						if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", onCooldownDone) end
-						setCooldownDrawState(icon.cooldown, drawEdge, drawBling, drawSwipe)
-						setIconDesaturation(icon.texture, cooldownDurationObject:EvaluateRemainingDuration(curveDesat))
-						if hideOnCooldown then
-							icon:SetAlpha(cooldownDurationObject:EvaluateRemainingDuration(curveAlpha))
-						elseif showOnCooldown then
-							icon:SetAlpha(cooldownDurationObject:EvaluateRemainingDuration(curveDesat))
-						end
-						if data.showChargesCooldown then
-							local entrySpellId = data.entry and data.entry.spellID
-							local effectiveId = entrySpellId and getEffectiveSpellId(entrySpellId) or entrySpellId
-							local CCD = effectiveId and C_Spell.GetSpellChargeDuration(effectiveId)
-							icon.cooldown:SetCooldownFromDurationObject(CCD)
-						else
-							icon.cooldown:SetCooldownFromDurationObject(cooldownDurationObject)
-						end
+						ready = true
 					end
 				end
-			elseif durationActive then
-				icon.cooldown:SetCooldownFromDurationObject(cooldownDurationObject)
-				if data.cooldownGCD then
-					setIconDesaturation(icon.texture, 0)
-					if hideOnCooldown then
-						icon:SetAlpha(1)
-					elseif showOnCooldown then
-						icon:SetAlpha(0)
-					end
-					desaturate = false
-					hidden = false
-					setCooldownDrawState(icon.cooldown, gcdDrawEdge, gcdDrawBling, gcdDrawSwipe)
-				else
-					setCooldownDrawState(icon.cooldown, drawEdge, drawBling, drawSwipe)
 
-					local desat = cooldownDurationObject:EvaluateRemainingDuration(curveDesat)
-					setIconDesaturation(icon.texture, desat)
-					if hideOnCooldown then
-						icon:SetAlpha(cooldownDurationObject:EvaluateRemainingDuration(curveAlpha))
-					elseif showOnCooldown then
-						icon:SetAlpha(cooldownDurationObject:EvaluateRemainingDuration(curveDesat))
-					end
-				end
-				if data.cooldownGCD then
-				else
-					if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", onCooldownDone) end
-				end
-			elseif cdmAuraDurationActive then
-				setCooldownDrawState(icon.cooldown, drawEdge, drawBling, drawSwipe)
-				if cdmAuraUsesExpirationTime and icon.cooldown.SetCooldownFromExpirationTime then
-					icon.cooldown:Clear()
-					icon.cooldown:SetCooldownFromExpirationTime(cooldownStart, cooldownDuration, cooldownRate)
-				elseif cdmAuraUsesStartTime then
-					icon.cooldown:Clear()
-					icon.cooldown:SetCooldown(cooldownStart or 0, cooldownDuration or 0, cooldownRate)
-				elseif isSafeNumber(cooldownStart) and isSafeNumber(cooldownDuration) then
-					icon.cooldown:Clear()
-					icon.cooldown:SetCooldown(cooldownStart, cooldownDuration, cooldownRate)
-				else
-					icon.cooldown:Clear()
-				end
-				setIconDesaturation(icon.texture, 0)
-				desaturate = false
-				if hideOnCooldown then
-					icon:SetAlpha(0)
-					hidden = true
-				elseif showOnCooldown then
-					icon:SetAlpha(1)
-				end
-				if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", onCooldownDone) end
-			elseif cooldownActive then
-				icon.cooldown:SetCooldown(cooldownStart, cooldownDuration, cooldownRate)
-				desaturate = true
-				setIconDesaturated(icon.texture, desaturate)
-				if hideOnCooldown then
-					icon:SetAlpha(0)
-				elseif showOnCooldown then
-					icon:SetAlpha(1)
-				end
-				setCooldownDrawState(icon.cooldown, drawEdge, drawBling, drawSwipe)
-				if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", onCooldownDone) end
-			elseif data.resolvedType == "CDM_AURA" and cdmAuraActive then
-				setCooldownDrawState(icon.cooldown, drawEdge, drawBling, drawSwipe)
-				icon.cooldown:Clear()
-				setIconDesaturation(icon.texture, 0)
-				desaturate = false
-				if hideOnCooldown then
-					icon:SetAlpha(0)
-					hidden = true
-				elseif showOnCooldown then
-					icon:SetAlpha(1)
-				end
-				if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", nil) end
+				setGlow(icon, overlayGlow or ready, ready and data.readyGlowColor or nil)
 			else
-				setCooldownDrawState(icon.cooldown, drawEdge, drawBling, drawSwipe)
-				icon.cooldown:Clear()
-				if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", nil) end
+				setGlow(icon, overlayGlow)
 			end
-		else
-			setCooldownDrawState(icon.cooldown, drawEdge, drawBling, drawSwipe)
-			icon.cooldown:Clear()
-			if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", nil) end
-		end
-		if not hidden then icon.texture:SetAlphaFromBoolean((not noDesaturation) and desaturate, 0.5, 1) end
-		if data.spellUnusable then
-			icon.texture:SetVertexColor(unusableTintR or 0.6, unusableTintG or 0.6, unusableTintB or 0.6)
-		elseif data.powerInsufficient then
-			icon.texture:SetVertexColor(powerTintR or 0.5, powerTintG or 0.5, powerTintB or 1)
-		else
-			icon.texture:SetVertexColor(1, 1, 1)
-		end
-
-		if data.showItemCount and data.itemCount ~= nil then
-			icon.count:SetText(data.itemCount)
-			icon.count:Show()
-		elseif data.showStacks and data.stackCount then
-			icon.count:SetText(data.stackCount)
-			icon.count:Show()
-		else
-			icon.count:Hide()
-		end
-		if icon.keybind then
-			if data.showKeybinds and data.keybindText then
-				icon.keybind:SetText(data.keybindText)
-				icon.keybind:Show()
-			else
-				icon.keybind:Hide()
-			end
-		end
-		local staticTextCooldown = false
-		if data.entry and data.entry.staticTextShowOnCooldown == true then
-			staticTextCooldown = data.stanceActive == true or cdmAuraActive or durationActive or (cooldownEnabledOk and isCooldownActive(cooldownStart, cooldownDuration))
-		end
-		applyStaticText(icon, data.entry, staticFontPath, staticFontSize, staticFontStyle, staticTextCooldown)
-		if icon.rangeOverlay then
-			if data.rangeOverlay then
-				icon.rangeOverlay:SetColorTexture(rangeOverlayR or 1, rangeOverlayG or 0.1, rangeOverlayB or 0.1, rangeOverlayA or 0.35)
-				icon.rangeOverlay:Show()
-			else
-				icon.rangeOverlay:Hide()
-			end
-		end
-		setAssistedHighlight(icon, data.assistedSuggested == true)
-
-		local itemCooldownRunning
-		if data.resolvedType == "ITEM" or data.resolvedType == "SLOT" then
-			itemCooldownRunning = durationActive or (cooldownEnabledOk and isCooldownActive(cooldownStart, cooldownDuration))
-			if itemCooldownRunning then
-				CooldownPanels.ClearReadyGlowEntryState(panelId, data.entryId, true)
-				data.readyAt = nil
-			end
-		end
-		if (data.resolvedType == "ITEM" or data.resolvedType == "SLOT") and data.glowReady and data.showCooldown and data.canTriggerReadyGlow then
-			if data.readyAt then
-				itemReadyPrimed[data.entryId] = true
-			elseif not itemCooldownRunning and not itemReadyPrimed[data.entryId] then
-				triggerReadyGlow(panelId, data.entryId, data.glowDuration)
-				itemReadyPrimed[data.entryId] = true
-				data.readyAt = runtime.readyAt[data.entryId]
-			end
-		end
-
-		local overlayGlow = data.overlayGlow == true
-		if data.glowReady then
-			local ready = false
-			local duration = tonumber(data.glowDuration) or 0
-
-			if data.readyAt and Api.GetTime then
-				if duration > 0 then
-					ready = (Api.GetTime() - data.readyAt) <= duration
-				else
-					ready = true
-				end
-			end
-
-			setGlow(icon, overlayGlow or ready, ready and data.readyGlowColor or nil)
-		else
-			setGlow(icon, overlayGlow)
 		end
 	end
 
 	for i = count + 1, #frame.icons do
 		local icon = frame.icons[i]
 		if icon then
+			self:ConfigureEditModePanelIcon(panelId, icon, nil, nil, nil)
 			clearPreviewCooldown(icon.cooldown)
 			icon.cooldown:Clear()
 			icon.cooldown._eqolSoundReady = nil
@@ -6464,7 +7067,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 		end
 	end
 
-	runtime.visibleCount = count
+	runtime.visibleCount = visibleCount
 	runtime.initialized = true
 end
 
@@ -6532,7 +7135,9 @@ end
 
 function CooldownPanels:ShouldShowPanel(panelId)
 	local panel = self:GetPanel(panelId)
-	if not panel or panel.enabled == false then return false end
+	if not panel then return false end
+	if self:IsPanelLayoutEditActive(panelId) then return true end
+	if panel.enabled == false then return false end
 	if not panelAllowsSpec(panel) then return false end
 	if self:IsInEditMode() == true then return true end
 	panel.layout = panel.layout or Helper.CopyTableShallow(Helper.PANEL_LAYOUT_DEFAULTS)
@@ -6561,7 +7166,7 @@ function CooldownPanels:UpdatePanelOpacity(panelId, forcedAlpha)
 	local alpha
 	if forcedAlpha ~= nil then
 		alpha = forcedAlpha
-	elseif self:IsInEditMode() == true then
+	elseif self:IsInEditMode() == true or self:IsPanelLayoutEditActive(panelId) then
 		alpha = 1
 	else
 		local inCombat = (InCombatLockdown and InCombatLockdown()) or (UnitAffectingCombat and UnitAffectingCombat("player")) or false
@@ -6602,10 +7207,34 @@ function CooldownPanels:UpdatePanelMouseState(panelId)
 	local runtime = getRuntime(panelId)
 	local frame = runtime.frame
 	if not frame then return end
-	local enable = self:IsInEditMode() == true
-	if frame._mouseEnabled ~= enable then
-		frame._mouseEnabled = enable
-		frame:EnableMouse(enable)
+	local inEditMode = self:IsInEditMode() == true
+	local layoutEditActive = self:IsPanelLayoutEditActive(panelId)
+	if frame._mouseEnabled ~= false then
+		frame._mouseEnabled = false
+		frame:EnableMouse(false)
+	end
+	if frame.Selection and frame.Selection.EnableMouse then
+		local enableSelection = inEditMode and not layoutEditActive
+		if frame._eqolSelectionMouseEnabled ~= enableSelection then
+			frame._eqolSelectionMouseEnabled = enableSelection
+			frame.Selection:EnableMouse(enableSelection)
+		end
+	end
+	if frame.editDropZone then
+		local showDropZone = layoutEditActive
+		frame.editDropZone:SetShown(showDropZone)
+		if frame._eqolDropZoneMouseEnabled ~= showDropZone then
+			frame._eqolDropZoneMouseEnabled = showDropZone
+			frame.editDropZone:EnableMouse(showDropZone)
+		end
+	end
+	if frame.editMoveHandle then
+		local showHandle = false
+		frame.editMoveHandle:SetShown(showHandle == true)
+		if frame._eqolMoveHandleMouseEnabled ~= showHandle then
+			frame._eqolMoveHandleMouseEnabled = showHandle
+			frame.editMoveHandle:EnableMouse(showHandle == true)
+		end
 	end
 end
 
@@ -6625,7 +7254,8 @@ end
 function CooldownPanels:RefreshPanel(panelId)
 	local panel = self:GetPanel(panelId)
 	if not panel then return end
-	if panel.enabled == false and not self:IsInEditMode() then
+	local layoutEditActive = self:IsPanelLayoutEditActive(panelId)
+	if panel.enabled == false and not self:IsInEditMode() and not layoutEditActive then
 		local runtime = self.runtime and self.runtime[panelId]
 		local frame = runtime and runtime.frame
 		if frame then frame:Hide() end
@@ -6634,7 +7264,7 @@ function CooldownPanels:RefreshPanel(panelId)
 	self:EnsurePanelFrame(panelId)
 	self:ApplyPanelPosition(panelId)
 	local runtime = getRuntime(panelId)
-	if self:IsInEditMode() then
+	if self:IsInEditMode() or layoutEditActive then
 		clearRuntimeLayoutShapeCache(runtime)
 		self:ApplyLayout(panelId)
 		self:UpdatePreviewIcons(panelId)
@@ -6643,6 +7273,7 @@ function CooldownPanels:RefreshPanel(panelId)
 		self:UpdateRuntimeIcons(panelId)
 	end
 	self:UpdateVisibility(panelId)
+	self:ShowEditModeHint(panelId, self:IsInEditMode() == true or layoutEditActive)
 end
 
 function CooldownPanels:HideAllRuntimePanels()
@@ -6674,7 +7305,7 @@ end
 function CooldownPanels:RefreshAllPanels()
 	local root = ensureRoot()
 	if not root then return end
-	if self:IsInEditMode() ~= true then
+	if self:IsInEditMode() ~= true and not self:IsAnyPanelLayoutEditActive() then
 		local enabledPanels = self.runtime and self.runtime.enabledPanels
 		if not enabledPanels or not next(enabledPanels) then
 			self:HideAllRuntimePanels()
@@ -6715,6 +7346,25 @@ local function applyEditLayout(panelId, field, value, skipRefresh)
 		layout.spacing = Helper.ClampInt(value, 0, 50, layout.spacing)
 	elseif field == "layoutMode" then
 		layout.layoutMode = Helper.NormalizeLayoutMode(value, layout.layoutMode or Helper.PANEL_LAYOUT_DEFAULTS.layoutMode)
+		if Helper.IsFixedLayout(layout) then
+			local maxColumn, maxRow = Helper.EnsureFixedSlotAssignments(panel)
+			layout.fixedGridColumns = math.max(Helper.NormalizeFixedGridSize(layout.fixedGridColumns, Helper.PANEL_LAYOUT_DEFAULTS.fixedGridColumns or 0), maxColumn or 0)
+			layout.fixedGridRows = math.max(Helper.NormalizeFixedGridSize(layout.fixedGridRows, Helper.PANEL_LAYOUT_DEFAULTS.fixedGridRows or 0), maxRow or 0)
+		end
+	elseif field == "fixedSlotCount" then
+		local minimum = 0
+		if Helper.IsFixedLayout(layout) then
+			local maxColumn = Helper.EnsureFixedSlotAssignments(panel)
+			minimum = maxColumn or 0
+		end
+		layout.fixedGridColumns = math.max(Helper.NormalizeFixedGridSize(value, layout.fixedGridColumns or Helper.PANEL_LAYOUT_DEFAULTS.fixedGridColumns or 0), minimum)
+	elseif field == "fixedGridRows" then
+		local minimum = 0
+		if Helper.IsFixedLayout(layout) then
+			local _, maxRow = Helper.EnsureFixedSlotAssignments(panel)
+			minimum = maxRow or 0
+		end
+		layout.fixedGridRows = math.max(Helper.NormalizeFixedGridSize(value, layout.fixedGridRows or Helper.PANEL_LAYOUT_DEFAULTS.fixedGridRows or 0), minimum)
 	elseif field == "direction" then
 		layout.direction = Helper.NormalizeDirection(value, layout.direction)
 	elseif field == "wrapCount" then
@@ -6865,7 +7515,13 @@ local function applyEditLayout(panelId, field, value, skipRefresh)
 		local idx = tonumber(rowSizeIndex)
 		syncValue = (layout.rowSizes and layout.rowSizes[idx]) or base
 	end
+	if field == "fixedSlotCount" then syncValue = Helper.NormalizeFixedGridSize(layout.fixedGridColumns, Helper.PANEL_LAYOUT_DEFAULTS.fixedGridColumns or 0) end
+	if field == "fixedGridRows" then syncValue = Helper.NormalizeFixedGridSize(layout.fixedGridRows, Helper.PANEL_LAYOUT_DEFAULTS.fixedGridRows or 0) end
 	syncEditModeValue(panelId, field, syncValue)
+	if field == "layoutMode" then
+		syncEditModeValue(panelId, "fixedSlotCount", Helper.NormalizeFixedGridSize(layout.fixedGridColumns, Helper.PANEL_LAYOUT_DEFAULTS.fixedGridColumns or 0))
+		syncEditModeValue(panelId, "fixedGridRows", Helper.NormalizeFixedGridSize(layout.fixedGridRows, Helper.PANEL_LAYOUT_DEFAULTS.fixedGridRows or 0))
+	end
 	if field == "hideOnCooldown" and layout.hideOnCooldown then
 		syncEditModeValue(panelId, "showOnCooldown", layout.showOnCooldown)
 	elseif field == "showOnCooldown" and layout.showOnCooldown then
@@ -6895,6 +7551,8 @@ function CooldownPanels:ApplyEditMode(panelId, data)
 	applyEditLayout(panelId, "iconSize", data.iconSize, true)
 	applyEditLayout(panelId, "spacing", data.spacing, true)
 	applyEditLayout(panelId, "layoutMode", data.layoutMode, true)
+	applyEditLayout(panelId, "fixedSlotCount", data.fixedSlotCount, true)
+	applyEditLayout(panelId, "fixedGridRows", data.fixedGridRows, true)
 	applyEditLayout(panelId, "direction", data.direction, true)
 	applyEditLayout(panelId, "wrapCount", data.wrapCount, true)
 	applyEditLayout(panelId, "wrapDirection", data.wrapDirection, true)
@@ -7141,6 +7799,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 		return Helper.ClampInt(value, 12, 128, base)
 	end
 	local function isRadialLayout() return Helper.NormalizeLayoutMode(layout.layoutMode, Helper.PANEL_LAYOUT_DEFAULTS.layoutMode) == "RADIAL" end
+	local function isFixedLayout() return Helper.NormalizeLayoutMode(layout.layoutMode, Helper.PANEL_LAYOUT_DEFAULTS.layoutMode) == "FIXED" end
 	local function shouldShowRowSize(index)
 		if isRadialLayout() then return false end
 		local rows, primaryHorizontal = getPanelRowCount(panel, layout)
@@ -7472,6 +8131,38 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 						)
 					end
 				end,
+			},
+			{
+				name = L["CooldownPanelFixedSlotCount"] or "Fixed slots",
+				kind = SettingType.Slider,
+				field = "fixedSlotCount",
+				parentId = "cooldownPanelLayout",
+				default = Helper.NormalizeFixedGridSize(layout.fixedGridColumns, Helper.PANEL_LAYOUT_DEFAULTS.fixedGridColumns or 0),
+				minValue = 0,
+				maxValue = 40,
+				valueStep = 1,
+				allowInput = true,
+				isShown = function() return not isRadialLayout() end,
+				disabled = function() return not isFixedLayout() end,
+				get = function() return Helper.NormalizeFixedGridSize(layout.fixedGridColumns, Helper.PANEL_LAYOUT_DEFAULTS.fixedGridColumns or 0) end,
+				set = function(_, value) applyEditLayout(panelId, "fixedSlotCount", value) end,
+				formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
+			},
+			{
+				name = L["CooldownPanelFixedGridRows"] or "Grid rows",
+				kind = SettingType.Slider,
+				field = "fixedGridRows",
+				parentId = "cooldownPanelLayout",
+				default = Helper.NormalizeFixedGridSize(layout.fixedGridRows, Helper.PANEL_LAYOUT_DEFAULTS.fixedGridRows or 0),
+				minValue = 0,
+				maxValue = 40,
+				valueStep = 1,
+				allowInput = true,
+				isShown = function() return not isRadialLayout() end,
+				disabled = function() return not isFixedLayout() end,
+				get = function() return Helper.NormalizeFixedGridSize(layout.fixedGridRows, Helper.PANEL_LAYOUT_DEFAULTS.fixedGridRows or 0) end,
+				set = function(_, value) applyEditLayout(panelId, "fixedGridRows", value) end,
+				formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
 			},
 			{
 				name = "Wrap",
@@ -8587,6 +9278,8 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 			iconSize = layout.iconSize,
 			spacing = layout.spacing,
 			layoutMode = Helper.NormalizeLayoutMode(layout.layoutMode, Helper.PANEL_LAYOUT_DEFAULTS.layoutMode),
+			fixedSlotCount = Helper.NormalizeFixedGridSize(layout.fixedGridColumns, Helper.PANEL_LAYOUT_DEFAULTS.fixedGridColumns or 0),
+			fixedGridRows = Helper.NormalizeFixedGridSize(layout.fixedGridRows, Helper.PANEL_LAYOUT_DEFAULTS.fixedGridRows or 0),
 			direction = Helper.NormalizeDirection(layout.direction, Helper.PANEL_LAYOUT_DEFAULTS.direction),
 			wrapCount = layout.wrapCount or 0,
 			wrapDirection = Helper.NormalizeDirection(layout.wrapDirection, Helper.PANEL_LAYOUT_DEFAULTS.wrapDirection or "DOWN"),
@@ -8666,8 +9359,16 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 		onEnter = function(activeFrame)
 			syncEditModeSelectionStrata(activeFrame or frame)
 			self:ShowEditModeHint(panelId, true)
+			if self:IsPanelLayoutEditActive(panelId) then
+				self:RequestPanelRefresh(panelId)
+			else
+				self:UpdatePanelMouseState(panelId)
+			end
 		end,
-		onExit = function() self:ShowEditModeHint(panelId, false) end,
+		onExit = function()
+			self:ShowEditModeHint(panelId, false)
+			self:RequestPanelRefresh(panelId)
+		end,
 		isEnabled = function() return panel.enabled ~= false end,
 		relativeTo = function() return resolveAnchorFrame(ensureAnchorTable()) end,
 		allowDrag = function() return anchorUsesUIParent(ensureAnchorTable()) end,
