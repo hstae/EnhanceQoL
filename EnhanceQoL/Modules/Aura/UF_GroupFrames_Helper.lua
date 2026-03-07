@@ -1316,6 +1316,25 @@ function H.BuildPreviewSampleList(kind, cfg, baseSamples, limit, quotaTanks, quo
 	local base = baseSamples or {}
 	if kind ~= "raid" and kind ~= "party" then return base end
 	local isParty = kind == "party"
+	if isParty then
+		local showPlayer = true
+		if cfg and cfg.showPlayer ~= nil then showPlayer = cfg.showPlayer == true end
+		if not showPlayer and #base > 0 then
+			local removeIndex = #base
+			for i = #base, 1, -1 do
+				if base[i] and base[i].role == "DAMAGER" then
+					removeIndex = i
+					break
+				end
+			end
+			local filtered = {}
+			-- Preserve tank/healer samples in the 4-unit preview and drop one DPS instead.
+			for i = 1, #base do
+				if i ~= removeIndex then filtered[#filtered + 1] = base[i] end
+			end
+			base = filtered
+		end
+	end
 
 	local groupFilter = cfg and cfg.groupFilter
 	local roleFilter = cfg and cfg.roleFilter
