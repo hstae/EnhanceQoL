@@ -606,6 +606,10 @@ local function syncEditModeSelectionStrata(frame)
 		frame.editMoveHandle:SetFrameStrata(targetStrata)
 		frame.editMoveHandle:SetFrameLevel((selection.GetFrameLevel and selection:GetFrameLevel() or frame:GetFrameLevel()) + 20)
 	end
+	if frame.editPanelHandle then
+		frame.editPanelHandle:SetFrameStrata(targetStrata)
+		frame.editPanelHandle:SetFrameLevel((selection.GetFrameLevel and selection:GetFrameLevel() or frame:GetFrameLevel()) + 21)
+	end
 	if frame.editDropZone then
 		frame.editDropZone:SetFrameStrata(frame:GetFrameStrata())
 		frame.editDropZone:SetFrameLevel(frame:GetFrameLevel())
@@ -888,6 +892,7 @@ function CooldownPanels:ReskinMasque()
 end
 
 local getEditor
+local applyEditLayout
 local refreshPanelsForSpell
 local refreshPanelsForCharges
 local normalizedRoots = setmetatable({}, { __mode = "k" })
@@ -1895,6 +1900,8 @@ function CooldownPanels:DeletePanel(panelId)
 	local root = ensureRoot()
 	panelId = normalizeId(panelId)
 	if not root or not root.panels or not root.panels[panelId] then return end
+	self:HideLayoutEntryStandaloneMenu(panelId)
+	self:HideLayoutPanelStandaloneMenu(panelId)
 	root.panels[panelId] = nil
 	markRootOrderDirty(root)
 	syncRootOrderIfDirty(root, true)
@@ -2030,6 +2037,8 @@ function CooldownPanels:RemoveEntry(panelId, entryId)
 	entryId = normalizeId(entryId)
 	local panel = self:GetPanel(panelId)
 	if not panel or not panel.entries or not panel.entries[entryId] then return end
+	local state = CooldownPanels.runtime and CooldownPanels.runtime.layoutEntryStandaloneMenu or nil
+	if state and normalizeId(state.panelId) == panelId and normalizeId(state.entryId) == entryId then self:HideLayoutEntryStandaloneMenu(panelId) end
 	panel.entries[entryId] = nil
 	local runtime = CooldownPanels.runtime
 	if runtime and runtime.actionDisplayCounts then runtime.actionDisplayCounts[Helper.GetEntryKey(panelId, entryId)] = nil end
@@ -2377,6 +2386,8 @@ function CooldownPanels:SelectPanel(panelId)
 	panelId = normalizeId(panelId)
 	if not root.panels or not root.panels[panelId] then return end
 	local previousPanelId = root.selectedPanel
+	if previousPanelId and previousPanelId ~= panelId then self:HideLayoutEntryStandaloneMenu(previousPanelId) end
+	if previousPanelId and previousPanelId ~= panelId then self:HideLayoutPanelStandaloneMenu(previousPanelId) end
 	root.selectedPanel = panelId
 	local editor = getEditor()
 	if editor then
@@ -2431,6 +2442,8 @@ function CooldownPanels:SetEditorLayoutEditEnabled(enabled)
 	editor.layoutEditActive = enabled
 	local nextPanelId = enabled and normalizeId(editor.selectedPanelId) or nil
 	editor._eqolLayoutPanelId = nextPanelId
+	if not enabled then self:HideLayoutEntryStandaloneMenu(previousPanelId or editor.selectedPanelId) end
+	if not enabled then self:HideLayoutPanelStandaloneMenu(previousPanelId or editor.selectedPanelId) end
 	if previousPanelId and self:GetPanel(previousPanelId) then self:RefreshPanel(previousPanelId) end
 	if nextPanelId and self:GetPanel(nextPanelId) then self:RefreshPanel(nextPanelId) end
 	self:RefreshEditor()
@@ -3074,6 +3087,32 @@ local function createPanelFrame(panelId, panel)
 	end)
 	editMoveHandle:SetScript("OnDragStop", function(self) CooldownPanels:ProxyEditModeDragStop(self.panelId) end)
 	frame.editMoveHandle = editMoveHandle
+
+	local editPanelHandle = CreateFrame("Button", nil, frame, "BackdropTemplate")
+	editPanelHandle:SetSize(56, 16)
+	editPanelHandle:SetPoint("BOTTOM", frame, "TOP", 0, 4)
+	editPanelHandle:SetBackdrop({
+		bgFile = "Interface\\Buttons\\WHITE8x8",
+		edgeFile = "Interface\\Buttons\\WHITE8x8",
+		edgeSize = 1,
+	})
+	editPanelHandle:SetBackdropColor(0, 0, 0, 0.72)
+	editPanelHandle:SetBackdropBorderColor(0.95, 0.82, 0.25, 0.95)
+	editPanelHandle:RegisterForClicks("LeftButtonUp")
+	editPanelHandle:EnableMouse(false)
+	editPanelHandle:Hide()
+	editPanelHandle.panelId = panelId
+	editPanelHandle.label = editPanelHandle:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+	editPanelHandle.label:SetPoint("CENTER")
+	editPanelHandle.label:SetText(L["CooldownPanelPanelHandle"] or "Panel")
+	editPanelHandle.label:SetTextColor(1, 0.86, 0.24, 1)
+	editPanelHandle:SetScript("OnClick", function(self, btn)
+		if btn ~= "LeftButton" then return end
+		if not (CooldownPanels and CooldownPanels:IsPanelLayoutEditActive(self.panelId)) then return end
+		CooldownPanels:SelectPanel(self.panelId)
+		CooldownPanels:OpenLayoutPanelStandaloneMenu(self.panelId, self)
+	end)
+	frame.editPanelHandle = editPanelHandle
 
 	frame:RegisterForClicks("LeftButtonUp")
 	frame:SetScript("OnReceiveDrag", function(self)
@@ -3946,6 +3985,620 @@ local function showSoundMenu(owner, panelId, entryId)
 	end)
 end
 
+function CooldownPanels:GetLayoutEntryStandaloneMenuState(create)
+	CooldownPanels.runtime = CooldownPanels.runtime or {}
+	local state = CooldownPanels.runtime.layoutEntryStandaloneMenu
+	if state == nil and create ~= false then
+		state = {}
+		CooldownPanels.runtime.layoutEntryStandaloneMenu = state
+	end
+	return state
+end
+
+function CooldownPanels:ClearLayoutEntryStandaloneMenuState()
+	local state = self:GetLayoutEntryStandaloneMenuState(false)
+	if not state then return end
+	for key in pairs(state) do
+		state[key] = nil
+	end
+end
+
+function CooldownPanels:GetLayoutEntryStandaloneDialogEntry(panelId, entryId)
+	panelId = normalizeId(panelId)
+	entryId = normalizeId(entryId)
+	local panel = self:GetPanel(panelId)
+	local entry = panel and panel.entries and panel.entries[entryId] or nil
+	return panel, entry
+end
+
+function CooldownPanels:GetLayoutEntryStandaloneEffectiveType(entry)
+	local effectiveType = entry and entry.type or nil
+	if effectiveType == "MACRO" then
+		local macro = CooldownPanels.ResolveMacroEntry(entry)
+		effectiveType = (macro and macro.kind) or "MACRO"
+	end
+	return effectiveType
+end
+
+function CooldownPanels:HideLayoutEntryStandaloneMenu(panelId)
+	local lib = addon.EditModeLib
+	local state = self:GetLayoutEntryStandaloneMenuState(false)
+	local trackedPanelId = normalizeId(state and state.panelId)
+	if panelId and trackedPanelId and trackedPanelId ~= normalizeId(panelId) then return false end
+	local hostFrame = state and state.hostFrame or (trackedPanelId and getRuntime(trackedPanelId).frame) or nil
+	local hidden = false
+	if lib and lib.HideStandaloneSettingsDialog then hidden = lib:HideStandaloneSettingsDialog(hostFrame) end
+	self:ClearLayoutEntryStandaloneMenuState()
+	return hidden
+end
+
+function CooldownPanels:RefreshLayoutEntryStandaloneMenu()
+	local lib = addon.EditModeLib
+	local state = self:GetLayoutEntryStandaloneMenuState(false)
+	if not state or not state.hostFrame then return end
+	if not (lib and lib.IsStandaloneSettingsDialogShown and lib:IsStandaloneSettingsDialogShown(state.hostFrame)) then
+		self:ClearLayoutEntryStandaloneMenuState()
+		return
+	end
+	local panelId = normalizeId(state.panelId)
+	local entryId = normalizeId(state.entryId)
+	local panel, entry = self:GetLayoutEntryStandaloneDialogEntry(panelId, entryId)
+	local editor = getEditor()
+	local selectedPanelId = normalizeId(editor and editor.selectedPanelId)
+	local selectedEntryId = normalizeId(editor and editor.selectedEntryId)
+	if
+		not panel
+		or not entry
+		or not self:IsPanelLayoutEditActive(panelId)
+		or selectedPanelId ~= panelId
+		or selectedEntryId ~= entryId
+	then
+		self:HideLayoutEntryStandaloneMenu(panelId)
+	end
+end
+
+function CooldownPanels:GetStandaloneDialogSpawnPosition(anchorFrame, fallbackFrame, offsetX, offsetY)
+	local source = anchorFrame or fallbackFrame or UIParent
+	local xOffset = tonumber(offsetX) or 0
+	local yOffset = tonumber(offsetY) or 0
+	if not source then
+		return {
+			point = "TOPLEFT",
+			relativePoint = "TOPLEFT",
+			relativeTo = UIParent,
+			x = xOffset,
+			y = yOffset,
+		}
+	end
+
+	local right = source.GetRight and source:GetRight() or nil
+	local top = source.GetTop and source:GetTop() or nil
+	local sourceScale = (source.GetEffectiveScale and source:GetEffectiveScale()) or 1
+	local parentScale = (UIParent and UIParent.GetEffectiveScale and UIParent:GetEffectiveScale()) or 1
+
+	if right and top then
+		return {
+			point = "TOPLEFT",
+			relativePoint = "BOTTOMLEFT",
+			relativeTo = UIParent,
+			x = (right * sourceScale / parentScale) + xOffset,
+			y = (top * sourceScale / parentScale) + yOffset,
+		}
+	end
+
+	return {
+		point = "TOPLEFT",
+		relativePoint = "TOPRIGHT",
+		relativeTo = source,
+		x = xOffset,
+		y = yOffset,
+	}
+end
+
+function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFrame)
+	local lib = addon.EditModeLib
+	if not (lib and lib.ShowStandaloneSettingsDialog and SettingType) then return end
+	panelId = normalizeId(panelId)
+	entryId = normalizeId(entryId)
+	if not (panelId and entryId) then return end
+	if not self:IsPanelLayoutEditActive(panelId) then return end
+	self:HideLayoutPanelStandaloneMenu(panelId)
+
+	local panel, entry = self:GetLayoutEntryStandaloneDialogEntry(panelId, entryId)
+	local runtime = getRuntime(panelId)
+	local hostFrame = runtime and runtime.frame or nil
+	if not (panel and entry and hostFrame) then return end
+	local spawnPosition = self:GetStandaloneDialogSpawnPosition(anchorFrame, hostFrame, 12, 0)
+
+	local function allowsStandaloneEntryReadySound(effectiveType) return effectiveType and effectiveType ~= "MACRO" and effectiveType ~= "STANCE" and effectiveType ~= "CDM_AURA" end
+
+	local function getEntry()
+		local currentPanel, currentEntry = CooldownPanels:GetLayoutEntryStandaloneDialogEntry(panelId, entryId)
+		return currentPanel, currentEntry
+	end
+
+	local function getEffectiveType()
+		local _, currentEntry = getEntry()
+		return CooldownPanels:GetLayoutEntryStandaloneEffectiveType(currentEntry)
+	end
+
+	local function refreshEntryViews()
+		CooldownPanels:RefreshPanel(panelId)
+		refreshEditModeSettingValues()
+		CooldownPanels:RefreshEditor()
+	end
+
+	local function setEntryBoolean(field, value)
+		local _, currentEntry = getEntry()
+		if not currentEntry then return end
+		local normalized = value == true
+		if (currentEntry[field] == true) == normalized then return end
+		currentEntry[field] = normalized and true or false
+		if field == "glowReady" then CooldownPanels.ClearReadyGlowEntryState(panelId, entryId, true) end
+		if field == "showCharges" then CooldownPanels:RebuildChargesIndex() end
+		refreshEntryViews()
+	end
+
+	local function setAlwaysShowLike(value)
+		local _, currentEntry = getEntry()
+		if not currentEntry then return end
+		local normalized = value == true
+		if currentEntry.type == "STANCE" then
+			if (currentEntry.showWhenMissing == true) == normalized then return end
+			currentEntry.showWhenMissing = normalized and true or false
+		else
+			if (currentEntry.alwaysShow == true) == normalized then return end
+			currentEntry.alwaysShow = normalized and true or false
+		end
+		refreshEntryViews()
+	end
+
+	local function setGlowDuration(_, value)
+		local _, currentEntry = getEntry()
+		if not currentEntry then return end
+		local clamped = Helper.ClampInt(value, 0, 30, currentEntry.glowDuration or 0)
+		if currentEntry.glowDuration == clamped then return end
+		currentEntry.glowDuration = clamped
+		local runtimeState = getRuntime(panelId)
+		local hadReady = runtimeState.readyAt and runtimeState.readyAt[entryId] ~= nil
+		CooldownPanels.ClearReadyGlowEntryState(panelId, entryId, false)
+		runtimeState.itemReadyPrimed = runtimeState.itemReadyPrimed or {}
+		runtimeState.itemReadyPrimed[entryId] = nil
+		if currentEntry.glowReady and hadReady then
+			triggerReadyGlow(panelId, entryId, clamped)
+			runtimeState.itemReadyPrimed[entryId] = true
+		end
+		refreshEntryViews()
+	end
+
+	local function setStaticText(_, value)
+		local _, currentEntry = getEntry()
+		if not currentEntry then return end
+		local text = value or ""
+		if currentEntry.staticText == text then return end
+		currentEntry.staticText = text
+		refreshEntryViews()
+	end
+
+	local initialEffectiveType = getEffectiveType()
+	local settings = {
+		{
+			name = L["CooldownPanelEntry"] or "Entry",
+			kind = SettingType.Collapsible,
+			id = "cooldownPanelStandaloneEntry",
+			defaultCollapsed = false,
+		},
+		{
+			name = L["CooldownPanelShowCooldownText"] or "Show cooldown text",
+			kind = SettingType.Checkbox,
+			parentId = "cooldownPanelStandaloneEntry",
+			isShown = function() return getEffectiveType() ~= "STANCE" end,
+			get = function()
+				local _, currentEntry = getEntry()
+				return currentEntry and currentEntry.showCooldownText ~= false or false
+			end,
+			set = function(_, value) setEntryBoolean("showCooldownText", value) end,
+		},
+		{
+			name = (initialEffectiveType == "STANCE" and (L["CooldownPanelShowWhenMissing"] or "Show when missing")) or (L["CooldownPanelAlwaysShow"] or "Always show"),
+			kind = SettingType.Checkbox,
+			parentId = "cooldownPanelStandaloneEntry",
+			isShown = function()
+				local effectiveType = getEffectiveType()
+				return effectiveType == "ITEM" or effectiveType == "CDM_AURA" or effectiveType == "STANCE"
+			end,
+			get = function()
+				local _, currentEntry = getEntry()
+				if not currentEntry then return false end
+				if currentEntry.type == "STANCE" then return currentEntry.showWhenMissing == true end
+				return currentEntry.alwaysShow ~= false
+			end,
+			set = function(_, value) setAlwaysShowLike(value) end,
+		},
+		{
+			name = L["CooldownPanelShowCharges"] or "Show charges",
+			kind = SettingType.Checkbox,
+			parentId = "cooldownPanelStandaloneEntry",
+			isShown = function() return getEffectiveType() == "SPELL" end,
+			get = function()
+				local _, currentEntry = getEntry()
+				return currentEntry and currentEntry.showCharges == true or false
+			end,
+			set = function(_, value) setEntryBoolean("showCharges", value) end,
+		},
+		{
+			name = L["CooldownPanelShowStacks"] or "Show stack count",
+			kind = SettingType.Checkbox,
+			parentId = "cooldownPanelStandaloneEntry",
+			isShown = function()
+				local effectiveType = getEffectiveType()
+				return effectiveType == "SPELL" or effectiveType == "CDM_AURA"
+			end,
+			get = function()
+				local _, currentEntry = getEntry()
+				return currentEntry and currentEntry.showStacks == true or false
+			end,
+			set = function(_, value) setEntryBoolean("showStacks", value) end,
+		},
+		{
+			name = L["CooldownPanelShowItemCount"] or "Show item count",
+			kind = SettingType.Checkbox,
+			parentId = "cooldownPanelStandaloneEntry",
+			isShown = function() return getEffectiveType() == "ITEM" end,
+			get = function()
+				local _, currentEntry = getEntry()
+				return currentEntry and currentEntry.showItemCount ~= false or false
+			end,
+			set = function(_, value) setEntryBoolean("showItemCount", value) end,
+		},
+		{
+			name = L["CooldownPanelShowItemUses"] or "Show item uses",
+			kind = SettingType.Checkbox,
+			parentId = "cooldownPanelStandaloneEntry",
+			isShown = function() return getEffectiveType() == "ITEM" end,
+			get = function()
+				local _, currentEntry = getEntry()
+				return currentEntry and currentEntry.showItemUses == true or false
+			end,
+			set = function(_, value) setEntryBoolean("showItemUses", value) end,
+		},
+		{
+			name = L["CooldownPanelUseHighestRank"] or "Use highest rank",
+			kind = SettingType.Checkbox,
+			parentId = "cooldownPanelStandaloneEntry",
+			isShown = function()
+				local _, currentEntry = getEntry()
+				if not currentEntry or currentEntry.type ~= "ITEM" then return false end
+				CooldownPanels:EnsureFoodRankGroupsLoaded()
+				local itemID = tonumber(currentEntry.itemID)
+				local rankMap = CooldownPanels.itemHighestRankByID
+				return itemID and rankMap and rankMap[itemID] ~= nil
+			end,
+			get = function()
+				local _, currentEntry = getEntry()
+				return currentEntry and currentEntry.useHighestRank == true or false
+			end,
+			set = function(_, value) setEntryBoolean("useHighestRank", value) end,
+		},
+		{
+			name = L["CooldownPanelShowWhenEmpty"] or "Show when empty",
+			kind = SettingType.Checkbox,
+			parentId = "cooldownPanelStandaloneEntry",
+			isShown = function() return getEffectiveType() == "ITEM" end,
+			get = function()
+				local _, currentEntry = getEntry()
+				return currentEntry and currentEntry.showWhenEmpty == true or false
+			end,
+			set = function(_, value) setEntryBoolean("showWhenEmpty", value) end,
+		},
+		{
+			name = L["CooldownPanelShowWhenNoCooldown"] or "Show even without cooldown",
+			kind = SettingType.Checkbox,
+			parentId = "cooldownPanelStandaloneEntry",
+			isShown = function() return getEffectiveType() == "SLOT" end,
+			get = function()
+				local _, currentEntry = getEntry()
+				return currentEntry and currentEntry.showWhenNoCooldown == true or false
+			end,
+			set = function(_, value) setEntryBoolean("showWhenNoCooldown", value) end,
+		},
+		{
+			name = L["CooldownPanelStaticText"] or "Static text",
+			kind = SettingType.Collapsible,
+			id = "cooldownPanelStandaloneStaticText",
+			defaultCollapsed = true,
+			isShown = function() return getEffectiveType() ~= "STANCE" end,
+		},
+		{
+			name = L["CooldownPanelStaticText"] or "Static text",
+			kind = SettingType.Input,
+			parentId = "cooldownPanelStandaloneStaticText",
+			isShown = function() return getEffectiveType() ~= "STANCE" end,
+			get = function()
+				local _, currentEntry = getEntry()
+				return currentEntry and currentEntry.staticText or ""
+			end,
+			set = function(_, value) setStaticText(_, value) end,
+			default = "",
+			maxChars = 32,
+		},
+		{
+			name = L["CooldownPanelStaticTextDuringCD"] or "Show text during CD",
+			kind = SettingType.Checkbox,
+			parentId = "cooldownPanelStandaloneStaticText",
+			isShown = function() return getEffectiveType() ~= "STANCE" end,
+			get = function()
+				local _, currentEntry = getEntry()
+				return currentEntry and currentEntry.staticTextShowOnCooldown == true or false
+			end,
+			set = function(_, value) setEntryBoolean("staticTextShowOnCooldown", value) end,
+		},
+		{
+			name = L["CooldownPanelOverlaysHeader"] or "Overlays",
+			kind = SettingType.Collapsible,
+			id = "cooldownPanelStandaloneEffects",
+			defaultCollapsed = true,
+			isShown = function() return getEffectiveType() ~= "MACRO" end,
+		},
+		{
+			name = (initialEffectiveType == "STANCE" and (_G.GLOW or "Glow")) or (L["CooldownPanelGlowReady"] or "Glow when ready"),
+			kind = SettingType.Checkbox,
+			parentId = "cooldownPanelStandaloneEffects",
+			isShown = function() return getEffectiveType() ~= "MACRO" end,
+			get = function()
+				local _, currentEntry = getEntry()
+				return currentEntry and currentEntry.glowReady == true or false
+			end,
+			set = function(_, value) setEntryBoolean("glowReady", value) end,
+		},
+		{
+			name = L["CooldownPanelGlowDuration"] or "Glow duration",
+			kind = SettingType.Slider,
+			parentId = "cooldownPanelStandaloneEffects",
+			minValue = 0,
+			maxValue = 30,
+			valueStep = 1,
+			allowInput = true,
+			isShown = function() return getEffectiveType() ~= "MACRO" end,
+			disabled = function()
+				local _, currentEntry = getEntry()
+				return not (currentEntry and currentEntry.glowReady == true)
+			end,
+			get = function()
+				local _, currentEntry = getEntry()
+				return Helper.ClampInt(currentEntry and currentEntry.glowDuration, 0, 30, 0)
+			end,
+			set = setGlowDuration,
+			formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) .. "s" end,
+		},
+		{
+			name = L["CooldownPanelSoundReady"] or "Sound when ready",
+			kind = SettingType.Checkbox,
+			parentId = "cooldownPanelStandaloneEffects",
+			isShown = function() return allowsStandaloneEntryReadySound(getEffectiveType()) end,
+			get = function()
+				local _, currentEntry = getEntry()
+				return currentEntry and currentEntry.soundReady == true or false
+			end,
+			set = function(_, value) setEntryBoolean("soundReady", value) end,
+		},
+	}
+
+	local buttons = {
+		{
+			text = L["CooldownPanelSound"] or "Sound",
+			click = function(self)
+				local _, currentEntry = getEntry()
+				if currentEntry and allowsStandaloneEntryReadySound(getEffectiveType()) then showSoundMenu(self, panelId, entryId) end
+			end,
+		},
+		{
+			text = L["CooldownPanelRemoveEntry"] or "Remove entry",
+			click = function()
+				CooldownPanels:HideLayoutEntryStandaloneMenu(panelId)
+				CooldownPanels:RemoveEntry(panelId, entryId)
+				local editor = getEditor()
+				if editor and normalizeId(editor.selectedPanelId) == panelId and normalizeId(editor.selectedEntryId) == entryId then editor.selectedEntryId = nil end
+				CooldownPanels:RefreshEditor()
+			end,
+		},
+	}
+
+	local dialog = lib:ShowStandaloneSettingsDialog(hostFrame, {
+		title = getEntryName(entry),
+		settings = settings,
+		buttons = buttons,
+		showReset = false,
+		showSettingsReset = false,
+		settingsMaxHeight = 520,
+		point = spawnPosition.point,
+		relativePoint = spawnPosition.relativePoint,
+		relativeTo = spawnPosition.relativeTo,
+		x = spawnPosition.x,
+		y = spawnPosition.y,
+		onHide = function() CooldownPanels:ClearLayoutEntryStandaloneMenuState() end,
+	})
+	if dialog then
+		local state = self:GetLayoutEntryStandaloneMenuState()
+		state.panelId = panelId
+		state.entryId = entryId
+		state.hostFrame = hostFrame
+	end
+end
+
+function CooldownPanels:GetLayoutPanelStandaloneMenuState(create)
+	CooldownPanels.runtime = CooldownPanels.runtime or {}
+	local state = CooldownPanels.runtime.layoutPanelStandaloneMenu
+	if state == nil and create ~= false then
+		state = {}
+		CooldownPanels.runtime.layoutPanelStandaloneMenu = state
+	end
+	return state
+end
+
+function CooldownPanels:ClearLayoutPanelStandaloneMenuState()
+	local state = self:GetLayoutPanelStandaloneMenuState(false)
+	if not state then return end
+	for key in pairs(state) do
+		state[key] = nil
+	end
+end
+
+function CooldownPanels:IsLayoutPanelStandaloneMenuAvailable(panelId)
+	panelId = normalizeId(panelId)
+	if not panelId or not self:IsPanelLayoutEditActive(panelId) then return false end
+	local panel = self:GetPanel(panelId)
+	return panel and Helper.IsFixedLayout(panel.layout) or false
+end
+
+function CooldownPanels:HideLayoutPanelStandaloneMenu(panelId)
+	local lib = addon.EditModeLib
+	local state = self:GetLayoutPanelStandaloneMenuState(false)
+	local trackedPanelId = normalizeId(state and state.panelId)
+	if panelId and trackedPanelId and trackedPanelId ~= normalizeId(panelId) then return false end
+	local hostFrame = state and state.hostFrame or (trackedPanelId and getRuntime(trackedPanelId).frame) or nil
+	local hidden = false
+	if lib and lib.HideStandaloneSettingsDialog then hidden = lib:HideStandaloneSettingsDialog(hostFrame) end
+	self:ClearLayoutPanelStandaloneMenuState()
+	return hidden
+end
+
+function CooldownPanels:RefreshLayoutPanelStandaloneMenu()
+	local lib = addon.EditModeLib
+	local state = self:GetLayoutPanelStandaloneMenuState(false)
+	if not state or not state.hostFrame then return end
+	if not (lib and lib.IsStandaloneSettingsDialogShown and lib:IsStandaloneSettingsDialogShown(state.hostFrame)) then
+		self:ClearLayoutPanelStandaloneMenuState()
+		return
+	end
+	local panelId = normalizeId(state.panelId)
+	local panel = panelId and self:GetPanel(panelId) or nil
+	local editor = getEditor()
+	local selectedPanelId = normalizeId(editor and editor.selectedPanelId)
+	if not panel or not self:IsLayoutPanelStandaloneMenuAvailable(panelId) or selectedPanelId ~= panelId then self:HideLayoutPanelStandaloneMenu(panelId) end
+end
+
+function CooldownPanels:OpenLayoutPanelStandaloneMenu(panelId, anchorFrame)
+	local lib = addon.EditModeLib
+	if not (lib and lib.ShowStandaloneSettingsDialog and SettingType) then return end
+	panelId = normalizeId(panelId)
+	if not (panelId and self:IsLayoutPanelStandaloneMenuAvailable(panelId)) then return end
+	self:HideLayoutEntryStandaloneMenu(panelId)
+
+	local panel = self:GetPanel(panelId)
+	local runtime = getRuntime(panelId)
+	local hostFrame = runtime and runtime.frame or nil
+	if not (panel and hostFrame) then return end
+	local spawnPosition = self:GetStandaloneDialogSpawnPosition(anchorFrame, hostFrame, 12, 0)
+
+	local function getPanel()
+		return CooldownPanels:GetPanel(panelId)
+	end
+
+	local function getLayout()
+		local currentPanel = getPanel()
+		return currentPanel and currentPanel.layout or nil
+	end
+
+	local function refreshPanelViews()
+		refreshEditModeSettingValues()
+		CooldownPanels:RefreshEditor()
+	end
+
+	local function setPanelLayout(field, value)
+		applyEditLayout(panelId, field, value)
+		refreshPanelViews()
+	end
+
+	local settings = {
+		{
+			name = L["CooldownPanelLayoutHeader"] or "Layout",
+			kind = SettingType.Collapsible,
+			id = "cooldownPanelStandaloneLayout",
+			defaultCollapsed = false,
+		},
+		{
+			name = "Icon size",
+			kind = SettingType.Slider,
+			parentId = "cooldownPanelStandaloneLayout",
+			minValue = 12,
+			maxValue = 128,
+			valueStep = 1,
+			allowInput = true,
+			get = function()
+				local layout = getLayout()
+				return Helper.ClampInt(layout and layout.iconSize, 12, 128, Helper.PANEL_LAYOUT_DEFAULTS.iconSize)
+			end,
+			set = function(_, value) setPanelLayout("iconSize", value) end,
+			formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
+		},
+		{
+			name = "Spacing",
+			kind = SettingType.Slider,
+			parentId = "cooldownPanelStandaloneLayout",
+			minValue = 0,
+			maxValue = 50,
+			valueStep = 1,
+			allowInput = true,
+			get = function()
+				local layout = getLayout()
+				return Helper.ClampInt(layout and layout.spacing, 0, 50, Helper.PANEL_LAYOUT_DEFAULTS.spacing)
+			end,
+			set = function(_, value) setPanelLayout("spacing", value) end,
+			formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
+		},
+		{
+			name = L["CooldownPanelFixedSlotCount"] or "Grid columns",
+			kind = SettingType.Slider,
+			parentId = "cooldownPanelStandaloneLayout",
+			minValue = 0,
+			maxValue = 40,
+			valueStep = 1,
+			allowInput = true,
+			get = function()
+				local layout = getLayout()
+				return Helper.NormalizeFixedGridSize(layout and layout.fixedGridColumns, Helper.PANEL_LAYOUT_DEFAULTS.fixedGridColumns or 0)
+			end,
+			set = function(_, value) setPanelLayout("fixedSlotCount", value) end,
+			formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
+		},
+		{
+			name = L["CooldownPanelFixedGridRows"] or "Grid rows",
+			kind = SettingType.Slider,
+			parentId = "cooldownPanelStandaloneLayout",
+			minValue = 0,
+			maxValue = 40,
+			valueStep = 1,
+			allowInput = true,
+			get = function()
+				local layout = getLayout()
+				return Helper.NormalizeFixedGridSize(layout and layout.fixedGridRows, Helper.PANEL_LAYOUT_DEFAULTS.fixedGridRows or 0)
+			end,
+			set = function(_, value) setPanelLayout("fixedGridRows", value) end,
+			formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
+		},
+	}
+
+	local dialog = lib:ShowStandaloneSettingsDialog(hostFrame, {
+		title = panel.name or (L["CooldownPanelPanelHandle"] or "Panel"),
+		settings = settings,
+		showReset = false,
+		showSettingsReset = false,
+		settingsMaxHeight = 360,
+		point = spawnPosition.point,
+		relativePoint = spawnPosition.relativePoint,
+		relativeTo = spawnPosition.relativeTo,
+		x = spawnPosition.x,
+		y = spawnPosition.y,
+		onHide = function() CooldownPanels:ClearLayoutPanelStandaloneMenuState() end,
+	})
+	if dialog then
+		local state = self:GetLayoutPanelStandaloneMenuState()
+		state.panelId = panelId
+		state.hostFrame = hostFrame
+	end
+end
+
 getEditor = function()
 	local runtime = CooldownPanels.runtime and CooldownPanels.runtime["editor"]
 	return runtime and runtime.editor or nil
@@ -4510,6 +5163,8 @@ local function ensureEditor()
 		frame:UnregisterEvent("PLAYER_REGEN_DISABLED")
 		frame:UnregisterEvent("PLAYER_REGEN_ENABLED")
 		saveEditorPosition(frame)
+		CooldownPanels:HideLayoutEntryStandaloneMenu()
+		CooldownPanels:HideLayoutPanelStandaloneMenu()
 		if runtime and runtime.editor then
 			local previousLayoutPanelId = normalizeId(runtime.editor._eqolLayoutPanelId or runtime.editor.selectedPanelId)
 			hideEditorDragIcon(runtime.editor)
@@ -5972,6 +6627,8 @@ function CooldownPanels:RefreshEditor()
 	elseif currentLayoutPanelId and self:GetPanel(currentLayoutPanelId) then
 		self:UpdatePanelMouseState(currentLayoutPanelId)
 	end
+	self:RefreshLayoutEntryStandaloneMenu()
+	self:RefreshLayoutPanelStandaloneMenu()
 end
 
 function CooldownPanels:OpenEditor()
@@ -5985,6 +6642,8 @@ function CooldownPanels:CloseEditor()
 	local editor = getEditor()
 	if not editor then return end
 	local panelId = normalizeId(editor._eqolLayoutPanelId or editor.selectedPanelId)
+	self:HideLayoutEntryStandaloneMenu(panelId)
+	self:HideLayoutPanelStandaloneMenu(panelId)
 	editor.frame:Hide()
 	editor.layoutEditActive = nil
 	editor._eqolLayoutPanelId = nil
@@ -6088,6 +6747,7 @@ function CooldownPanels:ConfigureEditModePanelIcon(panelId, icon, entryId, slotC
 				row = self._eqolLayoutSlotRow,
 			}
 			if icon.rangeOverlay then
+				icon._eqolLayoutDragRangePreview = true
 				icon.rangeOverlay:SetColorTexture(0.2, 0.7, 0.2, 0.28)
 				icon.rangeOverlay:Show()
 			end
@@ -6099,7 +6759,10 @@ function CooldownPanels:ConfigureEditModePanelIcon(panelId, icon, entryId, slotC
 		local editor = getEditor()
 		local dragSlot = editor and editor.dragPreviewSlot or nil
 		if type(dragSlot) == "table" and dragSlot.column == self._eqolLayoutSlotColumn and dragSlot.row == self._eqolLayoutSlotRow then editor.dragPreviewSlot = nil end
-		if icon.rangeOverlay then icon.rangeOverlay:Hide() end
+		if icon.rangeOverlay and icon._eqolLayoutDragRangePreview then
+			icon._eqolLayoutDragRangePreview = nil
+			icon.rangeOverlay:Hide()
+		end
 		icon:SetAlpha(1)
 		CooldownPanels.HideIconTooltip(icon)
 	end)
@@ -6152,7 +6815,9 @@ function CooldownPanels:ConfigureEditModePanelIcon(panelId, icon, entryId, slotC
 		CooldownPanels:SelectPanel(panelId)
 		if entryId then
 			CooldownPanels:SelectEntry(entryId)
+			CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, handle or icon)
 		else
+			CooldownPanels:HideLayoutEntryStandaloneMenu(panelId)
 			CooldownPanels:RefreshEditor()
 		end
 	end)
@@ -6334,10 +6999,10 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 	local runtime = getRuntime(panelId)
 	local frame = runtime.frame
 	if not frame then return end
-	self:UpdateLayoutEditGrid(panelId, 0)
+	local layoutEditActive = self:IsPanelLayoutEditActive(panelId)
 	local shared = CooldownPanels.runtime
 	local enabledPanels = shared and shared.enabledPanels
-	local eligible = enabledPanels and enabledPanels[panelId] or (not enabledPanels and panel.enabled ~= false and panelAllowsSpec(panel))
+	local eligible = layoutEditActive or enabledPanels and enabledPanels[panelId] or (not enabledPanels and panel.enabled ~= false and panelAllowsSpec(panel))
 	if not eligible then
 		if runtime._eqolHiddenByEligibility then return end
 		runtime._eqolHiddenByEligibility = true
@@ -6395,6 +7060,10 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 	local gcdDrawEdge = resolvedLayout and resolvedLayout.gcdDrawEdge
 	local gcdDrawBling = resolvedLayout and resolvedLayout.gcdDrawBling
 	local gcdDrawSwipe = resolvedLayout and resolvedLayout.gcdDrawSwipe
+	if layoutEditActive then
+		hideOnCooldown = false
+		showOnCooldown = false
+	end
 	local assistedHighlightEnabled = shared and shared.assistedHighlightEnabled
 	if assistedHighlightEnabled == nil then
 		if CooldownPanels.refreshAssistedHighlightCVarState then CooldownPanels.refreshAssistedHighlightCVarState(nil, true) end
@@ -6452,6 +7121,12 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 	if fixedLayout then
 		_, fixedSlotCount, fixedGridColumns = Helper.BuildFixedSlotEntryIds(panel, nil, false)
 	end
+	local editGridColumns
+	if layoutEditActive and not fixedLayout then
+		editGridColumns = Helper.ClampInt(layout.wrapCount, 0, 40, Helper.PANEL_LAYOUT_DEFAULTS.wrapCount or 0)
+		if editGridColumns <= 0 then editGridColumns = math.min(math.max(type(panel.order) == "table" and #panel.order or 0, 4), 12) end
+	end
+	self:UpdateLayoutEditGrid(panelId, layoutEditActive and fixedLayout and fixedSlotCount or 0)
 	runtime.readyAt = runtime.readyAt or {}
 	runtime.glowTimers = runtime.glowTimers or {}
 	runtime.itemReadyPrimed = runtime.itemReadyPrimed or {}
@@ -6691,6 +7366,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 					show = cdmAuraData.show == true
 				end
 			end
+			if layoutEditActive then show = true end
 
 			if show then
 				visibleCount = visibleCount + 1
@@ -6794,7 +7470,9 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 	for i = 1, count do
 		local data = visible[i]
 		local icon = frame.icons[i]
-		self:ConfigureEditModePanelIcon(panelId, icon, nil, nil, nil)
+		local slotColumn = fixedLayout and fixedGridColumns > 0 and (((i - 1) % fixedGridColumns) + 1) or (editGridColumns and (((i - 1) % editGridColumns) + 1) or nil)
+		local slotRow = fixedLayout and fixedGridColumns > 0 and (math.floor((i - 1) / fixedGridColumns) + 1) or (editGridColumns and (math.floor((i - 1) / editGridColumns) + 1) or nil)
+		self:ConfigureEditModePanelIcon(panelId, icon, data and data.entryId or nil, slotColumn, slotRow)
 		if not data then
 			clearPreviewCooldown(icon.cooldown)
 			icon.cooldown:Clear()
@@ -6812,15 +7490,30 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			if icon.rangeOverlay then icon.rangeOverlay:Hide() end
 			if icon.keybind then icon.keybind:Hide() end
 			if icon.staticText then icon.staticText:Hide() end
+			if icon.previewGlow then icon.previewGlow:Hide() end
 			if icon.previewBling then icon.previewBling:Hide() end
+			if icon.previewSoundBorder then icon.previewSoundBorder:Hide() end
+			icon._eqolLayoutDragRangePreview = nil
 			icon.texture:SetDesaturated(false)
 			icon.texture:SetAlpha(1)
 			CooldownPanels.ApplyIconTooltip(icon, nil, false)
 			setAssistedHighlight(icon, false)
 			setGlow(icon, false)
-			icon:Hide()
+			if layoutEditActive and fixedLayout then
+				icon:Show()
+				icon:SetAlpha(1)
+				icon._eqolPreviewCellColumn = slotColumn
+				icon._eqolPreviewCellRow = slotRow
+				icon.texture:SetTexture(Helper.PREVIEW_ICON)
+				icon.texture:SetShown(false)
+				icon.texture:SetAlpha(0)
+			else
+				icon:Hide()
+			end
 		else
 			icon:Show()
+			icon._eqolPreviewCellColumn = slotColumn
+			icon._eqolPreviewCellRow = slotRow
 			if showOnCooldown then
 				icon:SetAlpha(0)
 			elseif not hideOnCooldown then
@@ -6846,6 +7539,8 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			if icon.cooldown.Resume then icon.cooldown:Resume() end
 			if icon.previewGlow then icon.previewGlow:Hide() end
 			if icon.previewBling then icon.previewBling:Hide() end
+			if icon.previewSoundBorder then icon.previewSoundBorder:Hide() end
+			icon._eqolLayoutDragRangePreview = nil
 
 			local cooldownStart = data.cooldownStart or 0
 			local cooldownDuration = data.cooldownDuration or 0
@@ -7090,6 +7785,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 				staticTextCooldown = data.stanceActive == true or cdmAuraActive or durationActive or (cooldownEnabledOk and isCooldownActive(cooldownStart, cooldownDuration))
 			end
 			applyStaticText(icon, data.entry, staticFontPath, staticFontSize, staticFontStyle, staticTextCooldown)
+			if layoutEditActive and icon.previewSoundBorder and data.soundReady then icon.previewSoundBorder:Show() end
 			if icon.rangeOverlay then
 				if data.rangeOverlay then
 					icon.rangeOverlay:SetColorTexture(rangeOverlayR or 1, rangeOverlayG or 0.1, rangeOverlayB or 0.1, rangeOverlayA or 0.35)
@@ -7153,7 +7849,10 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			if icon.rangeOverlay then icon.rangeOverlay:Hide() end
 			if icon.keybind then icon.keybind:Hide() end
 			if icon.staticText then icon.staticText:Hide() end
+			if icon.previewGlow then icon.previewGlow:Hide() end
 			if icon.previewBling then icon.previewBling:Hide() end
+			if icon.previewSoundBorder then icon.previewSoundBorder:Hide() end
+			icon._eqolLayoutDragRangePreview = nil
 			icon.texture:SetDesaturated(false)
 			icon.texture:SetAlpha(1)
 			setAssistedHighlight(icon, false)
@@ -7330,6 +8029,15 @@ function CooldownPanels:UpdatePanelMouseState(panelId)
 			frame.editMoveHandle:EnableMouse(showHandle == true)
 		end
 	end
+	if frame.editPanelHandle then
+		local panel = self:GetPanel(panelId)
+		local showPanelHandle = layoutEditActive and panel and Helper.IsFixedLayout(panel.layout) or false
+		frame.editPanelHandle:SetShown(showPanelHandle == true)
+		if frame._eqolPanelHandleMouseEnabled ~= showPanelHandle then
+			frame._eqolPanelHandleMouseEnabled = showPanelHandle
+			frame.editPanelHandle:EnableMouse(showPanelHandle == true)
+		end
+	end
 end
 
 function CooldownPanels:ShowEditModeHint(panelId, show)
@@ -7358,7 +8066,11 @@ function CooldownPanels:RefreshPanel(panelId)
 	self:EnsurePanelFrame(panelId)
 	self:ApplyPanelPosition(panelId)
 	local runtime = getRuntime(panelId)
-	if self:IsInEditMode() or layoutEditActive then
+	if layoutEditActive then
+		clearRuntimeLayoutShapeCache(runtime)
+		self:ApplyLayout(panelId)
+		self:UpdateRuntimeIcons(panelId)
+	elseif self:IsInEditMode() then
 		clearRuntimeLayoutShapeCache(runtime)
 		self:ApplyLayout(panelId)
 		self:UpdatePreviewIcons(panelId)
@@ -7427,7 +8139,7 @@ local function syncEditModeValue(panelId, field, value)
 	if runtime.editModeId and EditMode and EditMode.SetValue then EditMode:SetValue(runtime.editModeId, field, value, nil, true) end
 end
 
-local function applyEditLayout(panelId, field, value, skipRefresh)
+applyEditLayout = function(panelId, field, value, skipRefresh)
 	local panel = CooldownPanels:GetPanel(panelId)
 	if not panel then return end
 	panel.layout = panel.layout or {}

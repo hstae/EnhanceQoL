@@ -5087,7 +5087,6 @@ local function setPowerbars(opts)
 		return
 	end
 
-	local _, powerToken = UnitPowerType("player")
 	powerfrequent = {}
 	local isDruid = addon.variables.unitClass == "DRUID"
 	local editModeActive = addon.EditMode and addon.EditMode.IsInEditMode and addon.EditMode:IsInEditMode()
@@ -5163,15 +5162,14 @@ local function setPowerbars(opts)
 					showBar = true
 				elseif pType == mainPowerBar then
 					showBar = true
-				elseif pType == "MANA" then
-					createPowerBar(pType, powerbar[lastBar] or ((specCfg and specCfg.HEALTH and specCfg.HEALTH.enabled == true) and EQOLHealthBar or nil))
-					lastBar = pType
-					showBar = true
 				elseif pType == "COMBO_POINTS" and druidForm == "CAT" then
 					createPowerBar(pType, powerbar[lastBar] or ((specCfg and specCfg.HEALTH and specCfg.HEALTH.enabled == true) and EQOLHealthBar or nil))
 					lastBar = pType
 					showBar = true
-				elseif powerToken == pType and powerToken ~= mainPowerBar then
+				else
+					-- For Druids, showForms is the authoritative per-form filter for enabled secondary bars.
+					-- Gating ENERGY/RAGE/MANA on the active power token prevents bars from appearing in forms
+					-- that the user explicitly enabled in "Show in".
 					createPowerBar(pType, powerbar[lastBar] or ((specCfg and specCfg.HEALTH and specCfg.HEALTH.enabled == true) and EQOLHealthBar or nil))
 					lastBar = pType
 					showBar = true
