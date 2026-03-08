@@ -4479,6 +4479,8 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 	local spawnPosition = self:GetStandaloneDialogSpawnPosition(anchorFrame, hostFrame, 12, 0)
 	local defaultStaticFontPath, defaultStaticFontSize, defaultStaticFontStyle = Helper.GetCountFontDefaults(hostFrame)
 	local defaultCooldownFontPath, defaultCooldownFontSize, defaultCooldownFontStyle = self:GetCooldownFontDefaults(hostFrame)
+	local defaultCountFontPath, defaultCountFontSize, defaultCountFontStyle = defaultStaticFontPath, defaultStaticFontSize, defaultStaticFontStyle
+	local defaultChargesFontPath, defaultChargesFontSize, defaultChargesFontStyle = Helper.GetChargesFontDefaults(hostFrame)
 
 	local function allowsStandaloneEntryReadySound(effectiveType) return effectiveType and effectiveType ~= "MACRO" and effectiveType ~= "STANCE" and effectiveType ~= "CDM_AURA" end
 
