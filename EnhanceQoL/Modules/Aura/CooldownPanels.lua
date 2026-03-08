@@ -1671,6 +1671,15 @@ local function getEntryTypeLabel(entryType)
 	return entryType or ""
 end
 
+function CooldownPanels:GetEntryStandaloneTitle(entry)
+	local name = getEntryName(entry)
+	local typeLabel = getEntryTypeLabel(entry and entry.type)
+	if name and name ~= "" and typeLabel and typeLabel ~= "" then
+		return string.format(L["CooldownPanelStandaloneEntryTitle"] or "%s - %s", name, typeLabel)
+	end
+	return name or typeLabel or ""
+end
+
 getPlayerSpecId = function()
 	if not GetSpecialization then return nil end
 	local specIndex = GetSpecialization()
@@ -2560,7 +2569,152 @@ function CooldownPanels.ApplyIconTooltip(icon, entry, enabled)
 	icon._eqolTooltipEnabled = enabled and entry ~= nil
 end
 
-local function applyStaticText(icon, entry, defaultFontPath, defaultFontSize, defaultFontStyle, cooldownActive)
+function CooldownPanels:GetCooldownFontDefaults(frame)
+	local icon = frame and frame.icons and frame.icons[1]
+	local fontString = icon and icon.cooldown and icon.cooldown.GetCountdownFontString and icon.cooldown:GetCountdownFontString()
+	if fontString and fontString.GetFont then
+		local fontPath, fontSize, fontStyle = fontString:GetFont()
+		if fontPath then return fontPath, fontSize, fontStyle end
+	end
+	return Helper.GetCountFontDefaults(frame)
+end
+
+function CooldownPanels:GetGlobalFontConfigKey()
+	if addon.functions and addon.functions.GetGlobalFontConfigKey then return addon.functions.GetGlobalFontConfigKey() end
+	return "__EQOL_GLOBAL_FONT__"
+end
+
+function CooldownPanels:GetFontDropdownValue(value)
+	if addon.functions and addon.functions.IsGlobalFontConfigValue and addon.functions.IsGlobalFontConfigValue(value) then return self:GetGlobalFontConfigKey() end
+	if type(value) == "string" and value ~= "" then return value end
+	return self:GetGlobalFontConfigKey()
+end
+
+function CooldownPanels:ResolveEntryCooldownTextStyle(layout, entry, fallbackFontPath, fallbackFontSize, fallbackFontStyle)
+	local panelFontPath = Helper.ResolveFontPath(layout and layout.cooldownTextFont, fallbackFontPath)
+	local panelFontSize = Helper.ClampInt(layout and layout.cooldownTextSize, 6, 64, fallbackFontSize or 12)
+	local panelFontStyleChoice = Helper.NormalizeFontStyleChoice(layout and layout.cooldownTextStyle, fallbackFontStyle)
+	local panelFontStyle = Helper.NormalizeFontStyle(panelFontStyleChoice, fallbackFontStyle) or ""
+	local panelFontColor = Helper.NormalizeColor(layout and layout.cooldownTextColor, Helper.PANEL_LAYOUT_DEFAULTS.cooldownTextColor)
+	local panelFontX = Helper.ClampInt(layout and layout.cooldownTextX, -Helper.OFFSET_RANGE, Helper.OFFSET_RANGE, 0)
+	local panelFontY = Helper.ClampInt(layout and layout.cooldownTextY, -Helper.OFFSET_RANGE, Helper.OFFSET_RANGE, 0)
+	if not entry or entry.cooldownTextUseGlobal ~= false then return panelFontPath, panelFontSize, panelFontStyle, panelFontColor, panelFontX, panelFontY end
+	local fontPath = Helper.ResolveFontPath(entry.cooldownTextFont, panelFontPath)
+	local fontSize = Helper.ClampInt(entry.cooldownTextSize, 6, 64, panelFontSize)
+	local fontStyleChoice = Helper.NormalizeFontStyleChoice(entry.cooldownTextStyle, panelFontStyleChoice)
+	local fontStyle = Helper.NormalizeFontStyle(fontStyleChoice, panelFontStyle) or ""
+	local fontColor = Helper.NormalizeColor(entry.cooldownTextColor, panelFontColor)
+	local fontX = Helper.ClampInt(entry.cooldownTextX, -Helper.OFFSET_RANGE, Helper.OFFSET_RANGE, panelFontX)
+	local fontY = Helper.ClampInt(entry.cooldownTextY, -Helper.OFFSET_RANGE, Helper.OFFSET_RANGE, panelFontY)
+	return fontPath, fontSize, fontStyle, fontColor, fontX, fontY
+end
+
+function CooldownPanels:ApplyEntryCooldownTextStyle(icon, layout, entry)
+	if not (icon and icon.cooldown and icon.cooldown.GetCountdownFontString) then return end
+	local fontString = icon.cooldown:GetCountdownFontString()
+	if not fontString then return end
+	if not icon.cooldown._eqolCooldownTextDefaults then
+		local fontPath, fontSize, fontStyle = fontString:GetFont()
+		local point, _, relPoint, x, y = fontString:GetPoint()
+		icon.cooldown._eqolCooldownTextDefaults = {
+			font = fontPath,
+			size = fontSize,
+			style = fontStyle,
+			point = point,
+			relPoint = relPoint,
+			x = x,
+			y = y,
+		}
+	end
+	local defaults = icon.cooldown._eqolCooldownTextDefaults
+	local fontPath, fontSize, fontStyle, fontColor, fontX, fontY =
+		self:ResolveEntryCooldownTextStyle(layout, entry, defaults and defaults.font, defaults and defaults.size, defaults and defaults.style)
+	fontString:SetFont(fontPath, fontSize, fontStyle)
+	fontString:ClearAllPoints()
+	fontString:SetPoint("CENTER", icon.cooldown, "CENTER", fontX, fontY)
+	fontString:SetTextColor(fontColor[1] or 1, fontColor[2] or 1, fontColor[3] or 1, fontColor[4] or 1)
+end
+
+function CooldownPanels:ResolveEntryStaticTextStyle(layout, entry, fallbackFontPath, fallbackFontSize, fallbackFontStyle)
+	local panelFontPath = Helper.ResolveFontPath(layout and layout.staticTextFont, fallbackFontPath)
+	local panelFontSize = Helper.ClampInt(
+		layout and layout.staticTextSize,
+		6,
+		64,
+		(layout and layout.staticTextSize) or Helper.PANEL_LAYOUT_DEFAULTS.staticTextSize or fallbackFontSize or 12
+	)
+	local panelFontStyleChoice =
+		Helper.NormalizeFontStyleChoice(layout and layout.staticTextStyle, layout and layout.staticTextStyle or Helper.PANEL_LAYOUT_DEFAULTS.staticTextStyle or fallbackFontStyle)
+	local panelFontStyle = Helper.NormalizeFontStyle(panelFontStyleChoice, fallbackFontStyle) or ""
+	local panelFontColor = Helper.NormalizeColor(layout and layout.staticTextColor, Helper.PANEL_LAYOUT_DEFAULTS.staticTextColor or { 1, 1, 1, 1 })
+	local panelAnchor = Helper.NormalizeAnchor(layout and layout.staticTextAnchor, Helper.PANEL_LAYOUT_DEFAULTS.staticTextAnchor or "CENTER")
+	local panelX = Helper.ClampInt(layout and layout.staticTextX, -Helper.OFFSET_RANGE, Helper.OFFSET_RANGE, Helper.PANEL_LAYOUT_DEFAULTS.staticTextX or 0)
+	local panelY = Helper.ClampInt(layout and layout.staticTextY, -Helper.OFFSET_RANGE, Helper.OFFSET_RANGE, Helper.PANEL_LAYOUT_DEFAULTS.staticTextY or 0)
+	if not entry or entry.staticTextUseGlobal ~= false then return panelFontPath, panelFontSize, panelFontStyle, panelFontColor, panelAnchor, panelX, panelY end
+	local fontPath = Helper.ResolveFontPath(entry.staticTextFont, panelFontPath)
+	local fontSize = Helper.ClampInt(entry.staticTextSize, 6, 64, panelFontSize)
+	local fontStyleChoice = Helper.NormalizeFontStyleChoice(entry.staticTextStyle, panelFontStyleChoice)
+	local fontStyle = Helper.NormalizeFontStyle(fontStyleChoice, panelFontStyle) or ""
+	local fontColor = Helper.NormalizeColor(entry.staticTextColor, panelFontColor)
+	local anchor = Helper.NormalizeAnchor(entry.staticTextAnchor, panelAnchor)
+	local x = Helper.ClampInt(entry.staticTextX, -Helper.OFFSET_RANGE, Helper.OFFSET_RANGE, panelX)
+	local y = Helper.ClampInt(entry.staticTextY, -Helper.OFFSET_RANGE, Helper.OFFSET_RANGE, panelY)
+	return fontPath, fontSize, fontStyle, fontColor, anchor, x, y
+end
+
+function CooldownPanels:ResolveEntryGlowStyle(layout, entry)
+	local panelDuration = Helper.ClampInt(layout and layout.readyGlowDuration, 0, 30, Helper.PANEL_LAYOUT_DEFAULTS.readyGlowDuration or 0)
+	local panelColor = Helper.NormalizeColor(layout and layout.readyGlowColor, Helper.PANEL_LAYOUT_DEFAULTS.readyGlowColor)
+	if not entry or entry.glowUseGlobal ~= false then return panelDuration, panelColor end
+	local duration = Helper.ClampInt(entry.glowDuration, 0, 30, panelDuration)
+	local color = Helper.NormalizeColor(entry.glowColor, panelColor)
+	return duration, color
+end
+
+function CooldownPanels:ResolveEntryNoDesaturation(layout, entry)
+	local panelValue = layout and layout.noDesaturation == true
+	if not entry or entry.noDesaturationUseGlobal ~= false then return panelValue end
+	return entry.noDesaturation == true
+end
+
+function CooldownPanels:ResolveEntryShowIconTexture(layout, entry)
+	local panelValue = not (layout and layout.showIconTexture == false)
+	if not entry then return panelValue end
+	if entry.hideIcon == true then return false end
+	if entry.showIconTextureUseGlobal == false then return true end
+	return panelValue
+end
+
+function CooldownPanels:ResolveEntryIconVisualLayout(entry, baseSize)
+	local fallbackSize = Helper.ClampInt(baseSize, 12, 128, Helper.PANEL_LAYOUT_DEFAULTS.iconSize)
+	local size = fallbackSize
+	if entry and entry.iconSizeUseGlobal == false then
+		size = Helper.ClampInt(entry.iconSize, 12, 128, fallbackSize)
+	end
+	local offsetX = Helper.ClampInt(entry and entry.iconOffsetX, -Helper.OFFSET_RANGE, Helper.OFFSET_RANGE, 0)
+	local offsetY = Helper.ClampInt(entry and entry.iconOffsetY, -Helper.OFFSET_RANGE, Helper.OFFSET_RANGE, 0)
+	return size, offsetX, offsetY
+end
+
+function CooldownPanels:ApplyEntryIconVisualLayout(icon, entry)
+	if not icon then return end
+	local slotAnchor = icon.slotAnchor
+	local baseSize = Helper.ClampInt(icon._eqolBaseSlotSize, 12, 128, Helper.PANEL_LAYOUT_DEFAULTS.iconSize)
+	local size, offsetX, offsetY = self:ResolveEntryIconVisualLayout(entry, baseSize)
+	icon:SetSize(size, size)
+	if slotAnchor then
+		icon:ClearAllPoints()
+		icon:SetPoint("CENTER", slotAnchor, "CENTER", offsetX, offsetY)
+	end
+	CooldownPanels.UpdatePreviewGlowBorderLayout(icon, size)
+	if icon.previewBling then
+		icon.previewBling:ClearAllPoints()
+		icon.previewBling:SetPoint("CENTER", icon, "CENTER", 0, 0)
+		icon.previewBling:SetSize(size * 1.5, size * 1.5)
+	end
+end
+
+local function applyStaticText(icon, layout, entry, defaultFontPath, defaultFontSize, defaultFontStyle, cooldownActive)
 	if not icon or not icon.staticText then return end
 	if not entry or type(entry.staticText) ~= "string" or entry.staticText == "" then
 		icon.staticText:Hide()
@@ -2573,16 +2727,11 @@ local function applyStaticText(icon, entry, defaultFontPath, defaultFontSize, de
 	local text = entry.staticText
 	if text:find("\\n", 1, true) then text = text:gsub("\\n", "\n") end
 	if text:find("|n", 1, true) then text = text:gsub("|n", "\n") end
-	local fontPath = Helper.ResolveFontPath(entry.staticTextFont, defaultFontPath)
-	local fontSize = Helper.ClampInt(entry.staticTextSize, 6, 64, defaultFontSize or 12)
-	local fontStyle = Helper.NormalizeFontStyle(entry.staticTextStyle, defaultFontStyle) or ""
-	local fontColor = Helper.NormalizeColor(entry.staticTextColor, Helper.ENTRY_DEFAULTS.staticTextColor or { 1, 1, 1, 1 })
+	local fontPath, fontSize, fontStyle, fontColor, anchor, x, y =
+		CooldownPanels:ResolveEntryStaticTextStyle(layout, entry, defaultFontPath, defaultFontSize, defaultFontStyle)
 	icon.staticText:SetFont(fontPath, fontSize, fontStyle)
 	icon.staticText:SetTextColor(fontColor[1] or 1, fontColor[2] or 1, fontColor[3] or 1, fontColor[4] or 1)
 	icon.staticText:ClearAllPoints()
-	local anchor = Helper.NormalizeAnchor(entry.staticTextAnchor, "CENTER")
-	local x = Helper.ClampInt(entry.staticTextX, -Helper.OFFSET_RANGE, Helper.OFFSET_RANGE, 0)
-	local y = Helper.ClampInt(entry.staticTextY, -Helper.OFFSET_RANGE, Helper.OFFSET_RANGE, 0)
 	icon.staticText:SetPoint(anchor, icon.overlay, anchor, x, y)
 	icon.staticText:SetText(text)
 	icon.staticText:Show()
@@ -2594,6 +2743,9 @@ local function createIconFrame(parent)
 	icon:EnableMouse(false)
 	icon:SetScript("OnEnter", CooldownPanels.ShowIconTooltip)
 	icon:SetScript("OnLeave", CooldownPanels.HideIconTooltip)
+
+	icon.slotAnchor = CreateFrame("Frame", nil, parent)
+	icon.slotAnchor:EnableMouse(false)
 
 	icon.texture = icon:CreateTexture(nil, "ARTWORK")
 	icon.texture:SetAllPoints(icon)
@@ -2649,12 +2801,19 @@ local function createIconFrame(parent)
 	icon.msqNormal:SetTexture("Interface\\Buttons\\UI-Quickslot2")
 	icon.msqNormal:Hide()
 
-	icon.previewGlow = icon:CreateTexture(nil, "OVERLAY")
-	icon.previewGlow:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
-	icon.previewGlow:SetVertexColor(1, 0.82, 0.2, 1)
-	icon.previewGlow:SetBlendMode("ADD")
-	icon.previewGlow:SetAlpha(0.6)
-	icon.previewGlow:Hide()
+	if parent and parent._eqolIsPreview then
+		icon.previewGlowBorder = CreateFrame("Frame", nil, icon, "BackdropTemplate")
+		icon.previewGlowBorder:SetFrameStrata(icon.cooldown:GetFrameStrata() or icon:GetFrameStrata())
+		icon.previewGlowBorder:SetFrameLevel((icon.cooldown:GetFrameLevel() or icon:GetFrameLevel()) + 2)
+		icon.previewGlowBorder:EnableMouse(false)
+		icon.previewGlowBorder:SetBackdrop({
+			edgeFile = "Interface\\Buttons\\WHITE8x8",
+			edgeSize = 2,
+			insets = { left = 0, right = 0, top = 0, bottom = 0 },
+		})
+		icon.previewGlowBorder:SetBackdropColor(0, 0, 0, 0)
+		icon.previewGlowBorder:Hide()
+	end
 
 	icon.previewBling = icon:CreateTexture(nil, "OVERLAY")
 	icon.previewBling:SetTexture("Interface\\Cooldown\\star4")
@@ -2695,6 +2854,47 @@ local function createIconFrame(parent)
 	end
 
 	return icon
+end
+
+function CooldownPanels.HidePreviewGlowBorder(icon)
+	local border = icon and icon.previewGlowBorder
+	if border then border:Hide() end
+end
+
+function CooldownPanels.UpdatePreviewGlowBorderLayout(icon, rowSize)
+	local border = icon and icon.previewGlowBorder
+	if not border then return end
+
+	local size = tonumber(rowSize) or 24
+	local edgeSize = math.min(6, math.max(2, math.floor((size * 0.08) + 0.5)))
+	local offset = math.min(6, math.max(1, math.floor((size * 0.1) + 0.5)))
+
+	if border._eqolEdgeSize ~= edgeSize then
+		border:SetBackdrop({
+			edgeFile = "Interface\\Buttons\\WHITE8x8",
+			edgeSize = edgeSize,
+			insets = { left = 0, right = 0, top = 0, bottom = 0 },
+		})
+		border:SetBackdropColor(0, 0, 0, 0)
+		border._eqolEdgeSize = edgeSize
+	end
+
+	if border._eqolOffset ~= offset then
+		border:ClearAllPoints()
+		border:SetPoint("TOPLEFT", icon, "TOPLEFT", -offset, offset)
+		border:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", offset, -offset)
+		border._eqolOffset = offset
+	end
+end
+
+function CooldownPanels.ShowPreviewGlowBorder(icon, glowColor)
+	local border = icon and icon.previewGlowBorder
+	if not border then return end
+
+	local fallbackColor = (Helper and Helper.PANEL_LAYOUT_DEFAULTS and Helper.PANEL_LAYOUT_DEFAULTS.readyGlowColor) or { 1, 0.82, 0.2, 1 }
+	local color = Helper.NormalizeColor(glowColor, fallbackColor)
+	border:SetBackdropBorderColor(color[1] or 1, color[2] or 0.82, color[3] or 0.2, color[4] or 1)
+	border:Show()
 end
 
 local function ensureIconCount(frame, count)
@@ -3168,9 +3368,10 @@ function CooldownPanels:UpdateLayoutEditGrid(panelId, slotCount)
 			grid.cells[i] = cell
 		end
 		if icon then
+			local cellAnchor = icon.slotAnchor or icon
 			cell:ClearAllPoints()
-			cell:SetPoint("TOPLEFT", icon, "TOPLEFT", 0, 0)
-			cell:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", 0, 0)
+			cell:SetPoint("TOPLEFT", cellAnchor, "TOPLEFT", 0, 0)
+			cell:SetPoint("BOTTOMRIGHT", cellAnchor, "BOTTOMRIGHT", 0, 0)
 			cell:Show()
 		else
 			cell:Hide()
@@ -3410,7 +3611,14 @@ local function applyIconLayout(frame, count, layout)
 	local growthOffsetX, growthOffsetY, anchorH, anchorV = getGrowthOffset(growthPoint, width, height)
 
 	local function applyIconCommon(icon, rowSize)
+		local slotAnchor = icon.slotAnchor or icon
+		slotAnchor:SetSize(rowSize, rowSize)
+		icon._eqolBaseSlotSize = rowSize
 		icon:SetSize(rowSize, rowSize)
+		if slotAnchor ~= icon then
+			icon:ClearAllPoints()
+			icon:SetPoint("CENTER", slotAnchor, "CENTER", 0, 0)
+		end
 		if icon._eqolMasqueNeedsReskin then
 			local group = getMasqueGroup()
 			if group and group.ReSkin then group:ReSkin(icon) end
@@ -3459,11 +3667,7 @@ local function applyIconLayout(frame, count, layout)
 				fontString:SetTextColor(cooldownTextColor[1] or 1, cooldownTextColor[2] or 1, cooldownTextColor[3] or 1, cooldownTextColor[4] or 1)
 			end
 		end
-		if icon.previewGlow then
-			icon.previewGlow:ClearAllPoints()
-			icon.previewGlow:SetPoint("CENTER", icon, "CENTER", 0, 0)
-			icon.previewGlow:SetSize(rowSize * 1.8, rowSize * 1.8)
-		end
+		CooldownPanels.UpdatePreviewGlowBorderLayout(icon, rowSize)
 		if icon.previewBling then
 			icon.previewBling:ClearAllPoints()
 			icon.previewBling:SetPoint("CENTER", icon, "CENTER", 0, 0)
@@ -3477,6 +3681,7 @@ local function applyIconLayout(frame, count, layout)
 		if centerRadius < 0 then centerRadius = 0 end
 		for i = 1, count do
 			local icon = frame.icons[i]
+			local slotAnchor = icon.slotAnchor or icon
 			applyIconCommon(icon, baseIconSize)
 			local x, y = 0, 0
 			if count > 1 then
@@ -3484,14 +3689,19 @@ local function applyIconLayout(frame, count, layout)
 				x = math.cos(angle) * centerRadius
 				y = math.sin(angle) * centerRadius
 			end
-			icon:ClearAllPoints()
-			icon:SetPoint("CENTER", frame, "CENTER", x, y)
+			slotAnchor:ClearAllPoints()
+			slotAnchor:SetPoint("CENTER", frame, "CENTER", x, y)
+			if slotAnchor ~= icon then
+				icon:ClearAllPoints()
+				icon:SetPoint("CENTER", slotAnchor, "CENTER", 0, 0)
+			end
 		end
 		return
 	end
 
 	for i = 1, count do
 		local icon = frame.icons[i]
+		local slotAnchor = icon.slotAnchor or icon
 		local primaryIndex = i - 1
 		local secondaryIndex = 0
 		if wrapCount and wrapCount > 0 then
@@ -3549,8 +3759,12 @@ local function applyIconLayout(frame, count, layout)
 		local stepX = primaryHorizontal and (rowSize + spacing) or (baseIconSize + spacing)
 
 		applyIconCommon(icon, rowSize)
-		icon:ClearAllPoints()
-		icon:SetPoint(growthPoint, frame, growthPoint, growthOffsetX + anchorXAdjust + rowAlignOffset + (col * stepX), growthOffsetY + anchorYAdjust - rowOffset)
+		slotAnchor:ClearAllPoints()
+		slotAnchor:SetPoint(growthPoint, frame, growthPoint, growthOffsetX + anchorXAdjust + rowAlignOffset + (col * stepX), growthOffsetY + anchorYAdjust - rowOffset)
+		if slotAnchor ~= icon then
+			icon:ClearAllPoints()
+			icon:SetPoint("CENTER", slotAnchor, "CENTER", 0, 0)
+		end
 	end
 end
 
@@ -4109,8 +4323,19 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 	local hostFrame = runtime and runtime.frame or nil
 	if not (panel and entry and hostFrame) then return end
 	local spawnPosition = self:GetStandaloneDialogSpawnPosition(anchorFrame, hostFrame, 12, 0)
+	local defaultStaticFontPath, defaultStaticFontSize, defaultStaticFontStyle = Helper.GetCountFontDefaults(hostFrame)
+	local defaultCooldownFontPath, defaultCooldownFontSize, defaultCooldownFontStyle = self:GetCooldownFontDefaults(hostFrame)
 
 	local function allowsStandaloneEntryReadySound(effectiveType) return effectiveType and effectiveType ~= "MACRO" and effectiveType ~= "STANCE" and effectiveType ~= "CDM_AURA" end
+
+	local function getPanel()
+		return CooldownPanels:GetPanel(panelId)
+	end
+
+	local function getLayout()
+		local currentPanel = getPanel()
+		return currentPanel and currentPanel.layout or nil
+	end
 
 	local function getEntry()
 		local currentPanel, currentEntry = CooldownPanels:GetLayoutEntryStandaloneDialogEntry(panelId, entryId)
@@ -4124,8 +4349,14 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 
 	local function refreshEntryViews()
 		CooldownPanels:RefreshPanel(panelId)
-		refreshEditModeSettingValues()
-		CooldownPanels:RefreshEditor()
+	end
+
+	local function setEntryField(field, value)
+		local _, currentEntry = getEntry()
+		if not currentEntry then return end
+		if currentEntry[field] == value then return end
+		currentEntry[field] = value
+		refreshEntryViews()
 	end
 
 	local function setEntryBoolean(field, value)
@@ -4153,21 +4384,44 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 		refreshEntryViews()
 	end
 
+	local function refreshReadyGlowState(currentEntry)
+		if not currentEntry then return end
+		local runtimeState = getRuntime(panelId)
+		local hadReady = runtimeState and runtimeState.readyAt and runtimeState.readyAt[entryId] ~= nil
+		CooldownPanels.ClearReadyGlowEntryState(panelId, entryId, false)
+		runtimeState.itemReadyPrimed = runtimeState.itemReadyPrimed or {}
+		runtimeState.itemReadyPrimed[entryId] = nil
+		if currentEntry.glowReady and hadReady then
+			local resolvedDuration = CooldownPanels:ResolveEntryGlowStyle(getLayout(), currentEntry)
+			triggerReadyGlow(panelId, entryId, resolvedDuration)
+			runtimeState.itemReadyPrimed[entryId] = true
+		end
+	end
+
+	local function setGlowOverrideEnabled(value)
+		local _, currentEntry = getEntry()
+		if not currentEntry then return end
+		local useGlobal = value ~= true
+		if currentEntry.glowUseGlobal == useGlobal then return end
+		currentEntry.glowUseGlobal = useGlobal
+		refreshReadyGlowState(currentEntry)
+		refreshEntryViews()
+	end
+
 	local function setGlowDuration(_, value)
 		local _, currentEntry = getEntry()
 		if not currentEntry then return end
 		local clamped = Helper.ClampInt(value, 0, 30, currentEntry.glowDuration or 0)
 		if currentEntry.glowDuration == clamped then return end
 		currentEntry.glowDuration = clamped
-		local runtimeState = getRuntime(panelId)
-		local hadReady = runtimeState.readyAt and runtimeState.readyAt[entryId] ~= nil
-		CooldownPanels.ClearReadyGlowEntryState(panelId, entryId, false)
-		runtimeState.itemReadyPrimed = runtimeState.itemReadyPrimed or {}
-		runtimeState.itemReadyPrimed[entryId] = nil
-		if currentEntry.glowReady and hadReady then
-			triggerReadyGlow(panelId, entryId, clamped)
-			runtimeState.itemReadyPrimed[entryId] = true
-		end
+		refreshReadyGlowState(currentEntry)
+		refreshEntryViews()
+	end
+
+	local function setGlowColor(_, value)
+		local _, currentEntry = getEntry()
+		if not currentEntry then return end
+		currentEntry.glowColor = Helper.NormalizeColor(value, Helper.PANEL_LAYOUT_DEFAULTS.readyGlowColor)
 		refreshEntryViews()
 	end
 
@@ -4180,29 +4434,140 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 		refreshEntryViews()
 	end
 
+	local function setCooldownTextOverrideEnabled(value)
+		local _, currentEntry = getEntry()
+		if not currentEntry then return end
+		local useGlobal = value ~= true
+		if currentEntry.cooldownTextUseGlobal == useGlobal then return end
+		currentEntry.cooldownTextUseGlobal = useGlobal
+		refreshEntryViews()
+	end
+
+	local function setStaticTextOverrideEnabled(value)
+		local _, currentEntry = getEntry()
+		if not currentEntry then return end
+		local useGlobal = value ~= true
+		if currentEntry.staticTextUseGlobal == useGlobal then return end
+		currentEntry.staticTextUseGlobal = useGlobal
+		refreshEntryViews()
+	end
+
+	local function setShowIconOverrideEnabled(value)
+		local _, currentEntry = getEntry()
+		if not currentEntry then return end
+		local useGlobal = value ~= true
+		if currentEntry.showIconTextureUseGlobal == useGlobal then return end
+		currentEntry.showIconTextureUseGlobal = useGlobal
+		refreshEntryViews()
+	end
+
+	local function setIconSizeOverrideEnabled(value)
+		local _, currentEntry = getEntry()
+		if not currentEntry then return end
+		local useGlobal = value ~= true
+		if currentEntry.iconSizeUseGlobal == useGlobal then return end
+		currentEntry.iconSizeUseGlobal = useGlobal
+		refreshEntryViews()
+	end
+
+	local function setNoDesaturationOverrideEnabled(value)
+		local _, currentEntry = getEntry()
+		if not currentEntry then return end
+		local useGlobal = value ~= true
+		if currentEntry.noDesaturationUseGlobal == useGlobal then return end
+		currentEntry.noDesaturationUseGlobal = useGlobal
+		refreshEntryViews()
+	end
+
+	local function setSoundReadyFile(soundName)
+		local _, currentEntry = getEntry()
+		if not currentEntry then return end
+		local normalized = normalizeSoundName(soundName)
+		if normalizeSoundName(currentEntry.soundReadyFile) == normalized then return end
+		currentEntry.soundReadyFile = normalized
+		playReadySound(normalized)
+		refreshEntryViews()
+	end
+
+	local function getCooldownTextFontSelection()
+		local _, currentEntry = getEntry()
+		return CooldownPanels:GetFontDropdownValue(currentEntry and currentEntry.cooldownTextFont)
+	end
+
+	local function getResolvedCooldownTextStyleChoice()
+		local layout = getLayout()
+		local _, currentEntry = getEntry()
+		local panelChoice = Helper.NormalizeFontStyleChoice(layout and layout.cooldownTextStyle, defaultCooldownFontStyle)
+		if currentEntry and currentEntry.cooldownTextUseGlobal == false then
+			return Helper.NormalizeFontStyleChoice(currentEntry.cooldownTextStyle, panelChoice)
+		end
+		return panelChoice
+	end
+
+	local function getResolvedCooldownTextColor()
+		local layout = getLayout()
+		local _, currentEntry = getEntry()
+		local _, _, _, color = CooldownPanels:ResolveEntryCooldownTextStyle(layout, currentEntry, defaultCooldownFontPath, defaultCooldownFontSize, defaultCooldownFontStyle)
+		return color
+	end
+
+	local function getStaticTextFontSelection()
+		local _, currentEntry = getEntry()
+		return CooldownPanels:GetFontDropdownValue(currentEntry and currentEntry.staticTextFont)
+	end
+
+	local function getResolvedStaticTextStyleChoice()
+		local layout = getLayout()
+		local _, currentEntry = getEntry()
+		local panelChoice = Helper.NormalizeFontStyleChoice(layout and layout.staticTextStyle, Helper.PANEL_LAYOUT_DEFAULTS.staticTextStyle or defaultStaticFontStyle)
+		if currentEntry and currentEntry.staticTextUseGlobal == false then
+			return Helper.NormalizeFontStyleChoice(currentEntry.staticTextStyle, panelChoice)
+		end
+		return panelChoice
+	end
+
+	local function getResolvedStaticTextColor()
+		local layout = getLayout()
+		local _, currentEntry = getEntry()
+		local _, _, _, color = CooldownPanels:ResolveEntryStaticTextStyle(layout, currentEntry, defaultStaticFontPath, defaultStaticFontSize, defaultStaticFontStyle)
+		return color
+	end
+
+	local function getResolvedGlowColor()
+		local layout = getLayout()
+		local _, currentEntry = getEntry()
+		local _, color = CooldownPanels:ResolveEntryGlowStyle(layout, currentEntry)
+		return color
+	end
+
+	local function getResolvedNoDesaturation()
+		local layout = getLayout()
+		local _, currentEntry = getEntry()
+		return CooldownPanels:ResolveEntryNoDesaturation(layout, currentEntry)
+	end
+
+	local function getResolvedIconSize()
+		local layout = getLayout()
+		local runtimeState = getRuntime(panelId)
+		local currentIcon = runtimeState and runtimeState.entryToIcon and runtimeState.entryToIcon[entryId] or nil
+		local baseSize = currentIcon and currentIcon._eqolBaseSlotSize or Helper.ClampInt(layout and layout.iconSize, 12, 128, Helper.PANEL_LAYOUT_DEFAULTS.iconSize)
+		local _, currentEntry = getEntry()
+		local size = CooldownPanels:ResolveEntryIconVisualLayout(currentEntry, baseSize)
+		return size
+	end
+
 	local initialEffectiveType = getEffectiveType()
 	local settings = {
 		{
-			name = L["CooldownPanelEntry"] or "Entry",
+			name = L["Display"] or "Display",
 			kind = SettingType.Collapsible,
-			id = "cooldownPanelStandaloneEntry",
+			id = "cooldownPanelStandaloneDisplay",
 			defaultCollapsed = false,
-		},
-		{
-			name = L["CooldownPanelShowCooldownText"] or "Show cooldown text",
-			kind = SettingType.Checkbox,
-			parentId = "cooldownPanelStandaloneEntry",
-			isShown = function() return getEffectiveType() ~= "STANCE" end,
-			get = function()
-				local _, currentEntry = getEntry()
-				return currentEntry and currentEntry.showCooldownText ~= false or false
-			end,
-			set = function(_, value) setEntryBoolean("showCooldownText", value) end,
 		},
 		{
 			name = (initialEffectiveType == "STANCE" and (L["CooldownPanelShowWhenMissing"] or "Show when missing")) or (L["CooldownPanelAlwaysShow"] or "Always show"),
 			kind = SettingType.Checkbox,
-			parentId = "cooldownPanelStandaloneEntry",
+			parentId = "cooldownPanelStandaloneDisplay",
 			isShown = function()
 				local effectiveType = getEffectiveType()
 				return effectiveType == "ITEM" or effectiveType == "CDM_AURA" or effectiveType == "STANCE"
@@ -4218,7 +4583,7 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 		{
 			name = L["CooldownPanelShowCharges"] or "Show charges",
 			kind = SettingType.Checkbox,
-			parentId = "cooldownPanelStandaloneEntry",
+			parentId = "cooldownPanelStandaloneDisplay",
 			isShown = function() return getEffectiveType() == "SPELL" end,
 			get = function()
 				local _, currentEntry = getEntry()
@@ -4229,7 +4594,7 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 		{
 			name = L["CooldownPanelShowStacks"] or "Show stack count",
 			kind = SettingType.Checkbox,
-			parentId = "cooldownPanelStandaloneEntry",
+			parentId = "cooldownPanelStandaloneDisplay",
 			isShown = function()
 				local effectiveType = getEffectiveType()
 				return effectiveType == "SPELL" or effectiveType == "CDM_AURA"
@@ -4243,7 +4608,7 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 		{
 			name = L["CooldownPanelShowItemCount"] or "Show item count",
 			kind = SettingType.Checkbox,
-			parentId = "cooldownPanelStandaloneEntry",
+			parentId = "cooldownPanelStandaloneDisplay",
 			isShown = function() return getEffectiveType() == "ITEM" end,
 			get = function()
 				local _, currentEntry = getEntry()
@@ -4254,7 +4619,7 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 		{
 			name = L["CooldownPanelShowItemUses"] or "Show item uses",
 			kind = SettingType.Checkbox,
-			parentId = "cooldownPanelStandaloneEntry",
+			parentId = "cooldownPanelStandaloneDisplay",
 			isShown = function() return getEffectiveType() == "ITEM" end,
 			get = function()
 				local _, currentEntry = getEntry()
@@ -4265,7 +4630,7 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 		{
 			name = L["CooldownPanelUseHighestRank"] or "Use highest rank",
 			kind = SettingType.Checkbox,
-			parentId = "cooldownPanelStandaloneEntry",
+			parentId = "cooldownPanelStandaloneDisplay",
 			isShown = function()
 				local _, currentEntry = getEntry()
 				if not currentEntry or currentEntry.type ~= "ITEM" then return false end
@@ -4283,7 +4648,7 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 		{
 			name = L["CooldownPanelShowWhenEmpty"] or "Show when empty",
 			kind = SettingType.Checkbox,
-			parentId = "cooldownPanelStandaloneEntry",
+			parentId = "cooldownPanelStandaloneDisplay",
 			isShown = function() return getEffectiveType() == "ITEM" end,
 			get = function()
 				local _, currentEntry = getEntry()
@@ -4294,13 +4659,268 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 		{
 			name = L["CooldownPanelShowWhenNoCooldown"] or "Show even without cooldown",
 			kind = SettingType.Checkbox,
-			parentId = "cooldownPanelStandaloneEntry",
+			parentId = "cooldownPanelStandaloneDisplay",
 			isShown = function() return getEffectiveType() == "SLOT" end,
 			get = function()
 				local _, currentEntry = getEntry()
 				return currentEntry and currentEntry.showWhenNoCooldown == true or false
 			end,
 			set = function(_, value) setEntryBoolean("showWhenNoCooldown", value) end,
+		},
+		{
+			name = L["CooldownPanelHideIcon"] or "Hide icon",
+			kind = SettingType.Checkbox,
+			parentId = "cooldownPanelStandaloneDisplay",
+			get = function()
+				local _, currentEntry = getEntry()
+				return currentEntry and currentEntry.hideIcon == true or false
+			end,
+			set = function(_, value) setEntryBoolean("hideIcon", value) end,
+		},
+		{
+			name = L["CooldownPanelOverwriteGlobalDefault"] or "Overwrite global default",
+			kind = SettingType.Checkbox,
+			parentId = "cooldownPanelStandaloneDisplay",
+			get = function()
+				local _, currentEntry = getEntry()
+				return currentEntry and currentEntry.showIconTextureUseGlobal == false or false
+			end,
+			set = function(_, value) setShowIconOverrideEnabled(value) end,
+		},
+		{
+			name = L["CooldownPanelOverwriteGlobalSize"] or "Overwrite global size",
+			kind = SettingType.Checkbox,
+			parentId = "cooldownPanelStandaloneDisplay",
+			get = function()
+				local _, currentEntry = getEntry()
+				return currentEntry and currentEntry.iconSizeUseGlobal == false or false
+			end,
+			set = function(_, value) setIconSizeOverrideEnabled(value) end,
+		},
+		{
+			name = L["CooldownPanelIconSize"] or "Icon size",
+			kind = SettingType.Slider,
+			parentId = "cooldownPanelStandaloneDisplay",
+			minValue = 12,
+			maxValue = 128,
+			valueStep = 1,
+			allowInput = true,
+			disabled = function()
+				local _, currentEntry = getEntry()
+				return not (currentEntry and currentEntry.iconSizeUseGlobal == false)
+			end,
+			get = function() return getResolvedIconSize() end,
+			set = function(_, value)
+				local _, currentEntry = getEntry()
+				if not currentEntry then return end
+				local size = Helper.ClampInt(value, 12, 128, getResolvedIconSize())
+				if currentEntry.iconSize == size then return end
+				currentEntry.iconSize = size
+				refreshEntryViews()
+			end,
+			formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
+		},
+		{
+			name = L["CooldownPanelIconOffsetX"] or "Icon X",
+			kind = SettingType.Slider,
+			parentId = "cooldownPanelStandaloneDisplay",
+			minValue = -Helper.OFFSET_RANGE,
+			maxValue = Helper.OFFSET_RANGE,
+			valueStep = 1,
+			allowInput = true,
+			get = function()
+				local _, currentEntry = getEntry()
+				return Helper.ClampInt(currentEntry and currentEntry.iconOffsetX, -Helper.OFFSET_RANGE, Helper.OFFSET_RANGE, 0)
+			end,
+			set = function(_, value) setEntryField("iconOffsetX", Helper.ClampInt(value, -Helper.OFFSET_RANGE, Helper.OFFSET_RANGE, 0)) end,
+			formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
+		},
+		{
+			name = L["CooldownPanelIconOffsetY"] or "Icon Y",
+			kind = SettingType.Slider,
+			parentId = "cooldownPanelStandaloneDisplay",
+			minValue = -Helper.OFFSET_RANGE,
+			maxValue = Helper.OFFSET_RANGE,
+			valueStep = 1,
+			allowInput = true,
+			get = function()
+				local _, currentEntry = getEntry()
+				return Helper.ClampInt(currentEntry and currentEntry.iconOffsetY, -Helper.OFFSET_RANGE, Helper.OFFSET_RANGE, 0)
+			end,
+			set = function(_, value) setEntryField("iconOffsetY", Helper.ClampInt(value, -Helper.OFFSET_RANGE, Helper.OFFSET_RANGE, 0)) end,
+			formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
+		},
+		{
+			name = L["CooldownPanelOverlaysHeader"] or "Overlays",
+			kind = SettingType.Collapsible,
+			id = "cooldownPanelStandaloneOverlays",
+			defaultCollapsed = true,
+		},
+		{
+			name = L["CooldownPanelOverwriteGlobalDefault"] or "Overwrite global default",
+			kind = SettingType.Checkbox,
+			parentId = "cooldownPanelStandaloneOverlays",
+			get = function()
+				local _, currentEntry = getEntry()
+				return currentEntry and currentEntry.noDesaturationUseGlobal == false or false
+			end,
+			set = function(_, value) setNoDesaturationOverrideEnabled(value) end,
+		},
+		{
+			name = L["CooldownPanelNoDesaturation"] or "No desaturation",
+			kind = SettingType.Checkbox,
+			parentId = "cooldownPanelStandaloneOverlays",
+			disabled = function()
+				local _, currentEntry = getEntry()
+				return not (currentEntry and currentEntry.noDesaturationUseGlobal == false)
+			end,
+			get = function() return getResolvedNoDesaturation() end,
+			set = function(_, value) setEntryBoolean("noDesaturation", value) end,
+		},
+		{
+			name = L["CooldownPanelCooldownText"] or "Cooldown text",
+			kind = SettingType.Collapsible,
+			id = "cooldownPanelStandaloneCooldownText",
+			defaultCollapsed = true,
+			isShown = function() return getEffectiveType() ~= "STANCE" end,
+		},
+		{
+			name = L["CooldownPanelShowCooldownText"] or "Show cooldown text",
+			kind = SettingType.Checkbox,
+			parentId = "cooldownPanelStandaloneCooldownText",
+			isShown = function() return getEffectiveType() ~= "STANCE" end,
+			get = function()
+				local _, currentEntry = getEntry()
+				return currentEntry and currentEntry.showCooldownText ~= false or false
+			end,
+			set = function(_, value) setEntryBoolean("showCooldownText", value) end,
+		},
+		{
+			name = L["CooldownPanelOverwriteGlobalDefault"] or "Overwrite global default",
+			kind = SettingType.Checkbox,
+			parentId = "cooldownPanelStandaloneCooldownText",
+			isShown = function() return getEffectiveType() ~= "STANCE" end,
+			get = function()
+				local _, currentEntry = getEntry()
+				return currentEntry and currentEntry.cooldownTextUseGlobal == false or false
+			end,
+			set = function(_, value) setCooldownTextOverrideEnabled(value) end,
+		},
+		{
+			name = L["Font"] or "Font",
+			kind = SettingType.Dropdown,
+			parentId = "cooldownPanelStandaloneCooldownText",
+			height = 220,
+			isShown = function() return getEffectiveType() ~= "STANCE" end,
+			disabled = function()
+				local _, currentEntry = getEntry()
+				return not (currentEntry and currentEntry.showCooldownText ~= false and currentEntry.cooldownTextUseGlobal == false)
+			end,
+			get = function() return getCooldownTextFontSelection() end,
+			set = function(_, value) setEntryField("cooldownTextFont", value) end,
+			generator = function(_, root)
+				for _, option in ipairs(Helper.GetFontOptions(defaultCooldownFontPath)) do
+					root:CreateRadio(option.label, function() return getCooldownTextFontSelection() == option.value end, function() setEntryField("cooldownTextFont", option.value) end)
+				end
+			end,
+		},
+		{
+			name = L["CooldownPanelCooldownTextStyle"] or "Cooldown text outline",
+			kind = SettingType.Dropdown,
+			parentId = "cooldownPanelStandaloneCooldownText",
+			height = 120,
+			isShown = function() return getEffectiveType() ~= "STANCE" end,
+			disabled = function()
+				local _, currentEntry = getEntry()
+				return not (currentEntry and currentEntry.showCooldownText ~= false and currentEntry.cooldownTextUseGlobal == false)
+			end,
+			get = function() return getResolvedCooldownTextStyleChoice() end,
+			set = function(_, value) setEntryField("cooldownTextStyle", Helper.NormalizeFontStyleChoice(value, "NONE")) end,
+			generator = function(_, root)
+				for _, option in ipairs(Helper.FontStyleOptions) do
+					root:CreateRadio(
+						option.label,
+						function() return getResolvedCooldownTextStyleChoice() == option.value end,
+						function() setEntryField("cooldownTextStyle", option.value) end
+					)
+				end
+			end,
+		},
+		{
+			name = L["CooldownPanelCooldownTextColor"] or "Cooldown text color",
+			kind = SettingType.Color,
+			parentId = "cooldownPanelStandaloneCooldownText",
+			hasOpacity = true,
+			isShown = function() return getEffectiveType() ~= "STANCE" end,
+			disabled = function()
+				local _, currentEntry = getEntry()
+				return not (currentEntry and currentEntry.showCooldownText ~= false and currentEntry.cooldownTextUseGlobal == false)
+			end,
+			get = function()
+				local color = getResolvedCooldownTextColor()
+				return { r = color[1], g = color[2], b = color[3], a = color[4] }
+			end,
+			set = function(_, value) setEntryField("cooldownTextColor", Helper.NormalizeColor(value, Helper.PANEL_LAYOUT_DEFAULTS.cooldownTextColor)) end,
+		},
+		{
+			name = L["FontSize"] or "Font size",
+			kind = SettingType.Slider,
+			parentId = "cooldownPanelStandaloneCooldownText",
+			minValue = 6,
+			maxValue = 64,
+			valueStep = 1,
+			allowInput = true,
+			isShown = function() return getEffectiveType() ~= "STANCE" end,
+			disabled = function()
+				local _, currentEntry = getEntry()
+				return not (currentEntry and currentEntry.showCooldownText ~= false and currentEntry.cooldownTextUseGlobal == false)
+			end,
+			get = function()
+				local _, size = CooldownPanels:ResolveEntryCooldownTextStyle(getLayout(), select(2, getEntry()), defaultCooldownFontPath, defaultCooldownFontSize, defaultCooldownFontStyle)
+				return size
+			end,
+			set = function(_, value) setEntryField("cooldownTextSize", Helper.ClampInt(value, 6, 64, defaultCooldownFontSize or 12)) end,
+			formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
+		},
+		{
+			name = L["CooldownPanelCooldownTextOffsetX"] or "Cooldown text offset X",
+			kind = SettingType.Slider,
+			parentId = "cooldownPanelStandaloneCooldownText",
+			minValue = -Helper.OFFSET_RANGE,
+			maxValue = Helper.OFFSET_RANGE,
+			valueStep = 1,
+			allowInput = true,
+			isShown = function() return getEffectiveType() ~= "STANCE" end,
+			disabled = function()
+				local _, currentEntry = getEntry()
+				return not (currentEntry and currentEntry.showCooldownText ~= false and currentEntry.cooldownTextUseGlobal == false)
+			end,
+			get = function()
+				local _, _, _, _, x = CooldownPanels:ResolveEntryCooldownTextStyle(getLayout(), select(2, getEntry()), defaultCooldownFontPath, defaultCooldownFontSize, defaultCooldownFontStyle)
+				return x
+			end,
+			set = function(_, value) setEntryField("cooldownTextX", Helper.ClampInt(value, -Helper.OFFSET_RANGE, Helper.OFFSET_RANGE, 0)) end,
+			formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
+		},
+		{
+			name = L["CooldownPanelCooldownTextOffsetY"] or "Cooldown text offset Y",
+			kind = SettingType.Slider,
+			parentId = "cooldownPanelStandaloneCooldownText",
+			minValue = -Helper.OFFSET_RANGE,
+			maxValue = Helper.OFFSET_RANGE,
+			valueStep = 1,
+			allowInput = true,
+			isShown = function() return getEffectiveType() ~= "STANCE" end,
+			disabled = function()
+				local _, currentEntry = getEntry()
+				return not (currentEntry and currentEntry.showCooldownText ~= false and currentEntry.cooldownTextUseGlobal == false)
+			end,
+			get = function()
+				local _, _, _, _, _, y = CooldownPanels:ResolveEntryCooldownTextStyle(getLayout(), select(2, getEntry()), defaultCooldownFontPath, defaultCooldownFontSize, defaultCooldownFontStyle)
+				return y
+			end,
+			set = function(_, value) setEntryField("cooldownTextY", Helper.ClampInt(value, -Helper.OFFSET_RANGE, Helper.OFFSET_RANGE, 0)) end,
+			formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
 		},
 		{
 			name = L["CooldownPanelStaticText"] or "Static text",
@@ -4313,6 +4933,7 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 			name = L["CooldownPanelStaticText"] or "Static text",
 			kind = SettingType.Input,
 			parentId = "cooldownPanelStandaloneStaticText",
+			inputWidth = 220,
 			isShown = function() return getEffectiveType() ~= "STANCE" end,
 			get = function()
 				local _, currentEntry = getEntry()
@@ -4321,6 +4942,17 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 			set = function(_, value) setStaticText(_, value) end,
 			default = "",
 			maxChars = 32,
+		},
+		{
+			name = L["CooldownPanelOverwriteGlobalDefault"] or "Overwrite global default",
+			kind = SettingType.Checkbox,
+			parentId = "cooldownPanelStandaloneStaticText",
+			isShown = function() return getEffectiveType() ~= "STANCE" end,
+			get = function()
+				local _, currentEntry = getEntry()
+				return currentEntry and currentEntry.staticTextUseGlobal == false or false
+			end,
+			set = function(_, value) setStaticTextOverrideEnabled(value) end,
 		},
 		{
 			name = L["CooldownPanelStaticTextDuringCD"] or "Show text during CD",
@@ -4334,16 +4966,162 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 			set = function(_, value) setEntryBoolean("staticTextShowOnCooldown", value) end,
 		},
 		{
-			name = L["CooldownPanelOverlaysHeader"] or "Overlays",
+			name = L["Font"] or "Font",
+			kind = SettingType.Dropdown,
+			parentId = "cooldownPanelStandaloneStaticText",
+			height = 220,
+			isShown = function() return getEffectiveType() ~= "STANCE" end,
+			disabled = function()
+				local _, currentEntry = getEntry()
+				return not (currentEntry and currentEntry.staticTextUseGlobal == false)
+			end,
+			get = function() return getStaticTextFontSelection() end,
+			set = function(_, value) setEntryField("staticTextFont", value) end,
+			generator = function(_, root)
+				for _, option in ipairs(Helper.GetFontOptions(defaultStaticFontPath)) do
+					root:CreateRadio(option.label, function() return getStaticTextFontSelection() == option.value end, function() setEntryField("staticTextFont", option.value) end)
+				end
+			end,
+		},
+		{
+			name = L["CooldownPanelFontStyle"] or "Font style",
+			kind = SettingType.Dropdown,
+			parentId = "cooldownPanelStandaloneStaticText",
+			height = 120,
+			isShown = function() return getEffectiveType() ~= "STANCE" end,
+			disabled = function()
+				local _, currentEntry = getEntry()
+				return not (currentEntry and currentEntry.staticTextUseGlobal == false)
+			end,
+			get = function() return getResolvedStaticTextStyleChoice() end,
+			set = function(_, value) setEntryField("staticTextStyle", Helper.NormalizeFontStyleChoice(value, Helper.PANEL_LAYOUT_DEFAULTS.staticTextStyle or "OUTLINE")) end,
+			generator = function(_, root)
+				for _, option in ipairs(Helper.FontStyleOptions) do
+					root:CreateRadio(option.label, function() return getResolvedStaticTextStyleChoice() == option.value end, function() setEntryField("staticTextStyle", option.value) end)
+				end
+			end,
+		},
+		{
+			name = L["CooldownPanelStaticTextColor"] or _G.COLOR or "Color",
+			kind = SettingType.Color,
+			parentId = "cooldownPanelStandaloneStaticText",
+			hasOpacity = true,
+			isShown = function() return getEffectiveType() ~= "STANCE" end,
+			disabled = function()
+				local _, currentEntry = getEntry()
+				return not (currentEntry and currentEntry.staticTextUseGlobal == false)
+			end,
+			get = function()
+				local color = getResolvedStaticTextColor()
+				return { r = color[1], g = color[2], b = color[3], a = color[4] }
+			end,
+			set = function(_, value) setEntryField("staticTextColor", Helper.NormalizeColor(value, Helper.PANEL_LAYOUT_DEFAULTS.staticTextColor or { 1, 1, 1, 1 })) end,
+		},
+		{
+			name = L["FontSize"] or "Font size",
+			kind = SettingType.Slider,
+			parentId = "cooldownPanelStandaloneStaticText",
+			minValue = 6,
+			maxValue = 64,
+			valueStep = 1,
+			allowInput = true,
+			isShown = function() return getEffectiveType() ~= "STANCE" end,
+			disabled = function()
+				local _, currentEntry = getEntry()
+				return not (currentEntry and currentEntry.staticTextUseGlobal == false)
+			end,
+			get = function()
+				local _, size = CooldownPanels:ResolveEntryStaticTextStyle(getLayout(), select(2, getEntry()), defaultStaticFontPath, defaultStaticFontSize, defaultStaticFontStyle)
+				return size
+			end,
+			set = function(_, value) setEntryField("staticTextSize", Helper.ClampInt(value, 6, 64, defaultStaticFontSize or 12)) end,
+			formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
+		},
+		{
+			name = L["Anchor"] or "Anchor",
+			kind = SettingType.Dropdown,
+			parentId = "cooldownPanelStandaloneStaticText",
+			height = 160,
+			isShown = function() return getEffectiveType() ~= "STANCE" end,
+			disabled = function()
+				local _, currentEntry = getEntry()
+				return not (currentEntry and currentEntry.staticTextUseGlobal == false)
+			end,
+			get = function()
+				local _, _, _, _, anchor = CooldownPanels:ResolveEntryStaticTextStyle(getLayout(), select(2, getEntry()), defaultStaticFontPath, defaultStaticFontSize, defaultStaticFontStyle)
+				return anchor
+			end,
+			set = function(_, value) setEntryField("staticTextAnchor", Helper.NormalizeAnchor(value, Helper.PANEL_LAYOUT_DEFAULTS.staticTextAnchor or "CENTER")) end,
+			generator = function(_, root)
+				for _, option in ipairs(Helper.AnchorOptions) do
+					root:CreateRadio(
+						option.label,
+						function()
+							local _, _, _, _, anchor = CooldownPanels:ResolveEntryStaticTextStyle(
+								getLayout(),
+								select(2, getEntry()),
+								defaultStaticFontPath,
+								defaultStaticFontSize,
+								defaultStaticFontStyle
+							)
+							return anchor == option.value
+						end,
+						function() setEntryField("staticTextAnchor", option.value) end
+					)
+				end
+			end,
+		},
+		{
+			name = L["Text X Offset"] or "Text X Offset",
+			kind = SettingType.Slider,
+			parentId = "cooldownPanelStandaloneStaticText",
+			minValue = -Helper.OFFSET_RANGE,
+			maxValue = Helper.OFFSET_RANGE,
+			valueStep = 1,
+			allowInput = true,
+			isShown = function() return getEffectiveType() ~= "STANCE" end,
+			disabled = function()
+				local _, currentEntry = getEntry()
+				return not (currentEntry and currentEntry.staticTextUseGlobal == false)
+			end,
+			get = function()
+				local _, _, _, _, _, x = CooldownPanels:ResolveEntryStaticTextStyle(getLayout(), select(2, getEntry()), defaultStaticFontPath, defaultStaticFontSize, defaultStaticFontStyle)
+				return x
+			end,
+			set = function(_, value) setEntryField("staticTextX", Helper.ClampInt(value, -Helper.OFFSET_RANGE, Helper.OFFSET_RANGE, 0)) end,
+			formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
+		},
+		{
+			name = L["Text Y Offset"] or "Text Y Offset",
+			kind = SettingType.Slider,
+			parentId = "cooldownPanelStandaloneStaticText",
+			minValue = -Helper.OFFSET_RANGE,
+			maxValue = Helper.OFFSET_RANGE,
+			valueStep = 1,
+			allowInput = true,
+			isShown = function() return getEffectiveType() ~= "STANCE" end,
+			disabled = function()
+				local _, currentEntry = getEntry()
+				return not (currentEntry and currentEntry.staticTextUseGlobal == false)
+			end,
+			get = function()
+				local _, _, _, _, _, _, y = CooldownPanels:ResolveEntryStaticTextStyle(getLayout(), select(2, getEntry()), defaultStaticFontPath, defaultStaticFontSize, defaultStaticFontStyle)
+				return y
+			end,
+			set = function(_, value) setEntryField("staticTextY", Helper.ClampInt(value, -Helper.OFFSET_RANGE, Helper.OFFSET_RANGE, 0)) end,
+			formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
+		},
+		{
+			name = _G.GLOW or "Glow",
 			kind = SettingType.Collapsible,
-			id = "cooldownPanelStandaloneEffects",
+			id = "cooldownPanelStandaloneGlow",
 			defaultCollapsed = true,
 			isShown = function() return getEffectiveType() ~= "MACRO" end,
 		},
 		{
 			name = (initialEffectiveType == "STANCE" and (_G.GLOW or "Glow")) or (L["CooldownPanelGlowReady"] or "Glow when ready"),
 			kind = SettingType.Checkbox,
-			parentId = "cooldownPanelStandaloneEffects",
+			parentId = "cooldownPanelStandaloneGlow",
 			isShown = function() return getEffectiveType() ~= "MACRO" end,
 			get = function()
 				local _, currentEntry = getEntry()
@@ -4352,9 +5130,20 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 			set = function(_, value) setEntryBoolean("glowReady", value) end,
 		},
 		{
+			name = L["CooldownPanelOverwriteGlobalDefault"] or "Overwrite global default",
+			kind = SettingType.Checkbox,
+			parentId = "cooldownPanelStandaloneGlow",
+			isShown = function() return getEffectiveType() ~= "MACRO" end,
+			get = function()
+				local _, currentEntry = getEntry()
+				return currentEntry and currentEntry.glowUseGlobal == false or false
+			end,
+			set = function(_, value) setGlowOverrideEnabled(value) end,
+		},
+		{
 			name = L["CooldownPanelGlowDuration"] or "Glow duration",
 			kind = SettingType.Slider,
-			parentId = "cooldownPanelStandaloneEffects",
+			parentId = "cooldownPanelStandaloneGlow",
 			minValue = 0,
 			maxValue = 30,
 			valueStep = 1,
@@ -4362,19 +5151,42 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 			isShown = function() return getEffectiveType() ~= "MACRO" end,
 			disabled = function()
 				local _, currentEntry = getEntry()
-				return not (currentEntry and currentEntry.glowReady == true)
+				return not (currentEntry and currentEntry.glowReady == true and currentEntry.glowUseGlobal == false)
 			end,
 			get = function()
-				local _, currentEntry = getEntry()
-				return Helper.ClampInt(currentEntry and currentEntry.glowDuration, 0, 30, 0)
+				local duration = CooldownPanels:ResolveEntryGlowStyle(getLayout(), select(2, getEntry()))
+				return duration
 			end,
 			set = setGlowDuration,
 			formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) .. "s" end,
 		},
 		{
+			name = L["CooldownPanelGlowColor"] or "Ready glow color",
+			kind = SettingType.Color,
+			parentId = "cooldownPanelStandaloneGlow",
+			hasOpacity = true,
+			isShown = function() return getEffectiveType() ~= "MACRO" end,
+			disabled = function()
+				local _, currentEntry = getEntry()
+				return not (currentEntry and currentEntry.glowReady == true and currentEntry.glowUseGlobal == false)
+			end,
+			get = function()
+				local color = getResolvedGlowColor()
+				return { r = color[1], g = color[2], b = color[3], a = color[4] }
+			end,
+			set = setGlowColor,
+		},
+		{
+			name = L["CooldownPanelSound"] or "Sound",
+			kind = SettingType.Collapsible,
+			id = "cooldownPanelStandaloneSound",
+			defaultCollapsed = true,
+			isShown = function() return allowsStandaloneEntryReadySound(getEffectiveType()) end,
+		},
+		{
 			name = L["CooldownPanelSoundReady"] or "Sound when ready",
 			kind = SettingType.Checkbox,
-			parentId = "cooldownPanelStandaloneEffects",
+			parentId = "cooldownPanelStandaloneSound",
 			isShown = function() return allowsStandaloneEntryReadySound(getEffectiveType()) end,
 			get = function()
 				local _, currentEntry = getEntry()
@@ -4382,16 +5194,38 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 			end,
 			set = function(_, value) setEntryBoolean("soundReady", value) end,
 		},
+		{
+			name = L["CooldownPanelSound"] or "Sound",
+			kind = SettingType.Dropdown,
+			parentId = "cooldownPanelStandaloneSound",
+			height = 260,
+			isShown = function() return allowsStandaloneEntryReadySound(getEffectiveType()) end,
+			disabled = function()
+				local _, currentEntry = getEntry()
+				return not (currentEntry and currentEntry.soundReady == true)
+			end,
+			get = function()
+				local _, currentEntry = getEntry()
+				return normalizeSoundName(currentEntry and currentEntry.soundReadyFile)
+			end,
+			set = function(_, value) setSoundReadyFile(value) end,
+			generator = function(_, root)
+				for _, soundName in ipairs(getSoundOptions()) do
+					local label = getSoundLabel(soundName)
+					root:CreateRadio(
+						label,
+						function()
+							local _, currentEntry = getEntry()
+							return normalizeSoundName(currentEntry and currentEntry.soundReadyFile) == soundName
+						end,
+						function() setSoundReadyFile(soundName) end
+					)
+				end
+			end,
+		},
 	}
 
 	local buttons = {
-		{
-			text = L["CooldownPanelSound"] or "Sound",
-			click = function(self)
-				local _, currentEntry = getEntry()
-				if currentEntry and allowsStandaloneEntryReadySound(getEffectiveType()) then showSoundMenu(self, panelId, entryId) end
-			end,
-		},
 		{
 			text = L["CooldownPanelRemoveEntry"] or "Remove entry",
 			click = function()
@@ -4405,7 +5239,7 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 	}
 
 	local dialog = lib:ShowStandaloneSettingsDialog(hostFrame, {
-		title = getEntryName(entry),
+		title = self:GetEntryStandaloneTitle(entry),
 		settings = settings,
 		buttons = buttons,
 		showReset = false,
@@ -4490,6 +5324,8 @@ function CooldownPanels:OpenLayoutPanelStandaloneMenu(panelId, anchorFrame)
 	local hostFrame = runtime and runtime.frame or nil
 	if not (panel and hostFrame) then return end
 	local spawnPosition = self:GetStandaloneDialogSpawnPosition(anchorFrame, hostFrame, 12, 0)
+	local defaultStaticFontPath, defaultStaticFontSize, defaultStaticFontStyle = Helper.GetCountFontDefaults(hostFrame)
+	local defaultCooldownFontPath, defaultCooldownFontSize, defaultCooldownFontStyle = self:GetCooldownFontDefaults(hostFrame)
 
 	local function getPanel()
 		return CooldownPanels:GetPanel(panelId)
@@ -4501,13 +5337,76 @@ function CooldownPanels:OpenLayoutPanelStandaloneMenu(panelId, anchorFrame)
 	end
 
 	local function refreshPanelViews()
-		refreshEditModeSettingValues()
-		CooldownPanels:RefreshEditor()
+		CooldownPanels:RefreshPanel(panelId)
 	end
 
 	local function setPanelLayout(field, value)
-		applyEditLayout(panelId, field, value)
+		applyEditLayout(panelId, field, value, true)
 		refreshPanelViews()
+	end
+
+	local function refreshPanelReadyGlows()
+		local currentPanel = getPanel()
+		if not currentPanel or type(currentPanel.entries) ~= "table" then return end
+		local runtimeState = getRuntime(panelId)
+		if not (runtimeState and runtimeState.readyAt) then return end
+		runtimeState.itemReadyPrimed = runtimeState.itemReadyPrimed or {}
+		local layout = getLayout()
+		for currentEntryId, currentEntry in pairs(currentPanel.entries) do
+			if currentEntry and currentEntry.glowReady == true and currentEntry.glowUseGlobal ~= false and runtimeState.readyAt[currentEntryId] then
+				local resolvedDuration = CooldownPanels:ResolveEntryGlowStyle(layout, currentEntry)
+				triggerReadyGlow(panelId, currentEntryId, resolvedDuration)
+				runtimeState.itemReadyPrimed[currentEntryId] = true
+			end
+		end
+	end
+
+	local function setPanelGlowDuration(_, value)
+		local layout = getLayout()
+		local currentValue = Helper.ClampInt(layout and layout.readyGlowDuration, 0, 30, Helper.PANEL_LAYOUT_DEFAULTS.readyGlowDuration or 0)
+		local clamped = Helper.ClampInt(value, 0, 30, currentValue)
+		if currentValue == clamped then return end
+		applyEditLayout(panelId, "readyGlowDuration", clamped, true)
+		refreshPanelReadyGlows()
+		refreshPanelViews()
+	end
+
+	local function getPanelCooldownTextFontSelection()
+		local layout = getLayout()
+		return CooldownPanels:GetFontDropdownValue(layout and layout.cooldownTextFont)
+	end
+
+	local function getResolvedPanelCooldownTextStyleChoice()
+		local layout = getLayout()
+		return Helper.NormalizeFontStyleChoice(layout and layout.cooldownTextStyle, defaultCooldownFontStyle)
+	end
+
+	local function getResolvedPanelCooldownTextColor()
+		local layout = getLayout()
+		local _, _, _, color = CooldownPanels:ResolveEntryCooldownTextStyle(layout, nil, defaultCooldownFontPath, defaultCooldownFontSize, defaultCooldownFontStyle)
+		return color
+	end
+
+	local function getPanelStaticTextFontSelection()
+		local layout = getLayout()
+		return CooldownPanels:GetFontDropdownValue(layout and layout.staticTextFont)
+	end
+
+	local function getResolvedPanelStaticTextStyleChoice()
+		local layout = getLayout()
+		return Helper.NormalizeFontStyleChoice(layout and layout.staticTextStyle, Helper.PANEL_LAYOUT_DEFAULTS.staticTextStyle or defaultStaticFontStyle)
+	end
+
+	local function getResolvedPanelStaticTextColor()
+		local layout = getLayout()
+		local _, _, _, color = CooldownPanels:ResolveEntryStaticTextStyle(layout, nil, defaultStaticFontPath, defaultStaticFontSize, defaultStaticFontStyle)
+		return color
+	end
+
+	local function getResolvedPanelGlowColor()
+		local layout = getLayout()
+		local _, color = CooldownPanels:ResolveEntryGlowStyle(layout, nil)
+		return color
 	end
 
 	local settings = {
@@ -4518,7 +5417,7 @@ function CooldownPanels:OpenLayoutPanelStandaloneMenu(panelId, anchorFrame)
 			defaultCollapsed = false,
 		},
 		{
-			name = "Icon size",
+			name = L["CooldownPanelIconSize"] or "Icon size",
 			kind = SettingType.Slider,
 			parentId = "cooldownPanelStandaloneLayout",
 			minValue = 12,
@@ -4533,7 +5432,7 @@ function CooldownPanels:OpenLayoutPanelStandaloneMenu(panelId, anchorFrame)
 			formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
 		},
 		{
-			name = "Spacing",
+			name = L["CooldownPanelSpacing"] or "Spacing",
 			kind = SettingType.Slider,
 			parentId = "cooldownPanelStandaloneLayout",
 			minValue = 0,
@@ -4577,6 +5476,315 @@ function CooldownPanels:OpenLayoutPanelStandaloneMenu(panelId, anchorFrame)
 			set = function(_, value) setPanelLayout("fixedGridRows", value) end,
 			formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
 		},
+		{
+			name = L["CooldownPanelDisplayHeader"] or "Display",
+			kind = SettingType.Collapsible,
+			id = "cooldownPanelStandalonePanelDisplay",
+			defaultCollapsed = true,
+		},
+		{
+			name = L["CooldownPanelShowTooltips"] or "Show tooltips",
+			kind = SettingType.Checkbox,
+			parentId = "cooldownPanelStandalonePanelDisplay",
+			get = function()
+				local layout = getLayout()
+				return layout and layout.showTooltips == true or false
+			end,
+			set = function(_, value) setPanelLayout("showTooltips", value) end,
+		},
+		{
+			name = L["CooldownPanelShowIconTexture"] or "Show icon texture",
+			kind = SettingType.Checkbox,
+			parentId = "cooldownPanelStandalonePanelDisplay",
+			get = function()
+				return CooldownPanels:ResolveEntryShowIconTexture(getLayout(), nil)
+			end,
+			set = function(_, value) setPanelLayout("showIconTexture", value) end,
+		},
+		{
+			name = L["CooldownPanelOverlaysHeader"] or "Overlays",
+			kind = SettingType.Collapsible,
+			id = "cooldownPanelStandalonePanelOverlays",
+			defaultCollapsed = true,
+		},
+		{
+			name = L["CooldownPanelRangeOverlay"] or "Show range overlay",
+			kind = SettingType.CheckboxColor,
+			parentId = "cooldownPanelStandalonePanelOverlays",
+			get = function()
+				local layout = getLayout()
+				return layout and layout.rangeOverlayEnabled == true or false
+			end,
+			set = function(_, value) setPanelLayout("rangeOverlayEnabled", value) end,
+			colorGet = function()
+				local layout = getLayout()
+				return layout and layout.rangeOverlayColor or Helper.PANEL_LAYOUT_DEFAULTS.rangeOverlayColor
+			end,
+			colorSet = function(_, value) setPanelLayout("rangeOverlayColor", value) end,
+			hasOpacity = true,
+		},
+		{
+			name = L["CooldownPanelNoDesaturation"] or "No desaturation",
+			kind = SettingType.Checkbox,
+			parentId = "cooldownPanelStandalonePanelOverlays",
+			get = function()
+				return CooldownPanels:ResolveEntryNoDesaturation(getLayout(), nil)
+			end,
+			set = function(_, value) setPanelLayout("noDesaturation", value) end,
+		},
+		{
+			name = L["CooldownPanelPowerTint"] or "Check power",
+			kind = SettingType.CheckboxColor,
+			parentId = "cooldownPanelStandalonePanelOverlays",
+			get = function()
+				local layout = getLayout()
+				return layout and layout.checkPower == true or false
+			end,
+			set = function(_, value) setPanelLayout("checkPower", value) end,
+			colorGet = function()
+				local layout = getLayout()
+				return layout and layout.powerTintColor or Helper.PANEL_LAYOUT_DEFAULTS.powerTintColor
+			end,
+			colorSet = function(_, value) setPanelLayout("powerTintColor", value) end,
+		},
+		{
+			name = L["CooldownPanelCooldownText"] or "Cooldown text",
+			kind = SettingType.Collapsible,
+			id = "cooldownPanelStandalonePanelCooldownText",
+			defaultCollapsed = true,
+		},
+		{
+			name = L["Font"] or "Font",
+			kind = SettingType.Dropdown,
+			parentId = "cooldownPanelStandalonePanelCooldownText",
+			height = 220,
+			get = function() return getPanelCooldownTextFontSelection() end,
+			set = function(_, value) setPanelLayout("cooldownTextFont", value) end,
+			generator = function(_, root)
+				for _, option in ipairs(Helper.GetFontOptions(defaultCooldownFontPath)) do
+					root:CreateRadio(option.label, function() return getPanelCooldownTextFontSelection() == option.value end, function() setPanelLayout("cooldownTextFont", option.value) end)
+				end
+			end,
+		},
+		{
+			name = L["CooldownPanelCooldownTextStyle"] or "Cooldown text outline",
+			kind = SettingType.Dropdown,
+			parentId = "cooldownPanelStandalonePanelCooldownText",
+			height = 120,
+			get = function() return getResolvedPanelCooldownTextStyleChoice() end,
+			set = function(_, value) setPanelLayout("cooldownTextStyle", value) end,
+			generator = function(_, root)
+				for _, option in ipairs(Helper.FontStyleOptions) do
+					root:CreateRadio(
+						option.label,
+						function() return getResolvedPanelCooldownTextStyleChoice() == option.value end,
+						function() setPanelLayout("cooldownTextStyle", option.value) end
+					)
+				end
+			end,
+		},
+		{
+			name = L["CooldownPanelCooldownTextColor"] or "Cooldown text color",
+			kind = SettingType.Color,
+			parentId = "cooldownPanelStandalonePanelCooldownText",
+			hasOpacity = true,
+			get = function()
+				local color = getResolvedPanelCooldownTextColor()
+				return { r = color[1], g = color[2], b = color[3], a = color[4] }
+			end,
+			set = function(_, value) setPanelLayout("cooldownTextColor", value) end,
+		},
+		{
+			name = L["FontSize"] or "Font size",
+			kind = SettingType.Slider,
+			parentId = "cooldownPanelStandalonePanelCooldownText",
+			minValue = 6,
+			maxValue = 64,
+			valueStep = 1,
+			allowInput = true,
+			get = function()
+				local _, size = CooldownPanels:ResolveEntryCooldownTextStyle(getLayout(), nil, defaultCooldownFontPath, defaultCooldownFontSize, defaultCooldownFontStyle)
+				return size
+			end,
+			set = function(_, value) setPanelLayout("cooldownTextSize", value) end,
+			formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
+		},
+		{
+			name = L["CooldownPanelCooldownTextOffsetX"] or "Cooldown text offset X",
+			kind = SettingType.Slider,
+			parentId = "cooldownPanelStandalonePanelCooldownText",
+			minValue = -Helper.OFFSET_RANGE,
+			maxValue = Helper.OFFSET_RANGE,
+			valueStep = 1,
+			allowInput = true,
+			get = function()
+				local _, _, _, _, x = CooldownPanels:ResolveEntryCooldownTextStyle(getLayout(), nil, defaultCooldownFontPath, defaultCooldownFontSize, defaultCooldownFontStyle)
+				return x
+			end,
+			set = function(_, value) setPanelLayout("cooldownTextX", value) end,
+			formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
+		},
+		{
+			name = L["CooldownPanelCooldownTextOffsetY"] or "Cooldown text offset Y",
+			kind = SettingType.Slider,
+			parentId = "cooldownPanelStandalonePanelCooldownText",
+			minValue = -Helper.OFFSET_RANGE,
+			maxValue = Helper.OFFSET_RANGE,
+			valueStep = 1,
+			allowInput = true,
+			get = function()
+				local _, _, _, _, _, y = CooldownPanels:ResolveEntryCooldownTextStyle(getLayout(), nil, defaultCooldownFontPath, defaultCooldownFontSize, defaultCooldownFontStyle)
+				return y
+			end,
+			set = function(_, value) setPanelLayout("cooldownTextY", value) end,
+			formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
+		},
+		{
+			name = L["CooldownPanelStaticText"] or "Static text",
+			kind = SettingType.Collapsible,
+			id = "cooldownPanelStandalonePanelStaticText",
+			defaultCollapsed = true,
+		},
+		{
+			name = L["Font"] or "Font",
+			kind = SettingType.Dropdown,
+			parentId = "cooldownPanelStandalonePanelStaticText",
+			height = 220,
+			get = function() return getPanelStaticTextFontSelection() end,
+			set = function(_, value) setPanelLayout("staticTextFont", value) end,
+			generator = function(_, root)
+				for _, option in ipairs(Helper.GetFontOptions(defaultStaticFontPath)) do
+					root:CreateRadio(option.label, function() return getPanelStaticTextFontSelection() == option.value end, function() setPanelLayout("staticTextFont", option.value) end)
+				end
+			end,
+		},
+		{
+			name = L["CooldownPanelFontStyle"] or "Font style",
+			kind = SettingType.Dropdown,
+			parentId = "cooldownPanelStandalonePanelStaticText",
+			height = 120,
+			get = function() return getResolvedPanelStaticTextStyleChoice() end,
+			set = function(_, value) setPanelLayout("staticTextStyle", value) end,
+			generator = function(_, root)
+				for _, option in ipairs(Helper.FontStyleOptions) do
+					root:CreateRadio(
+						option.label,
+						function() return getResolvedPanelStaticTextStyleChoice() == option.value end,
+						function() setPanelLayout("staticTextStyle", option.value) end
+					)
+				end
+			end,
+		},
+		{
+			name = L["CooldownPanelStaticTextColor"] or _G.COLOR or "Color",
+			kind = SettingType.Color,
+			parentId = "cooldownPanelStandalonePanelStaticText",
+			hasOpacity = true,
+			get = function()
+				local color = getResolvedPanelStaticTextColor()
+				return { r = color[1], g = color[2], b = color[3], a = color[4] }
+			end,
+			set = function(_, value) setPanelLayout("staticTextColor", value) end,
+		},
+		{
+			name = L["FontSize"] or "Font size",
+			kind = SettingType.Slider,
+			parentId = "cooldownPanelStandalonePanelStaticText",
+			minValue = 6,
+			maxValue = 64,
+			valueStep = 1,
+			allowInput = true,
+			get = function()
+				local _, size = CooldownPanels:ResolveEntryStaticTextStyle(getLayout(), nil, defaultStaticFontPath, defaultStaticFontSize, defaultStaticFontStyle)
+				return size
+			end,
+			set = function(_, value) setPanelLayout("staticTextSize", value) end,
+			formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
+		},
+		{
+			name = L["Anchor"] or "Anchor",
+			kind = SettingType.Dropdown,
+			parentId = "cooldownPanelStandalonePanelStaticText",
+			height = 160,
+			get = function()
+				local _, _, _, _, anchor = CooldownPanels:ResolveEntryStaticTextStyle(getLayout(), nil, defaultStaticFontPath, defaultStaticFontSize, defaultStaticFontStyle)
+				return anchor
+			end,
+			set = function(_, value) setPanelLayout("staticTextAnchor", value) end,
+			generator = function(_, root)
+				for _, option in ipairs(Helper.AnchorOptions) do
+					root:CreateRadio(option.label, function()
+						local _, _, _, _, anchor =
+							CooldownPanels:ResolveEntryStaticTextStyle(getLayout(), nil, defaultStaticFontPath, defaultStaticFontSize, defaultStaticFontStyle)
+						return anchor == option.value
+					end, function()
+						setPanelLayout("staticTextAnchor", option.value)
+					end)
+				end
+			end,
+		},
+		{
+			name = L["Text X Offset"] or "Text X Offset",
+			kind = SettingType.Slider,
+			parentId = "cooldownPanelStandalonePanelStaticText",
+			minValue = -Helper.OFFSET_RANGE,
+			maxValue = Helper.OFFSET_RANGE,
+			valueStep = 1,
+			allowInput = true,
+			get = function()
+				local _, _, _, _, _, x = CooldownPanels:ResolveEntryStaticTextStyle(getLayout(), nil, defaultStaticFontPath, defaultStaticFontSize, defaultStaticFontStyle)
+				return x
+			end,
+			set = function(_, value) setPanelLayout("staticTextX", value) end,
+			formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
+		},
+		{
+			name = L["Text Y Offset"] or "Text Y Offset",
+			kind = SettingType.Slider,
+			parentId = "cooldownPanelStandalonePanelStaticText",
+			minValue = -Helper.OFFSET_RANGE,
+			maxValue = Helper.OFFSET_RANGE,
+			valueStep = 1,
+			allowInput = true,
+			get = function()
+				local _, _, _, _, _, _, y = CooldownPanels:ResolveEntryStaticTextStyle(getLayout(), nil, defaultStaticFontPath, defaultStaticFontSize, defaultStaticFontStyle)
+				return y
+			end,
+			set = function(_, value) setPanelLayout("staticTextY", value) end,
+			formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
+		},
+		{
+			name = _G.GLOW or "Glow",
+			kind = SettingType.Collapsible,
+			id = "cooldownPanelStandalonePanelGlow",
+			defaultCollapsed = true,
+		},
+		{
+			name = L["CooldownPanelGlowDuration"] or "Glow duration",
+			kind = SettingType.Slider,
+			parentId = "cooldownPanelStandalonePanelGlow",
+			minValue = 0,
+			maxValue = 30,
+			valueStep = 1,
+			allowInput = true,
+			get = function()
+				local duration = CooldownPanels:ResolveEntryGlowStyle(getLayout(), nil)
+				return duration
+			end,
+			set = setPanelGlowDuration,
+			formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) .. "s" end,
+		},
+		{
+			name = L["CooldownPanelGlowColor"] or "Ready glow color",
+			kind = SettingType.Color,
+			parentId = "cooldownPanelStandalonePanelGlow",
+			hasOpacity = true,
+			get = function()
+				local color = getResolvedPanelGlowColor()
+				return { r = color[1], g = color[2], b = color[3], a = color[4] }
+			end,
+			set = function(_, value) setPanelLayout("readyGlowColor", value) end,
+		},
 	}
 
 	local dialog = lib:ShowStandaloneSettingsDialog(hostFrame, {
@@ -4584,7 +5792,7 @@ function CooldownPanels:OpenLayoutPanelStandaloneMenu(panelId, anchorFrame)
 		settings = settings,
 		showReset = false,
 		showSettingsReset = false,
-		settingsMaxHeight = 360,
+		settingsMaxHeight = 560,
 		point = spawnPosition.point,
 		relativePoint = spawnPosition.relativePoint,
 		relativeTo = spawnPosition.relativeTo,
@@ -5417,6 +6625,7 @@ local function ensureEditor()
 
 			-- Keep active ready-glow state in sync when duration changes in editor.
 			if field == "glowDuration" then
+				entry.glowUseGlobal = false
 				local runtime = getRuntime(panelId)
 				local hadReady = runtime.readyAt and runtime.readyAt[entryId] ~= nil
 				CooldownPanels.ClearReadyGlowEntryState(panelId, entryId, false)
@@ -5800,10 +7009,12 @@ function CooldownPanels:GetLayoutEditCursorSlot(panelId)
 		local icon = frame.icons[i]
 		local handle = icon and icon.layoutHandle
 		if handle and handle.IsShown and handle:IsShown() then
-			local left = handle:GetLeft()
-			local right = handle:GetRight()
-			local top = handle:GetTop()
-			local bottom = handle:GetBottom()
+			local slotAnchor = icon and icon.slotAnchor or nil
+			local bounds = slotAnchor or handle
+			local left = bounds and bounds.GetLeft and bounds:GetLeft()
+			local right = bounds and bounds.GetRight and bounds:GetRight()
+			local top = bounds and bounds.GetTop and bounds:GetTop()
+			local bottom = bounds and bounds.GetBottom and bounds:GetBottom()
 			if left and right and top and bottom and cursorX >= left and cursorX <= right and cursorY <= top and cursorY >= bottom then
 				local column = Helper.NormalizeSlotCoordinate(handle._eqolLayoutSlotColumn)
 				local row = Helper.NormalizeSlotCoordinate(handle._eqolLayoutSlotRow)
@@ -6070,7 +7281,6 @@ local function refreshPreview(editor, panel)
 	canvas:ClearAllPoints()
 	canvas:SetPoint("CENTER", preview, "CENTER")
 	local showKeybinds = layout.keybindsEnabled == true
-	local previewGlowColor = Helper.NormalizeColor(baseLayout.readyGlowColor, Helper.PANEL_LAYOUT_DEFAULTS.readyGlowColor)
 	local staticFontPath, staticFontSize, staticFontStyle = Helper.GetCountFontDefaults(canvas)
 
 	preview.entryByIndex = preview.entryByIndex or {}
@@ -6090,6 +7300,7 @@ local function refreshPreview(editor, panel)
 		local icon = canvas.icons[i]
 		local showCooldown = entry and entry.showCooldown ~= false
 		local staticCooldown = entry and entry.staticTextShowOnCooldown == true or false
+		local showEntryIconTexture = entry and CooldownPanels:ResolveEntryShowIconTexture(baseLayout, entry) or true
 		icon:Show()
 		icon.entryId = entryId
 		icon._eqolPreviewCellColumn = i
@@ -6097,7 +7308,7 @@ local function refreshPreview(editor, panel)
 		icon._eqolTooltipEntry = entry
 		icon._eqolTooltipEnabled = entry ~= nil
 		icon.texture:SetTexture(entry and getEntryIcon(entry) or Helper.PREVIEW_ICON)
-		icon.texture:SetShown(true)
+		icon.texture:SetShown(showEntryIconTexture)
 		icon.texture:SetVertexColor(1, 1, 1)
 		icon.texture:SetDesaturated(false)
 		icon.texture:SetAlpha(1)
@@ -6108,7 +7319,7 @@ local function refreshPreview(editor, panel)
 		icon.charges:Hide()
 		if icon.rangeOverlay then icon.rangeOverlay:Hide() end
 		if icon.keybind then icon.keybind:Hide() end
-		if icon.previewGlow then icon.previewGlow:Hide() end
+		CooldownPanels.HidePreviewGlowBorder(icon)
 		if icon.previewBling then icon.previewBling:Hide() end
 		if icon.previewSoundBorder then icon.previewSoundBorder:Hide() end
 		icon:EnableMouse(false)
@@ -6135,7 +7346,9 @@ local function refreshPreview(editor, panel)
 			CooldownPanels.ApplyIconTooltip(icon, nil, false)
 			preview.entryByIndex[i] = nil
 		else
-			applyStaticText(icon, entry, staticFontPath, staticFontSize, staticFontStyle, staticCooldown)
+			CooldownPanels:ApplyEntryCooldownTextStyle(icon, layout, entry)
+			applyStaticText(icon, layout, entry, staticFontPath, staticFontSize, staticFontStyle, staticCooldown)
+			icon.texture:SetShown(showEntryIconTexture)
 			preview.entryByIndex[i] = entryId
 		end
 		if entry then
@@ -6174,9 +7387,9 @@ local function refreshPreview(editor, panel)
 			elseif icon.keybind then
 				icon.keybind:Hide()
 			end
-			if entry.type ~= "MACRO" and entry.glowReady and icon.previewGlow then
-				icon.previewGlow:SetVertexColor(previewGlowColor[1], previewGlowColor[2], previewGlowColor[3], previewGlowColor[4])
-				icon.previewGlow:Show()
+			if entry.type ~= "MACRO" and entry.glowReady and icon.previewGlowBorder then
+				local _, previewEntryGlowColor = CooldownPanels:ResolveEntryGlowStyle(baseLayout, entry)
+				CooldownPanels.ShowPreviewGlowBorder(icon, previewEntryGlowColor)
 			end
 			if entry.type ~= "MACRO" and entry.type ~= "STANCE" and entry.soundReady and icon.previewSoundBorder then icon.previewSoundBorder:Show() end
 		end
@@ -6836,7 +8049,6 @@ function CooldownPanels:UpdatePreviewIcons(panelId, countOverride)
 	local showTooltips = layout.showTooltips == true
 	local showKeybinds = layout.keybindsEnabled == true
 	local showIconTexture = layout.showIconTexture ~= false
-	local noDesaturation = layout.noDesaturation == true
 	local staticFontPath, staticFontSize, staticFontStyle = Helper.GetCountFontDefaults(frame)
 	local previewEntryIds
 	local count = countOverride
@@ -6875,24 +8087,27 @@ function CooldownPanels:UpdatePreviewIcons(panelId, countOverride)
 		local showStacks = entry and (resolvedType == "SPELL" or resolvedType == "CDM_AURA") and entry.showStacks == true
 		local showItemCount = entry and resolvedType == "ITEM" and entry.showItemCount ~= false
 		local showItemUses = entry and resolvedType == "ITEM" and entry.showItemUses == true
+		local showEntryIconTexture = entry and CooldownPanels:ResolveEntryShowIconTexture(layout, entry) or showIconTexture
 		local slotColumn = previewGridColumns and (((i - 1) % previewGridColumns) + 1) or (editGridColumns and (((i - 1) % editGridColumns) + 1) or i)
 		local slotRow = previewGridColumns and (math.floor((i - 1) / previewGridColumns) + 1) or (editGridColumns and (math.floor((i - 1) / editGridColumns) + 1) or 1)
 		icon:Show()
 		icon._eqolPreviewCellColumn = slotColumn
 		icon._eqolPreviewCellRow = slotRow
+		CooldownPanels:ApplyEntryIconVisualLayout(icon, entry)
 		icon.texture:SetTexture(entry and getEntryIcon(entry) or Helper.PREVIEW_ICON)
 		icon.texture:SetVertexColor(1, 1, 1)
-		icon.texture:SetShown(showIconTexture or not entry)
+		icon.texture:SetShown(showEntryIconTexture or not entry)
 		if icon.cooldown.SetReverse then icon.cooldown:SetReverse(resolvedType == "CDM_AURA") end
 		if icon.cooldown.SetUseAuraDisplayTime then icon.cooldown:SetUseAuraDisplayTime(resolvedType == "CDM_AURA") end
 		icon.cooldown:SetHideCountdownNumbers(not showCooldownText)
+		CooldownPanels:ApplyEntryCooldownTextStyle(icon, layout, entry)
 		icon.cooldown:Clear()
 		if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", nil) end
 		icon.count:Hide()
 		icon.charges:Hide()
 		if icon.rangeOverlay then icon.rangeOverlay:Hide() end
 		if icon.keybind then icon.keybind:Hide() end
-		if icon.previewGlow then icon.previewGlow:Hide() end
+		CooldownPanels.HidePreviewGlowBorder(icon)
 		if icon.previewBling then icon.previewBling:Hide() end
 		setGlow(icon, false)
 		setAssistedHighlight(icon, false)
@@ -6903,8 +8118,8 @@ function CooldownPanels:UpdatePreviewIcons(panelId, countOverride)
 			icon.texture:SetShown(false)
 			CooldownPanels.ApplyIconTooltip(icon, nil, false)
 		else
-			applyStaticText(icon, entry, staticFontPath, staticFontSize, staticFontStyle, staticCooldown)
-			icon.texture:SetShown(showIconTexture)
+			applyStaticText(icon, layout, entry, staticFontPath, staticFontSize, staticFontStyle, staticCooldown)
+			icon.texture:SetShown(showEntryIconTexture)
 			icon.texture:SetDesaturated(false)
 			icon.texture:SetAlpha(1)
 			if showItemUses and previewItemId then
@@ -7034,13 +8249,10 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 	local resolvedLayout = CooldownPanels.ResolveRuntimeLayout(runtime, frame, layout)
 	local showTooltips = resolvedLayout and resolvedLayout.showTooltips
 	local showKeybinds = resolvedLayout and resolvedLayout.showKeybinds
-	local showIconTexture = resolvedLayout and resolvedLayout.showIconTexture
-	local noDesaturation = resolvedLayout and resolvedLayout.noDesaturation
 	local checkPower = resolvedLayout and resolvedLayout.checkPower
 	local staticFontPath = resolvedLayout and resolvedLayout.staticFontPath
 	local staticFontSize = resolvedLayout and resolvedLayout.staticFontSize
 	local staticFontStyle = resolvedLayout and resolvedLayout.staticFontStyle
-	local readyGlowColor = resolvedLayout and resolvedLayout.readyGlowColor
 	local powerTintR = resolvedLayout and resolvedLayout.powerTintR
 	local powerTintG = resolvedLayout and resolvedLayout.powerTintG
 	local powerTintB = resolvedLayout and resolvedLayout.powerTintB
@@ -7072,15 +8284,15 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 	local assistedSuggestedSpellId = assistedHighlightEnabled and Api.GetAssistedCombatNextSpell and tonumber(Api.GetAssistedCombatNextSpell()) or nil
 	local assistedSuggestedBaseId = assistedSuggestedSpellId and getBaseSpellId(assistedSuggestedSpellId) or nil
 	local assistedSuggestedEffectiveId = assistedSuggestedSpellId and getEffectiveSpellId(assistedSuggestedSpellId) or nil
-	local function setIconDesaturated(texture, enabled)
-		if noDesaturation then
+	local function setIconDesaturated(texture, enabled, skipDesaturation)
+		if skipDesaturation then
 			texture:SetDesaturated(false)
 		else
 			texture:SetDesaturated(enabled == true)
 		end
 	end
-	local function setIconDesaturation(texture, value)
-		if noDesaturation then
+	local function setIconDesaturation(texture, value, skipDesaturation)
+		if skipDesaturation then
 			texture:SetDesaturation(0)
 		else
 			texture:SetDesaturation(value or 0)
@@ -7192,8 +8404,10 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			local showWhenNoCooldown = resolvedType == "SLOT" and entry.showWhenNoCooldown == true
 			local showWhenMissing = resolvedType == "STANCE" and entry.showWhenMissing == true
 			local alwaysShow = entry.alwaysShow ~= false
+			local showEntryIconTexture = self:ResolveEntryShowIconTexture(layout, entry)
+			local entryNoDesaturation = self:ResolveEntryNoDesaturation(layout, entry)
 			local glowReady = entry.type ~= "MACRO" and entry.type ~= "CDM_AURA" and entry.glowReady ~= false
-			local glowDuration = Helper.ClampInt(entry.glowDuration, 0, 30, 0)
+			local glowDuration, glowColor = CooldownPanels:ResolveEntryGlowStyle(layout, entry)
 			local soundReady = entry.type ~= "MACRO" and entry.type ~= "STANCE" and entry.type ~= "CDM_AURA" and entry.soundReady == true
 			local soundName = normalizeSoundName(entry.soundReadyFile)
 			local baseSpellId = resolvedType == "SPELL" and ((macro and macro.spellID) or entry.spellID) or nil
@@ -7386,6 +8600,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 				data.icon = iconTexture or Helper.PREVIEW_ICON
 				data.showCooldown = showCooldown
 				data.showCooldownText = showCooldownText
+				data.showIconTexture = showEntryIconTexture
 				data.showCharges = showCharges
 				data.showChargesCooldown = showChargesCooldown
 				data.showStacks = showStacks
@@ -7397,15 +8612,23 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 				data.entryId = entryId
 				data.resolvedType = resolvedType
 				data.overlayGlow = overlayGlow
-				if resolvedType == "STANCE" and glowReady then data.overlayGlow = true end
-				if resolvedType == "CDM_AURA" and entry.glowReady == true and cdmAuraData and cdmAuraData.active == true then data.overlayGlow = true end
+				data.overlayGlowColor = nil
+				if resolvedType == "STANCE" and glowReady then
+					data.overlayGlow = true
+					data.overlayGlowColor = glowColor
+				end
+				if resolvedType == "CDM_AURA" and entry.glowReady == true and cdmAuraData and cdmAuraData.active == true then
+					data.overlayGlow = true
+					data.overlayGlowColor = glowColor
+				end
 				data.powerInsufficient = powerInsufficient
 				data.spellUnusable = spellUnusable
 				data.rangeOverlay = rangeOverlay
 				data.assistedSuggested = assistedSuggested == true
+				data.noDesaturation = entryNoDesaturation
 				data.glowReady = glowReady
 				data.glowDuration = glowDuration
-				data.readyGlowColor = readyGlowColor
+				data.readyGlowColor = glowColor
 				data.canTriggerReadyGlow = canTriggerReadyGlow
 				data.soundReady = soundReady
 				data.soundName = soundName
@@ -7474,6 +8697,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 		local slotRow = fixedLayout and fixedGridColumns > 0 and (math.floor((i - 1) / fixedGridColumns) + 1) or (editGridColumns and (math.floor((i - 1) / editGridColumns) + 1) or nil)
 		self:ConfigureEditModePanelIcon(panelId, icon, data and data.entryId or nil, slotColumn, slotRow)
 		if not data then
+			CooldownPanels:ApplyEntryIconVisualLayout(icon, nil)
 			clearPreviewCooldown(icon.cooldown)
 			icon.cooldown:Clear()
 			icon.cooldown._eqolPanelId = nil
@@ -7490,7 +8714,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			if icon.rangeOverlay then icon.rangeOverlay:Hide() end
 			if icon.keybind then icon.keybind:Hide() end
 			if icon.staticText then icon.staticText:Hide() end
-			if icon.previewGlow then icon.previewGlow:Hide() end
+			CooldownPanels.HidePreviewGlowBorder(icon)
 			if icon.previewBling then icon.previewBling:Hide() end
 			if icon.previewSoundBorder then icon.previewSoundBorder:Hide() end
 			icon._eqolLayoutDragRangePreview = nil
@@ -7514,6 +8738,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			icon:Show()
 			icon._eqolPreviewCellColumn = slotColumn
 			icon._eqolPreviewCellRow = slotRow
+			CooldownPanels:ApplyEntryIconVisualLayout(icon, data.entry)
 			if showOnCooldown then
 				icon:SetAlpha(0)
 			elseif not hideOnCooldown then
@@ -7522,9 +8747,10 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			clearPreviewCooldown(icon.cooldown)
 			entryToIcon[data.entryId] = icon
 			icon.texture:SetTexture(data.icon or Helper.PREVIEW_ICON)
-			icon.texture:SetShown(showIconTexture)
+			icon.texture:SetShown(data.showIconTexture ~= false)
 			CooldownPanels.ApplyIconTooltip(icon, data.entry, showTooltips)
 			icon.cooldown:SetHideCountdownNumbers(not data.showCooldownText)
+			CooldownPanels:ApplyEntryCooldownTextStyle(icon, layout, data.entry)
 			if icon.cooldown.SetReverse then icon.cooldown:SetReverse(data.resolvedType == "CDM_AURA") end
 			if icon.cooldown.SetUseAuraDisplayTime then icon.cooldown:SetUseAuraDisplayTime(data.resolvedType == "CDM_AURA") end
 
@@ -7537,7 +8763,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			icon.cooldown._eqolGlowReady = data.glowReady
 			icon.cooldown._eqolGlowDuration = data.glowDuration
 			if icon.cooldown.Resume then icon.cooldown:Resume() end
-			if icon.previewGlow then icon.previewGlow:Hide() end
+			CooldownPanels.HidePreviewGlowBorder(icon)
 			if icon.previewBling then icon.previewBling:Hide() end
 			if icon.previewSoundBorder then icon.previewSoundBorder:Hide() end
 			icon._eqolLayoutDragRangePreview = nil
@@ -7557,6 +8783,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			local usingCooldown = false
 			local desaturate = false
 			local hidden = false
+			local entryNoDesaturation = data.noDesaturation == true
 
 			if data.showCharges and data.chargesInfo and data.chargesInfo.maxCharges ~= nil then
 				if data.chargesInfo.currentCharges ~= nil then
@@ -7607,7 +8834,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			if data.emptyItem then desaturate = true end
 
 			if not isSafeNumber(cooldownRate) then cooldownRate = 1 end
-			setIconDesaturated(icon.texture, desaturate)
+			setIconDesaturated(icon.texture, desaturate, entryNoDesaturation)
 			if hideOnCooldown then
 				icon:SetAlphaFromBoolean(hidden, 0, 1)
 			elseif showOnCooldown then
@@ -7655,7 +8882,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 						else
 							if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", onCooldownDone) end
 							setCooldownDrawState(icon.cooldown, drawEdge, drawBling, drawSwipe)
-							setIconDesaturation(icon.texture, cooldownDurationObject:EvaluateRemainingDuration(curveDesat))
+							setIconDesaturation(icon.texture, cooldownDurationObject:EvaluateRemainingDuration(curveDesat), entryNoDesaturation)
 							if hideOnCooldown then
 								icon:SetAlpha(cooldownDurationObject:EvaluateRemainingDuration(curveAlpha))
 							elseif showOnCooldown then
@@ -7674,7 +8901,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 				elseif durationActive then
 					icon.cooldown:SetCooldownFromDurationObject(cooldownDurationObject)
 					if data.cooldownGCD then
-						setIconDesaturation(icon.texture, 0)
+						setIconDesaturation(icon.texture, 0, entryNoDesaturation)
 						if hideOnCooldown then
 							icon:SetAlpha(1)
 						elseif showOnCooldown then
@@ -7687,7 +8914,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 						setCooldownDrawState(icon.cooldown, drawEdge, drawBling, drawSwipe)
 
 						local desat = cooldownDurationObject:EvaluateRemainingDuration(curveDesat)
-						setIconDesaturation(icon.texture, desat)
+						setIconDesaturation(icon.texture, desat, entryNoDesaturation)
 						if hideOnCooldown then
 							icon:SetAlpha(cooldownDurationObject:EvaluateRemainingDuration(curveAlpha))
 						elseif showOnCooldown then
@@ -7712,7 +8939,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 					else
 						icon.cooldown:Clear()
 					end
-					setIconDesaturation(icon.texture, 0)
+					setIconDesaturation(icon.texture, 0, entryNoDesaturation)
 					desaturate = false
 					if hideOnCooldown then
 						icon:SetAlpha(0)
@@ -7724,7 +8951,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 				elseif cooldownActive then
 					icon.cooldown:SetCooldown(cooldownStart, cooldownDuration, cooldownRate)
 					desaturate = true
-					setIconDesaturated(icon.texture, desaturate)
+					setIconDesaturated(icon.texture, desaturate, entryNoDesaturation)
 					if hideOnCooldown then
 						icon:SetAlpha(0)
 					elseif showOnCooldown then
@@ -7735,7 +8962,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 				elseif data.resolvedType == "CDM_AURA" and cdmAuraActive then
 					setCooldownDrawState(icon.cooldown, drawEdge, drawBling, drawSwipe)
 					icon.cooldown:Clear()
-					setIconDesaturation(icon.texture, 0)
+					setIconDesaturation(icon.texture, 0, entryNoDesaturation)
 					desaturate = false
 					if hideOnCooldown then
 						icon:SetAlpha(0)
@@ -7754,7 +8981,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 				icon.cooldown:Clear()
 				if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", nil) end
 			end
-			if not hidden then icon.texture:SetAlphaFromBoolean((not noDesaturation) and desaturate, 0.5, 1) end
+			if not hidden then icon.texture:SetAlphaFromBoolean((not entryNoDesaturation) and desaturate, 0.5, 1) end
 			if data.spellUnusable then
 				icon.texture:SetVertexColor(unusableTintR or 0.6, unusableTintG or 0.6, unusableTintB or 0.6)
 			elseif data.powerInsufficient then
@@ -7784,7 +9011,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			if data.entry and data.entry.staticTextShowOnCooldown == true then
 				staticTextCooldown = data.stanceActive == true or cdmAuraActive or durationActive or (cooldownEnabledOk and isCooldownActive(cooldownStart, cooldownDuration))
 			end
-			applyStaticText(icon, data.entry, staticFontPath, staticFontSize, staticFontStyle, staticTextCooldown)
+			applyStaticText(icon, layout, data.entry, staticFontPath, staticFontSize, staticFontStyle, staticTextCooldown)
 			if layoutEditActive and icon.previewSoundBorder and data.soundReady then icon.previewSoundBorder:Show() end
 			if icon.rangeOverlay then
 				if data.rangeOverlay then
@@ -7815,6 +9042,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			end
 
 			local overlayGlow = data.overlayGlow == true
+			local overlayGlowColor = overlayGlow and data.overlayGlowColor or nil
 			if data.glowReady then
 				local ready = false
 				local duration = tonumber(data.glowDuration) or 0
@@ -7827,9 +9055,9 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 					end
 				end
 
-				setGlow(icon, overlayGlow or ready, ready and data.readyGlowColor or nil)
+				setGlow(icon, overlayGlow or ready, ready and data.readyGlowColor or overlayGlowColor)
 			else
-				setGlow(icon, overlayGlow)
+				setGlow(icon, overlayGlow, overlayGlowColor)
 			end
 		end
 	end
@@ -7849,7 +9077,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			if icon.rangeOverlay then icon.rangeOverlay:Hide() end
 			if icon.keybind then icon.keybind:Hide() end
 			if icon.staticText then icon.staticText:Hide() end
-			if icon.previewGlow then icon.previewGlow:Hide() end
+			CooldownPanels.HidePreviewGlowBorder(icon)
 			if icon.previewBling then icon.previewBling:Hide() end
 			if icon.previewSoundBorder then icon.previewSoundBorder:Hide() end
 			icon._eqolLayoutDragRangePreview = nil
@@ -8191,6 +9419,8 @@ applyEditLayout = function(panelId, field, value, skipRefresh)
 		layout.rangeOverlayColor = Helper.NormalizeColor(value, Helper.PANEL_LAYOUT_DEFAULTS.rangeOverlayColor)
 	elseif field == "readyGlowColor" then
 		layout.readyGlowColor = Helper.NormalizeColor(value, Helper.PANEL_LAYOUT_DEFAULTS.readyGlowColor)
+	elseif field == "readyGlowDuration" then
+		layout.readyGlowDuration = Helper.ClampInt(value, 0, 30, layout.readyGlowDuration or Helper.PANEL_LAYOUT_DEFAULTS.readyGlowDuration or 0)
 	elseif field == "noDesaturation" then
 		layout.noDesaturation = value == true
 	elseif field == "checkPower" then
@@ -8295,6 +9525,20 @@ applyEditLayout = function(panelId, field, value, skipRefresh)
 		layout.cooldownTextX = Helper.ClampInt(value, -Helper.OFFSET_RANGE, Helper.OFFSET_RANGE, layout.cooldownTextX or 0)
 	elseif field == "cooldownTextY" then
 		layout.cooldownTextY = Helper.ClampInt(value, -Helper.OFFSET_RANGE, Helper.OFFSET_RANGE, layout.cooldownTextY or 0)
+	elseif field == "staticTextFont" then
+		if type(value) == "string" then layout.staticTextFont = value end
+	elseif field == "staticTextSize" then
+		layout.staticTextSize = Helper.ClampInt(value, 6, 64, layout.staticTextSize or Helper.PANEL_LAYOUT_DEFAULTS.staticTextSize or 12)
+	elseif field == "staticTextStyle" then
+		layout.staticTextStyle = Helper.NormalizeFontStyleChoice(value, layout.staticTextStyle or Helper.PANEL_LAYOUT_DEFAULTS.staticTextStyle or "OUTLINE")
+	elseif field == "staticTextColor" then
+		layout.staticTextColor = Helper.NormalizeColor(value, Helper.PANEL_LAYOUT_DEFAULTS.staticTextColor or { 1, 1, 1, 1 })
+	elseif field == "staticTextAnchor" then
+		layout.staticTextAnchor = Helper.NormalizeAnchor(value, layout.staticTextAnchor or Helper.PANEL_LAYOUT_DEFAULTS.staticTextAnchor or "CENTER")
+	elseif field == "staticTextX" then
+		layout.staticTextX = Helper.ClampInt(value, -Helper.OFFSET_RANGE, Helper.OFFSET_RANGE, layout.staticTextX or Helper.PANEL_LAYOUT_DEFAULTS.staticTextX or 0)
+	elseif field == "staticTextY" then
+		layout.staticTextY = Helper.ClampInt(value, -Helper.OFFSET_RANGE, Helper.OFFSET_RANGE, layout.staticTextY or Helper.PANEL_LAYOUT_DEFAULTS.staticTextY or 0)
 	elseif field == "opacityOutOfCombat" then
 		layout.opacityOutOfCombat = Helper.NormalizeOpacity(value, layout.opacityOutOfCombat or Helper.PANEL_LAYOUT_DEFAULTS.opacityOutOfCombat)
 	elseif field == "opacityInCombat" then
@@ -8535,9 +9779,15 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 		local changed = false
 		if staticTextSharedFields[field] then
 			for _, other in pairs(panel.entries or {}) do
-				if other and other[field] ~= value then
-					other[field] = value
-					changed = true
+				if other then
+					if other.staticTextUseGlobal ~= false then
+						other.staticTextUseGlobal = false
+						changed = true
+					end
+					if other[field] ~= value then
+						other[field] = value
+						changed = true
+					end
 				end
 			end
 		else
