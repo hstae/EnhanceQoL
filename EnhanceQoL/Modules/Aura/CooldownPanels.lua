@@ -1993,6 +1993,10 @@ function CooldownPanels:AddEntry(panelId, entryType, idValue, overrides)
 		if macro and macro.kind == "ITEM" and macro.itemID then updateItemCountCacheForItem(macro.itemID) end
 	end
 	self:RebuildSpellIndex()
+	if entry.type == "CDM_AURA" then
+		local cdmAuras = self.CDMAuras
+		if cdmAuras and cdmAuras.HandleRootRefresh then cdmAuras:HandleRootRefresh() end
+	end
 	self:RefreshPanel(panelId)
 	return entryId, entry
 end
@@ -13650,10 +13654,6 @@ local function ensureUpdateFrame()
 			scheduleSpecAwareRebuild(event)
 			return
 		end
-		-- if event == "UNIT_AURA" then
-		-- 	local unit = ...
-		-- 	if unit ~= "player" then return end
-		-- end
 		if event == "UNIT_SPELLCAST_SUCCEEDED" then
 			local unit, _, spellId = ...
 			if unit ~= "player" then return end

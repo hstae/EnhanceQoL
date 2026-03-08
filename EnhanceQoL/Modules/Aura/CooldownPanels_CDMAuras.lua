@@ -31,14 +31,31 @@ local function showErrorMessage(msg)
 	if UIErrorsFrame and msg then UIErrorsFrame:AddMessage(msg, 1, 0.2, 0.2, 1) end
 end
 
+local function createTrackedUnitBuckets()
+	return {
+		player = {},
+		target = {},
+	}
+end
+
+local function normalizeTrackedUnit(unit)
+	if unit == "player" or unit == "target" then return unit end
+	return nil
+end
+
 local function getRuntime()
 	CooldownPanels.runtime = CooldownPanels.runtime or {}
 	local runtime = CooldownPanels.runtime.cdmAuras
-	if runtime then return runtime end
+	if runtime then
+		if not (runtime.auraEntries and runtime.auraEntries.player and runtime.auraEntries.target) then runtime.auraEntries = createTrackedUnitBuckets() end
+		if not (runtime.unitPanels and runtime.unitPanels.player and runtime.unitPanels.target) then runtime.unitPanels = createTrackedUnitBuckets() end
+		return runtime
+	end
 	runtime = {
 		scan = nil,
 		entryStates = {},
-		auraEntries = {},
+		auraEntries = createTrackedUnitBuckets(),
+		unitPanels = createTrackedUnitBuckets(),
 		frameEntries = {},
 		hookedFrames = {},
 	}
@@ -130,6 +147,14 @@ local function getSpellTexture(spellId)
 	return nil
 end
 
+local isUsableSpellID
+
+local function getAuraInstanceID(auraData)
+	local auraInstanceID = auraData and auraData.auraInstanceID
+	if not hasAuraInstanceID(auraInstanceID) then return nil end
+	return auraInstanceID
+end
+
 local function getCooldownIDFromFrame(frame, sourceType)
 	if not frame then return nil end
 	local cooldownID = frame.cooldownID
@@ -192,7 +217,7 @@ local function getTotemCooldownInfo(frame)
 	return startTime, duration, modRate
 end
 
-local function isUsableSpellID(value) return type(value) == "number" and not isSecretValue(value) and value > 0 end
+isUsableSpellID = function(value) return type(value) == "number" and not isSecretValue(value) and value > 0 end
 
 local function getFirstUsableSpellID(...)
 	for i = 1, select("#", ...) do
@@ -265,13 +290,70 @@ local function ensureScanInfo(scan, cooldownID)
 	return info
 end
 
+local function mergeScanInfo(primary, duplicate)
+	if not (primary and duplicate) or primary == duplicate then return primary end
+	primary.availableSources = primary.availableSources or {}
+	for sourceType in pairs(duplicate.availableSources or {}) do
+		primary.availableSources[sourceType] = true
+	end
+	if duplicate.iconFrame and not primary.iconFrame then primary.iconFrame = duplicate.iconFrame end
+	if duplicate.barFrame and not primary.barFrame then primary.barFrame = duplicate.barFrame end
+	if duplicate.auraUnit and not primary.auraUnit then primary.auraUnit = duplicate.auraUnit end
+	if duplicate.spellID and not primary.spellID then primary.spellID = duplicate.spellID end
+	if duplicate.buffName and (not primary.buffName or primary.buffName == "") then primary.buffName = duplicate.buffName end
+	if duplicate.iconTextureID and not primary.iconTextureID then primary.iconTextureID = duplicate.iconTextureID end
+	if duplicate.isActive then primary.isActive = true end
+	if primary.sourceType ~= SOURCE_ICON and duplicate.sourceType == SOURCE_ICON then
+		primary.sourceType = SOURCE_ICON
+		primary.sourceViewer = ICON_VIEWER
+	elseif not primary.sourceType and duplicate.sourceType then
+		primary.sourceType = duplicate.sourceType
+		primary.sourceViewer = duplicate.sourceViewer
+	end
+	return primary
+end
+
+local function getTrackedSpellKey(info)
+	local spellID = tonumber(info and info.spellID)
+	if not spellID then return nil end
+	local auraUnit = normalizeTrackedUnit(info and info.auraUnit) or ""
+	return auraUnit .. ":" .. tostring(spellID)
+end
+
+local function seedScanFromCategorySet(scan, category, sourceType)
+	if not (scan and category and C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCategorySet) then return false end
+	local ok, cooldownIDs = pcall(C_CooldownViewer.GetCooldownViewerCategorySet, category, true)
+	if not ok or type(cooldownIDs) ~= "table" then return false end
+	local seeded = false
+	for _, cooldownID in ipairs(cooldownIDs) do
+		if isValidCooldownID(cooldownID) then
+			seeded = true
+			local info = ensureScanInfo(scan, cooldownID)
+			info.availableSources[sourceType] = true
+			if sourceType == SOURCE_ICON or not info.sourceType then
+				info.sourceType = sourceType
+				info.sourceViewer = sourceType == SOURCE_BAR and BAR_VIEWER or ICON_VIEWER
+			end
+			local spellID, buffName, iconTextureID = resolveSpellFromCooldownID(cooldownID, nil)
+			if spellID and not info.spellID then info.spellID = spellID end
+			if buffName and (not info.buffName or info.buffName == "") then info.buffName = buffName end
+			if iconTextureID and not info.iconTextureID then info.iconTextureID = iconTextureID end
+		end
+	end
+	return seeded
+end
+
 local function collectFrame(scan, frame, sourceType, viewerName, seenFrames)
 	if not frame or seenFrames[frame] then return end
 	local cooldownID = getCooldownIDFromFrame(frame, sourceType)
 	if not cooldownID then return end
 	seenFrames[frame] = true
 
-	local info = ensureScanInfo(scan, cooldownID)
+	local info = scan.byCooldownID[cooldownID]
+	if not info then
+		if scan.hasAuthoritativeSeed then return end
+		info = ensureScanInfo(scan, cooldownID)
+	end
 	info.availableSources[sourceType] = true
 	if sourceType == SOURCE_ICON then
 		info.iconFrame = frame
@@ -282,6 +364,13 @@ local function collectFrame(scan, frame, sourceType, viewerName, seenFrames)
 		info.sourceType = sourceType
 		info.sourceViewer = viewerName
 	end
+	local auraUnit = nil
+	if type(frame.GetAuraDataUnit) == "function" then
+		local ok, frameAuraUnit = pcall(frame.GetAuraDataUnit, frame)
+		if ok then auraUnit = normalizeTrackedUnit(frameAuraUnit) end
+	end
+	if not auraUnit then auraUnit = normalizeTrackedUnit(frame.auraDataUnit) end
+	if auraUnit and not info.auraUnit then info.auraUnit = auraUnit end
 
 	local spellID, buffName, iconTextureID = resolveSpellFromCooldownID(cooldownID, frame)
 	if spellID and not info.spellID then info.spellID = spellID end
@@ -347,46 +436,75 @@ end
 
 function CDMAuras:ScanTrackedBuffs(force)
 	local runtime = getRuntime()
-	if not force and runtime.scan and runtime.scan.list and runtime.scan.byCooldownID then return runtime.scan.list, runtime.scan.byCooldownID end
+	if not force and runtime.scan and runtime.scan.list and runtime.scan.byCooldownID then return runtime.scan.list, runtime.scan.byCooldownID, runtime.scan.bySpellID end
 
 	local scan = {
 		list = {},
 		byCooldownID = {},
+		bySpellID = {},
+		hasAuthoritativeSeed = false,
 	}
 	local seenFrames = {}
+
+	local trackedBuffCategory = Enum and Enum.CooldownViewerCategory and Enum.CooldownViewerCategory.TrackedBuff or nil
+	local trackedBarCategory = Enum and Enum.CooldownViewerCategory and Enum.CooldownViewerCategory.TrackedBar or nil
+	if seedScanFromCategorySet(scan, trackedBuffCategory, SOURCE_ICON) then scan.hasAuthoritativeSeed = true end
+	if seedScanFromCategorySet(scan, trackedBarCategory, SOURCE_BAR) then scan.hasAuthoritativeSeed = true end
 
 	collectViewer(scan, ICON_VIEWER, SOURCE_ICON, seenFrames)
 	collectViewer(scan, BAR_VIEWER, SOURCE_BAR, seenFrames)
 
+	local mergedBySpellID = {}
 	for cooldownID, info in pairs(scan.byCooldownID) do
-		if not info.spellID then
-			local spellID, buffName, iconTextureID = resolveSpellFromCooldownID(cooldownID, info.iconFrame or info.barFrame)
-			if spellID and not info.spellID then info.spellID = spellID end
-			if buffName and not info.buffName then info.buffName = buffName end
-			if iconTextureID and not info.iconTextureID then info.iconTextureID = iconTextureID end
+		local spellKey = getTrackedSpellKey(info)
+		if spellKey then
+			local primary = mergedBySpellID[spellKey]
+			if primary and primary ~= info then
+				mergeScanInfo(primary, info)
+				scan.byCooldownID[cooldownID] = primary
+			else
+				mergedBySpellID[spellKey] = info
+			end
 		end
-		info.spellID = tonumber(info.spellID)
-		info.buffName = info.buffName or getSpellName(info.spellID) or tostring(cooldownID)
-		info.iconTextureID = info.iconTextureID or getSpellTexture(info.spellID) or Helper.PREVIEW_ICON
-		info.sourceType = normalizeSourceType(info.sourceType or (info.availableSources[SOURCE_ICON] and SOURCE_ICON or SOURCE_BAR))
-		info.sourceViewer = info.sourceType == SOURCE_BAR and BAR_VIEWER or ICON_VIEWER
-		scan.list[#scan.list + 1] = info
+	end
+
+	local seenInfo = {}
+	for cooldownID, info in pairs(scan.byCooldownID) do
+		if not seenInfo[info] then
+			seenInfo[info] = true
+			if not info.spellID then
+				local spellID, buffName, iconTextureID = resolveSpellFromCooldownID(cooldownID, info.iconFrame or info.barFrame)
+				if spellID and not info.spellID then info.spellID = spellID end
+				if buffName and not info.buffName then info.buffName = buffName end
+				if iconTextureID and not info.iconTextureID then info.iconTextureID = iconTextureID end
+			end
+			info.spellID = tonumber(info.spellID)
+			info.buffName = info.buffName or getSpellName(info.spellID) or tostring(cooldownID)
+			info.iconTextureID = info.iconTextureID or getSpellTexture(info.spellID) or Helper.PREVIEW_ICON
+			info.sourceType = normalizeSourceType(info.sourceType or (info.availableSources[SOURCE_ICON] and SOURCE_ICON or SOURCE_BAR))
+			info.sourceViewer = info.sourceType == SOURCE_BAR and BAR_VIEWER or ICON_VIEWER
+			if info.spellID and not scan.bySpellID[info.spellID] then scan.bySpellID[info.spellID] = info end
+			scan.list[#scan.list + 1] = info
+		end
 	end
 
 	table.sort(scan.list, sortTrackedBuffs)
 	runtime.scan = scan
-	return scan.list, scan.byCooldownID
+	return scan.list, scan.byCooldownID, scan.bySpellID
 end
 
 local function clearAuraMapping(runtime, key, state, clearTrackedAura)
 	local auraID = state and state.mappedAuraInstanceID
-	if auraID then
-		local mapped = runtime.auraEntries[auraID]
+	local auraUnit = normalizeTrackedUnit(state and state.mappedAuraUnit)
+	if auraID and auraUnit then
+		local auraEntries = runtime.auraEntries[auraUnit]
+		local mapped = auraEntries and auraEntries[auraID]
 		if mapped then
 			mapped[key] = nil
-			if not next(mapped) then runtime.auraEntries[auraID] = nil end
+			if not next(mapped) then auraEntries[auraID] = nil end
 		end
 		state.mappedAuraInstanceID = nil
+		state.mappedAuraUnit = nil
 	end
 	if clearTrackedAura and state then
 		state.trackedAuraInstanceID = nil
@@ -394,14 +512,16 @@ local function clearAuraMapping(runtime, key, state, clearTrackedAura)
 	end
 end
 
-local function registerAuraMapping(runtime, key, state, auraID)
+local function registerAuraMapping(runtime, key, state, auraID, auraUnit)
 	if not state then return end
-	if auraID and state.mappedAuraInstanceID == auraID then return end
+	auraUnit = normalizeTrackedUnit(auraUnit)
+	if auraID and state.mappedAuraInstanceID == auraID and state.mappedAuraUnit == auraUnit then return end
 	clearAuraMapping(runtime, key, state, false)
-	if not auraID then return end
-	runtime.auraEntries[auraID] = runtime.auraEntries[auraID] or {}
-	runtime.auraEntries[auraID][key] = true
+	if not (auraID and auraUnit) then return end
+	runtime.auraEntries[auraUnit][auraID] = runtime.auraEntries[auraUnit][auraID] or {}
+	runtime.auraEntries[auraUnit][auraID][key] = true
 	state.mappedAuraInstanceID = auraID
+	state.mappedAuraUnit = auraUnit
 end
 
 local function unregisterFrameBinding(runtime, key, frame)
@@ -462,17 +582,72 @@ function CDMAuras:SweepInvalidStates()
 			runtime.entryStates[key] = nil
 		end
 	end
-	for auraID, mapped in pairs(runtime.auraEntries) do
-		for key in pairs(mapped) do
-			if not valid[key] then mapped[key] = nil end
+	for _, auraEntries in pairs(runtime.auraEntries) do
+		for auraID, mapped in pairs(auraEntries) do
+			for key in pairs(mapped) do
+				if not valid[key] then mapped[key] = nil end
+			end
+			if not next(mapped) then auraEntries[auraID] = nil end
 		end
-		if not next(mapped) then runtime.auraEntries[auraID] = nil end
+	end
+end
+
+local function getEntryTrackedUnit(scanInfo, state, frame)
+	local trackedUnit = nil
+	if frame and type(frame.GetAuraDataUnit) == "function" then
+		local ok, auraUnit = pcall(frame.GetAuraDataUnit, frame)
+		if ok then trackedUnit = normalizeTrackedUnit(auraUnit) end
+	end
+	if not trackedUnit and frame then trackedUnit = normalizeTrackedUnit(frame.auraDataUnit) end
+	if not trackedUnit and scanInfo then trackedUnit = normalizeTrackedUnit(scanInfo.auraUnit) end
+	if not trackedUnit and state then trackedUnit = normalizeTrackedUnit(state.trackUnit) or normalizeTrackedUnit(state.trackedAuraUnit) or normalizeTrackedUnit(state.mappedAuraUnit) end
+	return trackedUnit
+end
+
+local function clearTrackedPanelIndex(runtime) runtime.unitPanels = createTrackedUnitBuckets() end
+
+local function registerTrackedPanel(runtime, unit, panelId)
+	unit = normalizeTrackedUnit(unit)
+	if not (unit and panelId) then return end
+	runtime.unitPanels[unit][panelId] = true
+end
+
+function CDMAuras:RebuildTrackedPanelIndex()
+	local runtime = getRuntime()
+	clearTrackedPanelIndex(runtime)
+
+	local root = CooldownPanels.GetRoot and CooldownPanels:GetRoot() or nil
+	if not (root and root.panels) then return end
+
+	local enabledPanels = CooldownPanels.runtime and CooldownPanels.runtime.enabledPanels or nil
+	local useEnabledFilter = enabledPanels and next(enabledPanels) ~= nil
+	local _, byCooldownID, bySpellID = self:ScanTrackedBuffs(false)
+
+	for panelId, panel in pairs(root.panels) do
+		local panelEnabled = useEnabledFilter and enabledPanels[panelId] or (panel and panel.enabled ~= false)
+		if panelEnabled and panel and panel.entries then
+			for entryId, entry in pairs(panel.entries) do
+				if entry and entry.type == ENTRY_TYPE then
+					local key = getEntryKey(panelId, entryId)
+					local state = runtime.entryStates[key]
+					local scanInfo = byCooldownID and byCooldownID[entry.cooldownID] or nil
+					if not scanInfo and isUsableSpellID(entry.spellID) then scanInfo = bySpellID and bySpellID[entry.spellID] or nil end
+					local trackedUnit = getEntryTrackedUnit(scanInfo, state, scanInfo and (scanInfo.iconFrame or scanInfo.barFrame) or nil)
+					if state then state.trackUnit = trackedUnit end
+					registerTrackedPanel(runtime, trackedUnit, panelId)
+				end
+			end
+		end
 	end
 end
 
 local function isFrameShowingTrackedSpell(frame, entry)
 	if not (frame and entry and entry.spellID) then return true end
 	local trackedSpellID = entry.spellID
+	if type(frame.SpellIDMatchesAnyAssociatedSpellIDs) == "function" then
+		local ok, matches = pcall(frame.SpellIDMatchesAnyAssociatedSpellIDs, frame, trackedSpellID)
+		if ok then return matches == true end
+	end
 	local hadSecretComparison = false
 	local sawAssociatedSpellID = false
 	local sawLinkedSpellList = false
@@ -511,13 +686,33 @@ local function isFrameShowingTrackedSpell(frame, entry)
 	return false
 end
 
+local function getFrameAuraUnit(frame)
+	if not frame then return nil end
+	if type(frame.GetAuraDataUnit) == "function" then
+		local ok, auraUnit = pcall(frame.GetAuraDataUnit, frame)
+		if ok and type(auraUnit) == "string" and auraUnit ~= "" then return auraUnit end
+	end
+	if type(frame.auraDataUnit) == "string" and frame.auraDataUnit ~= "" then return frame.auraDataUnit end
+	return nil
+end
+
+local function getFrameAuraData(frame)
+	if not frame then return nil, nil, nil end
+	local auraUnit = getFrameAuraUnit(frame)
+	local auraInstanceID = hasAuraInstanceID(frame.auraInstanceID) and frame.auraInstanceID or nil
+	if auraUnit and auraInstanceID and C_UnitAuras and C_UnitAuras.GetAuraDataByAuraInstanceID then
+		local auraData = C_UnitAuras.GetAuraDataByAuraInstanceID(auraUnit, auraInstanceID)
+		if auraData then return auraData, auraUnit, auraInstanceID end
+	end
+	return nil, auraUnit, auraInstanceID
+end
+
 function CDMAuras:HandleFrameAuraMutation(frame, wasCleared)
 	if not frame then return end
 	local runtime = getRuntime()
 	local keys = runtime.frameEntries[frame]
 	if not keys then return end
-	local newAuraID = hasAuraInstanceID(frame.auraInstanceID) and frame.auraInstanceID or nil
-	local auraUnit = (frame.auraDataUnit == "player") and frame.auraDataUnit or "player"
+	local auraData, auraUnit, newAuraID = getFrameAuraData(frame)
 	local refreshedPanels = {}
 
 	for key in pairs(keys) do
@@ -528,10 +723,13 @@ function CDMAuras:HandleFrameAuraMutation(frame, wasCleared)
 				clearEntryState(key, state, true)
 			elseif wasCleared then
 				clearAuraMapping(runtime, key, state, false)
+				state.trackedAuraInstanceID = nil
+				state.trackedAuraUnit = nil
 			elseif newAuraID and isFrameShowingTrackedSpell(frame, entry) then
+				state.trackUnit = normalizeTrackedUnit(auraUnit) or state.trackUnit
 				state.trackedAuraInstanceID = newAuraID
-				state.trackedAuraUnit = auraUnit
-				registerAuraMapping(runtime, key, state, newAuraID)
+				state.trackedAuraUnit = auraUnit or state.trackedAuraUnit
+				registerAuraMapping(runtime, key, state, newAuraID, auraUnit)
 			end
 			refreshedPanels[state.panelId] = true
 		end
@@ -612,9 +810,13 @@ end
 function CDMAuras:FindEntryByValue(panel, idValue)
 	if not panel or not panel.entries then return nil end
 	local lookup = type(idValue) == "table" and idValue.cooldownID or idValue
+	local lookupSpellID = type(idValue) == "table" and tonumber(idValue.spellID) or nil
 	if not isValidCooldownID(lookup) then return nil end
 	for entryId, entry in pairs(panel.entries) do
-		if entry and entry.type == ENTRY_TYPE and cooldownIDsEqual(entry.cooldownID, lookup) then return entryId, entry end
+		if entry and entry.type == ENTRY_TYPE then
+			if isValidCooldownID(lookup) and cooldownIDsEqual(entry.cooldownID, lookup) then return entryId, entry end
+			if lookupSpellID and tonumber(entry.spellID) == lookupSpellID then return entryId, entry end
+		end
 	end
 	return nil
 end
@@ -627,12 +829,12 @@ end
 
 function CDMAuras:GetEntryName(entry)
 	if not (entry and entry.type == ENTRY_TYPE) then return nil end
-	return entry.buffName or getSpellName(entry.spellID) or (L["CooldownPanelCDMAuraType"] or "Tracked Buff")
+	return entry.buffName or getSpellName(entry.spellID) or (L["CooldownPanelCDMAuraType"] or "Tracked Aura")
 end
 
 function CDMAuras:GetEntryTypeLabel(entryType)
 	if entryType ~= ENTRY_TYPE then return nil end
-	return L["CooldownPanelCDMAuraType"] or "Tracked Buff"
+	return L["CooldownPanelCDMAuraType"] or "Tracked Aura"
 end
 
 function CDMAuras:GetEntryIdText(entry)
@@ -696,28 +898,33 @@ end
 
 function CDMAuras:AppendAddMenu(rootDescription, panelId)
 	if not (rootDescription and panelId) then return end
-	local buffsMenu = rootDescription:CreateButton(L["CooldownPanelCDMAuraAdd"] or "Tracked Buff (CDM)")
+	local buffsMenu = rootDescription:CreateButton(L["CooldownPanelCDMAuraAdd"] or "Tracked Aura (CDM)")
 	if not buffsMenu then return end
 	if buffsMenu.SetScrollMode then buffsMenu:SetScrollMode(340) end
-	buffsMenu:CreateTitle(L["CooldownPanelCDMAuraPickerTitle"] or "Tracked Buffs from Cooldown Manager")
+	buffsMenu:CreateTitle(L["CooldownPanelCDMAuraPickerTitle"] or "Tracked Auras from Cooldown Manager")
 
 	local buffs = self:ScanTrackedBuffs(true)
 	local list = buffs
 	if not list or #list == 0 then
-		buffsMenu:CreateTitle(L["CooldownPanelCDMAuraNoBuffs"] or "No tracked buffs found.")
+		buffsMenu:CreateTitle(L["CooldownPanelCDMAuraNoBuffs"] or "No tracked auras found.")
 		return
 	end
 
 	local panel = CooldownPanels.GetPanel and CooldownPanels:GetPanel(panelId) or nil
-	local existing = {}
+	local existingCooldownIDs = {}
+	local existingSpellIDs = {}
 	for _, entry in pairs(panel and panel.entries or {}) do
-		if entry and entry.type == ENTRY_TYPE and isValidCooldownID(entry.cooldownID) then existing[tostring(entry.cooldownID)] = true end
+		if entry and entry.type == ENTRY_TYPE then
+			if isValidCooldownID(entry.cooldownID) then existingCooldownIDs[tostring(entry.cooldownID)] = true end
+			if isUsableSpellID(entry.spellID) then existingSpellIDs[entry.spellID] = true end
+		end
 	end
 
 	local availableCount = 0
-	buffsMenu:CreateTitle(L["CooldownPanelCDMAuraPickerNote"] or "Buffs set to Always Display can be added while inactive. Others only appear while active.")
+	buffsMenu:CreateTitle(L["CooldownPanelCDMAuraPickerNote"] or "Auras set to Always Display can be added while inactive. Others only appear while active.")
 	for _, info in ipairs(list) do
-		if not existing[tostring(info.cooldownID)] then
+		local spellID = tonumber(info and info.spellID)
+		if not existingCooldownIDs[tostring(info.cooldownID)] and not (spellID and existingSpellIDs[spellID]) then
 			availableCount = availableCount + 1
 			local icon = tostring(info.iconTextureID or Helper.PREVIEW_ICON)
 			local label = string.format("|T%s:14:14:0:0:64:64:4:60:4:60|t %s", icon, tostring(info.buffName or info.cooldownID))
@@ -729,7 +936,7 @@ function CDMAuras:AppendAddMenu(rootDescription, panelId)
 			end)
 		end
 	end
-	if availableCount == 0 then buffsMenu:CreateTitle(L["CooldownPanelCDMAuraAllAdded"] or "All tracked buffs are already in this panel.") end
+	if availableCount == 0 then buffsMenu:CreateTitle(L["CooldownPanelCDMAuraAllAdded"] or "All tracked auras are already in this panel.") end
 end
 
 function CDMAuras:GetImportSourceLabel(sourceKind)
@@ -755,8 +962,12 @@ function CDMAuras:ImportEntries(panelId, sourceKind)
 	panel.order = panel.order or {}
 
 	local existingByCooldownID = {}
+	local existingBySpellID = {}
 	for _, entry in pairs(panel.entries) do
-		if entry and entry.type == ENTRY_TYPE and isValidCooldownID(entry.cooldownID) then existingByCooldownID[tostring(entry.cooldownID)] = true end
+		if entry and entry.type == ENTRY_TYPE then
+			if isValidCooldownID(entry.cooldownID) then existingByCooldownID[tostring(entry.cooldownID)] = true end
+			if isUsableSpellID(entry.spellID) then existingBySpellID[entry.spellID] = true end
+		end
 	end
 
 	local list = self:ScanTrackedBuffs(true)
@@ -769,7 +980,8 @@ function CDMAuras:ImportEntries(panelId, sourceKind)
 				stats.invalid = stats.invalid + 1
 			else
 				local cooldownKey = tostring(info.cooldownID)
-				if existingByCooldownID[cooldownKey] then
+				local spellID = tonumber(info.spellID)
+				if existingByCooldownID[cooldownKey] or (spellID and existingBySpellID[spellID]) then
 					stats.duplicates = stats.duplicates + 1
 				else
 					local entryInfo = {
@@ -787,6 +999,7 @@ function CDMAuras:ImportEntries(panelId, sourceKind)
 						panel.entries[entryId] = entry
 						panel.order[#panel.order + 1] = entryId
 						existingByCooldownID[cooldownKey] = true
+						if isUsableSpellID(entry.spellID) then existingBySpellID[entry.spellID] = true end
 						stats.added = stats.added + 1
 					else
 						stats.invalid = stats.invalid + 1
@@ -812,10 +1025,10 @@ function CDMAuras:AddEntrySafe(panelId, idValue, overrides)
 		info = byCooldownID and byCooldownID[idValue] or nil
 	end
 	if type(info) ~= "table" or not isValidCooldownID(info.cooldownID) then
-		showErrorMessage(L["CooldownPanelCDMAuraNotFound"] or "Tracked buff not found in Cooldown Manager.")
+		showErrorMessage(L["CooldownPanelCDMAuraNotFound"] or "Tracked aura not found in Cooldown Manager.")
 		return nil
 	end
-	if CooldownPanels.FindEntryByValue and CooldownPanels:FindEntryByValue(panelId, ENTRY_TYPE, info.cooldownID) then
+	if CooldownPanels.FindEntryByValue and CooldownPanels:FindEntryByValue(panelId, ENTRY_TYPE, info) then
 		showErrorMessage("Entry already exists.")
 		return nil
 	end
@@ -823,7 +1036,10 @@ function CDMAuras:AddEntrySafe(panelId, idValue, overrides)
 	return CooldownPanels:AddEntry(panelId, ENTRY_TYPE, info, overrides)
 end
 
-function CDMAuras:HandleRootRefresh() self:SweepInvalidStates() end
+function CDMAuras:HandleRootRefresh()
+	self:SweepInvalidStates()
+	self:RebuildTrackedPanelIndex()
+end
 
 function CDMAuras:BuildRuntimeData(panelId, entryId, entry)
 	if not (entry and entry.type == ENTRY_TYPE) then return nil end
@@ -839,8 +1055,10 @@ function CDMAuras:BuildRuntimeData(panelId, entryId, entry)
 			boundFrame = nil,
 			boundSource = nil,
 			mappedAuraInstanceID = nil,
+			mappedAuraUnit = nil,
 			trackedAuraInstanceID = nil,
 			trackedAuraUnit = nil,
+			trackUnit = nil,
 			lastActive = nil,
 		}
 		runtime.entryStates[key] = state
@@ -854,12 +1072,14 @@ function CDMAuras:BuildRuntimeData(panelId, entryId, entry)
 	state.panelId = panelId
 	state.entryId = entryId
 
-	local _, byCooldownID = self:ScanTrackedBuffs(false)
+	local _, byCooldownID, bySpellID = self:ScanTrackedBuffs(false)
 	local scanInfo = byCooldownID and byCooldownID[entry.cooldownID] or nil
+	if not scanInfo and isUsableSpellID(entry.spellID) then scanInfo = bySpellID and bySpellID[entry.spellID] or nil end
 	if not scanInfo then
 		self:InvalidateScan()
-		local _, rescanned = self:ScanTrackedBuffs(true)
+		local _, rescanned, rescannedBySpellID = self:ScanTrackedBuffs(true)
 		scanInfo = rescanned and rescanned[entry.cooldownID] or nil
+		if not scanInfo and isUsableSpellID(entry.spellID) then scanInfo = rescannedBySpellID and rescannedBySpellID[entry.spellID] or nil end
 	end
 
 	local availableSources = {}
@@ -891,22 +1111,23 @@ function CDMAuras:BuildRuntimeData(panelId, entryId, entry)
 		state.boundSource = chosenSource
 		if chosenFrame then registerFrameBinding(runtime, key, chosenFrame) end
 	end
+	state.trackUnit = getEntryTrackedUnit(scanInfo, state, chosenFrame or fallbackFrame)
+	registerTrackedPanel(runtime, state.trackUnit, panelId)
 
 	local auraData
 	local auraUnit
 	local auraInstanceID
 
 	if chosenFrame and isFrameShowingTrackedSpell(chosenFrame, entry) then
-		local currentAuraID = hasAuraInstanceID(chosenFrame.auraInstanceID) and chosenFrame.auraInstanceID or nil
-		if currentAuraID then
-			local unit = (chosenFrame.auraDataUnit == "player") and chosenFrame.auraDataUnit or "player"
-			local currentAuraData = C_UnitAuras and C_UnitAuras.GetAuraDataByAuraInstanceID and C_UnitAuras.GetAuraDataByAuraInstanceID(unit, currentAuraID)
-			if currentAuraData then
-				auraData = currentAuraData
-				auraUnit = unit
-				auraInstanceID = currentAuraID
-				state.trackedAuraInstanceID = currentAuraID
-				state.trackedAuraUnit = unit
+		local currentAuraData, currentAuraUnit, currentAuraID = getFrameAuraData(chosenFrame)
+		if currentAuraData then
+			auraData = currentAuraData
+			auraUnit = currentAuraUnit
+			auraInstanceID = currentAuraID or getAuraInstanceID(currentAuraData)
+			if auraInstanceID then
+				state.trackUnit = normalizeTrackedUnit(auraUnit) or state.trackUnit
+				state.trackedAuraInstanceID = auraInstanceID
+				state.trackedAuraUnit = auraUnit
 			end
 		end
 	end
@@ -917,13 +1138,14 @@ function CDMAuras:BuildRuntimeData(panelId, entryId, entry)
 			auraData = cachedAuraData
 			auraUnit = state.trackedAuraUnit
 			auraInstanceID = state.trackedAuraInstanceID
+			state.trackUnit = normalizeTrackedUnit(auraUnit) or state.trackUnit
 		else
 			state.trackedAuraInstanceID = nil
 			state.trackedAuraUnit = nil
 		end
 	end
 
-	registerAuraMapping(runtime, key, state, auraInstanceID)
+	registerAuraMapping(runtime, key, state, auraInstanceID, auraUnit)
 
 	local hasTotemData = chosenFrame and chosenFrame.totemData ~= nil
 	local active = auraData ~= nil or hasTotemData
@@ -1004,20 +1226,16 @@ function CDMAuras:BuildRuntimeData(panelId, entryId, entry)
 	return data
 end
 
-local function refreshPanelsForMappedKeys(mapped)
-	if not mapped then return end
-	local panelsToRefresh = {}
+local function refreshAllTrackedPanels(unit)
+	unit = normalizeTrackedUnit(unit)
 	local runtime = getRuntime()
-	for key in pairs(mapped) do
-		local state = runtime.entryStates[key]
-		if state then panelsToRefresh[state.panelId] = true end
+	if unit and runtime.unitPanels and runtime.unitPanels[unit] and next(runtime.unitPanels[unit]) then
+		for panelId in pairs(runtime.unitPanels[unit]) do
+			requestPanelRefresh(panelId)
+		end
+		return
 	end
-	for panelId in pairs(panelsToRefresh) do
-		requestPanelRefresh(panelId)
-	end
-end
 
-local function refreshAllTrackedPanels()
 	local root = CooldownPanels.GetRoot and CooldownPanels:GetRoot() or nil
 	if not (root and root.panels) then return end
 	for panelId, panel in pairs(root.panels) do
@@ -1030,13 +1248,33 @@ local function refreshAllTrackedPanels()
 	end
 end
 
-function CDMAuras:HandleUnitAura(_, unit, updateInfo)
-	if unit ~= "player" or not updateInfo then return end
+local function clearTrackedUnitAuras(unit)
+	unit = normalizeTrackedUnit(unit)
+	if not unit then return end
 	local runtime = getRuntime()
+	for _, state in pairs(runtime.entryStates) do
+		local trackedUnit = normalizeTrackedUnit(state.trackUnit) or normalizeTrackedUnit(state.trackedAuraUnit) or normalizeTrackedUnit(state.mappedAuraUnit)
+		if trackedUnit == unit then clearAuraMapping(runtime, getEntryKey(state.panelId, state.entryId), state, true) end
+	end
+	wipe(runtime.auraEntries[unit])
+end
+
+function CDMAuras:HandleUnitAura(_, unit, updateInfo)
+	unit = normalizeTrackedUnit(unit)
+	if not unit then return end
+	local runtime = getRuntime()
+	local auraEntries = runtime.auraEntries[unit]
+	if not (auraEntries and next(auraEntries) ~= nil) then return end
+
+	if not updateInfo or updateInfo.isFullUpdate then
+		refreshAllTrackedPanels(unit)
+		return
+	end
+
 	local panelsToRefresh = {}
 
 	local function collectMapped(auraID)
-		local mapped = runtime.auraEntries[auraID]
+		local mapped = auraEntries[auraID]
 		if not mapped then return end
 		for key in pairs(mapped) do
 			local state = runtime.entryStates[key]
@@ -1052,32 +1290,33 @@ function CDMAuras:HandleUnitAura(_, unit, updateInfo)
 
 	if updateInfo.removedAuraInstanceIDs then
 		for _, auraID in ipairs(updateInfo.removedAuraInstanceIDs) do
-			local mapped = runtime.auraEntries[auraID]
+			local mapped = auraEntries[auraID]
 			if mapped then
 				for key in pairs(mapped) do
 					local state = runtime.entryStates[key]
 					if state then
-						if state.trackedAuraInstanceID == auraID then
+						if state.trackedAuraInstanceID == auraID and normalizeTrackedUnit(state.trackedAuraUnit) == unit then
 							state.trackedAuraInstanceID = nil
 							state.trackedAuraUnit = nil
 						end
+						state.mappedAuraInstanceID = nil
+						state.mappedAuraUnit = nil
 						panelsToRefresh[state.panelId] = true
 					end
 				end
-				runtime.auraEntries[auraID] = nil
+				auraEntries[auraID] = nil
 			end
 		end
-	end
-
-	if updateInfo.addedAuras and #updateInfo.addedAuras > 0 then
-		self:InvalidateScan()
-		refreshAllTrackedPanels()
-		return
 	end
 
 	for panelId in pairs(panelsToRefresh) do
 		requestPanelRefresh(panelId)
 	end
+end
+
+function CDMAuras:HandleTargetChanged()
+	clearTrackedUnitAuras("target")
+	refreshAllTrackedPanels("target")
 end
 
 function CDMAuras:HandleResetEvent(event, ...)
@@ -1091,12 +1330,13 @@ function CDMAuras:HandleResetEvent(event, ...)
 	for key, state in pairs(runtime.entryStates) do
 		clearEntryState(key, state, true)
 	end
+	self:RebuildTrackedPanelIndex()
 	refreshAllTrackedPanels()
 end
 
 function CDMAuras:HandleTotemUpdate()
 	self:InvalidateScan()
-	refreshAllTrackedPanels()
+	refreshAllTrackedPanels("player")
 end
 
 function CDMAuras:EnsureEventFrame()
@@ -1104,12 +1344,15 @@ function CDMAuras:EnsureEventFrame()
 	local frame = CreateFrame("Frame")
 	frame:RegisterEvent("PLAYER_LOGIN")
 	frame:RegisterEvent("PLAYER_ENTERING_WORLD")
+	frame:RegisterEvent("PLAYER_TARGET_CHANGED")
 	frame:RegisterEvent("PLAYER_TOTEM_UPDATE")
-	frame:RegisterUnitEvent("UNIT_AURA", "player")
+	frame:RegisterUnitEvent("UNIT_AURA", "player", "target")
 	frame:RegisterUnitEvent("PLAYER_SPECIALIZATION_CHANGED", "player")
 	frame:SetScript("OnEvent", function(_, event, ...)
 		if event == "UNIT_AURA" then
 			CDMAuras:HandleUnitAura(event, ...)
+		elseif event == "PLAYER_TARGET_CHANGED" then
+			CDMAuras:HandleTargetChanged(event, ...)
 		elseif event == "PLAYER_TOTEM_UPDATE" then
 			CDMAuras:HandleTotemUpdate(event, ...)
 		else
