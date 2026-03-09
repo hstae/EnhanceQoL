@@ -24,6 +24,7 @@
 - Mythic+ (Teleports): Added the Engineering wormhole to Quel'Thalas to the teleport list.
 - Mover: Added PvPMatchResults Frame
 - Resource Bars (Runes / Essence): `Separated offset` now renders real standalone segmented bars with individual backgrounds/borders, matching other segmented resources such as Holy Power and Maelstrom Weapon.
+- Square Minimap Stats (Location): Added `Show subzone below zone` so zone and subzone can optionally render as two lines with the subzone shown beneath the zone.
 
 ### 🐛 Fixed
 
