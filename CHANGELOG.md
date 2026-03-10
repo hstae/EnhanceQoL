@@ -15,6 +15,7 @@
 - Group Frames (Portraits): Added portrait support for Party/MT/MA frames with configurable side, square background, separator (toggle/size/texture/custom color), and optional `Extend border over portrait`.
 - Group Frames (Role Icons): Added new role icon style `FRAME` using legacy atlas icons (`UI-Frame-TankIcon`, `UI-Frame-HealerIcon`, `UI-Frame-DpsIcon`).
 - Group Frames (Border): Added an option to change the Strata and level of the border.
+- Group Frames (Incoming Heals): Added an optional incoming-heal prediction bar for group frames with configurable texture, color, opacity, and sample preview.
 - Group Frames (Healer Buff Placement): Added per-indicator border controls for `Icon`/`Square` styles: `Indicator Border`, `Border Texture` (SharedMedia), `Border Size`, `Border Offset`, and `Border Color`.
 - Unit Frames (Health / Absorb): Added `Don't overflow health bar` (available when `Reverse fill` is enabled). When active, overflow rendering is suppressed so only the missing-health portion is shown; at full health no reverse-overflow absorb segment is visible.
 - Economy (Crafting Orders): Added a separate `Place Crafting Orders` section with an `Always set the filter for "Current expansion"` option, matching the existing Auction House behavior.
@@ -31,6 +32,8 @@
 ### 🐛 Fixed
 
 - Unit Frames / Group Frames: Reworked the Single UF settings layout to match the Group Frames structure more closely, including split `Buffs` / `Debuffs` sections and clearer top-level ordering.
+- Group Frames (Health / Absorb): Fixed stale absorb overlays on shield refreshes where a new absorb could be applied before the previous one fully expired, causing party/raid frames to stop updating the absorb bar until a later change.
+- Group Frames (Localization): Fixed multiple visible Group Frame settings labels and editor action buttons not using Aura locale keys, and added payload entries for all supported locales.
 - Economy (Craft Shopper): Fixed an intermittent error while tracking recipe reagents where some profession reagent slots could resolve without a valid item ID and crash the shopping-list rebuild.
 - Instant Messenger (Whisper Focus): Unified conversation focusing when opening whispers from the chat edit box or outgoing whisper events. Battle.net whispers now consistently focus the correct conversation tab.
 - Unit Frames (Absorb Glow): Fixed absorb glow placement and clipping for reverse/overflow layouts. The glow is now anchored to the health-frame edge while being clipped to the health fill region.
