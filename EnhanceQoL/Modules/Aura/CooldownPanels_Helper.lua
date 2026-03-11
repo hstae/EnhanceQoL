@@ -126,6 +126,7 @@ Helper.PANEL_LAYOUT_DEFAULTS = {
 	pandemicGlowColor = { 1, 0.82, 0.2, 1 },
 	readyGlowInset = 0,
 	readyGlowDuration = 0,
+	readyGlowCheckPower = false,
 	noDesaturation = false,
 	checkPower = false,
 	powerTintColor = { 0.5, 0.5, 1, 1 },
@@ -224,7 +225,10 @@ Helper.ENTRY_DEFAULTS = {
 	cooldownTextUseGlobal = true,
 	noDesaturationUseGlobal = true,
 	noDesaturation = false,
+	checkPowerUseGlobal = true,
+	checkPower = false,
 	glowReady = false,
+	readyGlowCheckPower = false,
 	pandemicGlow = false,
 	pandemicGlowColor = nil,
 	procGlowEnabled = true,
@@ -276,9 +280,7 @@ function Helper.NormalizeGlowStyle(style, fallback)
 	return Helper.PANEL_LAYOUT_DEFAULTS.readyGlowStyle or "MARCHING_ANTS"
 end
 
-function Helper.NormalizeGlowInset(value, fallback)
-	return Helper.ClampInt(value, -Helper.GLOW_INSET_RANGE, Helper.GLOW_INSET_RANGE, fallback)
-end
+function Helper.NormalizeGlowInset(value, fallback) return Helper.ClampInt(value, -Helper.GLOW_INSET_RANGE, Helper.GLOW_INSET_RANGE, fallback) end
 
 Helper.VALID_LAYOUT_MODES = {
 	GRID = true,
@@ -970,7 +972,10 @@ function Helper.NormalizeRoot(root)
 	root.defaults.entry.showCharges = Helper.ENTRY_DEFAULTS.showCharges
 	root.defaults.entry.showStacks = Helper.ENTRY_DEFAULTS.showStacks
 	root.defaults.entry.glowReady = Helper.ENTRY_DEFAULTS.glowReady
+	root.defaults.entry.readyGlowCheckPower = Helper.ENTRY_DEFAULTS.readyGlowCheckPower
 	root.defaults.entry.pandemicGlow = Helper.ENTRY_DEFAULTS.pandemicGlow
+	root.defaults.entry.checkPower = Helper.ENTRY_DEFAULTS.checkPower
+	root.defaults.entry.checkPowerUseGlobal = Helper.ENTRY_DEFAULTS.checkPowerUseGlobal
 	root.defaults.entry.procGlowEnabled = Helper.ENTRY_DEFAULTS.procGlowEnabled
 	root.defaults.entry.procGlowUseGlobal = Helper.ENTRY_DEFAULTS.procGlowUseGlobal
 	root.defaults.entry.glowDuration = Helper.ENTRY_DEFAULTS.glowDuration
@@ -994,7 +999,8 @@ function Helper.NormalizePanel(panel, defaults)
 	panel.layout.fixedGridRows = Helper.NormalizeFixedGridSize(panel.layout.fixedGridRows, layoutDefaults.fixedGridRows or Helper.PANEL_LAYOUT_DEFAULTS.fixedGridRows or 0)
 	panel.layout.procGlowEnabled = panel.layout.procGlowEnabled ~= false
 	panel.layout.readyGlowStyle = Helper.NormalizeGlowStyle(panel.layout.readyGlowStyle, layoutDefaults.readyGlowStyle or Helper.PANEL_LAYOUT_DEFAULTS.readyGlowStyle)
-	panel.layout.pandemicGlowStyle = Helper.NormalizeGlowStyle(panel.layout.pandemicGlowStyle, layoutDefaults.pandemicGlowStyle or panel.layout.readyGlowStyle or Helper.PANEL_LAYOUT_DEFAULTS.readyGlowStyle)
+	panel.layout.pandemicGlowStyle =
+		Helper.NormalizeGlowStyle(panel.layout.pandemicGlowStyle, layoutDefaults.pandemicGlowStyle or panel.layout.readyGlowStyle or Helper.PANEL_LAYOUT_DEFAULTS.readyGlowStyle)
 	panel.layout.readyGlowColor = Helper.NormalizeColor(panel.layout.readyGlowColor, layoutDefaults.readyGlowColor or Helper.PANEL_LAYOUT_DEFAULTS.readyGlowColor)
 	panel.layout.readyGlowInset = Helper.NormalizeGlowInset(panel.layout.readyGlowInset, layoutDefaults.readyGlowInset or Helper.PANEL_LAYOUT_DEFAULTS.readyGlowInset or 0)
 	panel.layout.pandemicGlowInset =
@@ -1004,6 +1010,7 @@ function Helper.NormalizePanel(panel, defaults)
 		layoutDefaults.pandemicGlowColor or panel.layout.readyGlowColor or Helper.PANEL_LAYOUT_DEFAULTS.pandemicGlowColor or Helper.PANEL_LAYOUT_DEFAULTS.readyGlowColor
 	)
 	panel.layout.readyGlowDuration = Helper.ClampInt(panel.layout.readyGlowDuration, 0, 30, layoutDefaults.readyGlowDuration or Helper.PANEL_LAYOUT_DEFAULTS.readyGlowDuration or 0)
+	panel.layout.readyGlowCheckPower = panel.layout.readyGlowCheckPower == true
 	panel.layout.noDesaturation = panel.layout.noDesaturation == true
 	panel.layout.stackColor = Helper.NormalizeColor(panel.layout.stackColor, layoutDefaults.stackColor or Helper.PANEL_LAYOUT_DEFAULTS.stackColor or { 1, 1, 1, 1 })
 	panel.layout.chargesColor = Helper.NormalizeColor(panel.layout.chargesColor, layoutDefaults.chargesColor or Helper.PANEL_LAYOUT_DEFAULTS.chargesColor or { 1, 1, 1, 1 })
@@ -1121,6 +1128,9 @@ function Helper.NormalizeEntry(entry, defaults)
 	if type(entry.cooldownTextUseGlobal) ~= "boolean" then entry.cooldownTextUseGlobal = true end
 	if type(entry.noDesaturationUseGlobal) ~= "boolean" then entry.noDesaturationUseGlobal = true end
 	if type(entry.noDesaturation) ~= "boolean" then entry.noDesaturation = Helper.ENTRY_DEFAULTS.noDesaturation end
+	if type(entry.checkPowerUseGlobal) ~= "boolean" then entry.checkPowerUseGlobal = Helper.ENTRY_DEFAULTS.checkPowerUseGlobal end
+	if type(entry.checkPower) ~= "boolean" then entry.checkPower = Helper.ENTRY_DEFAULTS.checkPower end
+	if type(entry.readyGlowCheckPower) ~= "boolean" then entry.readyGlowCheckPower = Helper.ENTRY_DEFAULTS.readyGlowCheckPower end
 	if type(entry.procGlowEnabled) ~= "boolean" then entry.procGlowEnabled = Helper.ENTRY_DEFAULTS.procGlowEnabled end
 	if type(entry.procGlowUseGlobal) ~= "boolean" then entry.procGlowUseGlobal = Helper.ENTRY_DEFAULTS.procGlowUseGlobal end
 	if type(entry.glowUseGlobal) ~= "boolean" then
