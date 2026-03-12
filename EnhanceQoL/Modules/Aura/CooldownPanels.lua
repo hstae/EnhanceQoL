@@ -10626,8 +10626,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 					if (trackCooldown or (showCharges and chargesInfo)) and not cooldownDurationObject then
 						cooldownStart, cooldownDuration, cooldownEnabled, cooldownRate, cooldownGCD = self:GetCachedSpellCooldownInfo(spellId)
 					elseif cooldownDurationObject then
-						local ignoreStart, ignoreDuration, ignoreEnabled, ignoreRate
-						ignoreStart, ignoreDuration, ignoreEnabled, ignoreRate, cooldownGCD = self:GetCachedSpellCooldownInfo(spellId)
+						cooldownGCD = select(5, self:GetCachedSpellCooldownInfo(spellId))
 					end
 					if glowReady and showCooldown then
 						local readyDurationObject = cooldownDurationObject or self:GetCachedSpellCooldownDurationObject(spellId)
