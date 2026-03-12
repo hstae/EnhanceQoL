@@ -46,13 +46,9 @@ local function normalizeGradientColor(value)
 	return 1, 1, 1, 1
 end
 
-local function isSecretGradientComponent(value)
-	return issecretvalue and issecretvalue(value)
-end
+local function isSecretGradientComponent(value) return issecretvalue and issecretvalue(value) end
 
-local function hasSecretGradientColor(r, g, b, a)
-	return isSecretGradientComponent(r) or isSecretGradientComponent(g) or isSecretGradientComponent(b) or isSecretGradientComponent(a)
-end
+local function hasSecretGradientColor(r, g, b, a) return isSecretGradientComponent(r) or isSecretGradientComponent(g) or isSecretGradientComponent(b) or isSecretGradientComponent(a) end
 
 local function resolveSolidGradientColors(baseR, baseG, baseB, baseA)
 	local br = baseR ~= nil and baseR or 1
@@ -60,6 +56,11 @@ local function resolveSolidGradientColors(baseR, baseG, baseB, baseA)
 	local bb = baseB ~= nil and baseB or 1
 	local ba = baseA ~= nil and baseA or 1
 	return br, bg, bb, ba, br, bg, bb, ba
+end
+
+local function canCreateGradientColor(r, g, b, a)
+	if hasSecretGradientColor(r, g, b, a) then return false end
+	return type(r) == "number" and type(g) == "number" and type(b) == "number" and type(a or 1) == "number"
 end
 
 local function resolveDiscreteSegmentBackground(cfg, fallbackTexture, fallbackR, fallbackG, fallbackB, fallbackA)
@@ -996,8 +997,7 @@ function ResourceBars.ApplyBarGradient(bar, cfg, baseR, baseG, baseB, baseA, for
 	if direction ~= "HORIZONTAL" then direction = "VERTICAL" end
 	if
 		not usesSecretBase
-		and
-		not force
+		and not force
 		and bar._rbGradientEnabled
 		and not bar._rbGradUsesSecretBase
 		and bar._rbGradientTex == tex
@@ -1013,7 +1013,21 @@ function ResourceBars.ApplyBarGradient(bar, cfg, baseR, baseG, baseB, baseA, for
 	then
 		return true
 	end
-	tex:SetGradient(direction, CreateColor(sr, sg, sb, sa), CreateColor(er, eg, eb, ea))
+	if usesSecretBase then
+		-- Retail can return protected status-bar colors here. Keep the already-applied solid/curve tint
+		-- and skip SetGradient entirely instead of rewrapping secret values through CreateColor.
+		debugGradient(bar, "skip-secret", cfg, baseR, baseG, baseB, baseA, sr, sg, sb, sa, er, eg, eb, ea, force)
+		clearGradientState(bar)
+		return false
+	end
+	if not canCreateGradientColor(sr, sg, sb, sa) or not canCreateGradientColor(er, eg, eb, ea) then
+		debugGradient(bar, "skip-invalid", cfg, baseR, baseG, baseB, baseA, sr, sg, sb, sa, er, eg, eb, ea, force)
+		clearGradientState(bar)
+		return false
+	end
+	local startColor = CreateColor(sr, sg, sb, sa)
+	local endColor = CreateColor(er, eg, eb, ea)
+	tex:SetGradient(direction, startColor, endColor)
 	debugGradient(bar, "apply", cfg, baseR, baseG, baseB, baseA, sr, sg, sb, sa, er, eg, eb, ea, force)
 	bar._rbGradientEnabled = true
 	bar._rbGradientTex = tex
