@@ -21,6 +21,8 @@ local ActionBarLabels = addon.ActionBarLabels
 
 addon.constants = addon.constants or {}
 
+local function getPrivateDB() return addon.functions.GetPrivateDB and addon.functions.GetPrivateDB() or addon.privateDB or {} end
+
 local LFGListFrame = _G.LFGListFrame
 local GetContainerItemInfo = C_Container.GetContainerItemInfo
 local StaticPopup_Visible = StaticPopup_Visible
@@ -2962,11 +2964,11 @@ local function initMisc()
 	addon.functions.InitDBValue("hideRaidTools", false)
 	addon.functions.InitDBValue("autoRepair", false)
 	addon.functions.InitDBValue("autoRepairGuildBank", false)
-	addon.functions.InitDBValue("autoWarbandGold", false)
-	addon.functions.InitDBValue("autoWarbandGoldTargetGold", 10000)
-	addon.functions.InitDBValue("autoWarbandGoldPerCharacter", {})
-	addon.functions.InitDBValue("autoWarbandGoldTargetCharacter", "")
-	addon.functions.InitDBValue("autoWarbandGoldWithdraw", false)
+	addon.functions.InitPrivateDBValue("autoWarbandGold", false)
+	addon.functions.InitPrivateDBValue("autoWarbandGoldTargetGold", 10000)
+	addon.functions.InitPrivateDBValue("autoWarbandGoldPerCharacter", {})
+	addon.functions.InitPrivateDBValue("autoWarbandGoldTargetCharacter", "")
+	addon.functions.InitPrivateDBValue("autoWarbandGoldWithdraw", false)
 	addon.functions.InitDBValue("sellAllJunk", false)
 	addon.functions.InitDBValue("autoCancelCinematic", false)
 	addon.functions.InitDBValue("quickSkipCinematic", false)
@@ -3415,28 +3417,29 @@ local function initUnitFrame()
 end
 
 local function initBagsFrame()
-	addon.functions.InitDBValue("moneyTracker", {})
-	addon.functions.InitDBValue("enableMoneyTracker", false)
-	addon.functions.InitDBValue("showOnlyGoldOnMoney", false)
-	addon.functions.InitDBValue("warbandGold", 0)
-	if addon.db["moneyTracker"][UnitGUID("player")] == nil or type(addon.db["moneyTracker"][UnitGUID("player")]) ~= "table" then addon.db["moneyTracker"][UnitGUID("player")] = {} end
+	local privateDB = getPrivateDB()
+	addon.functions.InitPrivateDBValue("moneyTracker", {})
+	addon.functions.InitPrivateDBValue("enableMoneyTracker", false)
+	addon.functions.InitPrivateDBValue("showOnlyGoldOnMoney", false)
+	addon.functions.InitPrivateDBValue("warbandGold", 0)
+	if privateDB["moneyTracker"][UnitGUID("player")] == nil or type(privateDB["moneyTracker"][UnitGUID("player")]) ~= "table" then privateDB["moneyTracker"][UnitGUID("player")] = {} end
 
 	local moneyFrame = ContainerFrameCombinedBags.MoneyFrame
 	local otherMoney = {}
 
 	local function ShowBagMoneyTooltip(self)
-		if not addon.db["enableMoneyTracker"] then return end
+		if not privateDB["enableMoneyTracker"] then return end
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 		GameTooltip:ClearLines()
 
 		local list, total = {}, 0
-		for _, info in pairs(addon.db["moneyTracker"]) do
+		for _, info in pairs(privateDB["moneyTracker"]) do
 			total = total + (info.money or 0)
 			table.insert(list, info)
 		end
 		table.sort(list, function(a, b) return (a.money or 0) > (b.money or 0) end)
 
-		GameTooltip:AddDoubleLine(L["warbandGold"], addon.functions.formatMoney(addon.db["warbandGold"] or 0, "tracker"))
+		GameTooltip:AddDoubleLine(L["warbandGold"], addon.functions.formatMoney(privateDB["warbandGold"] or 0, "tracker"))
 		GameTooltip:AddLine(" ")
 
 		for _, info in ipairs(list) do
@@ -3456,7 +3459,7 @@ local function initBagsFrame()
 	end
 
 	local function HideBagMoneyTooltip()
-		if not addon.db["enableMoneyTracker"] then return end
+		if not privateDB["enableMoneyTracker"] then return end
 		GameTooltip:Hide()
 	end
 
@@ -5884,16 +5887,17 @@ end
 local COPPER_PER_GOLD = 10000
 
 function addon.functions.AutoSyncWarbandGold()
-	if not addon.db or not addon.db["autoWarbandGold"] then return end
+	local privateDB = getPrivateDB()
+	if not privateDB["autoWarbandGold"] then return end
 	if not C_Bank or not Enum or not Enum.BankType or not Enum.BankType.Account then return end
 
 	local bankType = Enum.BankType.Account
 	if not C_Bank.DoesBankTypeSupportMoneyTransfer or not C_Bank.DoesBankTypeSupportMoneyTransfer(bankType) then return end
 	if not C_Bank.CanUseBank or not C_Bank.CanUseBank(bankType) then return end
 
-	local targetGold = tonumber(addon.db["autoWarbandGoldTargetGold"]) or 0
+	local targetGold = tonumber(privateDB["autoWarbandGoldTargetGold"]) or 0
 	local playerGuid = UnitGUID("player")
-	local perCharacterTargets = addon.db["autoWarbandGoldPerCharacter"]
+	local perCharacterTargets = privateDB["autoWarbandGoldPerCharacter"]
 	if type(perCharacterTargets) == "table" and playerGuid and perCharacterTargets[playerGuid] ~= nil then targetGold = tonumber(perCharacterTargets[playerGuid]) or targetGold end
 	if targetGold < 0 then targetGold = 0 end
 	local targetCopper = math.floor((targetGold * COPPER_PER_GOLD) + 0.5)
@@ -5908,7 +5912,7 @@ function addon.functions.AutoSyncWarbandGold()
 		return
 	end
 
-	if not addon.db["autoWarbandGoldWithdraw"] then return end
+	if not privateDB["autoWarbandGoldWithdraw"] then return end
 	if playerMoney >= targetCopper then return end
 	if not (C_Bank.CanWithdrawMoney and C_Bank.WithdrawMoney and C_Bank.CanWithdrawMoney(bankType)) then return end
 
@@ -6036,6 +6040,8 @@ local eventHandlers = {
 			end
 
 			if addon.functions.CleanupOldStuff then addon.functions.CleanupOldStuff() end
+			if addon.functions.MigratePrivateProfileData then addon.functions.MigratePrivateProfileData(addon.db) end
+			if addon.functions.CleanupPrivateProfileData then addon.functions.CleanupPrivateProfileData() end
 			if addon.functions.initializePersistentCVars then addon.functions.initializePersistentCVars() end
 
 			loadMain()
@@ -6291,15 +6297,16 @@ local eventHandlers = {
 		addon.variables.isMaxLevel = {}
 		addon.variables.isMaxLevel[addon.variables.maxLevel] = true
 
-		if addon.db["moneyTracker"] then
-			addon.db["moneyTracker"][UnitGUID("player")] = {
+		local privateDB = getPrivateDB()
+		if privateDB["moneyTracker"] then
+			privateDB["moneyTracker"][UnitGUID("player")] = {
 				name = UnitName("player"),
 				realm = GetRealmName(),
 				money = GetMoney(),
 				class = select(2, UnitClass("player")),
 			}
 		end
-		addon.db["warbandGold"] = C_Bank.FetchDepositedMoney(Enum.BankType.Account)
+		privateDB["warbandGold"] = C_Bank.FetchDepositedMoney(Enum.BankType.Account)
 		if addon.ChatIM then addon.ChatIM:BuildSoundTable() end
 
 		-- Timerunner cleanup: remove Durability stream from all DataPanels
@@ -6321,11 +6328,15 @@ local eventHandlers = {
 		end
 	end,
 	["PLAYER_MONEY"] = function()
-		if addon.db["moneyTracker"] and addon.db["moneyTracker"][UnitGUID("player")] and addon.db["moneyTracker"][UnitGUID("player")]["money"] then
-			addon.db["moneyTracker"][UnitGUID("player")]["money"] = GetMoney()
+		local privateDB = getPrivateDB()
+		if privateDB["moneyTracker"] and privateDB["moneyTracker"][UnitGUID("player")] and privateDB["moneyTracker"][UnitGUID("player")]["money"] then
+			privateDB["moneyTracker"][UnitGUID("player")]["money"] = GetMoney()
 		end
 	end,
-	["ACCOUNT_MONEY"] = function() addon.db["warbandGold"] = C_Bank.FetchDepositedMoney(Enum.BankType.Account) end,
+	["ACCOUNT_MONEY"] = function()
+		local privateDB = getPrivateDB()
+		privateDB["warbandGold"] = C_Bank.FetchDepositedMoney(Enum.BankType.Account)
+	end,
 	["PLAYER_REGEN_ENABLED"] = function()
 		if addon.variables then
 			if addon.variables.pendingActionBarAnchorRefresh then
