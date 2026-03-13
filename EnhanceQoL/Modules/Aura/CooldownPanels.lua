@@ -799,10 +799,35 @@ local function hasFakeCursorPanels()
 	return false
 end
 
+function CooldownPanels:GetLayoutEditFakeCursorPanel()
+	local runtime = CooldownPanels.runtime
+	local editor = runtime and runtime.editor or nil
+	if not (editor and editor.frame and editor.frame:IsShown()) then return nil end
+	if editor.layoutEditActive ~= true then return nil end
+	local panelId = normalizeId(editor.selectedPanelId)
+	if not panelId then return nil end
+	local panel = CooldownPanels:GetPanel(panelId)
+	if panel and panelUsesFakeCursor(panel) then return panelId, panel end
+	return nil
+end
+
 function CooldownPanels:UpdateCursorAnchorState()
-	local wantsCursor = hasFakeCursorPanels()
+	local layoutEditCursorPanelId = self:GetLayoutEditFakeCursorPanel()
+	local wantsCursor = layoutEditCursorPanelId ~= nil or hasFakeCursorPanels()
 	if wantsCursor then
-		if self:IsInEditMode() then
+		if layoutEditCursorPanelId then
+			stopCursorFollow()
+			setFakeCursorMode("edit")
+			local frame = ensureFakeCursorFrame()
+			frame:ClearAllPoints()
+			frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+			frame._eqolHasPosition = true
+			fakeCursorResetOnShow = false
+			frame:Show()
+			local runtime = getRuntime(layoutEditCursorPanelId)
+			CooldownPanels.ClearAppliedAnchorCache(runtime)
+			self:ApplyPanelPosition(layoutEditCursorPanelId)
+		elseif self:IsInEditMode() then
 			stopCursorFollow()
 			setFakeCursorMode("edit")
 		else
@@ -2452,6 +2477,7 @@ function CooldownPanels:SelectPanel(panelId)
 	end
 	if previousPanelId and previousPanelId ~= panelId and self:GetPanel(previousPanelId) then self:RefreshPanel(previousPanelId) end
 	self:RefreshPanel(panelId)
+	self:UpdateCursorAnchorState()
 	self:RefreshEditor()
 end
 
@@ -2469,6 +2495,14 @@ function CooldownPanels:SelectEntry(entryId)
 	self:RefreshEditor()
 end
 
+function CooldownPanels:IsPanelLayoutEditAvailable(panelId)
+	panelId = normalizeId(panelId)
+	if not panelId then return false end
+	local panel = self:GetPanel(panelId)
+	if not panel then return false end
+	return panelUsesFakeCursor(panel) ~= true
+end
+
 function CooldownPanels:IsPanelLayoutEditActive(panelId)
 	panelId = normalizeId(panelId)
 	if not panelId then return false end
@@ -2476,9 +2510,7 @@ function CooldownPanels:IsPanelLayoutEditActive(panelId)
 	if not (editor and editor.frame and editor.frame:IsShown()) then return false end
 	if editor.layoutEditActive ~= true then return false end
 	if normalizeId(editor.selectedPanelId) ~= panelId then return false end
-	local panel = self:GetPanel(panelId)
-	if not panel then return false end
-	return Helper.NormalizeLayoutMode(panel.layout and panel.layout.layoutMode, Helper.PANEL_LAYOUT_DEFAULTS.layoutMode) ~= "RADIAL"
+	return self:IsPanelLayoutEditAvailable(panelId)
 end
 
 function CooldownPanels:IsAnyPanelLayoutEditActive()
@@ -2490,6 +2522,10 @@ function CooldownPanels:SetEditorLayoutEditEnabled(enabled)
 	local editor = getEditor()
 	if not editor then return end
 	enabled = enabled == true
+	if enabled and not self:IsPanelLayoutEditAvailable(editor.selectedPanelId) then
+		self:RefreshEditor()
+		return
+	end
 	if editor.layoutEditActive == enabled then
 		self:RefreshEditor()
 		return
@@ -2502,6 +2538,7 @@ function CooldownPanels:SetEditorLayoutEditEnabled(enabled)
 	if not enabled then self:HideLayoutPanelStandaloneMenu(previousPanelId or editor.selectedPanelId) end
 	if previousPanelId and self:GetPanel(previousPanelId) then self:RefreshPanel(previousPanelId) end
 	if nextPanelId and self:GetPanel(nextPanelId) then self:RefreshPanel(nextPanelId) end
+	self:UpdateCursorAnchorState()
 	self:RefreshEditor()
 end
 
@@ -2584,8 +2621,27 @@ function CooldownPanels:BeginStandalonePanelDrag(panelId)
 	local frame = runtime and runtime.frame
 	if not (panel and frame and self:IsPanelLayoutEditActive(panelId)) then return false end
 	local anchor = ensurePanelAnchor(panel)
-	if not anchorUsesUIParent(anchor) then return false end
+	local usesFakeCursor = panelUsesFakeCursor(panel)
+	if not anchorUsesUIParent(anchor) and not usesFakeCursor then return false end
 	if InCombatLockdown and InCombatLockdown() then return false end
+	if usesFakeCursor then
+		self:UpdateCursorAnchorState()
+		local point = Helper.NormalizeAnchor(anchor and anchor.point, panel.point or "CENTER")
+		local relativePoint = Helper.NormalizeAnchor(anchor and anchor.relativePoint, point)
+		local x = tonumber(anchor and anchor.x) or 0
+		local y = tonumber(anchor and anchor.y) or 0
+		runtime._eqolStandalonePanelDragUsesFakeCursor = true
+		CooldownPanels.ClearAppliedAnchorCache(runtime)
+		frame:ClearAllPoints()
+		frame:SetPoint(point, UIParent, relativePoint, x, y)
+	else
+		runtime._eqolStandalonePanelDragUsesFakeCursor = nil
+	end
+	if frame.SetMovable then frame:SetMovable(true) end
+	if frame.EnableMouse then
+		runtime._eqolStandalonePanelDragMouseEnabled = true
+		frame:EnableMouse(true)
+	end
 	runtime._eqolStandalonePanelDragging = true
 	frame:StartMoving()
 	return true
@@ -2599,18 +2655,34 @@ function CooldownPanels:FinishStandalonePanelDrag(panelId)
 	if not (panel and frame and runtime and runtime._eqolStandalonePanelDragging) then return false end
 	runtime._eqolStandalonePanelDragging = nil
 	frame:StopMovingOrSizing()
+	if runtime._eqolStandalonePanelDragMouseEnabled then
+		runtime._eqolStandalonePanelDragMouseEnabled = nil
+		frame:EnableMouse(false)
+	end
 	local anchor = ensurePanelAnchor(panel)
 	local point, _, relativePoint, x, y = frame:GetPoint(1)
 	point = Helper.NormalizeAnchor(point, anchor and anchor.point or "CENTER")
 	relativePoint = Helper.NormalizeAnchor(relativePoint, anchor and anchor.relativePoint or point)
 	x = tonumber(x) or 0
 	y = tonumber(y) or 0
-	self:HandlePositionChanged(panelId, {
-		point = point,
-		relativePoint = relativePoint,
-		x = x,
-		y = y,
-	})
+	if runtime._eqolStandalonePanelDragUsesFakeCursor then
+		anchor.point = point
+		anchor.relativePoint = relativePoint
+		anchor.x = x
+		anchor.y = y
+		panel.point = anchor.point or panel.point or "CENTER"
+		panel.x = anchor.x or panel.x or 0
+		panel.y = anchor.y or panel.y or 0
+		runtime._eqolStandalonePanelDragUsesFakeCursor = nil
+	else
+		self:HandlePositionChanged(panelId, {
+			point = point,
+			relativePoint = relativePoint,
+			x = x,
+			y = y,
+		})
+	end
+	CooldownPanels.ClearAppliedAnchorCache(runtime)
 	self:ApplyPanelPosition(panelId)
 	self:SyncEditModeDataFromPanel(panelId, runtime.editModeId)
 	refreshEditModePanelFrame(panelId, runtime.editModeId)
@@ -5843,31 +5915,6 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 			set = function(_, value) setAlwaysShowLike(value) end,
 		},
 		{
-			name = L["CooldownPanelShowCharges"] or "Show charges",
-			kind = SettingType.Checkbox,
-			parentId = "cooldownPanelStandaloneDisplay",
-			isShown = function() return getEffectiveType() == "SPELL" end,
-			get = function()
-				local _, currentEntry = getEntry()
-				return currentEntry and currentEntry.showCharges == true or false
-			end,
-			set = function(_, value) setEntryBoolean("showCharges", value) end,
-		},
-		{
-			name = L["CooldownPanelShowStacks"] or "Show stack count",
-			kind = SettingType.Checkbox,
-			parentId = "cooldownPanelStandaloneDisplay",
-			isShown = function()
-				local effectiveType = getEffectiveType()
-				return effectiveType == "SPELL" or effectiveType == "CDM_AURA"
-			end,
-			get = function()
-				local _, currentEntry = getEntry()
-				return currentEntry and currentEntry.showStacks == true or false
-			end,
-			set = function(_, value) setEntryBoolean("showStacks", value) end,
-		},
-		{
 			name = L["CooldownPanelShowItemCount"] or "Show item count",
 			kind = SettingType.Checkbox,
 			parentId = "cooldownPanelStandaloneDisplay",
@@ -6023,6 +6070,20 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 				local effectiveType = getEffectiveType()
 				return effectiveType == "SPELL" or effectiveType == "CDM_AURA" or effectiveType == "ITEM"
 			end,
+		},
+		{
+			name = L["CooldownPanelShowStacks"] or "Show stack count",
+			kind = SettingType.Checkbox,
+			parentId = "cooldownPanelStandaloneStacks",
+			isShown = function()
+				local effectiveType = getEffectiveType()
+				return effectiveType == "SPELL" or effectiveType == "CDM_AURA"
+			end,
+			get = function()
+				local _, currentEntry = getEntry()
+				return currentEntry and currentEntry.showStacks == true or false
+			end,
+			set = function(_, value) setEntryBoolean("showStacks", value) end,
 		},
 		{
 			name = L["CooldownPanelOverwriteGlobalDefault"] or "Overwrite global default",
@@ -6204,6 +6265,17 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 				local effectiveType = getEffectiveType()
 				return effectiveType == "SPELL" or effectiveType == "ITEM"
 			end,
+		},
+		{
+			name = L["CooldownPanelShowCharges"] or "Show charges",
+			kind = SettingType.Checkbox,
+			parentId = "cooldownPanelStandaloneCharges",
+			isShown = function() return getEffectiveType() == "SPELL" end,
+			get = function()
+				local _, currentEntry = getEntry()
+				return currentEntry and currentEntry.showCharges == true or false
+			end,
+			set = function(_, value) setEntryBoolean("showCharges", value) end,
 		},
 		{
 			name = L["CooldownPanelOverwriteGlobalDefault"] or "Overwrite global default",
@@ -10708,6 +10780,8 @@ function CooldownPanels:RefreshEditor()
 
 	local panelActive = panel ~= nil
 	if not panelActive then editor.layoutEditActive = nil end
+	local layoutEditAvailable = panelActive and CooldownPanels:IsPanelLayoutEditAvailable(panelId)
+	if not layoutEditAvailable then editor.layoutEditActive = nil end
 	if editor.deletePanel then
 		if panelActive then
 			editor.deletePanel:Enable()
@@ -10744,8 +10818,7 @@ function CooldownPanels:RefreshEditor()
 		end
 	end
 	if editor.layoutEditButton then
-		local enableLayoutEdit = panelActive and Helper.NormalizeLayoutMode(panel and panel.layout and panel.layout.layoutMode, Helper.PANEL_LAYOUT_DEFAULTS.layoutMode) ~= "RADIAL"
-		if enableLayoutEdit then
+		if layoutEditAvailable then
 			editor.layoutEditButton:Enable()
 		else
 			editor.layoutEditButton:Disable()
@@ -11454,8 +11527,17 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 						end
 					end
 					if showStacks then
-						local cache = shared and shared.actionDisplayCounts
-						if cache then stackCount = cache[Helper.GetEntryKey(panelId, entryId)] end
+						local entryKey = Helper.GetEntryKey(panelId, entryId)
+						local displayCount = Helper.GetActionDisplayCountForSpell and Helper.GetActionDisplayCountForSpell(spellId) or nil
+						if displayCount == nil and baseSpellId and baseSpellId ~= spellId and Helper.GetActionDisplayCountForSpell then
+							displayCount = Helper.GetActionDisplayCountForSpell(baseSpellId)
+						end
+						stackCount = displayCount
+						shared = shared or CooldownPanels.runtime
+						if shared then
+							shared.actionDisplayCounts = shared.actionDisplayCounts or {}
+							shared.actionDisplayCounts[entryKey] = displayCount
+						end
 					end
 					cooldownEnabledOk = isSafeNotFalse(cooldownEnabled)
 					local durationActive = cooldownDurationObject ~= nil and (cooldownRemaining == nil or cooldownRemaining > 0)
@@ -12260,6 +12342,12 @@ function CooldownPanels:ApplyPanelPosition(panelId)
 	local x = tonumber(anchor and anchor.x) or 0
 	local y = tonumber(anchor and anchor.y) or 0
 	local relativeFrame = resolveAnchorFrame(anchor)
+	local layoutEditCursorPanelId = self:GetLayoutEditFakeCursorPanel()
+	if layoutEditCursorPanelId ~= nil and normalizeId(layoutEditCursorPanelId) == normalizeId(panelId) and panelUsesFakeCursor(panel) then
+		point = "CENTER"
+		relativePoint = "CENTER"
+		relativeFrame = UIParent
+	end
 	if
 		runtime._eqolAnchorAppliedFrame == frame
 		and runtime._eqolAnchorPoint == point

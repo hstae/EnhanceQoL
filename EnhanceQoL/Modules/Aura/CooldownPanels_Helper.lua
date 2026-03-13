@@ -1466,6 +1466,11 @@ local function getActionDisplayCountForSpell(spellId)
 	return GetActionDisplayCount(slot)
 end
 
+function Helper.GetActionDisplayCountForSpell(spellId)
+	if not spellId then return nil end
+	return Helper.NormalizeDisplayCount(getActionDisplayCountForSpell(spellId))
+end
+
 local function getButtonActionSlot(button)
 	if not button then return nil end
 	local slot = tonumber(button.action)
@@ -1554,8 +1559,7 @@ function Helper.UpdateActionDisplayCountsForSpell(spellId, baseSpellId)
 					local effectiveId = getEffectiveSpellId(entrySpellId)
 					local matches = (id and (entrySpellId == id or effectiveId == id)) or (baseId and (entrySpellId == baseId or effectiveId == baseId))
 					if matches then
-						local displayCount = getActionDisplayCountForSpell(effectiveId) or (effectiveId ~= entrySpellId and getActionDisplayCountForSpell(entrySpellId) or nil)
-						displayCount = Helper.NormalizeDisplayCount(displayCount)
+						local displayCount = Helper.GetActionDisplayCountForSpell(effectiveId) or (effectiveId ~= entrySpellId and Helper.GetActionDisplayCountForSpell(entrySpellId) or nil)
 						cache[Helper.GetEntryKey(panelId, entryId)] = displayCount
 
 						local icon = entryToIcon and entryToIcon[entryId]
