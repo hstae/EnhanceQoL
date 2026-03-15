@@ -60,7 +60,9 @@
 - Cooldown Panels (Items): Fixed `Item uses` not updating immediately after using an item. Panels with `Show item uses` now refresh their item-use counts on `BAG_UPDATE_COOLDOWN` instead of only reflecting the correct value after a later reload.
 - Group Frames (Party Auras / Tooltips): Fixed dungeon tooltip flicker caused by party-frame aura updates repeatedly toggling aura-button mouse state while hovered, which could also disrupt other visible tooltips that shared the global `GameTooltip`.
 - Group Frames (Aura Tooltip Anchors): Fixed inconsistent party/healer-buff aura tooltip positioning so aura tooltips now follow the same Edit Mode tooltip anchor behavior as the unit tooltip instead of mixing HUD-anchor and icon-anchor placement.
+- Group Frames (Health): Fixed party/raid health values sometimes getting stuck on incorrect HP after zoning or other group-state changes.
 - Group Frames (Health / Absorb): Fixed stale absorb overlays on shield refreshes where a new absorb could be applied before the previous one fully expired, causing party/raid frames to stop updating the absorb bar until a later change.
+- Group Frames (Arena / Skirmish): Fixed arena/skirmish matches using EQoL raid-style group frames instead of EQoL party frames when party frames should be shown.
 - Group Frames (Localization): Fixed multiple visible Group Frame settings labels and editor action buttons not using Aura locale keys, and added payload entries for all supported locales.
 - Economy (Craft Shopper): Fixed an intermittent error while tracking recipe reagents where some profession reagent slots could resolve without a valid item ID and crash the shopping-list rebuild.
 - Economy (Craft Shopper): Fixed reagent-quality selection for tracked profession recipes after Blizzard's reagent-tier reduction. Craft Shopper now uses the highest available reagent quality instead of falling back to the lowest tier when only `min` / `max` qualities exist.
@@ -85,3 +87,4 @@
 - Items / Inventory (Bag Indicators): Fixed bag upgrade arrows not showing unless `Item level` was also enabled. Upgrade arrows on Blizzard bag frames now refresh independently from the bag item-level text.
 - Sound: Fixed mute selections for direct sound groups so they are reapplied correctly after login or `/reload`.
 - Experience Bar: Fixed rested text values being capped to the XP remaining in the current level. Text modes now show the real banked rested XP from `GetXPExhaustion()`, while the overlay remains limited to the current level segment.
+- Action Bars (Range Indicator / Keybind Font): Fixed out-of-range action buttons no longer turning red when `Change keybind font` was enabled. EQoL now preserves Blizzard's red range-indicator state instead of immediately restoring the custom hotkey color.
