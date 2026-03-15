@@ -1085,26 +1085,47 @@ local function toggleGlobalAuraIgnoreEditor(unit)
 	if addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RequestRefreshSettings then addon.EditModeLib.internal:RequestRefreshSettings() end
 end
 
+local syncingEditModeFrameRefresh = {}
+
+local function getEditModeAnchorValues(unit)
+	local cfg = ensureConfig(unit)
+	local def = defaultsFor(unit)
+	local anchor = (cfg and cfg.anchor) or (def and def.anchor) or {}
+	local point = type(anchor.point) == "string" and string.upper(anchor.point) or "CENTER"
+	local relativePoint = type(anchor.relativePoint) == "string" and string.upper(anchor.relativePoint) or point
+	local x = tonumber(anchor.x) or 0
+	local y = tonumber(anchor.y) or 0
+	return point, relativePoint, x, y
+end
+
 local function refreshEditModeFrame(unit)
 	if not (EditMode and EditMode.RefreshFrame) then return end
 	local frameId = frameIds[unit]
 	if not frameId then return end
-	if EditMode.EnsureLayoutData and EditMode.GetActiveLayoutName then
+	local point, relativePoint, x, y = getEditModeAnchorValues(unit)
+	if EditMode.SetValue then
+		EditMode:SetValue(frameId, "point", point, nil, true)
+		EditMode:SetValue(frameId, "relativePoint", relativePoint, nil, true)
+		EditMode:SetValue(frameId, "x", x, nil, true)
+		EditMode:SetValue(frameId, "y", y, nil, true)
+	elseif EditMode.EnsureLayoutData and EditMode.GetActiveLayoutName then
 		local layoutName = EditMode:GetActiveLayoutName()
 		if layoutName then
-			local cfg = ensureConfig(unit)
-			local def = defaultsFor(unit)
-			local anchor = (cfg and cfg.anchor) or (def and def.anchor) or {}
 			local data = EditMode:EnsureLayoutData(frameId, layoutName)
 			if data then
-				data.point = anchor.point or "CENTER"
-				data.relativePoint = anchor.relativePoint or anchor.point or "CENTER"
-				data.x = anchor.x or 0
-				data.y = anchor.y or 0
+				data.point = point
+				data.relativePoint = relativePoint
+				data.x = x
+				data.y = y
 			end
 		end
 	end
-	EditMode:RefreshFrame(frameId)
+	if addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RefreshSettingValues then addon.EditModeLib.internal:RefreshSettingValues() end
+	if not syncingEditModeFrameRefresh[frameId] then
+		syncingEditModeFrameRefresh[frameId] = true
+		EditMode:RefreshFrame(frameId)
+		syncingEditModeFrameRefresh[frameId] = nil
+	end
 	if EditMode and EditMode.IsInEditMode and EditMode:IsInEditMode() then
 		local entry = EditMode.frames and EditMode.frames[frameId]
 		local frame = entry and entry.frame
