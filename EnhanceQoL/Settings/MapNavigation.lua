@@ -3312,26 +3312,26 @@ local function getSquareMinimapStatRenderConfig(statKey)
 		b = b,
 		a = a,
 		useClassColor = cfg.useClassColorKey and addon.db[cfg.useClassColorKey] == true or false,
-		timeDisplayMode = statKey == "time" and (addon.db.squareMinimapStatsTimeDisplayMode or "server") or nil,
-		timeUse24Hour = statKey == "time" and addon.db.squareMinimapStatsTimeUse24Hour ~= false or nil,
-		timeShowSeconds = statKey == "time" and addon.db.squareMinimapStatsTimeShowSeconds == true or nil,
-		fpsThresholdMedium = statKey == "fps" and math.max(1, math.floor((tonumber(addon.db.squareMinimapStatsFPSThresholdMedium) or 30) + 0.5)) or nil,
-		fpsThresholdHigh = statKey == "fps" and math.max(
-			math.max(1, math.floor((tonumber(addon.db.squareMinimapStatsFPSThresholdMedium) or 30) + 0.5)),
-			math.floor((tonumber(addon.db.squareMinimapStatsFPSThresholdHigh) or 60) + 0.5)
-		) or nil,
-		latencyThresholdLow = statKey == "latency" and math.max(0, math.floor((tonumber(addon.db.squareMinimapStatsLatencyThresholdLow) or 50) + 0.5)) or nil,
-		latencyThresholdMid = statKey == "latency" and math.max(
-			math.max(0, math.floor((tonumber(addon.db.squareMinimapStatsLatencyThresholdLow) or 50) + 0.5)),
-			math.floor((tonumber(addon.db.squareMinimapStatsLatencyThresholdMid) or 150) + 0.5)
-		) or nil,
-		useZoneColor = statKey == "location" and addon.db.squareMinimapStatsLocationUseZoneColor == true or false,
-		locationShowZone = statKey == "location" and addon.db.squareMinimapStatsLocationShowZone ~= false or nil,
-		locationShowSubzone = statKey == "location" and addon.db.squareMinimapStatsLocationShowSubzone ~= false or nil,
-		locationSubzoneBelowZone = statKey == "location" and addon.db.squareMinimapStatsLocationSubzoneBelowZone == true or false,
-		decimals = statKey == "coordinates" and math.floor(clamp(tonumber(addon.db.squareMinimapStatsCoordinatesDecimals) or 2, 0, 3) + 0.5) or nil,
-		hideInInstance = statKey == "coordinates" and addon.db.squareMinimapStatsCoordinatesHideInInstance == true or false,
 	}
+	if statKey == "time" then
+		cached.timeDisplayMode = addon.db.squareMinimapStatsTimeDisplayMode or "server"
+		cached.timeUse24Hour = addon.db.squareMinimapStatsTimeUse24Hour ~= false
+		cached.timeShowSeconds = addon.db.squareMinimapStatsTimeShowSeconds == true
+	elseif statKey == "fps" then
+		cached.fpsThresholdMedium = math.max(1, math.floor((tonumber(addon.db.squareMinimapStatsFPSThresholdMedium) or 30) + 0.5))
+		cached.fpsThresholdHigh = math.max(cached.fpsThresholdMedium, math.floor((tonumber(addon.db.squareMinimapStatsFPSThresholdHigh) or 60) + 0.5))
+	elseif statKey == "latency" then
+		cached.latencyThresholdLow = math.max(0, math.floor((tonumber(addon.db.squareMinimapStatsLatencyThresholdLow) or 50) + 0.5))
+		cached.latencyThresholdMid = math.max(cached.latencyThresholdLow, math.floor((tonumber(addon.db.squareMinimapStatsLatencyThresholdMid) or 150) + 0.5))
+	elseif statKey == "location" then
+		cached.useZoneColor = addon.db.squareMinimapStatsLocationUseZoneColor == true
+		cached.locationShowZone = addon.db.squareMinimapStatsLocationShowZone ~= false
+		cached.locationShowSubzone = addon.db.squareMinimapStatsLocationShowSubzone ~= false
+		cached.locationSubzoneBelowZone = addon.db.squareMinimapStatsLocationSubzoneBelowZone == true
+	elseif statKey == "coordinates" then
+		cached.decimals = math.floor(clamp(tonumber(addon.db.squareMinimapStatsCoordinatesDecimals) or 2, 0, 3) + 0.5)
+		cached.hideInInstance = addon.db.squareMinimapStatsCoordinatesHideInInstance == true
+	end
 	if statKey == "fps" then
 		cached.fpsColorLowR, cached.fpsColorLowG, cached.fpsColorLowB = getSquareMinimapStatsColor("squareMinimapStatsFPSColorLow")
 		cached.fpsColorMidR, cached.fpsColorMidG, cached.fpsColorMidB = getSquareMinimapStatsColor("squareMinimapStatsFPSColorMid")
