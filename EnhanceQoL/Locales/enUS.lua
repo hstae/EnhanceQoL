@@ -940,7 +940,7 @@ L["visibilityRule_playerMounted_desc"] = "Automatically show the element while y
 L["visibilityRule_playerNotMounted"] = "Not mounted"
 L["visibilityRule_playerNotMounted_desc"] = "Automatically show the element while you are not mounted."
 L["visibilityRule_skyriding"] = "While skyriding"
-L["visibilityRule_skyriding_desc"] = "Keep the bar visible while Skyriding / Dragonriding so you can see the movement abilities."
+L["visibilityRule_skyriding_desc"] = "Automatically show the element while you are Skyriding / Dragonriding."
 L["visibilityRule_hideSkyriding"] = "Hide while skyriding"
 L["visibilityRule_hideSkyriding_desc"] = "Hide the element while skyriding, even if other visibility rules are active."
 L["visibilityRule_flying"] = "While flying"
@@ -952,9 +952,19 @@ L["visibilityRule_playerHasTarget_desc"] = "Automatically show the element whene
 L["visibilityRule_playerHealth_desc"] = "Automatically show the element while your health is below 100%."
 L["visibilityRule_inGroup"] = "In party/raid"
 L["visibilityRule_inGroup_desc"] = "Automatically show the element while you are in a party or raid."
+L["visibilityRule_inParty"] = "In party"
+L["visibilityRule_inParty_desc"] = "Automatically show the element while you are in a party, but not in a raid."
+L["visibilityRule_inRaid"] = "In raid"
+L["visibilityRule_inRaid_desc"] = "Automatically show the element while you are in a raid."
 L["visibilityRule_groupedHide"] = "Always hide in party/raid"
 L["visibilityRule_groupedHide_desc"] =
 	"Hide the player frame whenever you are in a party or raid. While grouped, only this rule (and Mouseover, if enabled) is evaluated; other visibility rules are ignored."
+L["visibilityRule_hideInParty"] = "Always hide in party"
+L["visibilityRule_hideInParty_desc"] =
+	"Hide the player frame whenever you are in a party, but not in a raid. While in a party, only this rule (and Mouseover, if enabled) is evaluated; other visibility rules are ignored."
+L["visibilityRule_hideInRaid"] = "Always hide in raid"
+L["visibilityRule_hideInRaid_desc"] =
+	"Hide the player frame whenever you are in a raid. While in a raid, only this rule (and Mouseover, if enabled) is evaluated; other visibility rules are ignored."
 L["visibilityRule_alwaysHidden"] = "Always hidden"
 L["visibilityRule_alwaysHidden_desc"] = "Hide the element entirely. This overrides every other rule."
 L["visibilityHideInGroupActive"] = 'When you are in a party or raid, only "Always hide in party/raid" (and Mouseover, if enabled) is evaluated; other visibility rules are ignored while grouped.'

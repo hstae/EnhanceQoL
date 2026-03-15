@@ -1358,7 +1358,11 @@ local function refreshCopySelectionDialog(dialog)
 	if dialog.button1 and dialog.button1.SetEnabled then dialog.button1:SetEnabled(selectedCount > 0) end
 end
 
-local function isPlayerScopedFrameVisibilityRule(key) return key == "PLAYER_CASTING" or key == "PLAYER_MOUNTED" or key == "PLAYER_NOT_MOUNTED" or key == "PLAYER_HAS_TARGET" or key == "PLAYER_IN_GROUP" end
+local function isPlayerScopedFrameVisibilityRule(key)
+	return key == "PLAYER_CASTING" or key == "PLAYER_MOUNTED" or key == "PLAYER_NOT_MOUNTED" or key == "PLAYER_HAS_TARGET"
+		or key == "PLAYER_IN_GROUP" or key == "PLAYER_IN_PARTY" or key == "PLAYER_IN_RAID" or key == "SKYRIDING_ACTIVE"
+		or key == "SKYRIDING_INACTIVE" or key == "FLYING_ACTIVE" or key == "FLYING_INACTIVE"
+end
 
 local function supportsPlayerScopedFrameVisibility(unitToken) return unitToken == "player" or unitToken == "target" or unitToken == "targettarget" or unitToken == "focus" or unitToken == "pet" end
 
@@ -2632,21 +2636,37 @@ local function buildUnitSettings(unit)
 		local config = getVisibilityConfig()
 		return config and config[key] == true
 	end
-	local function setVisibilityRule(key, shouldSelect)
+	local function setVisibilitySelection(selection)
 		local cfg = ensureConfig(unit)
-		local working = type(cfg.visibility) == "table" and cfg.visibility or {}
-		if key == "ALWAYS_HIDDEN" and shouldSelect then
-			working = { ALWAYS_HIDDEN = true }
-		elseif shouldSelect then
-			working[key] = true
-			working.ALWAYS_HIDDEN = nil
-		else
-			working[key] = nil
+		local working
+		if type(selection) == "table" then
+			for _, option in ipairs(visibilityOptions) do
+				local key = option and option.value
+				if key ~= nil and selection[key] == true then
+					if key == "ALWAYS_HIDDEN" then
+						working = { ALWAYS_HIDDEN = true }
+						break
+					end
+					working = working or {}
+					working[key] = true
+				end
+			end
 		end
-		if not next(working) then working = nil end
+		if working ~= nil and not next(working) then working = nil end
 		cfg.visibility = working
 		if UF and UF.ApplyVisibilityRules then UF.ApplyVisibilityRules(unit) end
-		refreshSettingsUI()
+	end
+	local function setVisibilityRule(key, shouldSelect)
+		local selection = getVisibilityConfig() or {}
+		if key == "ALWAYS_HIDDEN" and shouldSelect then
+			selection = { ALWAYS_HIDDEN = true }
+		elseif shouldSelect then
+			selection[key] = true
+			selection.ALWAYS_HIDDEN = nil
+		else
+			selection[key] = nil
+		end
+		setVisibilitySelection(selection)
 	end
 	local function getVisibilityFadeValue()
 		local cfg = ensureConfig(unit)
@@ -2747,8 +2767,20 @@ local function buildUnitSettings(unit)
 	if not isPlayer then list[#list + 1] = checkbox(L["UFHideInPetBattle"] or "Hide in pet battles", isHideInPetBattleEnabled, setHideInPetBattleEnabled, def.hideInPetBattle == true, "frame") end
 	list[#list + 1] = checkbox(L["UFHideInClientScene"] or "Hide in client scenes", isHideInClientSceneEnabled, setHideInClientSceneEnabled, hideInClientSceneDefault(), "frame")
 
-	if #visibilityOptions > 0 then
-		list[#list + 1] = multiDropdown(L["Show when"] or "Show when", visibilityOptions, isVisibilityRuleSelected, setVisibilityRule, nil, "frame")
+		if #visibilityOptions > 0 then
+			list[#list + 1] = {
+				name = L["Show when"] or "Show when",
+				kind = settingType.MultiDropdown,
+				parentId = "frame",
+				height = 200,
+				hideSummary = true,
+				refreshOnSelect = false,
+				values = visibilityOptions,
+				get = function() return getVisibilityConfig() end,
+				set = function(_, selection) setVisibilitySelection(selection) end,
+				isSelected = function(_, value) return isVisibilityRuleSelected(value) end,
+				setSelected = function(_, value, state) setVisibilityRule(value, state) end,
+			}
 		list[#list + 1] = slider(
 			OPACITY or "Opacity",
 			0,

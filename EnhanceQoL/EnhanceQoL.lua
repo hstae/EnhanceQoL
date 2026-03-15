@@ -401,6 +401,22 @@ local visibilityRuleMetadata = {
 		unitRequirement = "player",
 		order = 46,
 	},
+	PLAYER_IN_PARTY = {
+		key = "PLAYER_IN_PARTY",
+		label = L["visibilityRule_inParty"] or (L["VisibilityCondInParty"] or "In party"),
+		description = L["visibilityRule_inParty_desc"],
+		appliesTo = { frame = true },
+		unitRequirement = "player",
+		order = 47,
+	},
+	PLAYER_IN_RAID = {
+		key = "PLAYER_IN_RAID",
+		label = L["visibilityRule_inRaid"] or (L["VisibilityCondInRaid"] or "In raid"),
+		description = L["visibilityRule_inRaid_desc"],
+		appliesTo = { frame = true },
+		unitRequirement = "player",
+		order = 48,
+	},
 	ALWAYS_HIDE_IN_GROUP = {
 		key = "ALWAYS_HIDE_IN_GROUP",
 		label = L["visibilityRule_groupedHide"] or "Always hide in party/raid",
@@ -408,34 +424,56 @@ local visibilityRuleMetadata = {
 			or "Hides the player frame whenever you are in a party or raid. While grouped, only this rule (and Mouseover, if enabled) is evaluated; other visibility rules are ignored.",
 		appliesTo = { frame = true },
 		unitRequirement = "player",
-		order = 47,
+		order = 49,
+	},
+	ALWAYS_HIDE_IN_PARTY = {
+		key = "ALWAYS_HIDE_IN_PARTY",
+		label = L["visibilityRule_hideInParty"] or "Always hide in party",
+		description = L["visibilityRule_hideInParty_desc"]
+			or "Hide the player frame whenever you are in a party, but not in a raid. While in a party, only this rule (and Mouseover, if enabled) is evaluated; other visibility rules are ignored.",
+		appliesTo = { frame = true },
+		unitRequirement = "player",
+		order = 50,
+	},
+	ALWAYS_HIDE_IN_RAID = {
+		key = "ALWAYS_HIDE_IN_RAID",
+		label = L["visibilityRule_hideInRaid"] or "Always hide in raid",
+		description = L["visibilityRule_hideInRaid_desc"]
+			or "Hide the player frame whenever you are in a raid. While in a raid, only this rule (and Mouseover, if enabled) is evaluated; other visibility rules are ignored.",
+		appliesTo = { frame = true },
+		unitRequirement = "player",
+		order = 51,
 	},
 	SKYRIDING_ACTIVE = {
 		key = "SKYRIDING_ACTIVE",
 		label = L["visibilityRule_skyriding"] or "While skyriding",
 		description = L["visibilityRule_skyriding_desc"],
-		appliesTo = { actionbar = true },
+		appliesTo = { actionbar = true, frame = true },
+		unitRequirement = "player",
 		order = 25,
 	},
 	SKYRIDING_INACTIVE = {
 		key = "SKYRIDING_INACTIVE",
 		label = L["visibilityRule_hideSkyriding"] or "Hide while skyriding",
 		description = L["visibilityRule_hideSkyriding_desc"],
-		appliesTo = { actionbar = true },
+		appliesTo = { actionbar = true, frame = true },
+		unitRequirement = "player",
 		order = 26,
 	},
 	FLYING_ACTIVE = {
 		key = "FLYING_ACTIVE",
 		label = L["visibilityRule_flying"] or "While flying",
 		description = L["visibilityRule_flying_desc"],
-		appliesTo = { actionbar = true },
+		appliesTo = { actionbar = true, frame = true },
+		unitRequirement = "player",
 		order = 27,
 	},
 	FLYING_INACTIVE = {
 		key = "FLYING_INACTIVE",
 		label = L["visibilityRule_hideFlying"] or "Hide while flying",
 		description = L["visibilityRule_hideFlying_desc"],
-		appliesTo = { actionbar = true },
+		appliesTo = { actionbar = true, frame = true },
+		unitRequirement = "player",
 		order = 28,
 	},
 	ALWAYS_HIDDEN = {
@@ -627,6 +665,10 @@ local frameVisibilityContext = {
 	inCombat = false,
 	hasTarget = false,
 	inGroup = false,
+	inParty = false,
+	inRaid = false,
+	isFlying = false,
+	isSkyriding = false,
 	isCasting = false,
 	isMounted = false,
 }
@@ -676,8 +718,14 @@ local function UpdateFrameVisibilityContext()
 	frameVisibilityContext.inCombat = inCombat
 
 	local hasTarget = UnitExists and UnitExists("target") and true or false
+	local inRaid = (IsInRaid and IsInRaid()) and true or false
+	local inGroup = (IsInGroup and IsInGroup()) and true or false
 	frameVisibilityContext.hasTarget = hasTarget
-	frameVisibilityContext.inGroup = (IsInGroup and IsInGroup()) and true or false
+	frameVisibilityContext.inGroup = inGroup
+	frameVisibilityContext.inParty = inGroup and not inRaid
+	frameVisibilityContext.inRaid = inRaid
+	frameVisibilityContext.isFlying = IsPlayerFlying()
+	frameVisibilityContext.isSkyriding = addon.variables and addon.variables.isPlayerSkyriding and true or false
 	frameVisibilityContext.isCasting = IsPlayerCasting()
 	frameVisibilityContext.isMounted = IsPlayerMounted()
 end
@@ -691,7 +739,7 @@ end
 local function BuildUnitFrameDriverExpression(config)
 	if not config then return nil end
 	if config.ALWAYS_HIDDEN then return "hide" end
-	if config.ALWAYS_HIDE_IN_GROUP then return nil end
+	if config.ALWAYS_HIDE_IN_GROUP or config.ALWAYS_HIDE_IN_PARTY or config.ALWAYS_HIDE_IN_RAID then return nil end
 	local inCombat = config.ALWAYS_IN_COMBAT == true
 	local outCombat = config.ALWAYS_OUT_OF_COMBAT == true
 	if inCombat and outCombat then return "show" end
@@ -794,7 +842,22 @@ end
 
 local function HasFrameVisibilityRuleBesidesGroupHide(cfg)
 	if type(cfg) ~= "table" then return false end
-	return (cfg.MOUSEOVER or cfg.ALWAYS_IN_COMBAT or cfg.ALWAYS_OUT_OF_COMBAT or cfg.PLAYER_HAS_TARGET or cfg.PLAYER_CASTING or cfg.PLAYER_MOUNTED or cfg.PLAYER_NOT_MOUNTED or cfg.PLAYER_IN_GROUP)
+	return (
+		cfg.MOUSEOVER
+		or cfg.ALWAYS_IN_COMBAT
+		or cfg.ALWAYS_OUT_OF_COMBAT
+		or cfg.SKYRIDING_ACTIVE
+		or cfg.SKYRIDING_INACTIVE
+		or cfg.FLYING_ACTIVE
+		or cfg.FLYING_INACTIVE
+		or cfg.PLAYER_HAS_TARGET
+		or cfg.PLAYER_CASTING
+		or cfg.PLAYER_MOUNTED
+		or cfg.PLAYER_NOT_MOUNTED
+		or cfg.PLAYER_IN_GROUP
+		or cfg.PLAYER_IN_PARTY
+		or cfg.PLAYER_IN_RAID
+	)
 			and true
 		or false
 end
@@ -806,22 +869,57 @@ local function EvaluateFrameVisibility(state)
 	if cfg.ALWAYS_HIDDEN then return false, "ALWAYS_HIDDEN" end
 	local context = frameVisibilityContext
 
-	if cfg.ALWAYS_HIDE_IN_GROUP and state.supportsGroupRule then
-		if context.inGroup then
-			if cfg.MOUSEOVER and state.isMouseOver then return true, "MOUSEOVER" end
-			return false, "ALWAYS_HIDE_IN_GROUP"
+	if state.supportsGroupRule then
+		local activeGroupedHideRule
+		if cfg.ALWAYS_HIDE_IN_GROUP and context.inGroup then
+			activeGroupedHideRule = "ALWAYS_HIDE_IN_GROUP"
+		elseif cfg.ALWAYS_HIDE_IN_PARTY and context.inParty then
+			activeGroupedHideRule = "ALWAYS_HIDE_IN_PARTY"
+		elseif cfg.ALWAYS_HIDE_IN_RAID and context.inRaid then
+			activeGroupedHideRule = "ALWAYS_HIDE_IN_RAID"
 		end
-		-- If this is the only active rule, keep the frame visible while solo.
-		if not HasFrameVisibilityRuleBesidesGroupHide(cfg) then return true, "ALWAYS_HIDE_IN_GROUP_SOLO" end
+		if activeGroupedHideRule then
+			if cfg.MOUSEOVER and state.isMouseOver then return true, "MOUSEOVER" end
+			return false, activeGroupedHideRule
+		end
+	end
+
+	if state.supportsPlayerMountedRule then
+		if cfg.SKYRIDING_INACTIVE and context.isSkyriding then return false, "SKYRIDING_INACTIVE" end
+		if cfg.FLYING_INACTIVE and context.isFlying then return false, "FLYING_INACTIVE" end
+	end
+
+	-- If only hide-type rules are active, keep the frame visible while none of
+	-- those hide conditions currently match.
+	local hasShowRule = (
+		cfg.MOUSEOVER
+		or cfg.ALWAYS_IN_COMBAT
+		or cfg.ALWAYS_OUT_OF_COMBAT
+		or cfg.SKYRIDING_ACTIVE
+		or cfg.FLYING_ACTIVE
+		or cfg.PLAYER_HAS_TARGET
+		or cfg.PLAYER_CASTING
+		or cfg.PLAYER_MOUNTED
+		or cfg.PLAYER_NOT_MOUNTED
+		or cfg.PLAYER_IN_GROUP
+		or cfg.PLAYER_IN_PARTY
+		or cfg.PLAYER_IN_RAID
+	) and true or false
+	if not hasShowRule and HasFrameVisibilityRuleBesidesGroupHide(cfg) then
+		return true, "HIDE_RULES_INACTIVE"
 	end
 
 	if cfg.ALWAYS_IN_COMBAT and context.inCombat then return true, "ALWAYS_IN_COMBAT" end
 	if cfg.ALWAYS_OUT_OF_COMBAT and not context.inCombat then return true, "ALWAYS_OUT_OF_COMBAT" end
+	if cfg.SKYRIDING_ACTIVE and state.supportsPlayerMountedRule and context.isSkyriding then return true, "SKYRIDING_ACTIVE" end
+	if cfg.FLYING_ACTIVE and state.supportsPlayerMountedRule and context.isFlying then return true, "FLYING_ACTIVE" end
 	if cfg.PLAYER_HAS_TARGET and state.supportsPlayerTargetRule and context.hasTarget then return true, "PLAYER_HAS_TARGET" end
 	if cfg.PLAYER_CASTING and state.supportsPlayerCastingRule and context.isCasting then return true, "PLAYER_CASTING" end
 	if cfg.PLAYER_MOUNTED and state.supportsPlayerMountedRule and context.isMounted then return true, "PLAYER_MOUNTED" end
 	if cfg.PLAYER_NOT_MOUNTED and state.supportsPlayerMountedRule and not context.isMounted then return true, "PLAYER_NOT_MOUNTED" end
 	if cfg.PLAYER_IN_GROUP and state.supportsGroupRule and context.inGroup then return true, "PLAYER_IN_GROUP" end
+	if cfg.PLAYER_IN_PARTY and state.supportsGroupRule and context.inParty then return true, "PLAYER_IN_PARTY" end
+	if cfg.PLAYER_IN_RAID and state.supportsGroupRule and context.inRaid then return true, "PLAYER_IN_RAID" end
 	if cfg.MOUSEOVER and state.isMouseOver then return true, "MOUSEOVER" end
 
 	return false, nil
@@ -900,7 +998,8 @@ ApplyFrameVisibilityState = function(state)
 
 	EnsureFrameVisibilityWatcher()
 	local shouldShow, activeRule = EvaluateFrameVisibility(state)
-	local forcedHidden = activeRule == "ALWAYS_HIDDEN" or activeRule == "ALWAYS_HIDE_IN_GROUP"
+	local forcedHidden = activeRule == "ALWAYS_HIDDEN" or activeRule == "ALWAYS_HIDE_IN_GROUP" or activeRule == "ALWAYS_HIDE_IN_PARTY"
+		or activeRule == "ALWAYS_HIDE_IN_RAID"
 	local fadeAlpha = getVisibilityFadeAlpha(state)
 	if fadeAlpha == nil and addon.functions and addon.functions.GetFrameFadedAlpha then fadeAlpha = addon.functions.GetFrameFadedAlpha() end
 	if fadeAlpha == nil then fadeAlpha = 0 end
@@ -1022,9 +1121,25 @@ local function ApplyVisibilityToUnitFrame(frameName, cbData, config, opts)
 	state.supportsGroupRule = supportsPlayerScopedRules
 
 	local driverExpression = BuildUnitFrameDriverExpression(config)
-	local usesManualRules = config and (config.MOUSEOVER or config.PLAYER_HAS_TARGET or config.PLAYER_CASTING or config.PLAYER_MOUNTED or config.PLAYER_NOT_MOUNTED or config.PLAYER_IN_GROUP)
+	local usesManualRules = config
+		and (
+			config.MOUSEOVER
+			or config.SKYRIDING_ACTIVE
+			or config.SKYRIDING_INACTIVE
+			or config.FLYING_ACTIVE
+			or config.FLYING_INACTIVE
+			or config.PLAYER_HAS_TARGET
+			or config.PLAYER_CASTING
+			or config.PLAYER_MOUNTED
+			or config.PLAYER_NOT_MOUNTED
+			or config.PLAYER_IN_GROUP
+			or config.PLAYER_IN_PARTY
+			or config.PLAYER_IN_RAID
+		)
 	local hasFadeAlpha = type(state.fadeAlpha) == "number"
 	local useDriver = driverExpression and not usesManualRules and not (opts and opts.noStateDriver) and not state.isBossFrame and not hasFadeAlpha
+
+	if config and (config.SKYRIDING_ACTIVE or config.SKYRIDING_INACTIVE) then EnsureSkyridingStateDriver() end
 
 	if useDriver then
 		state.driverActive = true
@@ -2451,6 +2566,8 @@ EnsureSkyridingStateDriver = function()
 	local driver = CreateFrame("Frame")
 	driver:Hide()
 	local function refreshSkyridingDependents()
+		UpdateFrameVisibilityContext()
+		RefreshAllFrameVisibilities()
 		RefreshAllActionBarVisibilityAlpha()
 		if addon.functions and addon.functions.ApplyCooldownViewerVisibility then addon.functions.ApplyCooldownViewerVisibility() end
 		if addon.functions and addon.functions.ApplySpellActivationOverlayVisibility then addon.functions.ApplySpellActivationOverlayVisibility() end
