@@ -10000,9 +10000,7 @@ function CooldownPanels:EnsureEditorGroupRenamePopup()
 			if not (data and data.groupId) then return end
 			local editBox = self.editBox or self.GetEditBox and self:GetEditBox()
 			local text = editBox and editBox:GetText()
-			if CooldownPanels:RenameEditorGroup(data.groupId, text) and CooldownPanels.IsEditorOpen and CooldownPanels:IsEditorOpen() then
-				CooldownPanels:RefreshEditor()
-			end
+			if CooldownPanels:RenameEditorGroup(data.groupId, text) and CooldownPanels.IsEditorOpen and CooldownPanels:IsEditorOpen() then CooldownPanels:RefreshEditor() end
 		end,
 	}
 	StaticPopupDialogs["EQOL_COOLDOWN_PANEL_GROUP_RENAME"].EditBoxOnEnterPressed = function(editBox)
@@ -10023,9 +10021,7 @@ function CooldownPanels:EnsureEditorGroupDeletePopup()
 		preferredIndex = 3,
 		OnAccept = function(_, data)
 			if not (data and data.groupId) then return end
-			if CooldownPanels:DeleteEditorGroup(data.groupId) and CooldownPanels.IsEditorOpen and CooldownPanels:IsEditorOpen() then
-				CooldownPanels:RefreshEditor()
-			end
+			if CooldownPanels:DeleteEditorGroup(data.groupId) and CooldownPanels.IsEditorOpen and CooldownPanels:IsEditorOpen() then CooldownPanels:RefreshEditor() end
 		end,
 	}
 end
@@ -10201,9 +10197,7 @@ local function refreshPanelList(editor, root, classSpecs)
 	for _, groupId in ipairs(groupOrder) do
 		local group = groups[groupId]
 		local panelIds = groupedPanelIds[groupId] or {}
-		if group and (not hideEmptyGroups or #panelIds > 0 or editor.draggingPanel == true) then
-			appendBucket(groupId, group.name or ("Group " .. tostring(groupId)), panelIds)
-		end
+		if group and (not hideEmptyGroups or #panelIds > 0 or editor.draggingPanel == true) then appendBucket(groupId, group.name or ("Group " .. tostring(groupId)), panelIds) end
 	end
 
 	for _, entry in ipairs(entries) do
@@ -12437,6 +12431,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			local usingCooldown = false
 			local desaturate = false
 			local hidden = false
+			local chargeCooldownHasAvailableCharge = false
 			local entryNoDesaturation = data.noDesaturation == true
 			local entryDrawEdge = data.cooldownDrawEdge ~= false
 			local entryDrawBling = data.cooldownDrawBling ~= false
@@ -12464,6 +12459,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 				end
 				if usingCooldown then
 					if isSafeNumber(data.chargesInfo.currentCharges) then
+						chargeCooldownHasAvailableCharge = data.chargesInfo.currentCharges > 0 and isSafeLessThan(data.chargesInfo.currentCharges, data.chargesInfo.maxCharges)
 						desaturate = data.chargesInfo.currentCharges == 0
 						if hideOnCooldown or showOnCooldown then hidden = desaturate end
 					else
@@ -12511,59 +12507,79 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			end
 			if data.showCooldown then
 				if usingCooldown then
-					-- if data.entry.spellID == 204019 then print(cooldownDurationObject:GetRemainingDuration(), cooldownStart, cooldownRate)end
-					-- icon.cooldown:SetCooldown(cooldownStart, cooldownDuration, cooldownRate)
 					setCooldownDrawState(icon.cooldown, entryDrawEdge, entryDrawBling, entryDrawSwipe)
-					if data.showChargesCooldown then
-						local entrySpellId = data.entry and data.entry.spellID
-						local effectiveId = entrySpellId and getEffectiveSpellId(entrySpellId) or entrySpellId
-						local CCD = effectiveId and C_Spell.GetSpellChargeDuration(effectiveId)
-						if CCD and icon.cooldown.SetCooldownFromDurationObject then
-							icon.cooldown:Clear()
-							icon.cooldown:SetCooldownFromDurationObject(CCD)
-						elseif isSafeNumber(cooldownStart) and isSafeNumber(cooldownDuration) then
-							icon.cooldown:Clear()
-							icon.cooldown:SetCooldown(cooldownStart, cooldownDuration, cooldownRate)
+					if chargeCooldownHasAvailableCharge then
+						-- Match Blizzard action-button behavior: charge recharge takes precedence while at least one charge remains.
+						if data.showChargesCooldown then
+							local entrySpellId = data.entry and data.entry.spellID
+							local effectiveId = entrySpellId and getEffectiveSpellId(entrySpellId) or entrySpellId
+							local CCD = effectiveId and C_Spell.GetSpellChargeDuration(effectiveId)
+							if CCD and icon.cooldown.SetCooldownFromDurationObject then
+								icon.cooldown:Clear()
+								icon.cooldown:SetCooldownFromDurationObject(CCD)
+							elseif isSafeNumber(cooldownStart) and isSafeNumber(cooldownDuration) then
+								icon.cooldown:Clear()
+								icon.cooldown:SetCooldown(cooldownStart, cooldownDuration, cooldownRate)
+							else
+								icon.cooldown:Clear()
+							end
+							if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", onCooldownDone) end
 						else
 							icon.cooldown:Clear()
-						end
-						if not data.cooldownGCD then
-							if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", onCooldownDone) end
+							if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", nil) end
 						end
 					else
-						icon.cooldown:Clear()
-						if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", nil) end
-					end
-
-					-- local SCD = effectiveId and C_Spell.GetSpellCooldownDuration(effectiveId)
-					-- only when you have zero charges SCD will be true CCD is always true when one charge is missing
-					if cooldownDurationObject then
-						if data.cooldownGCD then
-							if data.showChargesCooldown then
-								local entrySpellId = data.entry and data.entry.spellID
-								local effectiveId = entrySpellId and getEffectiveSpellId(entrySpellId) or entrySpellId
-								local CCD = effectiveId and C_Spell.GetSpellChargeDuration(effectiveId)
-								-- icon.cooldown:SetCooldownFromDurationObject(CCD)
-							end
-						-- icon.texture:SetDesaturation(0)
-						-- desaturate = false
-						-- setCooldownDrawState(icon.cooldown, entryGcdDrawEdge, entryGcdDrawBling, entryGcdDrawSwipe)
-						else
-							if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", onCooldownDone) end
-							setCooldownDrawState(icon.cooldown, entryDrawEdge, entryDrawBling, entryDrawSwipe)
-							setIconDesaturation(icon.texture, cooldownDurationObject:EvaluateRemainingDuration(curveDesat), entryNoDesaturation)
-							if hideOnCooldown then
-								icon:SetAlpha(cooldownDurationObject:EvaluateRemainingDuration(curveAlpha))
-							elseif showOnCooldown then
-								icon:SetAlpha(cooldownDurationObject:EvaluateRemainingDuration(curveDesat))
-							end
-							if data.showChargesCooldown then
-								local entrySpellId = data.entry and data.entry.spellID
-								local effectiveId = entrySpellId and getEffectiveSpellId(entrySpellId) or entrySpellId
-								local CCD = effectiveId and C_Spell.GetSpellChargeDuration(effectiveId)
+						if data.showChargesCooldown then
+							local entrySpellId = data.entry and data.entry.spellID
+							local effectiveId = entrySpellId and getEffectiveSpellId(entrySpellId) or entrySpellId
+							local CCD = effectiveId and C_Spell.GetSpellChargeDuration(effectiveId)
+							if CCD and icon.cooldown.SetCooldownFromDurationObject then
+								icon.cooldown:Clear()
 								icon.cooldown:SetCooldownFromDurationObject(CCD)
+							elseif isSafeNumber(cooldownStart) and isSafeNumber(cooldownDuration) then
+								icon.cooldown:Clear()
+								icon.cooldown:SetCooldown(cooldownStart, cooldownDuration, cooldownRate)
 							else
-								icon.cooldown:SetCooldownFromDurationObject(cooldownDurationObject)
+								icon.cooldown:Clear()
+							end
+							if not data.cooldownGCD then
+								if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", onCooldownDone) end
+							end
+						else
+							icon.cooldown:Clear()
+							if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", nil) end
+						end
+
+						-- local SCD = effectiveId and C_Spell.GetSpellCooldownDuration(effectiveId)
+						-- only when you have zero charges SCD will be true CCD is always true when one charge is missing
+						if cooldownDurationObject then
+							if data.cooldownGCD then
+								if data.showChargesCooldown then
+									local entrySpellId = data.entry and data.entry.spellID
+									local effectiveId = entrySpellId and getEffectiveSpellId(entrySpellId) or entrySpellId
+									local CCD = effectiveId and C_Spell.GetSpellChargeDuration(effectiveId)
+									-- icon.cooldown:SetCooldownFromDurationObject(CCD)
+								end
+							-- icon.texture:SetDesaturation(0)
+							-- desaturate = false
+							-- setCooldownDrawState(icon.cooldown, entryGcdDrawEdge, entryGcdDrawBling, entryGcdDrawSwipe)
+							else
+								if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", onCooldownDone) end
+								setCooldownDrawState(icon.cooldown, entryDrawEdge, entryDrawBling, entryDrawSwipe)
+								setIconDesaturation(icon.texture, cooldownDurationObject:EvaluateRemainingDuration(curveDesat), entryNoDesaturation)
+								if hideOnCooldown then
+									icon:SetAlpha(cooldownDurationObject:EvaluateRemainingDuration(curveAlpha))
+								elseif showOnCooldown then
+									icon:SetAlpha(cooldownDurationObject:EvaluateRemainingDuration(curveDesat))
+								end
+								if data.showChargesCooldown then
+									local entrySpellId = data.entry and data.entry.spellID
+									local effectiveId = entrySpellId and getEffectiveSpellId(entrySpellId) or entrySpellId
+									local CCD = effectiveId and C_Spell.GetSpellChargeDuration(effectiveId)
+									icon.cooldown:SetCooldownFromDurationObject(CCD)
+								else
+									icon.cooldown:SetCooldownFromDurationObject(cooldownDurationObject)
+								end
 							end
 						end
 					end

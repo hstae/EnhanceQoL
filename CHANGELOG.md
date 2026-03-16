@@ -12,6 +12,7 @@
 
 ### 🐛 Fixed
 
+- Cooldown Panels (Charges): Fixed charge-based abilities being desaturated while charges were still available. Icons now stay colored until all charges are spent.
 - Minimap Buttons & Cluster (Tracking icon): Fixed `Minimap elements to hide` not hiding the Blizzard tracking icon unless the separate Square Minimap Stats tracking-button feature was enabled. The tracking icon hide option now works again on its own.
 
 ---
