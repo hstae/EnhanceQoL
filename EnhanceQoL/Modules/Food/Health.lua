@@ -64,6 +64,7 @@ addon.Health.healthList = {
 	{ key = "DemonicHealthstone", id = 224464, requiredLevel = 5, healFunc = function(maxHP) return GetStoneHeal(maxHP) end, type = "stone" },
 
 	-- Midnight
+	{ key = "PotentHealingPotion", id = 258138, requiredLevel = 81, heal = 175000, type = "potion" },
 	{ key = "SilvermoonHealingPotion", id = 241305, requiredLevel = 81, heal = 205956, type = "potion" },
 	{ key = "SilvermoonHealingPotion", id = 241304, requiredLevel = 81, heal = 241303, type = "potion" },
 
@@ -111,7 +112,6 @@ addon.Health.healthList = {
 	-- Wrath of the Lich King
 	{ key = "RunicHealingPotion", id = 33447, requiredLevel = 27, heal = 1200, type = "potion" },
 
-	{ key = "PotentHealingPotion", id = 258138, requiredLevel = 5, heal = 1500, type = "potion" },
 	{ key = "SurvivalistsHealingPotion", id = 224021, requiredLevel = 5, heal = 750, type = "potion" },
 
 	-- Other healing items (examples; toggleable)

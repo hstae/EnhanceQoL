@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.2.0] - 2026-03-16
+
+### 🐛 Fixed
+
+- Health Macro: Fixed `Potent Healing Potion` not being picked correctly in Midnight.
+
+---
+
 ## [9.1.2] - 2026-03-16
 
 ### 🐛 Fixed
