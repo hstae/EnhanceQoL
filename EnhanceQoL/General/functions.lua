@@ -68,9 +68,7 @@ local function rebuildLSMCache(mediaType)
 
 	local names = {}
 	for name in pairs(hash or EMPTY_TABLE) do
-		if type(name) == "string" and name ~= "" then
-			names[#names + 1] = name
-		end
+		if type(name) == "string" and name ~= "" then names[#names + 1] = name end
 	end
 	sortMediaNames(names)
 
@@ -93,9 +91,7 @@ end
 local function getLSMCache(mediaType)
 	local cache = ensureLSMCache(mediaType)
 	if not cache then return nil end
-	if cache.dirty then
-		cache = rebuildLSMCache(mediaType)
-	end
+	if cache.dirty then cache = rebuildLSMCache(mediaType) end
 	return cache
 end
 
@@ -114,9 +110,7 @@ function addon.functions.InvalidateLSMMediaCache(mediaType)
 	cache.dirty = true
 	cache.version = (cache.version or 0) + 1
 	for cacheKey in pairs(LSM_DROPDOWN_CACHE) do
-		if type(cacheKey) == "string" and cacheKey:find(key .. "|", 1, true) == 1 then
-			LSM_DROPDOWN_CACHE[cacheKey] = nil
-		end
+		if type(cacheKey) == "string" and cacheKey:find(key .. "|", 1, true) == 1 then LSM_DROPDOWN_CACHE[cacheKey] = nil end
 	end
 end
 
@@ -241,6 +235,7 @@ local PRIVATE_PROFILE_KEYS = {
 	autoWarbandGoldTargetGold = true,
 	autoWarbandGoldPerCharacter = true,
 	autoWarbandGoldTargetCharacter = true,
+	autoWarbandGoldIgnoredCharacters = true,
 	autoWarbandGoldWithdraw = true,
 	enableMoneyTracker = true,
 	showOnlyGoldOnMoney = true,
@@ -263,9 +258,7 @@ function addon.functions.InitPrivateDBValue(key, defaultValue)
 	if privateDB[key] == nil then privateDB[key] = defaultValue end
 end
 
-function addon.functions.IsPrivateProfileKey(key)
-	return PRIVATE_PROFILE_KEYS[key] == true
-end
+function addon.functions.IsPrivateProfileKey(key) return PRIVATE_PROFILE_KEYS[key] == true end
 
 function addon.functions.MigratePrivateProfileData(sourceProfile)
 	if type(sourceProfile) ~= "table" then return end
@@ -953,9 +946,7 @@ local function isBagItemUpgrade(itemLink, itemEquipLoc, itemLevel)
 	return numericLevel > baseline
 end
 
-function addon.functions.IsBagItemUpgrade(itemLink, itemEquipLoc, itemLevel)
-	return isBagItemUpgrade(itemLink, itemEquipLoc, itemLevel)
-end
+function addon.functions.IsBagItemUpgrade(itemLink, itemEquipLoc, itemLevel) return isBagItemUpgrade(itemLink, itemEquipLoc, itemLevel) end
 
 local function updateBagRarityGlow(itemButton, itemQuality, dimmed)
 	if not itemButton then return end
@@ -1014,19 +1005,14 @@ local function clearBagButtonInfo(itemButton)
 		itemButton.ItemUpgradeIconGlow:SetAlpha(1)
 		itemButton.ItemUpgradeIconGlow:Hide()
 	end
-	if itemButton.ProfessionQualityOverlay and addon.db and addon.db["fadeBagQualityIcons"] then
-		itemButton.ProfessionQualityOverlay:SetAlpha(1)
-	end
+	if itemButton.ProfessionQualityOverlay and addon.db and addon.db["fadeBagQualityIcons"] then itemButton.ProfessionQualityOverlay:SetAlpha(1) end
 	updateBagRarityGlow(itemButton, nil, false)
 end
 
 local function shouldUpdateBagButtonInfo()
 	if addon.filterFrame then return true end
 	if not addon.db then return false end
-	return addon.db["showIlvlOnBagItems"]
-		or addon.db["showBindOnBagItems"]
-		or addon.db["showUpgradeArrowOnBagItems"]
-		or addon.db["enhancedRarityGlow"]
+	return addon.db["showIlvlOnBagItems"] or addon.db["showBindOnBagItems"] or addon.db["showUpgradeArrowOnBagItems"] or addon.db["enhancedRarityGlow"]
 end
 
 local function updateButtonInfo(itemButton, bag, slot, frameName)

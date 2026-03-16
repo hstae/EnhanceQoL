@@ -3083,6 +3083,7 @@ local function initMisc()
 	addon.functions.InitPrivateDBValue("autoWarbandGoldTargetGold", 10000)
 	addon.functions.InitPrivateDBValue("autoWarbandGoldPerCharacter", {})
 	addon.functions.InitPrivateDBValue("autoWarbandGoldTargetCharacter", "")
+	addon.functions.InitPrivateDBValue("autoWarbandGoldIgnoredCharacters", {})
 	addon.functions.InitPrivateDBValue("autoWarbandGoldWithdraw", false)
 	addon.functions.InitDBValue("sellAllJunk", false)
 	addon.functions.InitDBValue("autoCancelCinematic", false)
@@ -6014,6 +6015,8 @@ function addon.functions.AutoSyncWarbandGold()
 
 	local targetGold = tonumber(privateDB["autoWarbandGoldTargetGold"]) or 0
 	local playerGuid = UnitGUID("player")
+	local ignoredCharacters = privateDB["autoWarbandGoldIgnoredCharacters"]
+	if type(ignoredCharacters) == "table" and playerGuid and ignoredCharacters[playerGuid] == true then return end
 	local perCharacterTargets = privateDB["autoWarbandGoldPerCharacter"]
 	if type(perCharacterTargets) == "table" and playerGuid and perCharacterTargets[playerGuid] ~= nil then targetGold = tonumber(perCharacterTargets[playerGuid]) or targetGold end
 	if targetGold < 0 then targetGold = 0 end

@@ -29,6 +29,8 @@ local function listTrackedCharacters()
 	local tracker = privateDB["moneyTracker"] or {}
 	local entries = {}
 	local seen = {}
+	local playerGuid = UnitGUID("player")
+	local playerInfo
 
 	local function addEntry(guid, info)
 		if not guid or guid == "" or seen[guid] then return end
@@ -41,22 +43,35 @@ local function listTrackedCharacters()
 		}
 	end
 
+	if playerGuid then playerInfo = {
+		name = UnitName("player"),
+		realm = GetRealmName(),
+		class = select(2, UnitClass("player")),
+	} end
+
+	local function resolveCharacterInfo(guid)
+		if guid and playerGuid and guid == playerGuid and playerInfo then return playerInfo end
+		return tracker[guid] or {
+			name = UNKNOWNOBJECT or "?",
+			realm = GetRealmName(),
+		}
+	end
+
 	for guid, info in pairs(tracker) do
 		if type(info) == "table" then addEntry(guid, info) end
 	end
 
 	local selectedGuid = privateDB["autoWarbandGoldTargetCharacter"]
-	if selectedGuid and selectedGuid ~= "" and not seen[selectedGuid] then addEntry(selectedGuid, tracker[selectedGuid] or {
-		name = UNKNOWNOBJECT or "?",
-		realm = GetRealmName(),
-	}) end
+	if selectedGuid and selectedGuid ~= "" and not seen[selectedGuid] then addEntry(selectedGuid, resolveCharacterInfo(selectedGuid)) end
 
-	local playerGuid = UnitGUID("player")
-	if playerGuid and not seen[playerGuid] then addEntry(playerGuid, {
-		name = UnitName("player"),
-		realm = GetRealmName(),
-		class = select(2, UnitClass("player")),
-	}) end
+	local ignoredCharacters = privateDB["autoWarbandGoldIgnoredCharacters"]
+	if type(ignoredCharacters) == "table" then
+		for guid, isIgnored in pairs(ignoredCharacters) do
+			if isIgnored then addEntry(guid, resolveCharacterInfo(guid)) end
+		end
+	end
+
+	if playerGuid and playerInfo and not seen[playerGuid] then addEntry(playerGuid, playerInfo) end
 
 	table.sort(entries, function(a, b)
 		if a.sortKey == b.sortKey then return a.key < b.key end
@@ -214,6 +229,33 @@ data = {
 				step = 1000,
 				default = 10000,
 				sType = "slider",
+				parent = true,
+				parentCheck = function()
+					return addon.SettingsLayout.elements["autoWarbandGold"]
+						and addon.SettingsLayout.elements["autoWarbandGold"].setting
+						and addon.SettingsLayout.elements["autoWarbandGold"].setting:GetValue() == true
+				end,
+			},
+			{
+				var = "autoWarbandGoldIgnoredCharacters",
+				text = L["autoWarbandGoldIgnoredCharacters"] or "Ignored characters",
+				desc = L["autoWarbandGoldIgnoredCharactersDesc"],
+				optionfunc = function()
+					local options = {}
+					for _, entry in ipairs(listTrackedCharacters()) do
+						options[#options + 1] = { value = entry.key, text = entry.label }
+					end
+					return options
+				end,
+				getSelection = function()
+					local ignored = getPrivateDB()["autoWarbandGoldIgnoredCharacters"]
+					if type(ignored) ~= "table" then return {} end
+					return ignored
+				end,
+				setSelection = function(selection) getPrivateDB()["autoWarbandGoldIgnoredCharacters"] = type(selection) == "table" and selection or {} end,
+				db = getPrivateDB(),
+				customDefaultText = NONE,
+				sType = "multidropdown",
 				parent = true,
 				parentCheck = function()
 					return addon.SettingsLayout.elements["autoWarbandGold"]
@@ -381,9 +423,7 @@ local craftEnable = addon.functions.SettingsCreateCheckbox(cVendorEconomy, {
 	parentSection = auctionHouseExpandable,
 })
 
-local function craftShopperParentCheck()
-	return craftEnable and craftEnable.setting and craftEnable.setting:GetValue() == true
-end
+local function craftShopperParentCheck() return craftEnable and craftEnable.setting and craftEnable.setting:GetValue() == true end
 
 addon.functions.SettingsCreateDropdown(cVendorEconomy, {
 	var = "vendorCraftShopperReagentQuality",
