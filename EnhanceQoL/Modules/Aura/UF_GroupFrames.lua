@@ -1410,6 +1410,7 @@ local DEFAULTS = {
 		customSort = {
 			enabled = false,
 			separateMeleeRanged = false,
+			playerFirstInRole = false,
 			roleOrder = GFH.ROLE_TOKENS or { "TANK", "HEALER", "DAMAGER" },
 			classOrder = GFH.CLASS_TOKENS,
 		},
@@ -1820,6 +1821,7 @@ local DEFAULTS = {
 		customSort = {
 			enabled = false,
 			separateMeleeRanged = false,
+			playerFirstInRole = false,
 			roleOrder = GFH.ROLE_TOKENS or { "TANK", "HEALER", "DAMAGER" },
 			classOrder = GFH.CLASS_TOKENS,
 		},
@@ -19444,6 +19446,29 @@ local function buildEditModeSettings(kind, editModeId)
 				end
 			end,
 		}
+		settings[#settings + 1] = {
+			name = L["UFGroupCustomSortPlayerFirstInRole"] or "Player first in role",
+			kind = SettingType.Checkbox,
+			field = "customSortPlayerFirstInRole",
+			parentId = "party",
+			default = false,
+			get = function()
+				local cfg = getCfg(kind)
+				local custom = cfg and GFH.EnsureCustomSortConfig(cfg)
+				return custom and custom.playerFirstInRole == true
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				local custom = GFH.EnsureCustomSortConfig(cfg)
+				custom.playerFirstInRole = value and true or false
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "customSortPlayerFirstInRole", custom.playerFirstInRole, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+				GF:RefreshCustomSortNameList(kind)
+				if GF._previewActive and GF._previewActive[kind] then GF:UpdatePreviewLayout(kind) end
+			end,
+			isEnabled = function() return isCustomSortingEnabled() end,
+		}
 	elseif raidLikeKind then
 		local raidSectionName = (kind == "mt" and "Main Tank") or (kind == "ma" and "Main Assist") or (RAID or "Raid")
 		settings[#settings + 1] = {
@@ -19660,6 +19685,30 @@ local function buildEditModeSettings(kind, editModeId)
 					end)
 				end
 			end,
+		}
+		settings[#settings + 1] = {
+			name = L["UFGroupCustomSortPlayerFirstInRole"] or "Player first in role",
+			kind = SettingType.Checkbox,
+			field = "customSortPlayerFirstInRole",
+			parentId = "raid",
+			default = false,
+			get = function()
+				local cfg = getCfg(kind)
+				local custom = cfg and GFH.EnsureCustomSortConfig(cfg)
+				return custom and custom.playerFirstInRole == true
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				local custom = GFH.EnsureCustomSortConfig(cfg)
+				custom.playerFirstInRole = value and true or false
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "customSortPlayerFirstInRole", custom.playerFirstInRole, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+				GF:RefreshCustomSortNameList(kind)
+				if GF._previewActive and GF._previewActive[kind] then GF:UpdatePreviewLayout(kind) end
+			end,
+			isShown = function() return raidKind end,
+			isEnabled = function() return isCustomSortingEnabled() end,
 		}
 		settings[#settings + 1] = {
 			name = "Separate Melee & Ranged DPS",
@@ -20921,6 +20970,7 @@ local function applyEditModeData(kind, data)
 			custom.enabled = true
 			cfg.sortMethod = "NAMELIST"
 		end
+		if data.customSortPlayerFirstInRole ~= nil then custom.playerFirstInRole = data.customSortPlayerFirstInRole and true or false end
 		if incomingSortMethod == "NAMELIST" then
 			cfg.sortMethod = "NAMELIST"
 			if custom then custom.enabled = true end
@@ -20959,6 +21009,7 @@ local function applyEditModeData(kind, data)
 					custom.roleOrder = GFH.CollapseRoleOrder(custom.roleOrder)
 				end
 			end
+			if data.customSortPlayerFirstInRole ~= nil then custom.playerFirstInRole = data.customSortPlayerFirstInRole and true or false end
 		end
 		if data.unitsPerColumn ~= nil then
 			local v = clampNumber(data.unitsPerColumn, 1, 10, cfg.unitsPerColumn or 5)
@@ -21142,6 +21193,7 @@ function GF:EnsureEditMode()
 				columnSpacing = cfg.columnSpacing or (DEFAULTS[kind] and DEFAULTS[kind].columnSpacing) or (DEFAULTS.raid and DEFAULTS.raid.columnSpacing) or 0,
 				customSortEnabled = resolveSortMethod(cfg) == "NAMELIST",
 				customSortSeparateMeleeRanged = (cfg.customSort and cfg.customSort.separateMeleeRanged) == true,
+				customSortPlayerFirstInRole = (cfg.customSort and cfg.customSort.playerFirstInRole) == true,
 				showName = (cfg.text and cfg.text.showName) ~= false,
 				nameClassColor = (cfg.text and cfg.text.useClassColor) ~= false,
 				nameAnchor = (cfg.text and cfg.text.nameAnchor) or (DEFAULTS[kind] and DEFAULTS[kind].text and DEFAULTS[kind].text.nameAnchor) or "LEFT",

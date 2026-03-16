@@ -4,6 +4,7 @@
 
 ### 🔄 Changed
 
+- Group Frames (Custom Sort): Added a `Player first in role` option for Party/Raid custom sorting, so your own frame stays pinned to the front of its current role bucket instead of shifting positions when the group order refreshes.
 - Character Panel (Gem Tracker): Reworked the socketed gem tracker for Midnight. It now tracks `Eversong Diamond`, `Amethyst`, `Peridot`, `Garnet`, and `Lapis` by item ID, replacing the old `Blasphemite` / `Amber` / `Onyx` / `Sapphire` / `Emerald` / `Ruby` setup.
 - Economy (Craft Shopper): Added a persistent `Reagent Quality` selector (`Lowest quality` / `Highest quality`) in the Craft Shopper window and settings so shopping lists and direct buy can target the desired reagent tier again.
 - Baganator (Icon Corners): Added an `Enhance QoL Upgrade arrow` corner-widget option for equippable bag items, using the localized Upgrade Arrow label in Baganator's picker.

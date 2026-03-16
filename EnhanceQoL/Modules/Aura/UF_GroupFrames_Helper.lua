@@ -854,6 +854,7 @@ function H.EnsureCustomSortConfig(cfg)
 	local custom = cfg.customSort
 	if custom.enabled == nil then custom.enabled = false end
 	if custom.separateMeleeRanged == nil then custom.separateMeleeRanged = false end
+	if custom.playerFirstInRole == nil then custom.playerFirstInRole = false end
 	if custom.separateMeleeRanged == true then
 		custom.roleOrder = H.ExpandRoleOrder(custom.roleOrder, true)
 	else
@@ -1031,11 +1032,29 @@ function H.GetUnitFullName(unit)
 	return name
 end
 
+local function isPlayerUnit(unit)
+	if not unit then return false end
+	if UnitIsUnit then return UnitIsUnit(unit, "player") == true end
+	return unit == "player"
+end
+
+local function compareCustomSortEntries(a, b, roleMap, classMap, playerFirstInRole)
+	local roleA = roleMap[a.sortRole or a.role] or 999
+	local roleB = roleMap[b.sortRole or b.role] or 999
+	if roleA ~= roleB then return roleA < roleB end
+	if playerFirstInRole and a.isPlayer ~= b.isPlayer then return a.isPlayer == true end
+	local classA = classMap[a.class] or 999
+	local classB = classMap[b.class] or 999
+	if classA ~= classB then return classA < classB end
+	return tostring(a.name or "") < tostring(b.name or "")
+end
+
 function H.BuildCustomSortNameList(cfg, mode)
 	local custom = H.EnsureCustomSortConfig(cfg)
 	if not custom then return "" end
 
 	local separate = custom.separateMeleeRanged == true
+	local playerFirstInRole = custom.playerFirstInRole == true
 	local roleOrder = H.ExpandRoleOrder(custom.roleOrder, separate)
 	local classOrder = custom.classOrder or H.CLASS_TOKENS
 	local roleMap = H.BuildOrderMapFromList(roleOrder)
@@ -1061,6 +1080,7 @@ function H.BuildCustomSortNameList(cfg, mode)
 				role = role,
 				sortRole = sortRole,
 				class = classToken,
+				isPlayer = isPlayerUnit(unit),
 			}
 		end
 		local showPlayer = cfg and cfg.showPlayer == true
@@ -1099,21 +1119,14 @@ function H.BuildCustomSortNameList(cfg, mode)
 						role = role,
 						sortRole = sortRole,
 						class = classToken,
+						isPlayer = isPlayerUnit(unit),
 					}
 				end
 			end
 		end
 	end
 
-	table.sort(entries, function(a, b)
-		local roleA = roleMap[a.sortRole or a.role] or 999
-		local roleB = roleMap[b.sortRole or b.role] or 999
-		if roleA ~= roleB then return roleA < roleB end
-		local classA = classMap[a.class] or 999
-		local classB = classMap[b.class] or 999
-		if classA ~= classB then return classA < classB end
-		return tostring(a.name or "") < tostring(b.name or "")
-	end)
+	table.sort(entries, function(a, b) return compareCustomSortEntries(a, b, roleMap, classMap, playerFirstInRole) end)
 
 	local names = {}
 	local seen = {}
@@ -1133,6 +1146,7 @@ function H.BuildCustomSortNameListsByGroup(cfg)
 	if not custom then return {} end
 
 	local separate = custom.separateMeleeRanged == true
+	local playerFirstInRole = custom.playerFirstInRole == true
 	local roleOrder = H.ExpandRoleOrder(custom.roleOrder, separate)
 	local classOrder = custom.classOrder or H.CLASS_TOKENS
 	local roleMap = H.BuildOrderMapFromList(roleOrder)
@@ -1165,20 +1179,13 @@ function H.BuildCustomSortNameListsByGroup(cfg)
 					role = role,
 					sortRole = sortRole,
 					class = classToken,
+					isPlayer = isPlayerUnit(unit),
 				}
 			end
 		end
 	end
 
-	local function compare(a, b)
-		local roleA = roleMap[a.sortRole or a.role] or 999
-		local roleB = roleMap[b.sortRole or b.role] or 999
-		if roleA ~= roleB then return roleA < roleB end
-		local classA = classMap[a.class] or 999
-		local classB = classMap[b.class] or 999
-		if classA ~= classB then return classA < classB end
-		return tostring(a.name or "") < tostring(b.name or "")
-	end
+	local function compare(a, b) return compareCustomSortEntries(a, b, roleMap, classMap, playerFirstInRole) end
 
 	local result = {}
 	for group = 1, 8 do
