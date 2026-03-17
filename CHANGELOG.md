@@ -8,6 +8,7 @@
 - Cooldown Panels: Opening Edit Mode in Combat had stale panels showing
 - Square Minimap Stats / SharedMedia: Fixed minimap stat texts (`Time`, `FPS`, `Latency`, `Location`, `Coordinates`) not using the configured Global Font on login/reload when SharedMedia fonts were registered after the stats initialized.
 - Minimap Buttons & Cluster: Fixed `Minimap elements to hide` not reflecting already hidden entries in the settings UI.
+- Economy (Craft Shopper): Fixed the Auction House helper not showing reliably for tracked recipes unless tracking was refreshed while the Auction House was already open.
 
 ---
 
