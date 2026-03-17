@@ -174,13 +174,16 @@ function CooldownPanels.ResolveEntryItemID(entry, itemID)
 	CooldownPanels:EnsureFoodRankGroupsLoaded()
 	local numericID = tonumber(itemID)
 	if not numericID then return nil end
+	if entry and entry.type == "ITEM" and addon.Health and addon.Health.functions and addon.Health.functions.resolveTrackedHealthstoneItem then
+		numericID = addon.Health.functions.resolveTrackedHealthstoneItem(numericID) or numericID
+	end
 	if not (entry and entry.type == "ITEM" and entry.useHighestRank == true) then return numericID end
 	local rankMap = CooldownPanels.itemHighestRankByID
 	local group = rankMap and rankMap[numericID]
 	if not group then return numericID end
 	for i = #group, 1, -1 do
 		local candidateID = group[i]
-		local count = Api.GetItemCount(candidateID, true, false) or 0
+		local count = Api.GetItemCount(candidateID, false, false) or 0
 		if count > 0 then return candidateID end
 	end
 	return numericID
@@ -4298,7 +4301,7 @@ end
 local function hasItem(itemID)
 	if not itemID then return false end
 	if Api.IsEquippedItem and Api.IsEquippedItem(itemID) then return true end
-	local count = Api.GetItemCount(itemID, true, false)
+	local count = Api.GetItemCount(itemID, false, false)
 	if count and count > 0 then return true end
 	return false
 end
@@ -11556,14 +11559,14 @@ function CooldownPanels:UpdatePreviewIcons(panelId, countOverride)
 			icon.texture:SetAlpha(1)
 			if showGhostIcon then CooldownPanels:ApplyEditorGhostIcon(icon) end
 			if showItemUses and previewItemId then
-				local usesValue = Api.GetItemCount(previewItemId, true, true)
+				local usesValue = Api.GetItemCount(previewItemId, false, true)
 				if isSafeGreaterThan(usesValue, 0) then
 					icon.charges:SetText(usesValue)
 					icon.charges:Show()
 				end
 			end
 			if showItemCount and previewItemId then
-				local countValue = Api.GetItemCount(previewItemId, true, false)
+				local countValue = Api.GetItemCount(previewItemId, false, false)
 				if isSafeGreaterThan(countValue, 0) then
 					icon.count:SetText(countValue)
 					icon.count:Show()
@@ -11621,8 +11624,8 @@ local function updateItemCountCache()
 			if itemId then
 				local id = itemId
 				seen[id] = true
-				local count = Api.GetItemCount(id, true, false) or 0
-				local uses = Api.GetItemCount(id, true, true) or 0
+				local count = Api.GetItemCount(id, false, false) or 0
+				local uses = Api.GetItemCount(id, false, true) or 0
 				cache[id] = { count = count, uses = uses }
 			end
 		end
@@ -11639,8 +11642,8 @@ updateItemCountCacheForItem = function(itemID)
 	local runtime = CooldownPanels.runtime
 	runtime.itemCountCache = runtime.itemCountCache or {}
 	if runtime.itemUseSpellCache then runtime.itemUseSpellCache[itemID] = nil end
-	local count = Api.GetItemCount(itemID, true, false) or 0
-	local uses = Api.GetItemCount(itemID, true, true) or 0
+	local count = Api.GetItemCount(itemID, false, false) or 0
+	local uses = Api.GetItemCount(itemID, false, true) or 0
 	runtime.itemCountCache[itemID] = { count = count, uses = uses }
 end
 
@@ -11952,7 +11955,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 					if showItemCount then
 						local count = cachedCount
 						if count == nil then
-							count = Api.GetItemCount(resolvedItemId, true, false) or 0
+							count = Api.GetItemCount(resolvedItemId, false, false) or 0
 							if itemCache then
 								local slot = itemCache[resolvedItemId] or {}
 								slot.count = count
@@ -11969,7 +11972,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 					if showItemUses then
 						local uses = cachedUses
 						if uses == nil then
-							uses = Api.GetItemCount(resolvedItemId, true, true) or 0
+							uses = Api.GetItemCount(resolvedItemId, false, true) or 0
 							if itemCache then
 								local slot = itemCache[resolvedItemId] or {}
 								slot.uses = uses

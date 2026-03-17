@@ -1,9 +1,9 @@
 local parentAddonName = "EnhanceQoL"
 local addonName, addon = ...
 if _G[parentAddonName] then
-    addon = _G[parentAddonName]
+	addon = _G[parentAddonName]
 else
-    error(parentAddonName .. " is not loaded")
+	error(parentAddonName .. " is not loaded")
 end
 
 addon.Drinks = addon.Drinks or {}
@@ -16,6 +16,11 @@ addon.Flasks = addon.Flasks or {}
 addon.Flasks.functions = addon.Flasks.functions or {}
 addon.Flasks.filteredFlasks = addon.Flasks.filteredFlasks or {}
 
+-- Buff food macro module scaffolding
+addon.BuffFoods = addon.BuffFoods or {}
+addon.BuffFoods.functions = addon.BuffFoods.functions or {}
+addon.BuffFoods.filteredBuffFoods = addon.BuffFoods.filteredBuffFoods or {}
+
 -- Health macro module scaffolding
 addon.Health = addon.Health or {}
 addon.Health.functions = addon.Health.functions or {}
@@ -23,40 +28,40 @@ addon.Health.filteredHealth = addon.Health.filteredHealth or {}
 
 -- Shared Recuperate spell info (used by Drink and Health macros)
 addon.Recuperate = addon.Recuperate or {
-    id = 1231411, -- Recuperate spell id
-    name = nil,
-    known = false,
+	id = 1231411, -- Recuperate spell id
+	name = nil,
+	known = false,
 }
 
 function addon.Recuperate.Update()
-    local spellInfo = C_Spell.GetSpellInfo(addon.Recuperate.id)
-    addon.Recuperate.name = spellInfo and spellInfo.name or nil
-    addon.Recuperate.known = addon.Recuperate.name and C_SpellBook.IsSpellInSpellBook(addon.Recuperate.id) or false
+	local spellInfo = C_Spell.GetSpellInfo(addon.Recuperate.id)
+	addon.Recuperate.name = spellInfo and spellInfo.name or nil
+	addon.Recuperate.known = addon.Recuperate.name and C_SpellBook.IsSpellInSpellBook(addon.Recuperate.id) or false
 end
 
 function addon.functions.newItem(id, name, isSpell)
-    local self = {}
+	local self = {}
 
-    self.id = id
-    self.name = name
-    self.isSpell = isSpell
+	self.id = id
+	self.name = name
+	self.isSpell = isSpell
 
-    local function setName()
-        local itemInfoName = C_Item.GetItemInfo(self.id)
-        if itemInfoName ~= nil then self.name = itemInfoName end
-    end
+	local function setName()
+		local itemInfoName = C_Item.GetItemInfo(self.id)
+		if itemInfoName ~= nil then self.name = itemInfoName end
+	end
 
-    function self.getId()
-        if self.isSpell then return C_Spell.GetSpellName(self.id) end
-        return "item:" .. self.id
-    end
+	function self.getId()
+		if self.isSpell then return C_Spell.GetSpellName(self.id) end
+		return "item:" .. self.id
+	end
 
-    function self.getName() return self.name end
+	function self.getName() return self.name end
 
-    function self.getCount()
-        if self.isSpell then return 1 end
-        return C_Item.GetItemCount(self.id, false, false)
-    end
+	function self.getCount()
+		if self.isSpell then return 1 end
+		return C_Item.GetItemCount(self.id, false, false)
+	end
 
-    return self
+	return self
 end
