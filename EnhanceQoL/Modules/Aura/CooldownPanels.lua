@@ -9059,6 +9059,16 @@ function CooldownPanels:OpenLayoutPanelStandaloneMenu(panelId, anchorFrame)
 			set = function(_, value) setPanelLayout("procGlowEnabled", value) end,
 		},
 		{
+			name = L["CooldownPanelHideGlowOutOfCombat"] or "Hide glow out of combat",
+			kind = SettingType.Checkbox,
+			parentId = "cooldownPanelStandalonePanelGlow",
+			get = function()
+				local layout = getLayout()
+				return layout and layout.hideGlowOutOfCombat == true or false
+			end,
+			set = function(_, value) setPanelLayout("hideGlowOutOfCombat", value) end,
+		},
+		{
 			name = L["CooldownPanelProcGlowStyle"] or "Proc glow style",
 			kind = SettingType.Dropdown,
 			parentId = "cooldownPanelStandalonePanelGlow",
@@ -9306,6 +9316,7 @@ function CooldownPanels:SyncEditModeDataFromPanel(panelId, editModeId)
 	data.rangeOverlayEnabled = layout.rangeOverlayEnabled == true
 	data.rangeOverlayColor = layout.rangeOverlayColor or Helper.PANEL_LAYOUT_DEFAULTS.rangeOverlayColor
 	data.noDesaturation = layout.noDesaturation == true
+	data.hideGlowOutOfCombat = layout.hideGlowOutOfCombat == true
 	data.readyGlowCheckPower = layout.readyGlowCheckPower == true
 	data.checkPower = layout.checkPower == true
 	data.powerTintColor = layout.powerTintColor or Helper.PANEL_LAYOUT_DEFAULTS.powerTintColor
@@ -12197,6 +12208,8 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 	local rangeOverlaySpells = shared and shared.rangeOverlaySpells
 	local powerCheckSpells = shared and shared.powerCheckSpells or nil
 	local cdmAuras = CooldownPanels.CDMAuras
+	local playerInCombat = (InCombatLockdown and InCombatLockdown()) or (UnitAffectingCombat and UnitAffectingCombat("player")) or false
+	local liveGlowAllowed = layout.hideGlowOutOfCombat ~= true or playerInCombat == true
 	for _, entryId in ipairs(order) do
 		local entry = panel.entries and panel.entries[entryId]
 		if entry then
@@ -13087,7 +13100,11 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 				end
 			else
 				CooldownPanels.HidePreviewGlowBorder(icon)
-				if useSecretReadyGlow then
+				if not liveGlowAllowed then
+					setGlow(icon, false, nil, "EQOL_SIMPLE")
+					setGlow(icon, false, nil, "EQOL_OVERLAY")
+					setGlow(icon, false, nil, "EQOL_READY")
+				elseif useSecretReadyGlow then
 					setGlow(icon, false, nil, "EQOL_SIMPLE")
 					if secretReadyGlowAllowed then
 						setGlow(
@@ -13528,6 +13545,8 @@ applyEditLayout = function(panelId, field, value, skipRefresh)
 		layout.rangeOverlayColor = Helper.NormalizeColor(value, Helper.PANEL_LAYOUT_DEFAULTS.rangeOverlayColor)
 	elseif field == "procGlowEnabled" then
 		layout.procGlowEnabled = value ~= false
+	elseif field == "hideGlowOutOfCombat" then
+		layout.hideGlowOutOfCombat = value == true
 	elseif field == "procGlowStyle" then
 		layout.procGlowStyle = Helper.NormalizeGlowStyle(value, layout.procGlowStyle or layout.readyGlowStyle or Helper.PANEL_LAYOUT_DEFAULTS.readyGlowStyle)
 	elseif field == "procGlowInset" then
@@ -13747,6 +13766,7 @@ function CooldownPanels:ApplyEditMode(panelId, data)
 	applyEditLayout(panelId, "rangeOverlayEnabled", data.rangeOverlayEnabled, true)
 	applyEditLayout(panelId, "rangeOverlayColor", data.rangeOverlayColor, true)
 	applyEditLayout(panelId, "noDesaturation", data.noDesaturation, true)
+	applyEditLayout(panelId, "hideGlowOutOfCombat", data.hideGlowOutOfCombat, true)
 	applyEditLayout(panelId, "readyGlowCheckPower", data.readyGlowCheckPower, true)
 	applyEditLayout(panelId, "checkPower", data.checkPower, true)
 	applyEditLayout(panelId, "powerTintColor", data.powerTintColor, true)
@@ -15092,6 +15112,14 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				set = function(_, value) applyEditLayout(panelId, "procGlowEnabled", value) end,
 			},
 			{
+				name = L["CooldownPanelHideGlowOutOfCombat"] or "Hide glow out of combat",
+				kind = SettingType.Checkbox,
+				parentId = "cooldownPanelGlow",
+				default = layout.hideGlowOutOfCombat == true,
+				get = function() return layout.hideGlowOutOfCombat == true end,
+				set = function(_, value) applyEditLayout(panelId, "hideGlowOutOfCombat", value) end,
+			},
+			{
 				name = L["CooldownPanelProcGlowStyle"] or "Proc glow style",
 				kind = SettingType.Dropdown,
 				parentId = "cooldownPanelGlow",
@@ -15643,6 +15671,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 			rangeOverlayEnabled = layout.rangeOverlayEnabled == true,
 			rangeOverlayColor = layout.rangeOverlayColor or Helper.PANEL_LAYOUT_DEFAULTS.rangeOverlayColor,
 			noDesaturation = layout.noDesaturation == true,
+			hideGlowOutOfCombat = layout.hideGlowOutOfCombat == true,
 			readyGlowCheckPower = layout.readyGlowCheckPower == true,
 			checkPower = layout.checkPower == true,
 			powerTintColor = layout.powerTintColor or Helper.PANEL_LAYOUT_DEFAULTS.powerTintColor,

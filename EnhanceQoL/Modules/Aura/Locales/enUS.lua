@@ -163,6 +163,7 @@ L["CooldownPanelStateTextureInvalid"] = "Texture '%s' was not found. Use a valid
 L["CooldownPanelGlowReady"] = "Glow when ready"
 L["CooldownPanelGlowActive"] = "Glow when active"
 L["CooldownPanelProcGlow"] = "Proc glow"
+L["CooldownPanelHideGlowOutOfCombat"] = "Hide glow out of combat"
 L["CooldownPanelProcGlowStyle"] = "Proc glow style"
 L["CooldownPanelProcGlowInset"] = "Proc glow inset"
 L["CooldownPanelGlowPandemic"] = "Pandemic glow"

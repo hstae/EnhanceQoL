@@ -123,6 +123,7 @@ Helper.PANEL_LAYOUT_DEFAULTS = {
 	rangeOverlayEnabled = false,
 	rangeOverlayColor = { 1, 0.1, 0.1, 0.35 },
 	procGlowEnabled = true,
+	hideGlowOutOfCombat = false,
 	readyGlowStyle = "MARCHING_ANTS",
 	readyGlowColor = { 1, 0.82, 0.2, 1 },
 	pandemicGlowColor = { 1, 0.82, 0.2, 1 },
@@ -1068,6 +1069,7 @@ function Helper.NormalizePanel(panel, defaults)
 		layoutDefaults.radialArcDegrees or Helper.PANEL_LAYOUT_DEFAULTS.radialArcDegrees or 360
 	)
 	panel.layout.procGlowEnabled = panel.layout.procGlowEnabled ~= false
+	panel.layout.hideGlowOutOfCombat = panel.layout.hideGlowOutOfCombat == true
 	if panel.layout.procGlowStyle ~= nil then panel.layout.procGlowStyle = Helper.NormalizeGlowStyle(panel.layout.procGlowStyle, nil) end
 	if panel.layout.procGlowInset ~= nil then panel.layout.procGlowInset = Helper.NormalizeGlowInset(panel.layout.procGlowInset, nil) end
 	panel.layout.readyGlowStyle = Helper.NormalizeGlowStyle(panel.layout.readyGlowStyle, layoutDefaults.readyGlowStyle or Helper.PANEL_LAYOUT_DEFAULTS.readyGlowStyle)
