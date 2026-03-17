@@ -1,5 +1,11 @@
 local parentAddonName = "EnhanceQoL"
 local addonName, addon = ...
+local InCombatLockdown = InCombatLockdown
+local GetMacroInfo = GetMacroInfo
+local GetNumMacros = GetNumMacros
+local CreateMacro = CreateMacro
+local EditMacro = EditMacro
+local print = print
 if _G[parentAddonName] then
 	addon = _G[parentAddonName]
 else
@@ -32,6 +38,7 @@ addon.Recuperate = addon.Recuperate or {
 	name = nil,
 	known = false,
 }
+addon.macroWarnings = addon.macroWarnings or {}
 
 function addon.Recuperate.Update()
 	local spellInfo = C_Spell.GetSpellInfo(addon.Recuperate.id)
@@ -64,4 +71,29 @@ function addon.functions.newItem(id, name, isSpell)
 	end
 
 	return self
+end
+
+function addon.functions.WarnMacroLimitReachedOnce(key, message)
+	if not key or not message then return end
+	if addon.macroWarnings[key] then return end
+	addon.macroWarnings[key] = true
+	print(message)
+end
+
+function addon.functions.EnsureGlobalMacro(name, icon, body, warningKey, warningMessage)
+	if not name then return false end
+	if GetMacroInfo(name) ~= nil then return true end
+	if InCombatLockdown and InCombatLockdown() then return false end
+
+	local globalMacros = 0
+	if GetNumMacros then globalMacros = select(1, GetNumMacros()) or 0 end
+	local globalLimit = MAX_ACCOUNT_MACROS or 120
+	if globalMacros >= globalLimit then
+		addon.functions.WarnMacroLimitReachedOnce(warningKey or name, warningMessage)
+		return false
+	end
+
+	CreateMacro(name, icon or "INV_Misc_QuestionMark")
+	if body and GetMacroInfo(name) ~= nil and not (InCombatLockdown and InCombatLockdown()) then EditMacro(name, name, nil, body) end
+	return GetMacroInfo(name) ~= nil
 end

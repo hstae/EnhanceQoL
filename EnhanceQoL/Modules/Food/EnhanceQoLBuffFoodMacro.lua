@@ -13,7 +13,6 @@ local UnitAffectingCombat = UnitAffectingCombat
 local InCombatLockdown = InCombatLockdown
 local GetMacroInfo = GetMacroInfo
 local EditMacro = EditMacro
-local CreateMacro = CreateMacro
 
 local buffFoodMacroName = "EnhanceQoLBuffFoodMacro"
 
@@ -23,16 +22,16 @@ local function getCurrentSpecID()
 end
 
 local function createMacroIfMissing()
-	if not addon.db.buffFoodMacroEnabled then return end
-	if InCombatLockdown and InCombatLockdown() then return end
-	if GetMacroInfo(buffFoodMacroName) == nil then
-		local macroId = CreateMacro(buffFoodMacroName, "INV_Misc_QuestionMark")
-		if not macroId then
-			print(L["buffFoodMacroLimitReached"] or "Buff Food Macro: Macro limit reached. Please free a slot.")
-			return
-		end
-		if not (InCombatLockdown and InCombatLockdown()) then EditMacro(buffFoodMacroName, buffFoodMacroName, nil, "#showtooltip") end
-	end
+	if not addon.db.buffFoodMacroEnabled then return false end
+	if GetMacroInfo(buffFoodMacroName) ~= nil then return true end
+	if InCombatLockdown and InCombatLockdown() then return false end
+	return addon.functions.EnsureGlobalMacro(
+		buffFoodMacroName,
+		"INV_Misc_QuestionMark",
+		"#showtooltip",
+		"buffFoodMacroLimitReached",
+		L["buffFoodMacroLimitReached"] or "Buff Food Macro: Macro limit reached. Please free a slot."
+	)
 end
 
 local function buildMacroString(itemID)
@@ -57,7 +56,7 @@ function addon.BuffFoods.functions.updateBuffFoodMacro(ignoreCombat)
 	if not addon.db.buffFoodMacroEnabled then return end
 	if UnitAffectingCombat("player") and ignoreCombat == false then return end
 
-	createMacroIfMissing()
+	if not createMacroIfMissing() then return end
 
 	local specID = getCurrentSpecID()
 	local best = getBestCandidate(specID)
@@ -67,7 +66,7 @@ function addon.BuffFoods.functions.updateBuffFoodMacro(ignoreCombat)
 
 	if macroToken ~= lastMacroToken or not macroExists then
 		if InCombatLockdown and InCombatLockdown() then return end
-		if not GetMacroInfo(buffFoodMacroName) then createMacroIfMissing() end
+		if not GetMacroInfo(buffFoodMacroName) and not createMacroIfMissing() then return end
 		if GetMacroInfo(buffFoodMacroName) then
 			local macroBody = buildMacroString(itemID)
 			EditMacro(buffFoodMacroName, buffFoodMacroName, nil, macroBody)
