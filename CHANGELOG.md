@@ -1,5 +1,17 @@
 # Changelog
 
+## [9.4.1] - 2026-03-18
+
+### 🔄 Changed
+
+- Action Tracker: Changed some API to newer API
+
+### 🐛 Fixed
+
+- Cooldown Panels (Edit Mode / Tooltips): Fixed panel selections becoming unclickable in Blizzard Edit Mode while `Show tooltips` was enabled. Panel selections now stay clickable even when the tooltip option is on.
+
+---
+
 ## [9.4.0] - 2026-03-17
 
 ### ✨ Added
