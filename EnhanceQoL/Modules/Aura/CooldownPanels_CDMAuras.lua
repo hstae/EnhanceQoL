@@ -1413,18 +1413,18 @@ function CDMAuras:BuildRuntimeData(panelId, entryId, entry)
 	local cooldownStart = 0
 	local cooldownDuration = 0
 	local cooldownRate = 1
+	local cooldownDurationObject
 	local durationActive = false
 	local cooldownUsesExpirationTime = false
 	local cooldownUsesStartTime = false
 
-	if auraData and active and rawDuration ~= nil and rawExpirationTime ~= nil then
-		if isSecretValue(rawDuration) or isSecretValue(rawExpirationTime) then
-			cooldownStart = rawExpirationTime
-			cooldownDuration = rawDuration
-			cooldownRate = isSecretValue(rawTimeMod) and 1 or (tonumber(rawTimeMod) or 1)
-			durationActive = true
-			cooldownUsesExpirationTime = true
-		else
+	if auraData and active and auraUnit and hasAuraInstanceID(auraInstanceID) and Api.GetAuraDuration then
+		cooldownDurationObject = Api.GetAuraDuration(auraUnit, auraInstanceID)
+		durationActive = true
+	end
+
+	if not cooldownDurationObject and auraData and active and rawDuration ~= nil and rawExpirationTime ~= nil then
+		if not isSecretValue(rawDuration) and not isSecretValue(rawExpirationTime) then
 			local duration = tonumber(rawDuration) or 0
 			local expirationTime = tonumber(rawExpirationTime) or 0
 			if duration > 0 and expirationTime > 0 then
@@ -1457,6 +1457,7 @@ function CDMAuras:BuildRuntimeData(panelId, entryId, entry)
 	data.cooldownDuration = cooldownDuration
 	data.cooldownEnabled = durationActive
 	data.cooldownRate = cooldownRate
+	data.cooldownDurationObject = cooldownDurationObject
 	data.cooldownUsesExpirationTime = cooldownUsesExpirationTime
 	data.cooldownUsesStartTime = cooldownUsesStartTime
 	data.cooldownID = resolvedCooldownID or entry.cooldownID

@@ -12576,6 +12576,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 				data.cooldownGCD = cooldownGCD == true
 				data.cdmAuraActive = cdmAuraData and cdmAuraData.active == true
 				data.cdmAuraDurationActive = cdmAuraData and cdmAuraData.durationActive == true
+				data.cdmAuraDurationObject = cdmAuraData and cdmAuraData.cooldownDurationObject or nil
 				data.cdmAuraUsesExpirationTime = cdmAuraData and cdmAuraData.cooldownUsesExpirationTime == true
 				data.cdmAuraUsesStartTime = cdmAuraData and cdmAuraData.cooldownUsesStartTime == true
 				if powerCheckSpells and resolvedType == "SPELL" and (entryCheckPower or readyGlowCheckPower) then
@@ -12720,6 +12721,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			local durationActive = cooldownDurationObject ~= nil and (cooldownRemaining == nil or cooldownRemaining > 0)
 			local cdmAuraActive = data.cdmAuraActive == true
 			local cdmAuraDurationActive = data.cdmAuraDurationActive == true
+			local cdmAuraDurationObject = data.cdmAuraDurationObject
 			local cdmAuraUsesExpirationTime = data.cdmAuraUsesExpirationTime == true
 			local cdmAuraUsesStartTime = data.cdmAuraUsesStartTime == true
 			local cooldownActive = data.showCooldown and (durationActive or (cooldownEnabledOk and isCooldownActive(cooldownStart, cooldownDuration)))
@@ -12916,7 +12918,10 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 					end
 				elseif cdmAuraDurationActive then
 					setCooldownDrawState(icon.cooldown, entryDrawEdge, entryDrawBling, entryDrawSwipe)
-					if cdmAuraUsesExpirationTime and icon.cooldown.SetCooldownFromExpirationTime then
+					if cdmAuraDurationObject and icon.cooldown.SetCooldownFromDurationObject then
+						icon.cooldown:Clear()
+						icon.cooldown:SetCooldownFromDurationObject(cdmAuraDurationObject)
+					elseif cdmAuraUsesExpirationTime and icon.cooldown.SetCooldownFromExpirationTime then
 						icon.cooldown:Clear()
 						icon.cooldown:SetCooldownFromExpirationTime(cooldownStart, cooldownDuration, cooldownRate)
 					elseif cdmAuraUsesStartTime then

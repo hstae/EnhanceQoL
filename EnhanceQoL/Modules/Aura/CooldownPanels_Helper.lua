@@ -35,6 +35,7 @@ Api.GetSpellInfoFn = GetSpellInfo
 Api.GetSpellCooldownInfo = C_Spell and C_Spell.GetSpellCooldown or GetSpellCooldown
 Api.GetSpellCooldownDuration = C_Spell and C_Spell.GetSpellCooldownDuration
 Api.GetSpellChargesInfo = C_Spell and C_Spell.GetSpellCharges
+Api.GetAuraDuration = C_UnitAuras and C_UnitAuras.GetAuraDuration
 Api.GetBaseSpell = C_Spell and C_Spell.GetBaseSpell
 Api.GetOverrideSpell = C_Spell and C_Spell.GetOverrideSpell
 Api.GetSpellPowerCost = C_Spell and C_Spell.GetSpellPowerCost
