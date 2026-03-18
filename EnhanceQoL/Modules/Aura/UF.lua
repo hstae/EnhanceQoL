@@ -8159,6 +8159,7 @@ local generalEvents = {
 	"PARTY_LEADER_CHANGED",
 	"PLAYER_FOCUS_CHANGED",
 	"INSTANCE_ENCOUNTER_ENGAGE_UNIT",
+	"UNIT_TARGETABLE_CHANGED",
 	"ENCOUNTER_START",
 	"ENCOUNTER_END",
 	"RAID_TARGET_UPDATE",
@@ -9464,6 +9465,8 @@ onEvent = function(self, event, unit, ...)
 			if not (states[unit] and states[unit].castInterruptActive) then stopCast(unit) end
 		end
 	elseif event == "INSTANCE_ENCOUNTER_ENGAGE_UNIT" then
+		updateBossFrames(true)
+	elseif event == "UNIT_TARGETABLE_CHANGED" and isBossUnit(unit) then
 		updateBossFrames(true)
 	elseif event == "ENCOUNTER_START" then
 		updateBossFrames(true)
