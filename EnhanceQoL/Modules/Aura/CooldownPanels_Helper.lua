@@ -106,6 +106,14 @@ Helper.FontStyleOptions = {
 	{ value = "MONOCHROMEOUTLINE", label = L["Monochrome Outline"] or "Monochrome Outline" },
 }
 
+-- need for static text hide on CD
+local curveFake = C_CurveUtil:CreateCurve()
+curveFake:SetType(Enum.LuaCurveType.Step)
+curveFake:AddPoint(0, 0)
+curveFake:AddPoint(0.5, 0)
+curveFake:AddPoint(0.51, 1)
+Helper.FakeCurve = curveFake
+
 local function normalizeCDMAuraAlwaysShowMode(value, fallback)
 	local mode = type(value) == "string" and string.upper(value) or nil
 	if mode == "SHOW" or mode == "DESATURATE" or mode == "HIDE" then return mode end

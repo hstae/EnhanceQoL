@@ -11691,7 +11691,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			if data.showCharges and data.chargesInfo and data.chargesInfo.maxCharges ~= nil then
 				if data.chargesInfo.currentCharges ~= nil then
 					icon.charges:SetText(data.chargesInfo.currentCharges)
-					if data.chargesHideWhenZero == true and isSafeNumber(data.chargesInfo.currentCharges) then chargesAlpha = data.chargesInfo.currentCharges end
+					if data.chargesHideWhenZero == true then chargesAlpha = data.chargesInfo.currentCharges end
 					icon.charges:SetAlpha(chargesAlpha)
 					icon.charges:Show()
 				else
@@ -11972,6 +11972,13 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 				staticTextCooldown = data.stanceActive == true or cdmAuraActive or durationActive or (cooldownEnabledOk and isCooldownActive(cooldownStart, cooldownDuration))
 			end
 			applyStaticText(icon, layout, data.entry, staticFontPath, staticFontSize, staticFontStyle, staticTextCooldown)
+			if durationActive and showOnCooldown and data.entry.staticTextShowOnCooldown == true and staticTextCooldown then
+				if data.entry.spellID then
+					icon.staticText:SetAlpha(cooldownDurationObject:EvaluateRemainingDuration(Helper.FakeCurve))
+					icon.cooldown:SetAlpha(cooldownDurationObject:EvaluateRemainingDuration(Helper.FakeCurve))
+				end
+			end
+
 			applyStateTexture(icon, data)
 			if layoutEditActive and icon.previewSoundBorder and data.previewSound then icon.previewSoundBorder:Show() end
 			if icon.rangeOverlay then

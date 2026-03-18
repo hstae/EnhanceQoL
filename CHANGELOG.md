@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.6.1] - 2026-03-18
+
+### 🐛 Fixed
+
+- Cooldown Panels (Static text): Wrongly showed static text when not on CD
+
+---
+
 ## [9.6.0] - 2026-03-18
 
 ### ✨ Added
