@@ -2,9 +2,13 @@
 
 ## [9.6.0] - 2026-03-18
 
+### ✨ Added
+
+- Cooldown Panels (Tracked Auras): Added a new panel display option for tracked auras that keeps them visible even while inactive, with a dimmed look until they become active.
+
 ### 🔄 Changed
 
-- Cooldown Panels (Panel Settings): Improved the panel-wide text styling for stacks and charges. These colors can now be adjusted more consistently at panel level, so shared layouts are easier to style in one place.
+- Cooldown Panels (Panel Settings): Improved the panel-wide text styling for stacks and charges. Shared colors can now be adjusted more cleanly at panel level, which makes it easier to keep whole layouts visually consistent.
 - Cooldown Panels: Removed old legacy panel settings code that was no longer part of the active panel setup. This cleans up the feature and reduces duplicate behavior.
 
 ---
