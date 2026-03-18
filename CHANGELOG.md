@@ -1,5 +1,14 @@
 # Changelog
 
+## [9.6.0] - 2026-03-18
+
+### 🔄 Changed
+
+- Cooldown Panels (Panel Settings): Improved the panel-wide text styling for stacks and charges. These colors can now be adjusted more consistently at panel level, so shared layouts are easier to style in one place.
+- Cooldown Panels: Removed old legacy panel settings code that was no longer part of the active panel setup. This cleans up the feature and reduces duplicate behavior.
+
+---
+
 ## [9.5.0] - 2026-03-18
 
 ### 🔄 Changed
