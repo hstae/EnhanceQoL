@@ -356,6 +356,7 @@ globals = {
 	"CreateColor",
 	"CreateAndInitFromMixin",
 	"CreateFromMixins",
+	"ShouldShowArenaParty",
 	"CreateColorFromHexString",
 	"CreateTextureMarkup",
 	"CreateObjectPool",
