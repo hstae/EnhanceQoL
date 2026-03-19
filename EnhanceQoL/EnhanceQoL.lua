@@ -33,6 +33,7 @@ local IsInGroup = IsInGroup
 local math = math
 local TooltipUtil = _G.TooltipUtil
 local GetTime = GetTime
+local GetActiveQuestID = _G.GetActiveQuestID
 
 local EQOL = select(2, ...)
 EQOL.C = {}

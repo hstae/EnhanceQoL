@@ -22,12 +22,18 @@ local MAX_AMOUNT = 10
 local MIN_SIZE = 10
 local MAX_SIZE = 256
 local MAX_SPACING = 64
+local directionLabels = {
+	LEFT = L["Left"] or "Left",
+	RIGHT = L["Right"] or "Right",
+	UP = L["Up"] or "Up",
+	DOWN = L["Down"] or "Down",
+}
 
 local directionOptions = {
-	{ value = "LEFT", label = LEFT or "Left" },
-	{ value = "RIGHT", label = RIGHT or "Right" },
-	{ value = "UP", label = UP or "Up" },
-	{ value = "DOWN", label = DOWN or "Down" },
+	{ value = "LEFT", label = directionLabels.LEFT },
+	{ value = "RIGHT", label = directionLabels.RIGHT },
+	{ value = "UP", label = directionLabels.UP },
+	{ value = "DOWN", label = directionLabels.DOWN },
 }
 
 local anchorOptions = {
@@ -450,13 +456,13 @@ function PrivateAuras:RegisterEditMode()
 				local options
 				if isHorizontal(self:GetEditModeValue("direction")) then
 					options = {
-						{ value = "DOWN", label = DOWN or "Down" },
-						{ value = "UP", label = UP or "Up" },
+						{ value = "DOWN", label = directionLabels.DOWN },
+						{ value = "UP", label = directionLabels.UP },
 					}
 				else
 					options = {
-						{ value = "RIGHT", label = RIGHT or "Right" },
-						{ value = "LEFT", label = LEFT or "Left" },
+						{ value = "RIGHT", label = directionLabels.RIGHT },
+						{ value = "LEFT", label = directionLabels.LEFT },
 					}
 				end
 				for i = 1, #options do
