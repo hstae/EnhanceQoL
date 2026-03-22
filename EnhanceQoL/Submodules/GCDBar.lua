@@ -49,6 +49,7 @@ GCDBar.defaults = GCDBar.defaults
 		anchorOffsetX = 0,
 		anchorOffsetY = -120,
 		hideInPetBattle = false,
+		strata = nil,
 	}
 
 local defaults = GCDBar.defaults
@@ -75,12 +76,19 @@ local DB_ANCHOR_RELATIVE_POINT = "gcdBarAnchorRelativePoint"
 local DB_ANCHOR_OFFSET_X = "gcdBarAnchorOffsetX"
 local DB_ANCHOR_OFFSET_Y = "gcdBarAnchorOffsetY"
 local DB_HIDE_IN_PET_BATTLE = "gcdBarHideInPetBattle"
+local DB_STRATA = "gcdBarStrata"
 
 local DEFAULT_TEX = "Interface\\TargetingFrame\\UI-StatusBar"
 local GetSpellCooldownInfo = (C_Spell and C_Spell.GetSpellCooldown) or GetSpellCooldown
 local GetTime = GetTime
-local BAR_SIZE_MIN = 6
+local BAR_WIDTH_MIN = 6
+local BAR_HEIGHT_MIN = 1
 local BAR_SIZE_MAX = 2000
+local STRATA_ORDER = { "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG", "FULLSCREEN", "FULLSCREEN_DIALOG", "TOOLTIP" }
+local VALID_STRATA = {}
+for _, strata in ipairs(STRATA_ORDER) do
+	VALID_STRATA[strata] = true
+end
 
 local function getCachedMediaNames(mediaType)
 	if addon.functions and addon.functions.GetLSMMediaNames then
@@ -228,6 +236,21 @@ local function normalizeAnchorRelativeFrame(value)
 	return ANCHOR_TARGET_UI
 end
 
+local function normalizeStrataToken(value)
+	if type(value) ~= "string" or value == "" then return nil end
+	local token = string.upper(value)
+	if VALID_STRATA[token] then return token end
+	return nil
+end
+
+local function strataOptionsWithDefault()
+	local options = { { value = "", label = _G.DEFAULT or "Default" } }
+	for _, strata in ipairs(STRATA_ORDER) do
+		options[#options + 1] = { value = strata, label = strata }
+	end
+	return options
+end
+
 local function normalizeAnchorOffset(value, fallback)
 	local num = tonumber(value)
 	if num == nil then num = fallback end
@@ -266,9 +289,9 @@ local function resolvePlayerCastbarFrame()
 	return UIParent, false, wantsCustom
 end
 
-function GCDBar:GetWidth() return clamp(getValue(DB_WIDTH, defaults.width), BAR_SIZE_MIN, BAR_SIZE_MAX) end
+function GCDBar:GetWidth() return clamp(getValue(DB_WIDTH, defaults.width), BAR_WIDTH_MIN, BAR_SIZE_MAX) end
 
-function GCDBar:GetHeight() return clamp(getValue(DB_HEIGHT, defaults.height), BAR_SIZE_MIN, BAR_SIZE_MAX) end
+function GCDBar:GetHeight() return clamp(getValue(DB_HEIGHT, defaults.height), BAR_HEIGHT_MIN, BAR_SIZE_MAX) end
 
 function GCDBar:GetTextureKey()
 	local key = getValue(DB_TEXTURE, defaults.texture)
@@ -325,6 +348,8 @@ function GCDBar:GetAnchorOffsetX() return normalizeAnchorOffset(getValue(DB_ANCH
 function GCDBar:GetAnchorOffsetY() return normalizeAnchorOffset(getValue(DB_ANCHOR_OFFSET_Y, defaults.anchorOffsetY), defaults.anchorOffsetY) end
 
 function GCDBar:GetHideInPetBattle() return shouldHideInPetBattleForGCD() end
+
+function GCDBar:GetStrata() return normalizeStrataToken(getValue(DB_STRATA, defaults.strata)) end
 
 function GCDBar:AnchorUsesUIParent() return self:GetAnchorRelativeFrame() == ANCHOR_TARGET_UI end
 
@@ -504,7 +529,16 @@ function GCDBar:GetResolvedWidth()
 	if not (relativeFrame and relativeFrame.GetWidth) then return width end
 	local relativeWidth = tonumber(relativeFrame:GetWidth()) or 0
 	if relativeWidth <= 0 then return width end
-	return math.max(BAR_SIZE_MIN, relativeWidth)
+	return math.max(BAR_WIDTH_MIN, relativeWidth)
+end
+
+function GCDBar:ApplyStrata()
+	if not self.frame then return end
+	local strata = self:GetStrata() or ((self.frame.GetParent and self.frame:GetParent() and self.frame:GetParent().GetFrameStrata and self.frame:GetParent():GetFrameStrata()) or self.frame:GetFrameStrata() or "MEDIUM")
+	if self.frame.GetFrameStrata and self.frame.SetFrameStrata and self.frame:GetFrameStrata() ~= strata then self.frame:SetFrameStrata(strata) end
+	if self.frame.border and self.frame.border.GetFrameStrata and self.frame.border.SetFrameStrata and self.frame.border:GetFrameStrata() ~= strata then
+		self.frame.border:SetFrameStrata(strata)
+	end
 end
 
 function GCDBar:ApplyAppearance()
@@ -588,6 +622,7 @@ function GCDBar:ApplySize()
 	local width = self:GetResolvedWidth()
 	local height = self:GetHeight()
 	self.frame:SetSize(width, height)
+	self:ApplyStrata()
 	if self.frame.bg then self.frame.bg:SetAllPoints(self.frame) end
 	if self.frame.editBg then self.frame.editBg:SetAllPoints(self.frame) end
 	if self.frame.border then self.frame.border:SetAllPoints(self.frame) end
@@ -744,8 +779,8 @@ local editModeRegistered = false
 function GCDBar:ApplyLayoutData(data)
 	if not data or not addon.db then return end
 
-	local width = clamp(data.width or defaults.width, BAR_SIZE_MIN, BAR_SIZE_MAX)
-	local height = clamp(data.height or defaults.height, BAR_SIZE_MIN, BAR_SIZE_MAX)
+	local width = clamp(data.width or defaults.width, BAR_WIDTH_MIN, BAR_SIZE_MAX)
+	local height = clamp(data.height or defaults.height, BAR_HEIGHT_MIN, BAR_SIZE_MAX)
 	local texture = data.texture or defaults.texture
 	local r, g, b, a = normalizeColor(data.color or defaults.color, defaults.color)
 	local bgEnabled = data.bgEnabled == true
@@ -771,6 +806,7 @@ function GCDBar:ApplyLayoutData(data)
 	local anchorOffsetY = normalizeAnchorOffset(data.y ~= nil and data.y or addon.db[DB_ANCHOR_OFFSET_Y], defaults.anchorOffsetY)
 	local hideInPetBattle = addon.db[DB_HIDE_IN_PET_BATTLE] == true
 	if data.hideInPetBattle ~= nil then hideInPetBattle = data.hideInPetBattle == true end
+	local strata = normalizeStrataToken(data.strata or addon.db[DB_STRATA] or defaults.strata)
 
 	addon.db[DB_WIDTH] = width
 	addon.db[DB_HEIGHT] = height
@@ -794,6 +830,7 @@ function GCDBar:ApplyLayoutData(data)
 	addon.db[DB_ANCHOR_OFFSET_X] = anchorOffsetX
 	addon.db[DB_ANCHOR_OFFSET_Y] = anchorOffsetY
 	addon.db[DB_HIDE_IN_PET_BATTLE] = hideInPetBattle and true or false
+	addon.db[DB_STRATA] = strata
 
 	self:ApplySize()
 	self:ApplyAppearance()
@@ -807,11 +844,11 @@ local function applySetting(field, value)
 	local skipEditValue
 
 	if field == "width" then
-		local width = clamp(value, BAR_SIZE_MIN, BAR_SIZE_MAX)
+		local width = clamp(value, BAR_WIDTH_MIN, BAR_SIZE_MAX)
 		addon.db[DB_WIDTH] = width
 		value = width
 	elseif field == "height" then
-		local height = clamp(value, BAR_SIZE_MIN, BAR_SIZE_MAX)
+		local height = clamp(value, BAR_HEIGHT_MIN, BAR_SIZE_MAX)
 		addon.db[DB_HEIGHT] = height
 		value = height
 	elseif field == "texture" then
@@ -918,6 +955,10 @@ local function applySetting(field, value)
 		local enabled = value == true
 		addon.db[DB_HIDE_IN_PET_BATTLE] = enabled and true or false
 		value = enabled
+	elseif field == "strata" then
+		local strata = normalizeStrataToken(value)
+		addon.db[DB_STRATA] = strata
+		value = strata or ""
 	end
 
 	if not skipEditValue and EditMode and EditMode.SetValue then EditMode:SetValue(EDITMODE_ID, editField, value, nil, true) end
@@ -1075,11 +1116,25 @@ function GCDBar:RegisterEditMode()
 				set = function(_, value) applySetting("hideInPetBattle", value) end,
 			},
 			{
+				name = L["gcdBarStrata"] or "Frame strata",
+				kind = SettingType.Dropdown,
+				field = "strata",
+				height = 180,
+				default = defaults.strata or "",
+				get = function() return GCDBar:GetStrata() or "" end,
+				set = function(_, value) applySetting("strata", value) end,
+				generator = function(_, root)
+					for _, option in ipairs(strataOptionsWithDefault()) do
+						root:CreateRadio(option.label, function() return (GCDBar:GetStrata() or "") == option.value end, function() applySetting("strata", option.value) end)
+					end
+				end,
+			},
+			{
 				name = L["gcdBarWidth"] or "Bar width",
 				kind = SettingType.Slider,
 				field = "width",
 				default = defaults.width,
-				minValue = BAR_SIZE_MIN,
+				minValue = BAR_WIDTH_MIN,
 				maxValue = BAR_SIZE_MAX,
 				valueStep = 1,
 				allowInput = true,
@@ -1093,7 +1148,7 @@ function GCDBar:RegisterEditMode()
 				kind = SettingType.Slider,
 				field = "height",
 				default = defaults.height,
-				minValue = BAR_SIZE_MIN,
+				minValue = BAR_HEIGHT_MIN,
 				maxValue = BAR_SIZE_MAX,
 				valueStep = 1,
 				allowInput = true,
@@ -1289,6 +1344,7 @@ function GCDBar:RegisterEditMode()
 		record.anchorRelativeFrame = self:GetAnchorRelativeFrame()
 		record.anchorMatchWidth = self:GetAnchorMatchWidth()
 		record.hideInPetBattle = self:GetHideInPetBattle()
+		record.strata = self:GetStrata() or ""
 		do
 			local r, g, b, a = self:GetColor()
 			record.color = { r = r, g = g, b = b, a = a }
@@ -1325,6 +1381,7 @@ function GCDBar:RegisterEditMode()
 			anchorRelativeFrame = self:GetAnchorRelativeFrame(),
 			anchorMatchWidth = self:GetAnchorMatchWidth(),
 			hideInPetBattle = self:GetHideInPetBattle(),
+			strata = self:GetStrata() or "",
 			color = (function()
 				local r, g, b, a = self:GetColor()
 				return { r = r, g = g, b = b, a = a }

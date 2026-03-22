@@ -6423,10 +6423,10 @@ local function hookTextFrameLevels(st)
 	syncTextFrameLevels(st)
 end
 
-local function getPlayerSubGroup()
+local function getUnitSubGroup(unit)
 	if not IsInRaid then return nil end
 	if not IsInRaid() then return nil end
-	local idx = UnitInRaid and UnitInRaid(UNIT.PLAYER)
+	local idx = UnitInRaid and UnitInRaid(unit or UNIT.PLAYER)
 	if not idx then return nil end
 	local _, _, subgroup = GetRaidRosterInfo(idx)
 	return subgroup
@@ -6525,8 +6525,8 @@ local function updateUnitStatusIndicator(cfg, unit)
 	end
 
 	local groupTag
-	if unit == UNIT.PLAYER and usCfg.showGroup == true then
-		local subgroup = getPlayerSubGroup()
+	if (unit == UNIT.PLAYER or unit == UNIT.TARGET) and usCfg.showGroup == true then
+		local subgroup = getUnitSubGroup(unit)
 		local groupFormat = usCfg.groupFormat or usDef.groupFormat or "GROUP"
 		if subgroup then
 			groupTag = formatGroupNumber(subgroup, groupFormat)
@@ -9639,6 +9639,11 @@ onEvent = function(self, event, unit, ...)
 		local usDef = defStatus.unitStatus or {}
 		local usCfg = (playerCfg.status and playerCfg.status.unitStatus) or usDef or {}
 		if playerCfg.enabled ~= false and usCfg.enabled == true and usCfg.showGroup == true then updateUnitStatusIndicator(playerCfg, UNIT.PLAYER) end
+		local targetCfg = getCfg(UNIT.TARGET)
+		local targetDefStatus = (defaultsFor(UNIT.TARGET) and defaultsFor(UNIT.TARGET).status) or {}
+		local targetUsDef = targetDefStatus.unitStatus or {}
+		local targetUsCfg = (targetCfg.status and targetCfg.status.unitStatus) or targetUsDef or {}
+		if targetCfg.enabled ~= false and targetUsCfg.enabled == true and targetUsCfg.showGroup == true then updateUnitStatusIndicator(targetCfg, UNIT.TARGET) end
 		UF.UpdateAllRoleIndicators(true)
 		UF.UpdateAllLeaderIndicators(true)
 	elseif event == "CLIENT_SCENE_OPENED" then

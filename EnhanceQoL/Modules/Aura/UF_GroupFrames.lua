@@ -7547,6 +7547,7 @@ local function ensureAnchor(kind, parent)
 	anchor = CreateFrame("Frame", name, parent or UIParent, "BackdropTemplate")
 	anchor._eqolKind = kind
 	anchor:EnableMouse(false)
+	if anchor.SetClampedToScreen then anchor:SetClampedToScreen(true) end
 	anchor:SetFrameStrata("MEDIUM")
 	anchor:SetFrameLevel(1)
 
@@ -9409,24 +9410,28 @@ function GF:EnsureHeaders()
 	if not GF.headers.party then
 		GF.headers.party = CreateFrame("Frame", "EQOLUFPartyHeader", parent, "SecureGroupHeaderTemplate")
 		GF.headers.party._eqolKind = "party"
+		if GF.headers.party.SetClampedToScreen then GF.headers.party:SetClampedToScreen(true) end
 		GF.headers.party:Hide()
 	end
 
 	if not GF.headers.raid then
 		GF.headers.raid = CreateFrame("Frame", "EQOLUFRaidHeader", parent, "SecureGroupHeaderTemplate")
 		GF.headers.raid._eqolKind = "raid"
+		if GF.headers.raid.SetClampedToScreen then GF.headers.raid:SetClampedToScreen(true) end
 		GF.headers.raid:Hide()
 	end
 
 	if not GF.headers.mt then
 		GF.headers.mt = CreateFrame("Frame", "EQOLUFMTHeader", parent, "SecureGroupHeaderTemplate")
 		GF.headers.mt._eqolKind = "mt"
+		if GF.headers.mt.SetClampedToScreen then GF.headers.mt:SetClampedToScreen(true) end
 		GF.headers.mt:Hide()
 	end
 
 	if not GF.headers.ma then
 		GF.headers.ma = CreateFrame("Frame", "EQOLUFMAHeader", parent, "SecureGroupHeaderTemplate")
 		GF.headers.ma._eqolKind = "ma"
+		if GF.headers.ma.SetClampedToScreen then GF.headers.ma:SetClampedToScreen(true) end
 		GF.headers.ma:Hide()
 	end
 

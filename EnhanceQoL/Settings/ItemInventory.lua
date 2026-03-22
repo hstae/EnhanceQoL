@@ -198,6 +198,14 @@ local charIlvlAnchors = {
 
 local function isCharIlvlOutsidePosition() return (addon.db["charIlvlPosition"] or "TOPRIGHT") == "OUTSIDE" end
 
+local function getFlyoutIlvlPosition()
+	local pos = addon.db and addon.db["flyoutIlvlPosition"]
+	if type(pos) == "string" and pos ~= "" and pos ~= "OUTSIDE" then return pos end
+	local fallback = (addon.db and addon.db["charIlvlPosition"]) or (addon.db and addon.db["bagIlvlPosition"]) or "TOPRIGHT"
+	if fallback == "OUTSIDE" then fallback = "TOPRIGHT" end
+	return fallback
+end
+
 local function hideIlvlBackground(element)
 	if not element or not element.ilvlBackground then return end
 	element.ilvlBackground:SetColorTexture(0, 0, 0, 0)
@@ -1227,8 +1235,7 @@ local function updateFlyoutButtonInfo(button)
 
 					if not button.ItemLevelText then button.ItemLevelText = button:CreateFontString(nil, "OVERLAY") end
 					addon.functions.ApplyItemLevelTextStyle(button.ItemLevelText)
-					local compareIlvlPosition = addon.db["charIlvlPosition"] or addon.db["bagIlvlPosition"] or "TOPRIGHT"
-					addon.functions.ApplyBagItemLevelPosition(button.ItemLevelText, button, compareIlvlPosition)
+					addon.functions.ApplyBagItemLevelPosition(button.ItemLevelText, button, getFlyoutIlvlPosition())
 
 					-- Setze den Text und die Farbe
 					button.ItemLevelText:SetText(itemLevel)
@@ -1905,6 +1912,7 @@ function addon.functions.initItemInventory()
 	addon.functions.InitDBValue("bagIlvlPosition", "TOPRIGHT")
 	addon.functions.InitDBValue("bagUpgradeIconPosition", "BOTTOMRIGHT")
 	addon.functions.InitDBValue("charIlvlPosition", "TOPRIGHT")
+	addon.functions.InitDBValue("flyoutIlvlPosition", getFlyoutIlvlPosition())
 	addon.functions.InitDBValue("bagTrackPosition", "OUTSIDE")
 	addon.functions.InitDBValue("charTrackPosition", "LEFT")
 	addon.functions.InitDBValue("ilvlUseItemQualityColor", true)

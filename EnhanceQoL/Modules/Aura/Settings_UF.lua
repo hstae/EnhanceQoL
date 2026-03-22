@@ -6632,7 +6632,7 @@ local function buildUnitSettings(unit)
 	unitStatusFontOutlineSetting.isEnabled = isUnitStatusEnabled
 	list[#list + 1] = unitStatusFontOutlineSetting
 
-	if unit == "player" then
+	if unit == "player" or unit == "target" then
 		local function isGroupEnabled() return isUnitStatusEnabled() and getValue(unit, { "status", "unitStatus", "showGroup" }, usDef.showGroup == true) == true end
 
 		list[#list + 1] = checkbox(

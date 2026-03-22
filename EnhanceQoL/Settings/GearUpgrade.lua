@@ -272,6 +272,32 @@ addon.functions.SettingsCreateDropdown(cGearUpgrade, {
 	parentSection = expandable,
 })
 
+addon.functions.SettingsCreateDropdown(cGearUpgrade, {
+	list = {
+		TOPLEFT = L["topLeft"],
+		TOP = L["top"],
+		TOPRIGHT = L["topRight"],
+		LEFT = L["left"],
+		CENTER = L["center"],
+		RIGHT = L["right"],
+		BOTTOMLEFT = L["bottomLeft"],
+		BOTTOM = L["bottom"],
+		BOTTOMRIGHT = L["bottomRight"],
+	},
+	text = L["flyoutIlvlPosition"] or "Equipment flyout item level position",
+	get = function() return addon.db["flyoutIlvlPosition"] or "TOPRIGHT" end,
+	set = function(key)
+		addon.db["flyoutIlvlPosition"] = key
+		refreshItemLevelDisplays()
+	end,
+	parent = charDisplayDropdown,
+	parentCheck = function() return isCharDisplaySelected("ilvl") end,
+	default = "TOPRIGHT",
+	var = "flyoutIlvlPosition",
+	type = Settings.VarType.String,
+	parentSection = expandable,
+})
+
 addon.functions.SettingsCreateHeadline(cGearUpgrade, L["ilvlTextStyleHeader"] or "Item level text style", { parentSection = expandable })
 
 local ilvlQualityColorCheckbox = addon.functions.SettingsCreateCheckbox(cGearUpgrade, {

@@ -13,40 +13,30 @@ InstanceDifficulty.enabled = InstanceDifficulty.enabled or false
 
 InstanceDifficulty.frame = InstanceDifficulty.frame or CreateFrame("Frame")
 
-local indicator = MinimapCluster.InstanceDifficulty
-
-indicator:SetAlpha(1)
-if indicator.Default then
-	indicator.Default:Hide()
-	indicator.Default:SetScript("OnShow", indicator.Default.Hide)
-end
-if indicator.ChallengeMode then
-	indicator.ChallengeMode:Hide()
-	indicator.ChallengeMode:SetScript("OnShow", indicator.ChallengeMode.Hide)
-end
-if indicator.Guild then
-	indicator.Guild:Hide()
-	indicator.Guild:SetScript("OnShow", indicator.Guild.Hide)
-end
-
-indicator:HookScript("OnShow", function() InstanceDifficulty:Update() end)
+local function getIndicator() return MinimapCluster and MinimapCluster.InstanceDifficulty end
 
 local function defaultFontFace()
 	if addon.functions and addon.functions.GetGlobalDefaultFontFace then return addon.functions.GetGlobalDefaultFontFace() end
 	return (addon.variables and addon.variables.defaultFont) or STANDARD_TEXT_FONT
 end
 
+function InstanceDifficulty:EnsureText()
+	local indicator = getIndicator()
+	if not indicator then return nil end
+	if not self.text or self.text:GetParent() ~= indicator then
+		self.text = indicator:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+		self.text:Hide()
+	end
+	return self.text
+end
+
 function InstanceDifficulty:ApplyTextStyle()
-	if not self.text then return end
+	if not self:EnsureText() then return end
 	local fontSize = (addon.db and addon.db["instanceDifficultyFontSize"]) or 14
 	local font = defaultFontFace()
 	local ok = self.text:SetFont(font, fontSize, "OUTLINE")
 	if ok == false then self.text:SetFont((addon.variables and addon.variables.defaultFont) or STANDARD_TEXT_FONT, fontSize, "OUTLINE") end
 end
-
-InstanceDifficulty.text = InstanceDifficulty.text or indicator:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-InstanceDifficulty:ApplyTextStyle()
-InstanceDifficulty.text:Hide()
 
 local nmNames = {
 	[RAID_DIFFICULTY1] = true,
@@ -101,7 +91,9 @@ local function getShortLabel(difficultyID, difficultyName)
 end
 
 function InstanceDifficulty:Update()
-	if not self.enabled or not addon.db then return end
+	local indicator = getIndicator()
+	if not self.enabled or not addon.db or not indicator then return end
+	if not self:EnsureText() then return end
 	if not IsInInstance() then
 		self.text:Hide()
 		return
@@ -151,18 +143,37 @@ function InstanceDifficulty:Update()
 	self.text:Show()
 end
 
+function InstanceDifficulty:ApplyIndicatorOverride(enabled)
+	local indicator = getIndicator()
+	if not indicator then return end
+	indicator:SetAlpha(1)
+	for _, key in ipairs({ "Default", "ChallengeMode", "Guild" }) do
+		local child = indicator[key]
+		if child then
+			if enabled then
+				child:Hide()
+				child:SetScript("OnShow", child.Hide)
+			else
+				if child:GetScript("OnShow") == child.Hide then child:SetScript("OnShow", nil) end
+			end
+		end
+	end
+	if enabled and not self._indicatorOnShowHooked then
+		self._indicatorOnShowHooked = true
+		indicator:HookScript("OnShow", function() InstanceDifficulty:Update() end)
+	end
+end
+
 function InstanceDifficulty:SetEnabled(value)
 	self.enabled = value
 	if value then
+		self:ApplyIndicatorOverride(true)
+		self:EnsureText()
 		self.frame:RegisterEvent("PLAYER_ENTERING_WORLD")
 		self.frame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
 		self.frame:RegisterEvent("PLAYER_DIFFICULTY_CHANGED")
 		self.frame:RegisterEvent("CHALLENGE_MODE_START")
 		self.frame:RegisterEvent("ACTIVE_DELVE_DATA_UPDATE")
-		if indicator.Default then
-			indicator.Default:Hide()
-			indicator.Default:SetScript("OnShow", indicator.Default.Hide)
-		end
 		self:Update()
 	else
 		self.frame:UnregisterEvent("PLAYER_ENTERING_WORLD")
@@ -170,10 +181,20 @@ function InstanceDifficulty:SetEnabled(value)
 		self.frame:UnregisterEvent("PLAYER_DIFFICULTY_CHANGED")
 		self.frame:UnregisterEvent("CHALLENGE_MODE_START")
 		self.frame:UnregisterEvent("ACTIVE_DELVE_DATA_UPDATE")
-		self.text:Hide()
-		if indicator.Default then
-			indicator.Default:SetScript("OnShow", nil)
-			if IsInInstance() then indicator.Default:Show() end
+		if self.text then self.text:Hide() end
+		self:ApplyIndicatorOverride(false)
+		local indicator = getIndicator()
+		if indicator then
+			indicator:Show()
+			if MiniMapInstanceDifficulty_Update then
+				pcall(MiniMapInstanceDifficulty_Update)
+			elseif indicator.Default then
+				indicator.Default:Show()
+			elseif indicator.ChallengeMode then
+				indicator.ChallengeMode:Show()
+			elseif indicator.Guild then
+				indicator.Guild:Show()
+			end
 		end
 	end
 end
