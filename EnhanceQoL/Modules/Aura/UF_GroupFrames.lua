@@ -3088,6 +3088,7 @@ GF.anchors = GF.anchors or {}
 GF._pendingRefresh = GF._pendingRefresh or false
 GF._pendingHeaderKinds = GF._pendingHeaderKinds or {}
 GF._pendingSortKinds = GF._pendingSortKinds or {}
+GF._lightHeaderRefreshOptions = GF._lightHeaderRefreshOptions or { skipChildSync = true }
 GF._pendingDisable = GF._pendingDisable or false
 GF._clientSceneActive = GF._clientSceneActive or false
 
@@ -8813,9 +8814,7 @@ function GF:UpdateHealthColorMode(kind)
 	end
 end
 
-function GF.NormalizeRuntimeSortDir(value)
-	return (GFH and GFH.NormalizeSortDir and GFH.NormalizeSortDir(value)) or ((tostring(value or ""):upper() == "DESC") and "DESC" or "ASC")
-end
+function GF.NormalizeRuntimeSortDir(value) return (GFH and GFH.NormalizeSortDir and GFH.NormalizeSortDir(value)) or ((tostring(value or ""):upper() == "DESC") and "DESC" or "ASC") end
 
 function GF.BuildPartyRuntimeSortState(cfg)
 	local centerGrowthActive = GF.IsPartyCenterGrowthMode(cfg)
@@ -8933,9 +8932,7 @@ function GF:RefreshCustomSortNameList(kind)
 		GF:SetHeaderAttributeIfChanged(header, "nameList", state.nameList)
 		if GF._raidGroupHeaders then
 			local groupHeaderSortMethod = state.sortMethod
-			if groupHeaderSortMethod == "NAMELIST" then
-				groupHeaderSortMethod = GF.GetSafeFallbackSortMethod(DEFAULTS.raid and DEFAULTS.raid.sortMethod)
-			end
+			if groupHeaderSortMethod == "NAMELIST" then groupHeaderSortMethod = GF.GetSafeFallbackSortMethod(DEFAULTS.raid and DEFAULTS.raid.sortMethod) end
 			for _, gh in ipairs(GF._raidGroupHeaders) do
 				if gh then
 					GF:SetHeaderAttributeIfChanged(gh, "sortMethod", groupHeaderSortMethod)
@@ -8951,10 +8948,18 @@ local function syncRaidGroupHeaderChildren(header, cfg, layout)
 	forEachChild(header, function(child) syncHeaderChild(child, "raid", cfg, layout and layout.w, layout and layout.h) end)
 end
 
-local function applyRaidGroupHeaders(cfg, layout, groupSpecs, forceShow, forceHide, maxGroups)
+function GF.UpdateHeaderChildLayoutKey(header, key)
+	if not header then return false end
+	if header._eqolChildLayoutKey == key then return false end
+	header._eqolChildLayoutKey = key
+	return true
+end
+
+local function applyRaidGroupHeaders(cfg, layout, groupSpecs, forceShow, forceHide, maxGroups, options)
 	local headers = GF:EnsureRaidGroupHeaders()
 	local anchor = GF.anchors and GF.anchors.raid
 	if not (headers and anchor) then return end
+	local skipChildSync = options and options.skipChildSync == true
 	groupSpecs = groupSpecs or {}
 	local maxIndex = tonumber(maxGroups)
 	if maxIndex == nil then maxIndex = #groupSpecs end
@@ -9055,7 +9060,18 @@ local function applyRaidGroupHeaders(cfg, layout, groupSpecs, forceShow, forceHi
 
 			if active and header.IsShown and header:IsShown() and header.Show then header:Show() end
 
-			if active then syncRaidGroupHeaderChildren(header, cfg, layout) end
+			local childLayoutKey
+			if active then
+				childLayoutKey = string.format(
+					"raid-group|%.3f|%.3f|%.3f|%d",
+					tonumber(layout and layout.w) or 0,
+					tonumber(layout and layout.h) or 0,
+					tonumber(groupScale) or 1,
+					tonumber(header._eqolDisplayGroup) or 0
+				)
+			end
+			local layoutChanged = GF.UpdateHeaderChildLayoutKey(header, childLayoutKey)
+			if active and (not skipChildSync or layoutChanged) then syncRaidGroupHeaderChildren(header, cfg, layout) end
 
 			if header.IsShown and header:IsShown() then
 				nudgeHeaderLayout(header)
@@ -9069,7 +9085,7 @@ local function applyRaidGroupHeaders(cfg, layout, groupSpecs, forceShow, forceHi
 	end
 end
 
-function GF:ApplyHeaderAttributes(kind)
+function GF:ApplyHeaderAttributes(kind, options)
 	local cfg = getCfg(kind)
 	local header = GF.headers[kind]
 	if not header then return end
@@ -9099,6 +9115,7 @@ function GF:ApplyHeaderAttributes(kind)
 	local db = DB or ensureDB()
 	local raidFramesEnabled = db and db.raid and db.raid.enabled == true
 	local function setAttr(key, value) GF:SetHeaderAttributeIfChanged(header, key, value) end
+	local skipChildSync = options and options.skipChildSync == true
 
 	if kind == "party" then
 		local partySortState = GF.BuildPartyRuntimeSortState(cfg)
@@ -9304,7 +9321,16 @@ function GF:ApplyHeaderAttributes(kind)
 		end
 	end
 
-	syncHeaderChildren()
+	local headerChildLayoutKey = string.format(
+		"%s|%.3f|%.3f|%.3f|%d",
+		tostring(kind),
+		tonumber(renderW) or 0,
+		tonumber(renderH) or 0,
+		(kind == "raid" and not useGroupHeaders) and (tonumber(raidViewportScale) or 1) or 1,
+		useGroupHeaders and 1 or 0
+	)
+	local layoutChanged = GF.UpdateHeaderChildLayoutKey(header, headerChildLayoutKey)
+	if not skipChildSync or layoutChanged then syncHeaderChildren() end
 
 	local anchor = GF.anchors and GF.anchors[kind]
 	if anchor then
@@ -9468,7 +9494,7 @@ function GF:ApplyHeaderAttributes(kind)
 				initConfigFunction = groupInitConfigFunction,
 			}
 
-			applyRaidGroupHeaders(cfg, layout, groupSpecs, forceShow, forceHide, runtimeGroupCount)
+			applyRaidGroupHeaders(cfg, layout, groupSpecs, forceShow, forceHide, runtimeGroupCount, options)
 		elseif GF._raidGroupHeaders then
 			local layout = {
 				scale = scale,
@@ -9489,7 +9515,7 @@ function GF:ApplyHeaderAttributes(kind)
 				groupGrowth = cfg.groupGrowth,
 				initConfigFunction = initConfigFunction,
 			}
-			applyRaidGroupHeaders(cfg, layout, nil, forceShow, forceHide, 0)
+			applyRaidGroupHeaders(cfg, layout, nil, forceShow, forceHide, 0, options)
 		end
 	end
 	if GF._previewActive and GF._previewActive[kind] then GF:UpdatePreviewLayout(kind) end
@@ -9787,16 +9813,18 @@ function GF:RefreshChangedUnitButtons()
 end
 
 function GF.Refresh(kind)
-	if not isFeatureEnabled() then return end
+	if not isFeatureEnabled() then return 0 end
 	GF:EnsureHeaders()
+	local options = GF._lightHeaderRefreshOptions
 	if kind then
-		GF:ApplyHeaderAttributes(kind)
+		GF:ApplyHeaderAttributes(kind, options)
 	else
-		GF:ApplyHeaderAttributes("party")
-		GF:ApplyHeaderAttributes("raid")
-		GF:ApplyHeaderAttributes("mt")
-		GF:ApplyHeaderAttributes("ma")
+		GF:ApplyHeaderAttributes("party", options)
+		GF:ApplyHeaderAttributes("raid", options)
+		GF:ApplyHeaderAttributes("mt", options)
+		GF:ApplyHeaderAttributes("ma", options)
 	end
+	return GF:RefreshChangedUnitButtons()
 end
 
 local EDITMODE_IDS = {
@@ -22680,8 +22708,6 @@ function GF:RunPostEnterWorldRefreshPass()
 	self:RefreshStatusIcons()
 	self:RefreshStatusText()
 	self:RefreshGroupIndicators()
-	self:RefreshCustomSortNameList("raid")
-	self:RefreshCustomSortNameList("party")
 	queueGroupIndicatorRefresh(0.05, 4)
 end
 
@@ -22779,14 +22805,13 @@ do
 			if not needsFullRefresh and inRaidNow and countChanged then needsFullRefresh = true end
 			local updatedCount = 0
 			if needsFullRefresh then
-				GF.Refresh()
-				updatedCount = 1
+				updatedCount = GF.Refresh() or 0
 			else
 				updatedCount = GF:RefreshChangedUnitButtons()
 			end
-			if sortMethod == "NAMELIST" then GF:RefreshCustomSortNameList("raid") end
+			if not needsFullRefresh and sortMethod == "NAMELIST" then GF:RefreshCustomSortNameList("raid") end
 			local partyCfg = getCfg("party")
-			if partyCfg and (resolveSortMethod(partyCfg) == "NAMELIST" or GF.IsPartyCenterGrowthMode(partyCfg)) then GF:RefreshCustomSortNameList("party") end
+			if not needsFullRefresh and partyCfg and (resolveSortMethod(partyCfg) == "NAMELIST" or GF.IsPartyCenterGrowthMode(partyCfg)) then GF:RefreshCustomSortNameList("party") end
 			GF:RefreshGroupIcons()
 			if needsFullRefresh or updatedCount > 0 then
 				GF:RefreshStatusIcons()

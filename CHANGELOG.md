@@ -18,6 +18,7 @@
 ### 🐛 Fixed
 
 - Gear & Upgrades (Equipment Flyout): Added a separate item-level position setting for equipment flyouts and stopped reusing the Character Frame `Outside` placement there, so upgrade/replace comparisons no longer end up in confusing off-slot positions.
+- Unit Frames (Player): Fixed the player-frame name sometimes staying empty after login or loading screens by refreshing the label again when the EQoL frame is shown and once more after entering the world.
 - Unit Frames / Group Frames: Main group anchors and secure headers are now clamped to the screen so moved layouts cannot be dragged off-screen as easily.
 - Minimap (Instance Difficulty Indicator): Stopped overriding the Blizzard difficulty icon until the EQoL text-replacement option is actually enabled, and restore the default indicator correctly when that option is turned off again.
 - Square Minimap / Instance Difficulty: Delves now show `D<tier>` (for example `D8`) on the minimap difficulty indicator instead of falling back to the full `Delves` label.

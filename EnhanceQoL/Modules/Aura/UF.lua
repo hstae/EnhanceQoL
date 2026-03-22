@@ -4946,12 +4946,7 @@ local function updateIncomingHeal(st, unit, hc, defH, cur, maxv, interpolation)
 	bar:SetValue(incomingHealValue or 0, interpolation)
 
 	local color = hc.incomingHealColor or defH.incomingHealColor or { 0.2, 0.85, 0.35, 0.45 }
-	bar:SetStatusBarColor(
-		color.r or color[1] or 0.2,
-		color.g or color[2] or 0.85,
-		color.b or color[3] or 0.35,
-		color.a or color[4] or 0.45
-	)
+	bar:SetStatusBarColor(color.r or color[1] or 0.2, color.g or color[2] or 0.85, color.b or color[3] or 0.35, color.a or color[4] or 0.45)
 
 	if incomingHealSecret or (incomingHealValue and incomingHealValue > 0) then
 		bar:Show()
@@ -7238,6 +7233,8 @@ local function layoutFrame(cfg, unit)
 	syncTextFrameLevels(st)
 end
 
+local refreshNameAndLevelSoon
+
 local function ensureFrames(unit)
 	local info = UNITS[unit]
 	if not info then return end
@@ -7285,6 +7282,9 @@ local function ensureFrames(unit)
 				if PlaySound and SOUNDKIT and SOUNDKIT.INTERFACE_SOUND_LOST_TARGET_UNIT then PlaySound(SOUNDKIT.INTERFACE_SOUND_LOST_TARGET_UNIT, nil, true) end
 			end
 		end
+	end)
+	st.frame:HookScript("OnShow", function()
+		if refreshNameAndLevelSoon then refreshNameAndLevelSoon(unit) end
 	end)
 	st.frame:RegisterForClicks("AnyUp")
 	st.frame:Hide()
@@ -7755,6 +7755,19 @@ local function updateNameAndLevel(cfg, unit, levelOverride)
 		end
 	end
 	if UFHelper and UFHelper.updateClassificationIndicator then UFHelper.updateClassificationIndicator(st, unit, cfg, defaultsFor(unit), false) end
+end
+
+refreshNameAndLevelSoon = function(unit)
+	local function refresh()
+		local st = states[unit]
+		if not st then return end
+		local cfg = st.cfg or ensureDB(unit)
+		if not cfg or cfg.enabled == false then return end
+		updateNameAndLevel(cfg, unit)
+	end
+
+	refresh()
+	if After then After(0, function() refresh() end) end
 end
 
 local function applyConfig(unit)
@@ -9055,6 +9068,7 @@ onEvent = function(self, event, unit, ...)
 		refreshRangeFadeSpells(true)
 		refreshMainPower(UNIT.PLAYER)
 		applyConfig("player")
+		refreshNameAndLevelSoon(UNIT.PLAYER)
 		applyConfig("target")
 		updateTargetTargetFrame(totCfg, true)
 		if focusCfg.enabled then updateFocusFrame(focusCfg, true) end
