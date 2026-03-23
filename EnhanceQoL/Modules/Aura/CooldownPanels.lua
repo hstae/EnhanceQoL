@@ -5889,6 +5889,7 @@ function CooldownPanels:GetSpellPassState(spellId)
 	state.infoLoaded = nil
 	state.durationLoaded = nil
 	state.chargesLoaded = nil
+	state.chargeDurationLoaded = nil
 	state.cooldownStart = nil
 	state.cooldownDuration = nil
 	state.cooldownEnabled = nil
@@ -5896,6 +5897,7 @@ function CooldownPanels:GetSpellPassState(spellId)
 	state.cooldownGCD = nil
 	state.cooldownDurationObject = nil
 	state.chargesInfo = nil
+	state.chargeDurationObject = nil
 	cache[spellId] = state
 	return state
 end
@@ -5942,6 +5944,14 @@ function CooldownPanels:InvalidateSpellQueryCaches(kind, spellId)
 			runtime.spellChargesInfoCache[spellId] = nil
 		else
 			runtime.spellChargesInfoCache = {}
+		end
+	end
+	if kind == "chargeDuration" or kind == nil then
+		if spellId ~= nil then
+			runtime.spellChargeDurationCache = runtime.spellChargeDurationCache or {}
+			runtime.spellChargeDurationCache[spellId] = nil
+		else
+			runtime.spellChargeDurationCache = {}
 		end
 	end
 	if runtime.spellPassStateCache then
@@ -5995,6 +6005,25 @@ function CooldownPanels:GetCachedSpellChargesInfo(spellId)
 	cache[spellId] = cached
 	cached.pass = pass
 	cached.value = Api.GetSpellChargesInfo(spellId)
+	return cached.value
+end
+
+function CooldownPanels:GetCachedSpellChargeDurationObject(spellId)
+	if not spellId or not (C_Spell and C_Spell.GetSpellChargeDuration) then return nil end
+	local runtime = self:EnsureSpellQueryCaches()
+	local pass = runtime.spellQueryPass
+	if not pass then return C_Spell.GetSpellChargeDuration(spellId) end
+	local cache = runtime.spellChargeDurationCache
+	if not cache then
+		cache = {}
+		runtime.spellChargeDurationCache = cache
+	end
+	local cached = cache[spellId]
+	if cached and cached.pass == pass then return cached.value end
+	cached = cached or {}
+	cache[spellId] = cached
+	cached.pass = pass
+	cached.value = C_Spell.GetSpellChargeDuration(spellId)
 	return cached.value
 end
 
@@ -13820,6 +13849,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			local itemCount
 			local itemUses
 			local chargesInfo
+			local chargeDurationObject
 			local cooldownDurationObject
 			local cooldownRemaining
 			local cooldownStart, cooldownDuration, cooldownEnabled, cooldownRate, cooldownGCD
@@ -13845,6 +13875,13 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 							spellPassState.chargesLoaded = true
 						end
 						chargesInfo = spellPassState and spellPassState.chargesInfo or self:GetCachedSpellChargesInfo(spellId)
+						if entryShowChargesCooldown then
+							if spellPassState and spellPassState.chargeDurationLoaded == nil then
+								spellPassState.chargeDurationObject = self:GetCachedSpellChargeDurationObject(spellId)
+								spellPassState.chargeDurationLoaded = true
+							end
+							chargeDurationObject = spellPassState and spellPassState.chargeDurationObject or self:GetCachedSpellChargeDurationObject(spellId)
+						end
 					end
 					if trackCooldown then
 						if spellPassState and spellPassState.durationLoaded == nil then
@@ -14004,7 +14041,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 					show = stanceActive
 				end
 			elseif resolvedType == "CDM_AURA" and cdmAuras and cdmAuras.BuildRuntimeData then
-				cdmAuraData = cdmAuras:BuildRuntimeData(panelId, entryId, entry)
+				cdmAuraData = cdmAuras:BuildRuntimeData(panelId, entryId, entry, entryLayout, cdmAuraAlwaysShowMode)
 				if cdmAuraData then
 					iconTexture = cdmAuraData.iconTextureID or iconTexture
 					stackCount = cdmAuraData.stackCount
@@ -14145,6 +14182,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 				data.itemUses = itemUses
 				data.emptyItem = emptyItem
 				data.chargesInfo = chargesInfo
+				data.chargeDurationObject = chargeDurationObject
 				data.cooldownDurationObject = cooldownDurationObject
 				data.cooldownRemaining = cooldownRemaining
 				data.cooldownStart = cooldownStart or 0
@@ -14311,6 +14349,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			local cooldownStart = data.cooldownStart or 0
 			local cooldownDuration = data.cooldownDuration or 0
 			local cooldownRate = data.cooldownRate or 1
+			local chargeDurationObject = data.chargeDurationObject
 			local cooldownDurationObject = data.cooldownDurationObject
 			local cooldownEnabledOk = isSafeNotFalse(data.cooldownEnabled)
 			if data.resolvedType == "ITEM" or data.resolvedType == "SLOT" then cooldownEnabledOk = data.cooldownEnabled ~= false and data.cooldownEnabled ~= 0 end
@@ -14415,12 +14454,9 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 					if chargeCooldownHasAvailableCharge then
 						-- Match Blizzard action-button behavior: charge recharge takes precedence while at least one charge remains.
 						if data.showChargesCooldown then
-							local entrySpellId = data.entry and data.entry.spellID
-							local effectiveId = entrySpellId and getEffectiveSpellId(entrySpellId) or entrySpellId
-							local CCD = effectiveId and C_Spell.GetSpellChargeDuration(effectiveId)
-							if CCD and icon.cooldown.SetCooldownFromDurationObject then
+							if chargeDurationObject and icon.cooldown.SetCooldownFromDurationObject then
 								icon.cooldown:Clear()
-								icon.cooldown:SetCooldownFromDurationObject(CCD)
+								icon.cooldown:SetCooldownFromDurationObject(chargeDurationObject)
 							elseif isSafeNumber(cooldownStart) and isSafeNumber(cooldownDuration) then
 								icon.cooldown:Clear()
 								icon.cooldown:SetCooldown(cooldownStart, cooldownDuration, cooldownRate)
@@ -14434,12 +14470,9 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 						end
 					else
 						if data.showChargesCooldown then
-							local entrySpellId = data.entry and data.entry.spellID
-							local effectiveId = entrySpellId and getEffectiveSpellId(entrySpellId) or entrySpellId
-							local CCD = effectiveId and C_Spell.GetSpellChargeDuration(effectiveId)
-							if CCD and icon.cooldown.SetCooldownFromDurationObject then
+							if chargeDurationObject and icon.cooldown.SetCooldownFromDurationObject then
 								icon.cooldown:Clear()
-								icon.cooldown:SetCooldownFromDurationObject(CCD)
+								icon.cooldown:SetCooldownFromDurationObject(chargeDurationObject)
 							elseif isSafeNumber(cooldownStart) and isSafeNumber(cooldownDuration) then
 								icon.cooldown:Clear()
 								icon.cooldown:SetCooldown(cooldownStart, cooldownDuration, cooldownRate)
@@ -14458,12 +14491,6 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 						-- only when you have zero charges SCD will be true CCD is always true when one charge is missing
 						if cooldownDurationObject then
 							if data.cooldownGCD then
-								if data.showChargesCooldown then
-									local entrySpellId = data.entry and data.entry.spellID
-									local effectiveId = entrySpellId and getEffectiveSpellId(entrySpellId) or entrySpellId
-									local CCD = effectiveId and C_Spell.GetSpellChargeDuration(effectiveId)
-									-- icon.cooldown:SetCooldownFromDurationObject(CCD)
-								end
 							-- icon.texture:SetDesaturation(0)
 							-- desaturate = false
 							-- setCooldownDrawState(icon.cooldown, entryGcdDrawEdge, entryGcdDrawBling, entryGcdDrawSwipe)
@@ -14476,11 +14503,8 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 								elseif showOnCooldown then
 									icon:SetAlpha(cooldownDurationObject:EvaluateRemainingDuration(curveDesat))
 								end
-								if data.showChargesCooldown then
-									local entrySpellId = data.entry and data.entry.spellID
-									local effectiveId = entrySpellId and getEffectiveSpellId(entrySpellId) or entrySpellId
-									local CCD = effectiveId and C_Spell.GetSpellChargeDuration(effectiveId)
-									icon.cooldown:SetCooldownFromDurationObject(CCD)
+								if data.showChargesCooldown and chargeDurationObject then
+									icon.cooldown:SetCooldownFromDurationObject(chargeDurationObject)
 								else
 									icon.cooldown:SetCooldownFromDurationObject(cooldownDurationObject)
 								end

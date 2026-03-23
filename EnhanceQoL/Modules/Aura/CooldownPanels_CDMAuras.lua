@@ -348,23 +348,19 @@ end
 local function frameTrackedSpellMatchesCooldownInfo(info, trackedSpellID, sawAssociatedSpellID, sawSecretLinkedSpellID)
 	if not info then return false, sawAssociatedSpellID, sawSecretLinkedSpellID end
 	local matched = false
-	matched, sawAssociatedSpellID, sawSecretLinkedSpellID =
-		frameTrackedSpellMatchesCandidate(info.linkedSpellID, "linkedSpellID", trackedSpellID, sawAssociatedSpellID, sawSecretLinkedSpellID)
+	matched, sawAssociatedSpellID, sawSecretLinkedSpellID = frameTrackedSpellMatchesCandidate(info.linkedSpellID, "linkedSpellID", trackedSpellID, sawAssociatedSpellID, sawSecretLinkedSpellID)
 	if matched then return true, sawAssociatedSpellID, sawSecretLinkedSpellID end
 	matched, sawAssociatedSpellID, sawSecretLinkedSpellID =
 		frameTrackedSpellMatchesCandidate(info.overrideTooltipSpellID, "overrideTooltipSpellID", trackedSpellID, sawAssociatedSpellID, sawSecretLinkedSpellID)
 	if matched then return true, sawAssociatedSpellID, sawSecretLinkedSpellID end
-	matched, sawAssociatedSpellID, sawSecretLinkedSpellID =
-		frameTrackedSpellMatchesCandidate(info.overrideSpellID, "overrideSpellID", trackedSpellID, sawAssociatedSpellID, sawSecretLinkedSpellID)
+	matched, sawAssociatedSpellID, sawSecretLinkedSpellID = frameTrackedSpellMatchesCandidate(info.overrideSpellID, "overrideSpellID", trackedSpellID, sawAssociatedSpellID, sawSecretLinkedSpellID)
 	if matched then return true, sawAssociatedSpellID, sawSecretLinkedSpellID end
-	matched, sawAssociatedSpellID, sawSecretLinkedSpellID =
-		frameTrackedSpellMatchesCandidate(info.spellID, "spellID", trackedSpellID, sawAssociatedSpellID, sawSecretLinkedSpellID)
+	matched, sawAssociatedSpellID, sawSecretLinkedSpellID = frameTrackedSpellMatchesCandidate(info.spellID, "spellID", trackedSpellID, sawAssociatedSpellID, sawSecretLinkedSpellID)
 	if matched then return true, sawAssociatedSpellID, sawSecretLinkedSpellID end
 	local linkedSpellIDs = info.linkedSpellIDs
 	if type(linkedSpellIDs) == "table" then
 		for i = 1, #linkedSpellIDs do
-			matched, sawAssociatedSpellID, sawSecretLinkedSpellID =
-				frameTrackedSpellMatchesCandidate(linkedSpellIDs[i], "linkedSpellIDs", trackedSpellID, sawAssociatedSpellID, sawSecretLinkedSpellID)
+			matched, sawAssociatedSpellID, sawSecretLinkedSpellID = frameTrackedSpellMatchesCandidate(linkedSpellIDs[i], "linkedSpellIDs", trackedSpellID, sawAssociatedSpellID, sawSecretLinkedSpellID)
 			if matched then return true, sawAssociatedSpellID, sawSecretLinkedSpellID end
 		end
 	end
@@ -924,11 +920,7 @@ local function isFrameShowingTrackedSpell(frame, entry, trackedUnit)
 			frameCache = {}
 			framePassCache[frame] = frameCache
 		end
-		matchKey = tostring(normalizeTrackedUnit(trackedUnit) or "")
-			.. "\031"
-			.. tostring(trackedSpellID or "")
-			.. "\031"
-			.. tostring(trackedCooldownID or "")
+		matchKey = tostring(normalizeTrackedUnit(trackedUnit) or "") .. "\031" .. tostring(trackedSpellID or "") .. "\031" .. tostring(trackedCooldownID or "")
 		if frameCache[matchKey] ~= nil then return frameCache[matchKey] end
 	end
 	if type(frame.SpellIDMatchesAnyAssociatedSpellIDs) == "function" then
@@ -942,20 +934,17 @@ local function isFrameShowingTrackedSpell(frame, entry, trackedUnit)
 	local sawAssociatedSpellID = false
 	local sawSecretLinkedSpellID = false
 	local matched
-	matched, sawAssociatedSpellID, sawSecretLinkedSpellID =
-		frameTrackedSpellMatchesCandidate(frame.auraSpellID, "auraSpellID", trackedSpellID, sawAssociatedSpellID, sawSecretLinkedSpellID)
+	matched, sawAssociatedSpellID, sawSecretLinkedSpellID = frameTrackedSpellMatchesCandidate(frame.auraSpellID, "auraSpellID", trackedSpellID, sawAssociatedSpellID, sawSecretLinkedSpellID)
 	if matched then
 		if frameCache and matchKey then frameCache[matchKey] = true end
 		return true
 	end
-	matched, sawAssociatedSpellID, sawSecretLinkedSpellID =
-		frameTrackedSpellMatchesCooldownInfo(frame.cooldownInfo, trackedSpellID, sawAssociatedSpellID, sawSecretLinkedSpellID)
+	matched, sawAssociatedSpellID, sawSecretLinkedSpellID = frameTrackedSpellMatchesCooldownInfo(frame.cooldownInfo, trackedSpellID, sawAssociatedSpellID, sawSecretLinkedSpellID)
 	if matched then
 		if frameCache and matchKey then frameCache[matchKey] = true end
 		return true
 	end
-	matched, sawAssociatedSpellID, sawSecretLinkedSpellID =
-		frameTrackedSpellMatchesCooldownInfo(getCooldownViewerInfo(trackedCooldownID), trackedSpellID, sawAssociatedSpellID, sawSecretLinkedSpellID)
+	matched, sawAssociatedSpellID, sawSecretLinkedSpellID = frameTrackedSpellMatchesCooldownInfo(getCooldownViewerInfo(trackedCooldownID), trackedSpellID, sawAssociatedSpellID, sawSecretLinkedSpellID)
 	if matched then
 		if frameCache and matchKey then frameCache[matchKey] = true end
 		return true
@@ -1390,7 +1379,7 @@ function CDMAuras:HandleRootRefresh()
 	self:RebuildTrackedPanelIndex()
 end
 
-function CDMAuras:BuildRuntimeData(panelId, entryId, entry)
+function CDMAuras:BuildRuntimeData(panelId, entryId, entry, entryLayout, alwaysShowMode)
 	if not (entry and entry.type == ENTRY_TYPE) then return nil end
 
 	local runtime = getRuntime()
@@ -1591,9 +1580,16 @@ function CDMAuras:BuildRuntimeData(panelId, entryId, entry)
 		end
 	end
 
-	local panel = CooldownPanels.GetPanel and CooldownPanels:GetPanel(panelId) or nil
-	local alwaysShowMode = CooldownPanels.ResolveEntryCDMAuraAlwaysShowMode and CooldownPanels:ResolveEntryCDMAuraAlwaysShowMode(panel and panel.layout or nil, entry)
-		or normalizeAlwaysShowMode(entry.cdmAuraAlwaysShowMode, entry.alwaysShow == true and "SHOW" or "HIDE")
+	local fallbackAlwaysShowMode = normalizeAlwaysShowMode(entry.cdmAuraAlwaysShowMode, entry.alwaysShow == true and "SHOW" or "HIDE")
+	if alwaysShowMode == nil then
+		local resolvedLayout = entryLayout
+		if resolvedLayout == nil then
+			local panel = CooldownPanels.GetPanel and CooldownPanels:GetPanel(panelId) or nil
+			resolvedLayout = panel and panel.layout or nil
+		end
+		alwaysShowMode = CooldownPanels.ResolveEntryCDMAuraAlwaysShowMode and CooldownPanels:ResolveEntryCDMAuraAlwaysShowMode(resolvedLayout, entry) or fallbackAlwaysShowMode
+	end
+	alwaysShowMode = normalizeAlwaysShowMode(alwaysShowMode, fallbackAlwaysShowMode)
 	local show = active or alwaysShowMode ~= "HIDE"
 	data.show = show
 	data.active = active
