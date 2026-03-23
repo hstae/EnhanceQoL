@@ -572,10 +572,15 @@ end
 
 function Helper.NormalizeFixedGroups(layout)
 	if type(layout) ~= "table" then return {} end
-	local source = type(layout.fixedGroups) == "table" and layout.fixedGroups or {}
-	local normalized = {}
+	local source = layout.fixedGroups
+	if type(source) ~= "table" then
+		source = {}
+		layout.fixedGroups = source
+		return source
+	end
 	local seen = {}
 	local fallbackIndex = 1
+	local writeIndex = 1
 	for i = 1, #source do
 		local group = source[i]
 		if type(group) == "table" then
@@ -597,24 +602,30 @@ function Helper.NormalizeFixedGroups(layout)
 					name = name:match("^%s*(.-)%s*$")
 				end
 				if name == "" then name = "Group " .. tostring(fallbackIndex) end
-				normalized[#normalized + 1] = {
-					id = id,
-					name = name,
-					column = column,
-					row = row,
-					columns = columns,
-					rows = rows,
-					mode = Helper.NormalizeFixedGroupMode(group.mode, "DYNAMIC"),
-					iconSize = Helper.NormalizeFixedGroupIconSize(group.iconSize),
-					layoutOverrides = Helper.NormalizeFixedGroupLayoutOverrides(group.layoutOverrides),
-				}
+				if writeIndex ~= i then
+					source[writeIndex] = group
+					source[i] = nil
+				end
+				group.id = id
+				group.name = name
+				group.column = column
+				group.row = row
+				group.columns = columns
+				group.rows = rows
+				group.mode = Helper.NormalizeFixedGroupMode(group.mode, "DYNAMIC")
+				group.iconSize = Helper.NormalizeFixedGroupIconSize(group.iconSize)
+				group.layoutOverrides = Helper.NormalizeFixedGroupLayoutOverrides(group.layoutOverrides)
 				seen[id] = true
+				writeIndex = writeIndex + 1
 			end
 			fallbackIndex = fallbackIndex + 1
 		end
 	end
-	layout.fixedGroups = normalized
-	return normalized
+	for i = writeIndex, #source do
+		source[i] = nil
+	end
+	layout.fixedGroups = source
+	return source
 end
 
 function Helper.GetFixedGroupById(panelOrLayout, groupId)
@@ -677,9 +688,9 @@ function Helper.GetFixedGroupLocalIndex(group, column, row)
 	return ((relativeRow - 1) * group.columns) + relativeColumn
 end
 
-function Helper.SyncEntryFixedGroupIconState(panelOrLayout, entry)
+function Helper.SyncEntryFixedGroupIconState(panelOrLayout, entry, resolvedGroup)
 	if type(entry) ~= "table" then return nil end
-	local group = Helper.GetFixedGroupById(panelOrLayout, entry.fixedGroupId)
+	local group = type(resolvedGroup) == "table" and resolvedGroup or Helper.GetFixedGroupById(panelOrLayout, entry.fixedGroupId)
 	local groupIconSize = group and Helper.NormalizeFixedGroupIconSize(group.iconSize) or nil
 	if group and groupIconSize ~= nil then
 		if entry.fixedGroupIconSizeInherited ~= true then
@@ -713,6 +724,7 @@ function Helper.EnsureFixedSlotAssignments(panel)
 	panel.layout = type(panel.layout) == "table" and panel.layout or {}
 	local layout = panel.layout
 	local fixedGroups = Helper.NormalizeFixedGroups(layout)
+	local fixedGroupById = {}
 	local configuredColumns = Helper.NormalizeFixedGridSize(layout.fixedGridColumns, 0)
 	local configuredRows = Helper.NormalizeFixedGridSize(layout.fixedGridRows, 0)
 	local used = {}
@@ -754,6 +766,7 @@ function Helper.EnsureFixedSlotAssignments(panel)
 	for i = 1, #fixedGroups do
 		local group = fixedGroups[i]
 		if group then
+			fixedGroupById[group.id] = group
 			local right = group.column + group.columns - 1
 			local bottom = group.row + group.rows - 1
 			if right > columns then columns = right end
@@ -774,10 +787,11 @@ function Helper.EnsureFixedSlotAssignments(panel)
 	for _, entryId in ipairs(panel.order) do
 		local entry = panel.entries[entryId]
 		if entry then
-			local group = Helper.GetFixedGroupById(layout, entry.fixedGroupId)
+			local groupId = Helper.NormalizeFixedGroupId(entry.fixedGroupId)
+			local group = groupId and fixedGroupById[groupId] or nil
 			if group then
 				entry.fixedGroupId = group.id
-				Helper.SyncEntryFixedGroupIconState(layout, entry)
+				Helper.SyncEntryFixedGroupIconState(layout, entry, group)
 				if Helper.FixedGroupUsesStaticSlots(group) then
 					local groupState = groupStates[group.id]
 					local column = Helper.NormalizeSlotCoordinate(entry.slotColumn)
@@ -814,7 +828,7 @@ function Helper.EnsureFixedSlotAssignments(panel)
 				end
 			else
 				entry.fixedGroupId = nil
-				Helper.SyncEntryFixedGroupIconState(layout, entry)
+				Helper.SyncEntryFixedGroupIconState(layout, entry, nil)
 				local column = Helper.NormalizeSlotCoordinate(entry.slotColumn)
 				local row = Helper.NormalizeSlotCoordinate(entry.slotRow)
 				local key = (column and row) and makeKey(column, row) or nil
@@ -913,12 +927,17 @@ function Helper.BuildFixedSlotEntryIds(panel, filterFn, includePreviewPadding)
 	local slotEntryIds = {}
 	if count <= 0 then return slotEntryIds, 0, columns, rows end
 	local groups = Helper.NormalizeFixedGroups(panel.layout)
+	local groupById = {}
 	local dynamicGroupEntries = {}
+	for i = 1, #groups do
+		local group = groups[i]
+		if group then groupById[group.id] = group end
+	end
 	for _, entryId in ipairs(panel.order) do
 		local entry = panel.entries[entryId]
 		if entry and (type(filterFn) ~= "function" or filterFn(entry, entryId) ~= false) then
 			local groupId = Helper.NormalizeFixedGroupId(entry.fixedGroupId)
-			local group = groupId and Helper.GetFixedGroupById(panel, groupId) or nil
+			local group = groupId and groupById[groupId] or nil
 			if group then
 				if Helper.FixedGroupUsesStaticSlots(group) then
 					local column = Helper.NormalizeSlotCoordinate(entry.slotColumn)

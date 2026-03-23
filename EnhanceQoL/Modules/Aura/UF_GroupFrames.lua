@@ -75,6 +75,15 @@ local AURA_FILTERS = GFH.AuraFilters
 local SECRET_TEXT_UPDATE_INTERVAL = 0.1
 local FONT_DROPDOWN_SCROLL_HEIGHT = 220
 
+function GF.ClampAuraCount(value, fallback, maxValue)
+	local normalized = tonumber(value)
+	if normalized == nil then return fallback end
+	normalized = floor(normalized + 0.5)
+	if normalized < 1 then normalized = 1 end
+	if maxValue ~= nil and normalized > maxValue then normalized = maxValue end
+	return normalized
+end
+
 GFH.COLOR_INCOMING_HEAL_DEFAULT = GFH.COLOR_INCOMING_HEAL_DEFAULT or { 0.2, 0.85, 0.35, 0.45 }
 
 local function formatSliderDecimal(value)
@@ -5097,8 +5106,7 @@ function GF:LayoutAuras(self)
 			local spacing = (tonumber(typeCfg.spacing) or 2) * contentScale
 			local perRow = tonumber(typeCfg.perRow) or tonumber(typeCfg.max) or 6
 			if perRow < 1 then perRow = 1 end
-			local maxCount = tonumber(typeCfg.max) or perRow
-			if maxCount < 0 then maxCount = 0 end
+			local maxCount = GF.ClampAuraCount(typeCfg.max, perRow) or perRow
 			local x = (tonumber(typeCfg.x) or 0) * contentScale
 			local y = (tonumber(typeCfg.y) or 0) * contentScale
 			local scale = GFH.GetEffectiveScale(parent)
@@ -10404,8 +10412,9 @@ function GF._copyUnitAuraIconsToGroup(sectionId, srcAuras, dest)
 			buff.perRow = perRow
 			copied = true
 		end
-		if source.max ~= nil then
-			buff.max = source.max
+		local maxCount = GF.ClampAuraCount(source.max)
+		if maxCount ~= nil then
+			buff.max = maxCount
 			copied = true
 		end
 		local spacing = source.spacing
@@ -10480,8 +10489,9 @@ function GF._copyUnitAuraIconsToGroup(sectionId, srcAuras, dest)
 			debuff.perRow = perRow
 			copied = true
 		end
-		if source.max ~= nil then
-			debuff.max = source.max
+		local maxCount = GF.ClampAuraCount(source.max)
+		if maxCount ~= nil then
+			debuff.max = maxCount
 			copied = true
 		end
 		local spacing = source.spacing
@@ -18024,18 +18034,18 @@ local function buildEditModeSettings(kind, editModeId)
 			allowInput = true,
 			field = "buffMax",
 			parentId = "buffs",
-			minValue = 0,
+			minValue = 1,
 			maxValue = 20,
 			valueStep = 1,
 			get = function()
 				local cfg = getCfg(kind)
 				local ac = ensureAuraConfig(cfg)
-				return ac.buff.max or 6
+				return GF.ClampAuraCount(ac.buff.max, 6, 20) or 6
 			end,
 			set = function(_, value)
 				local cfg = getCfg(kind)
 				local ac = ensureAuraConfig(cfg)
-				ac.buff.max = clampNumber(value, 0, 20, ac.buff.max or 6)
+				ac.buff.max = GF.ClampAuraCount(value, ac.buff.max or 6, 20) or 6
 				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "buffMax", ac.buff.max, nil, true) end
 				GF:ApplyHeaderAttributes(kind)
 			end,
@@ -18599,18 +18609,18 @@ local function buildEditModeSettings(kind, editModeId)
 			allowInput = true,
 			field = "debuffMax",
 			parentId = "debuffs",
-			minValue = 0,
+			minValue = 1,
 			maxValue = 20,
 			valueStep = 1,
 			get = function()
 				local cfg = getCfg(kind)
 				local ac = ensureAuraConfig(cfg)
-				return ac.debuff.max or 6
+				return GF.ClampAuraCount(ac.debuff.max, 6, 20) or 6
 			end,
 			set = function(_, value)
 				local cfg = getCfg(kind)
 				local ac = ensureAuraConfig(cfg)
-				ac.debuff.max = clampNumber(value, 0, 20, ac.debuff.max or 6)
+				ac.debuff.max = GF.ClampAuraCount(value, ac.debuff.max or 6, 20) or 6
 				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "debuffMax", ac.debuff.max, nil, true) end
 				GF:ApplyHeaderAttributes(kind)
 			end,
@@ -19194,18 +19204,18 @@ local function buildEditModeSettings(kind, editModeId)
 			allowInput = true,
 			field = "externalMax",
 			parentId = "externals",
-			minValue = 0,
+			minValue = 1,
 			maxValue = 20,
 			valueStep = 1,
 			get = function()
 				local cfg = getCfg(kind)
 				local ac = ensureAuraConfig(cfg)
-				return ac.externals.max or 4
+				return GF.ClampAuraCount(ac.externals.max, 4, 20) or 4
 			end,
 			set = function(_, value)
 				local cfg = getCfg(kind)
 				local ac = ensureAuraConfig(cfg)
-				ac.externals.max = clampNumber(value, 0, 20, ac.externals.max or 4)
+				ac.externals.max = GF.ClampAuraCount(value, ac.externals.max or 4, 20) or 4
 				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "externalMax", ac.externals.max, nil, true) end
 				GF:ApplyHeaderAttributes(kind)
 			end,
@@ -21731,7 +21741,7 @@ local function applyEditModeData(kind, data)
 	if data.buffOffsetY ~= nil then ac.buff.y = data.buffOffsetY end
 	if data.buffSize ~= nil then ac.buff.size = data.buffSize end
 	if data.buffPerRow ~= nil then ac.buff.perRow = data.buffPerRow end
-	if data.buffMax ~= nil then ac.buff.max = data.buffMax end
+	if data.buffMax ~= nil then ac.buff.max = GF.ClampAuraCount(data.buffMax, ac.buff.max or 6) or ac.buff.max or 6 end
 	if data.buffSpacing ~= nil then ac.buff.spacing = data.buffSpacing end
 	if data.buffHelpfulFilterMode ~= nil then ac.buff.helpfulFilterMode = GF.NormalizeBuffHelpfulFilterMode(data.buffHelpfulFilterMode) end
 	if data.buffCooldownTextEnabled ~= nil then ac.buff.showCooldownText = data.buffCooldownTextEnabled and true or false end
@@ -21767,7 +21777,7 @@ local function applyEditModeData(kind, data)
 	if data.debuffOffsetY ~= nil then ac.debuff.y = data.debuffOffsetY end
 	if data.debuffSize ~= nil then ac.debuff.size = data.debuffSize end
 	if data.debuffPerRow ~= nil then ac.debuff.perRow = data.debuffPerRow end
-	if data.debuffMax ~= nil then ac.debuff.max = data.debuffMax end
+	if data.debuffMax ~= nil then ac.debuff.max = GF.ClampAuraCount(data.debuffMax, ac.debuff.max or 6) or ac.debuff.max or 6 end
 	if data.debuffSpacing ~= nil then ac.debuff.spacing = data.debuffSpacing end
 	if data.debuffShowDispelIcon ~= nil then ac.debuff.showDispelIcon = data.debuffShowDispelIcon and true or false end
 	if data.debuffCooldownTextEnabled ~= nil then ac.debuff.showCooldownText = data.debuffCooldownTextEnabled and true or false end
@@ -21803,7 +21813,7 @@ local function applyEditModeData(kind, data)
 	if data.externalOffsetY ~= nil then ac.externals.y = data.externalOffsetY end
 	if data.externalSize ~= nil then ac.externals.size = data.externalSize end
 	if data.externalPerRow ~= nil then ac.externals.perRow = data.externalPerRow end
-	if data.externalMax ~= nil then ac.externals.max = data.externalMax end
+	if data.externalMax ~= nil then ac.externals.max = GF.ClampAuraCount(data.externalMax, ac.externals.max or 4) or ac.externals.max or 4 end
 	if data.externalSpacing ~= nil then ac.externals.spacing = data.externalSpacing end
 	if data.externalCooldownTextEnabled ~= nil then ac.externals.showCooldownText = data.externalCooldownTextEnabled and true or false end
 	if data.externalCooldownTextAnchor ~= nil then ac.externals.cooldownAnchor = data.externalCooldownTextAnchor end
@@ -22407,7 +22417,7 @@ function GF:EnsureEditMode()
 				buffOffsetY = ac.buff.y or 0,
 				buffSize = ac.buff.size or 16,
 				buffPerRow = ac.buff.perRow or 6,
-				buffMax = ac.buff.max or 6,
+				buffMax = GF.ClampAuraCount(ac.buff.max, 6) or 6,
 				buffSpacing = ac.buff.spacing or 2,
 				buffHelpfulFilterMode = GF.NormalizeBuffHelpfulFilterMode(ac.buff.helpfulFilterMode or defBuff.helpfulFilterMode),
 				buffCooldownTextEnabled = (ac.buff.showCooldownText ~= nil and ac.buff.showCooldownText ~= false) or (ac.buff.showCooldownText == nil and defBuff.showCooldownText ~= false),
@@ -22431,7 +22441,7 @@ function GF:EnsureEditMode()
 				debuffOffsetY = ac.debuff.y or 0,
 				debuffSize = ac.debuff.size or 16,
 				debuffPerRow = ac.debuff.perRow or 6,
-				debuffMax = ac.debuff.max or 6,
+				debuffMax = GF.ClampAuraCount(ac.debuff.max, 6) or 6,
 				debuffSpacing = ac.debuff.spacing or 2,
 				debuffShowDispelIcon = (ac.debuff.showDispelIcon ~= nil and ac.debuff.showDispelIcon ~= false) or (ac.debuff.showDispelIcon == nil and defDebuff.showDispelIcon ~= false),
 				debuffCooldownTextEnabled = (ac.debuff.showCooldownText ~= nil and ac.debuff.showCooldownText ~= false) or (ac.debuff.showCooldownText == nil and defDebuff.showCooldownText ~= false),
@@ -22455,7 +22465,7 @@ function GF:EnsureEditMode()
 				externalOffsetY = ac.externals.y or 0,
 				externalSize = ac.externals.size or 16,
 				externalPerRow = ac.externals.perRow or 6,
-				externalMax = ac.externals.max or 4,
+				externalMax = GF.ClampAuraCount(ac.externals.max, 4) or 4,
 				externalSpacing = ac.externals.spacing or 2,
 				externalCooldownTextEnabled = (ac.externals.showCooldownText ~= nil and ac.externals.showCooldownText ~= false)
 					or (ac.externals.showCooldownText == nil and defExt.showCooldownText ~= false),

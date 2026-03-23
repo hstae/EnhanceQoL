@@ -725,11 +725,12 @@ local function appendUnitAuraSettings(list, unit, def, refreshSelf)
 
 		list[#list + 1] = slider(
 			(isDebuff and (L["UFMaxDebuffs"] or "Debuff max")) or (L["UFMaxBuffs"] or "Buff max"),
-			4,
+			1,
 			40,
 			1,
 			function() return getAuraSectionValue(sectionKey, { "max" }, auraDef.max or 16) end,
 			function(val)
+				val = clampNumber(val, 1, 40, auraDef.max or 16)
 				setAuraSectionValue(sectionKey, { "max" }, val or auraDef.max or 16, layoutOpts)
 				refreshSelf()
 			end,

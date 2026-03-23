@@ -3045,7 +3045,6 @@ local function initMisc()
 	addon.functions.InitDBValue("confirmTimerRemovalTrade", false)
 	addon.functions.InitDBValue("confirmPatronOrderDialog", false)
 	addon.functions.InitDBValue("deleteItemFillDialog", false)
-	addon.functions.InitDBValue("confirmReplaceEnchant", false)
 	addon.functions.InitDBValue("confirmSocketReplace", false)
 	addon.functions.InitDBValue("confirmHighCostItem", false)
 	addon.functions.InitDBValue("confirmPurchaseTokenItem", false)
@@ -3140,8 +3139,6 @@ local function initMisc()
 						local order = C_CraftingOrders.GetClaimedOrder()
 						if order and order.npcCustomerCreatureID and order.npcCustomerCreatureID > 0 then self:GetButton(1):Click() end
 					elseif addon.db["confirmTimerRemovalTrade"] and self.which == "CONFIRM_MERCHANT_TRADE_TIMER_REMOVAL" and self.GetButton then
-						self:GetButton(1):Click()
-					elseif addon.db["confirmReplaceEnchant"] and self.which == "REPLACE_ENCHANT" and self.numButtons > 0 and self.GetButton then
 						self:GetButton(1):Click()
 					elseif addon.db["confirmSocketReplace"] and self.which == "CONFIRM_ACCEPT_SOCKETS" and self.numButtons > 0 and self.GetButton then
 						self:GetButton(1):Click()

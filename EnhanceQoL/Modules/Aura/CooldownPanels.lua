@@ -1800,6 +1800,7 @@ end
 function CooldownPanels:GetFixedGroupEffectiveLayout(panelId, groupId, buildCache)
 	panelId = normalizeId(panelId)
 	groupId = Helper.NormalizeFixedGroupId(groupId)
+	if buildCache and groupId and buildCache[groupId] then return buildCache[groupId] end
 	local panel = panelId and self:GetPanel(panelId) or nil
 	local layout = panel and panel.layout or nil
 	local group = panel and groupId and CooldownPanels.GetFixedGroupById(panel, groupId) or nil
@@ -1893,7 +1894,7 @@ function CooldownPanels:SyncEntryFixedGroupState(panel, entry)
 	else
 		entry.fixedGroupId = nil
 	end
-	Helper.SyncEntryFixedGroupIconState(panel, entry)
+	Helper.SyncEntryFixedGroupIconState(panel, entry, group)
 end
 
 function CooldownPanels:GetEntryAtUngroupedFixedCell(panel, column, row, skipEntryId)
@@ -13315,7 +13316,6 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 	panel.layout = panel.layout or Helper.CopyTableShallow(Helper.PANEL_LAYOUT_DEFAULTS)
 	local layout = panel.layout
 	local fixedLayout = Helper.IsFixedLayout(layout)
-	if fixedLayout then Helper.EnsureFixedSlotAssignments(panel) end
 	local resolvedLayout = CooldownPanels.ResolveRuntimeLayout(runtime, frame, layout)
 	local showTooltips = resolvedLayout and resolvedLayout.showTooltips
 	local showKeybinds = resolvedLayout and resolvedLayout.showKeybinds
@@ -13404,10 +13404,17 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 	local fixedGridColumns = 0
 	local fixedGridRows = 0
 	local fixedGroups = fixedLayout and CooldownPanels.GetFixedGroups(panel) or nil
+	local fixedGroupById = fixedLayout and {} or nil
 	local fixedGroupVisibleEntries = fixedLayout and {} or nil
 	local effectiveLayoutCache = {}
 	if fixedLayout then
 		_, fixedSlotCount, fixedGridColumns, fixedGridRows = Helper.BuildFixedSlotEntryIds(panel, nil, false)
+		if fixedGroups then
+			for i = 1, #fixedGroups do
+				local fixedGroup = fixedGroups[i]
+				if fixedGroup then fixedGroupById[fixedGroup.id] = fixedGroup end
+			end
+		end
 	end
 	local editGridColumns
 	if layoutEditActive and not fixedLayout then
@@ -13684,7 +13691,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 				local targetIndex = visibleCount
 				local data
 				if fixedLayout then
-					local fixedGroup = CooldownPanels.GetFixedGroupById(panel, entry.fixedGroupId)
+					local fixedGroup = entry.fixedGroupId and fixedGroupById and fixedGroupById[entry.fixedGroupId] or nil
 					if fixedGroup then
 						if CooldownPanels.IsFixedGroupStatic(fixedGroup) then
 							local slotColumn = Helper.NormalizeSlotCoordinate(entry.slotColumn)
@@ -13904,7 +13911,9 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 		local icon = frame.icons[i]
 		local slotColumn = fixedLayout and fixedGridColumns > 0 and (((i - 1) % fixedGridColumns) + 1) or (editGridColumns and (((i - 1) % editGridColumns) + 1) or nil)
 		local slotRow = fixedLayout and fixedGridColumns > 0 and (math.floor((i - 1) / fixedGridColumns) + 1) or (editGridColumns and (math.floor((i - 1) / editGridColumns) + 1) or nil)
-		self:ConfigureEditModePanelIcon(panelId, icon, data and data.entryId or nil, slotColumn, slotRow)
+		if layoutEditActive or (icon and icon.layoutHandle and icon.layoutHandle._eqolLayoutConfigured == true) then
+			self:ConfigureEditModePanelIcon(panelId, icon, data and data.entryId or nil, slotColumn, slotRow)
+		end
 		if not data then
 			icon.entryId = nil
 			CooldownPanels:ApplyEntryIconVisualLayout(icon, nil, nil)

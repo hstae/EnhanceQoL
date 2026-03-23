@@ -14,6 +14,7 @@
 ### 🔄 Changed
 
 - GCD Bar: Lowered the minimum configurable bar height from `6` to `1`.
+- Unit Frames / Group Frames (Aura max): Lowered the minimum configurable aura count to `1` for buff, debuff, and external displays, so boss and group frames can be limited to a single aura.
 - Group Frames (Party / Raid): Improved the overall performance of group-frame updates, especially for custom raid sorting. Larger roster and layout updates should now feel noticeably smoother.
 - Group Frames (Party / Raid): Made group-frame refreshes more stable during sort and roster changes, so frames keep their layout more reliably while the order updates in the background.
 
@@ -28,6 +29,10 @@
 - Resource Bars (Runic Power / Maelstrom): Fixed protected Midnight values still using absolute threshold-color handling. Both resource types now use the percent-based secret threshold path instead of absolute threshold colors.
 - Group Frames (Raid / Dynamic Scaling): Fixed `Level` text and `Group <number>` indicators growing with `Preserve content size`. Those two labels now keep their normal size while the slider still compensates the rest of the raid-frame content.
 - Group Frames (Raid / Edit Mode Preview): Fixed grouped raid preview resolving against the current live raid subgroup layout instead of the requested sample size, so preview blocks now stay correct while already inside a raid.
+
+### ❌ Removed
+
+- Dialogs & Confirmations: Removed the `Replace enchant` auto-confirm option because it could block enchant replacements instead of helping.
 
 ---
 
