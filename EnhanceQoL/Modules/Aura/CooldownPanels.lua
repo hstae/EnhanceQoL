@@ -2025,9 +2025,7 @@ function CooldownPanels:ResolveFixedEntryAddOverrides(panel, overrides)
 		end
 		return resolved, nil
 	end
-	if slotColumn and slotRow and not self:IsFixedCellWithinBounds(panel, slotColumn, slotRow) then
-		return nil, L["CooldownPanelFixedTargetInvalid"] or "Target slot is outside the panel bounds."
-	end
+	if slotColumn and slotRow and not self:IsFixedCellWithinBounds(panel, slotColumn, slotRow) then return nil, L["CooldownPanelFixedTargetInvalid"] or "Target slot is outside the panel bounds." end
 	if not (slotColumn and slotRow) or CooldownPanels.GetFixedGroupAtCell(panel, slotColumn, slotRow) or self:GetEntryAtUngroupedFixedCell(panel, slotColumn, slotRow) then
 		slotColumn, slotRow = self:FindFirstFreeUngroupedFixedCell(panel)
 	end
@@ -4578,12 +4576,7 @@ function CooldownPanels:ApplyEntryCooldownTextStyle(icon, layout, entry)
 	local g = fontColor[2] or 1
 	local b = fontColor[3] or 1
 	local a = fontColor[4] or 1
-	if
-		fontString._eqolCooldownColorR ~= r
-		or fontString._eqolCooldownColorG ~= g
-		or fontString._eqolCooldownColorB ~= b
-		or fontString._eqolCooldownColorA ~= a
-	then
+	if fontString._eqolCooldownColorR ~= r or fontString._eqolCooldownColorG ~= g or fontString._eqolCooldownColorB ~= b or fontString._eqolCooldownColorA ~= a then
 		fontString:SetTextColor(r, g, b, a)
 		fontString._eqolCooldownColorR = r
 		fontString._eqolCooldownColorG = g
@@ -4914,13 +4907,7 @@ function CooldownPanels:ResolveEntryPandemicGlowVisual(layout, entry)
 	end
 	if not entry or entry.glowUseGlobal ~= false then return panelCache.color, panelCache.style, panelCache.inset end
 	local cache = CooldownPanels._styleCacheRoots.pandemicGlowEntry[entry]
-	if
-		not cache
-		or cache.panelVersion ~= panelCache.version
-		or cache.srcColor ~= entry.pandemicGlowColor
-		or cache.srcStyle ~= entry.pandemicGlowStyle
-		or cache.srcInset ~= entry.pandemicGlowInset
-	then
+	if not cache or cache.panelVersion ~= panelCache.version or cache.srcColor ~= entry.pandemicGlowColor or cache.srcStyle ~= entry.pandemicGlowStyle or cache.srcInset ~= entry.pandemicGlowInset then
 		cache = cache or {}
 		cache.panelVersion = panelCache.version
 		cache.srcColor = entry.pandemicGlowColor
@@ -10082,7 +10069,9 @@ function CooldownPanels:BuildLayoutFixedGroupStandaloneSettings(panelId, groupId
 				local panel, group = getPanelAndGroup()
 				if not (panel and group) then return end
 				local nextSize = nil
-				if value == true then nextSize = Helper.NormalizeFixedGroupIconSize(group.iconSize) or Helper.ClampInt(panel.layout and panel.layout.iconSize, 12, 128, Helper.PANEL_LAYOUT_DEFAULTS.iconSize) end
+				if value == true then
+					nextSize = Helper.NormalizeFixedGroupIconSize(group.iconSize) or Helper.ClampInt(panel.layout and panel.layout.iconSize, 12, 128, Helper.PANEL_LAYOUT_DEFAULTS.iconSize)
+				end
 				if CooldownPanels:SetFixedGroupIconSize(panelId, groupId, nextSize) then refresh() end
 			end,
 		},
@@ -12455,6 +12444,7 @@ local function refreshPreview(editor, panel)
 		return
 	end
 
+	local panelId = normalizeId(panel.id)
 	local hasEntries = (panel.order and #panel.order or 0) > 0
 	local baseLayout = (panel and panel.layout) or Helper.PANEL_LAYOUT_DEFAULTS
 	local fixedLayout = Helper.IsFixedLayout(baseLayout)
@@ -13697,7 +13687,6 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 	local order = panel.order or {}
 	local fixedSlotCount = 0
 	local fixedGridColumns = 0
-	local fixedGridRows = 0
 	local fixedLayoutCache = fixedLayout and Helper.GetFixedLayoutCache and Helper.GetFixedLayoutCache(panel) or nil
 	local fixedGroups = fixedLayout and (fixedLayoutCache and fixedLayoutCache.groups or CooldownPanels.GetFixedGroups(panel)) or nil
 	local fixedGroupById = fixedLayout and (fixedLayoutCache and fixedLayoutCache.groupById or {}) or nil
@@ -13708,9 +13697,8 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 		if fixedLayoutCache then
 			fixedSlotCount = fixedLayoutCache.slotCount or 0
 			fixedGridColumns = fixedLayoutCache.boundsColumns or 0
-			fixedGridRows = fixedLayoutCache.boundsRows or 0
 		else
-			_, fixedSlotCount, fixedGridColumns, fixedGridRows = Helper.BuildFixedSlotEntryIds(panel, nil, false)
+			_, fixedSlotCount, fixedGridColumns = Helper.BuildFixedSlotEntryIds(panel, nil, false)
 		end
 		if fixedGroups and fixedGroupById and not fixedLayoutCache then
 			for i = 1, #fixedGroups do
@@ -13786,8 +13774,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			local showEntryIconTexture = self:ResolveEntryShowIconTexture(entryLayout, entry)
 			local showGhostIcon = self:ShouldShowEditorGhostIcon(entryLayout, entry, showEntryIconTexture, layoutEditActive)
 			local entryNoDesaturation = self:ResolveEntryNoDesaturation(entryLayout, entry)
-			local entryShowChargesCooldown, entryDrawEdge, entryDrawBling, entryDrawSwipe, entryGcdDrawEdge, entryGcdDrawBling, entryGcdDrawSwipe =
-				self:ResolveEntryCooldownVisuals(entryLayout, entry)
+			local entryShowChargesCooldown, entryDrawEdge, entryDrawBling, entryDrawSwipe, entryGcdDrawEdge, entryGcdDrawBling, entryGcdDrawSwipe = self:ResolveEntryCooldownVisuals(entryLayout, entry)
 			local cdmAuraActiveGlow = entry.type == "CDM_AURA" and entry.glowReady == true
 			local cdmAuraPandemicGlow = entry.type == "CDM_AURA" and entry.pandemicGlow == true
 			local glowReady = entry.type ~= "MACRO" and entry.type ~= "CDM_AURA" and entry.glowReady ~= false
@@ -14061,7 +14048,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			if show then
 				visibleCount = visibleCount + 1
 				local targetIndex = visibleCount
-				local data
+				local data = nil
 				if fixedLayout then
 					local fixedGroup = entry.fixedGroupId and fixedGroupById and fixedGroupById[entry.fixedGroupId] or nil
 					if fixedGroup then
@@ -14071,9 +14058,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 							local groupVisibleCount = (fixedGroupVisibleCounts[fixedGroup.id] or 0) + 1
 							fixedGroupVisibleCounts[fixedGroup.id] = groupVisibleCount
 							targetIndex = fixedGroup._eqolDynamicTargetIndices and fixedGroup._eqolDynamicTargetIndices[groupVisibleCount] or nil
-							if not (targetIndex and targetIndex <= fixedSlotCount) then
-								targetIndex = nil
-							end
+							if not (targetIndex and targetIndex <= fixedSlotCount) then targetIndex = nil end
 						end
 					else
 						targetIndex = fixedStaticTargetIndices and fixedStaticTargetIndices[entryId] or nil
