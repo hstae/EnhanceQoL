@@ -617,11 +617,13 @@ function addon.functions.initQuest()
 			if addon.db.autoTurnInQuestModifier == nil then addon.db.autoTurnInQuestModifier = addon.db.autoChooseQuestModifier end
 			addon.db.autoChooseQuestModifier = nil
 		end
-		if type(addon.db.questAutomationFiltersAccept) ~= "table" then
+		local hadQuestAutomationFiltersAccept = type(addon.db.questAutomationFiltersAccept) == "table"
+		local hadQuestAutomationFiltersTurnIn = type(addon.db.questAutomationFiltersTurnIn) == "table"
+		if not hadQuestAutomationFiltersAccept then
 			local legacyAccept = type(addon.db.questAutomationFilters) == "table" and addon.db.questAutomationFilters.accept or nil
 			addon.db.questAutomationFiltersAccept = type(legacyAccept) == "table" and legacyAccept or {}
 		end
-		if type(addon.db.questAutomationFiltersTurnIn) ~= "table" then
+		if not hadQuestAutomationFiltersTurnIn then
 			local legacyTurnIn = type(addon.db.questAutomationFilters) == "table" and addon.db.questAutomationFilters.turnIn or nil
 			addon.db.questAutomationFiltersTurnIn = type(legacyTurnIn) == "table" and legacyTurnIn or {}
 		end
@@ -633,10 +635,14 @@ function addon.functions.initQuest()
 			}
 			for key, enabled in pairs(legacyFilters) do
 				if enabled then
-					if addon.db.questAutomationFiltersAccept[key] == nil then addon.db.questAutomationFiltersAccept[key] = true end
-					if addon.db.questAutomationFiltersTurnIn[key] == nil then addon.db.questAutomationFiltersTurnIn[key] = true end
+					if not hadQuestAutomationFiltersAccept and addon.db.questAutomationFiltersAccept[key] == nil then addon.db.questAutomationFiltersAccept[key] = true end
+					if not hadQuestAutomationFiltersTurnIn and addon.db.questAutomationFiltersTurnIn[key] == nil then addon.db.questAutomationFiltersTurnIn[key] = true end
 				end
 			end
+			-- Clear one-way legacy migration flags so they no longer override the new filter tables.
+			addon.db.ignoreDailyQuests = nil
+			addon.db.ignoreTrivialQuests = nil
+			addon.db.ignoreWarbandCompleted = nil
 		end
 	end
 
