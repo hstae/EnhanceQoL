@@ -2,6 +2,7 @@ local addonName, addon = ...
 
 local L = LibStub("AceLocale-3.0"):GetLocale(addonName)
 local LMP = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_MythicPlus")
+local issecretvalue = _G.issecretvalue
 
 ---- REGION Functions
 local timeoutReleaseDifficultyLookup = {}
@@ -467,24 +468,33 @@ function addon.functions.initDungeonFrame()
 	-- Add Raider.IO URL to LFG applicant member context menu
 	if Menu and Menu.ModifyMenu then
 		local regionTable = { "US", "KR", "EU", "TW", "CN" }
+		local function trimNamePart(value)
+			if issecretvalue and issecretvalue(value) then return nil end
+			if type(value) ~= "string" then return nil end
+			value = value:gsub("^%s+", ""):gsub("%s+$", "")
+			if value == "" then return nil end
+			return value
+		end
+
 		local function AddLFGApplicantRIO(owner, root, ctx)
 			if not addon.db["enableChatIMRaiderIO"] then return end
 
 			local appID = owner and owner._eqolApplicantID or (ctx and (ctx.applicantID or ctx.appID))
 			local memberIdx = owner and owner._eqolMemberIdx or (ctx and (ctx.memberIdx or ctx.memberIndex))
+			if issecretvalue and (issecretvalue(appID) or issecretvalue(memberIdx)) then return end
 			if not appID or not memberIdx then return end
 
 			local name = C_LFGList and C_LFGList.GetApplicantMemberInfo and C_LFGList.GetApplicantMemberInfo(appID, memberIdx)
+			if issecretvalue and issecretvalue(name) then return end
 			if type(name) ~= "string" or name == "" then return end
 
-			local targetName = name
-			if not targetName:find(" -", 1, true) then targetName = targetName .. " -" .. (GetRealmName() or ""):gsub("%s", "") end
-
-			local char, realm = targetName:match("^([^%-]+)%-(.+)$")
+			local char, realm = name:match("^%s*([^%-]+)%s*%-%s*(.-)%s*$")
+			char = trimNamePart(char) or trimNamePart(name)
+			realm = trimNamePart(realm) or trimNamePart(GetRealmName() or "")
 			if not char or not realm then return end
 
 			local regionKey = regionTable[GetCurrentRegion()] or "EU"
-			local realmSlug = string.lower((realm or ""):gsub("%s+", " -"))
+			local realmSlug = realm:gsub("%s+", "-"):lower()
 			local riolink = "https://raider.io/characters/" .. string.lower(regionKey) .. "/" .. realmSlug .. "/" .. char
 
 			root:CreateDivider()

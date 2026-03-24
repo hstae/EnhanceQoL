@@ -22,6 +22,7 @@
 
 ### 🐛 Fixed
 
+- Group Finder (Raider.IO applicant link): Fixed the LFG applicant context-menu URL builder for cross-realm names so Raider.IO profile links no longer pick up the player's own realm, and skip link generation entirely when the applicant identity is secret.
 - Gear & Upgrades (Equipment Flyout): Added a separate item-level position setting for equipment flyouts and stopped reusing the Character Frame `Outside` placement there, so upgrade/replace comparisons no longer end up in confusing off-slot positions.
 - Unit Frames (Player): Fixed the player-frame name sometimes staying empty after login or loading screens by refreshing the label again when the EQoL frame is shown and once more after entering the world.
 - Unit Frames / Group Frames: Main group anchors and secure headers are now clamped to the screen so moved layouts cannot be dragged off-screen as easily.
