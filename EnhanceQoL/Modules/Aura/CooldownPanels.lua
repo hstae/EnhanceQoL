@@ -36,6 +36,27 @@ CooldownPanels.CDM_AURA_ALWAYS_SHOW_MODE = CooldownPanels.CDM_AURA_ALWAYS_SHOW_M
 	DESATURATE = "DESATURATE",
 }
 
+CooldownPanels.POWER_TYPE_TOKEN_BY_ID = CooldownPanels.POWER_TYPE_TOKEN_BY_ID
+	or {
+		[0] = "MANA",
+		[1] = "RAGE",
+		[2] = "FOCUS",
+		[3] = "ENERGY",
+		[4] = "COMBO_POINTS",
+		[5] = "RUNES",
+		[6] = "RUNIC_POWER",
+		[7] = "SOUL_SHARDS",
+		[8] = "LUNAR_POWER",
+		[9] = "HOLY_POWER",
+		[10] = "ALTERNATE",
+		[11] = "MAELSTROM",
+		[12] = "CHI",
+		[13] = "INSANITY",
+		[17] = "FURY",
+		[18] = "PAIN",
+		[19] = "ESSENCE",
+	}
+
 CooldownPanels.itemHighestRankByID = CooldownPanels.itemHighestRankByID
 	or {
 		-- Potion of Recklessness (rank1 -> rank2)
@@ -225,6 +246,23 @@ function CooldownPanels.ResolveEntryItemID(entry, itemID)
 	local rankMap = CooldownPanels.itemHighestRankByID
 	local group = rankMap and rankMap[numericID]
 	if not group then return numericID end
+	local runtime = CooldownPanels.runtime
+	local itemCountCache = runtime and runtime.itemCountCache or nil
+	local missingCache = false
+	if itemCountCache then
+		for i = #group, 1, -1 do
+			local candidateID = tonumber(group[i])
+			if candidateID then
+				local cached = itemCountCache[candidateID]
+				if cached and cached.count ~= nil then
+					if cached.count > 0 then return candidateID end
+				else
+					missingCache = true
+				end
+			end
+		end
+		if not missingCache then return numericID end
+	end
 	for i = #group, 1, -1 do
 		local candidateID = group[i]
 		local count = Api.GetItemCount(candidateID, false, false) or 0
@@ -514,9 +552,18 @@ local function getSpellPowerCostNamesFromCosts(costs)
 	local names, seen = {}, {}
 	for _, info in ipairs(costs) do
 		local name = info and info.name
-		if type(name) == "string" and name ~= "" and not seen[name] then
-			seen[name] = true
-			names[#names + 1] = name
+		if type(name) == "string" and name ~= "" then
+			local upperName = string.upper(name)
+			if upperName ~= "" and not seen[upperName] then
+				seen[upperName] = true
+				names[#names + 1] = upperName
+			end
+		end
+		local powerType = info and tonumber(info.type)
+		local token = powerType and CooldownPanels.POWER_TYPE_TOKEN_BY_ID and CooldownPanels.POWER_TYPE_TOKEN_BY_ID[powerType] or nil
+		if token and token ~= "" and not seen[token] then
+			seen[token] = true
+			names[#names + 1] = token
 		end
 	end
 	if #names == 0 then return nil end
@@ -3600,7 +3647,10 @@ function CooldownPanels:RebuildSpellIndex()
 	local enabledPanelIdsBySpec = {}
 	local itemPanels = {}
 	local itemUsesPanels = {}
+	local itemTrackedIds = {}
+	local itemUsesTrackedIds = {}
 	local rangeCheckSpells = {}
+	self:EnsureFoodRankGroupsLoaded()
 	local activeSpecId = getPlayerSpecId()
 	local classSpecs = getPlayerClassSpecMap()
 	if classSpecs then
@@ -3640,6 +3690,7 @@ function CooldownPanels:RebuildSpellIndex()
 				local wantsRangeCheck = layout and layout.rangeOverlayEnabled == true
 				for _, entry in pairs(panel.entries or {}) do
 					local spellId
+					local trackedItemId
 					if entry and entry.type == "SPELL" and entry.spellID then
 						spellId = tonumber(entry.spellID)
 					elseif entry and entry.type == "MACRO" then
@@ -3649,7 +3700,10 @@ function CooldownPanels:RebuildSpellIndex()
 						elseif macro and macro.kind == "ITEM" and entry.showCooldown ~= false then
 							itemPanels[panelId] = true
 						end
-						if macro and macro.kind == "ITEM" and entry.showItemUses == true then itemUsesPanels[panelId] = true end
+						if macro and macro.kind == "ITEM" then
+							trackedItemId = tonumber(macro.itemID)
+							if entry.showItemUses == true then itemUsesPanels[panelId] = true end
+						end
 					end
 					if spellId then
 						local effectiveId = getEffectiveSpellId(spellId) or spellId
@@ -3665,6 +3719,29 @@ function CooldownPanels:RebuildSpellIndex()
 					end
 					if entry and (entry.type == "ITEM" or entry.type == "SLOT") and entry.showCooldown ~= false then itemPanels[panelId] = true end
 					if entry and entry.type == "ITEM" and entry.showItemUses == true then itemUsesPanels[panelId] = true end
+					if entry and entry.type == "ITEM" then trackedItemId = tonumber(entry.itemID) or trackedItemId end
+					if trackedItemId then
+						local trackUses = entry and entry.showItemUses == true
+						local tracked = false
+						if entry and entry.type == "ITEM" and entry.useHighestRank == true then
+							local rankMap = self.itemHighestRankByID
+							local group = rankMap and rankMap[trackedItemId] or nil
+							if type(group) == "table" then
+								for i = 1, #group do
+									local candidateId = tonumber(group[i])
+									if candidateId then
+										itemTrackedIds[candidateId] = true
+										if trackUses then itemUsesTrackedIds[candidateId] = true end
+										tracked = true
+									end
+								end
+							end
+						end
+						if not tracked then
+							itemTrackedIds[trackedItemId] = true
+							if trackUses then itemUsesTrackedIds[trackedItemId] = true end
+						end
+					end
 				end
 			end
 		end
@@ -3685,6 +3762,8 @@ function CooldownPanels:RebuildSpellIndex()
 	runtime.enabledPanelIds = enabledPanelIds
 	runtime.itemPanels = itemPanels
 	runtime.itemUsesPanels = itemUsesPanels
+	runtime.itemTrackedIds = itemTrackedIds
+	runtime.itemUsesTrackedIds = itemUsesTrackedIds
 	if updateRangeCheckSpells then updateRangeCheckSpells(rangeCheckSpells) end
 	self:RebuildPowerIndex()
 	self:RebuildChargesIndex()
@@ -3702,6 +3781,7 @@ function CooldownPanels:RebuildPowerIndex()
 	local powerIndex = {}
 	local powerCostNames = {}
 	local powerCheckSpells = {}
+	local powerPanelsBySpell = {}
 	local powerCheckActive = false
 	if root and root.panels then
 		if enabledPanelIds then
@@ -3732,6 +3812,8 @@ function CooldownPanels:RebuildPowerIndex()
 								local effectiveId = getEffectiveSpellId(baseId) or baseId
 								if not isSpellPassiveSafe(baseId, effectiveId) then
 									powerCheckSpells[effectiveId] = true
+									powerPanelsBySpell[effectiveId] = powerPanelsBySpell[effectiveId] or {}
+									powerPanelsBySpell[effectiveId][panelId] = true
 									local costs = Api.GetSpellPowerCost and Api.GetSpellPowerCost(effectiveId)
 									if type(costs) == "table" then
 										local names = getSpellPowerCostNamesFromCosts(costs)
@@ -3779,6 +3861,8 @@ function CooldownPanels:RebuildPowerIndex()
 								local effectiveId = getEffectiveSpellId(baseId) or baseId
 								if not isSpellPassiveSafe(baseId, effectiveId) then
 									powerCheckSpells[effectiveId] = true
+									powerPanelsBySpell[effectiveId] = powerPanelsBySpell[effectiveId] or {}
+									powerPanelsBySpell[effectiveId][normalizedPanelId] = true
 									local costs = Api.GetSpellPowerCost and Api.GetSpellPowerCost(effectiveId)
 									if type(costs) == "table" then
 										local names = getSpellPowerCostNamesFromCosts(costs)
@@ -3807,6 +3891,7 @@ function CooldownPanels:RebuildPowerIndex()
 	runtime.powerIndex = powerIndex
 	runtime.powerCostNames = powerCostNames
 	runtime.powerCheckSpells = powerCheckSpells
+	runtime.powerPanelsBySpell = powerPanelsBySpell
 	runtime.powerCheckActive = powerCheckActive == true
 	runtime.powerInsufficient = runtime.powerInsufficient or {}
 	wipe(runtime.powerInsufficient)
@@ -6070,11 +6155,6 @@ local function hasItem(itemID)
 end
 
 local function itemHasUseSpell(itemID) return CooldownPanels.GetItemUseSpellID and CooldownPanels:GetItemUseSpellID(itemID) ~= nil or false end
-
-local function clearItemUseSpellCache()
-	local runtime = CooldownPanels.runtime
-	if runtime and runtime.itemUseSpellCache then wipe(runtime.itemUseSpellCache) end
-end
 
 local function createPanelFrame(panelId, panel)
 	local frame = CreateFrame("Button", "EQOL_CooldownPanel" .. tostring(panelId), UIParent)
@@ -13527,35 +13607,32 @@ CooldownPanels.IsAssistedSuggestedSpell = function(assistedSuggestedSpellId, ass
 	return false
 end
 
-local function updateItemCountCache()
+local function updateItemCountCache(usesOnly)
 	CooldownPanels.runtime = CooldownPanels.runtime or {}
 	local runtime = CooldownPanels.runtime
-	local root = ensureRoot()
-	if not root or not root.panels then return false end
-	clearItemUseSpellCache()
 	runtime.itemCountCache = runtime.itemCountCache or {}
 	local cache = runtime.itemCountCache
-	local seen = {}
-	for _, panel in pairs(root.panels) do
-		for _, entry in pairs(panel and panel.entries or {}) do
-			local itemId
-			if entry and entry.type == "ITEM" and entry.itemID then
-				itemId = CooldownPanels.ResolveEntryItemID(entry, entry.itemID)
-			elseif entry and entry.type == "MACRO" then
-				local macro = CooldownPanels.ResolveMacroEntry(entry)
-				if macro and macro.kind == "ITEM" and macro.itemID then itemId = macro.itemID end
-			end
-			if itemId then
-				local id = itemId
-				seen[id] = true
-				local count = Api.GetItemCount(id, false, false) or 0
-				local uses = Api.GetItemCount(id, false, true) or 0
-				cache[id] = { count = count, uses = uses }
-			end
+	local trackedIds = usesOnly == true and runtime.itemUsesTrackedIds or runtime.itemTrackedIds
+	local trackedUsesIds = runtime.itemUsesTrackedIds
+	if not trackedIds or not next(trackedIds) then
+		if usesOnly == true then return false end
+		for id in pairs(cache) do
+			cache[id] = nil
 		end
+		return false
 	end
 	for id in pairs(cache) do
-		if not seen[id] then cache[id] = nil end
+		if not trackedIds[id] then cache[id] = nil end
+	end
+	for id in pairs(trackedIds) do
+		local slot = cache[id] or {}
+		if usesOnly ~= true then slot.count = Api.GetItemCount(id, false, false) or 0 end
+		if trackedUsesIds and trackedUsesIds[id] then
+			slot.uses = Api.GetItemCount(id, false, true) or 0
+		elseif usesOnly ~= true then
+			slot.uses = nil
+		end
+		cache[id] = slot
 	end
 	return true
 end
@@ -13565,10 +13642,14 @@ updateItemCountCacheForItem = function(itemID)
 	CooldownPanels.runtime = CooldownPanels.runtime or {}
 	local runtime = CooldownPanels.runtime
 	runtime.itemCountCache = runtime.itemCountCache or {}
-	if runtime.itemUseSpellCache then runtime.itemUseSpellCache[itemID] = nil end
-	local count = Api.GetItemCount(itemID, false, false) or 0
-	local uses = Api.GetItemCount(itemID, false, true) or 0
-	runtime.itemCountCache[itemID] = { count = count, uses = uses }
+	local slot = runtime.itemCountCache[itemID] or {}
+	slot.count = Api.GetItemCount(itemID, false, false) or 0
+	if runtime.itemUsesTrackedIds and runtime.itemUsesTrackedIds[itemID] then
+		slot.uses = Api.GetItemCount(itemID, false, true) or 0
+	else
+		slot.uses = nil
+	end
+	runtime.itemCountCache[itemID] = slot
 end
 
 function CooldownPanels:UpdateRuntimeIcons(panelId)
@@ -13669,21 +13750,6 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 	end
 	local visibleSlotIndices = fixedLayout and (runtime._eqolScratchOccupiedSlotIndices or {}) or nil
 	local visibleSlotCount = 0
-	local visiblePowerSpells = runtime.visiblePowerSpells
-	if not visiblePowerSpells then
-		visiblePowerSpells = {}
-		runtime.visiblePowerSpells = visiblePowerSpells
-	end
-	local visiblePowerSpellCount = 0
-	local visiblePowerSpellSeen = runtime._eqolVisiblePowerSpellSeen
-	if not visiblePowerSpellSeen then
-		visiblePowerSpellSeen = {}
-		runtime._eqolVisiblePowerSpellSeen = visiblePowerSpellSeen
-	end
-	for spellId in pairs(visiblePowerSpellSeen) do
-		visiblePowerSpellSeen[spellId] = nil
-	end
-
 	local order = panel.order or {}
 	local fixedSlotCount = 0
 	local fixedGridColumns = 0
@@ -13843,7 +13909,6 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			local show = false
 			local cooldownEnabledOk = true
 			local emptyItem = false
-			local hiddenByNoResource = false
 			local canTriggerReadyGlow = false
 			local spellReadyCondition
 
@@ -13943,6 +14008,11 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			elseif resolvedType == "ITEM" and resolvedItemId then
 				local itemCache = shared and shared.itemCountCache
 				local cached = itemCache and itemCache[resolvedItemId]
+				if not cached then
+					updateItemCountCacheForItem(resolvedItemId)
+					itemCache = shared and shared.itemCountCache
+					cached = itemCache and itemCache[resolvedItemId]
+				end
 				local cachedCount = cached and cached.count
 				local cachedUses = cached and cached.uses
 				local ownsItem
@@ -13964,13 +14034,11 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 					if showItemCount then
 						local count = cachedCount
 						if count == nil then
-							count = Api.GetItemCount(resolvedItemId, false, false) or 0
-							if itemCache then
-								local slot = itemCache[resolvedItemId] or {}
-								slot.count = count
-								if slot.uses == nil then slot.uses = cachedUses end
-								itemCache[resolvedItemId] = slot
-							end
+							updateItemCountCacheForItem(resolvedItemId)
+							itemCache = shared and shared.itemCountCache
+							cached = itemCache and itemCache[resolvedItemId]
+							count = cached and cached.count or 0
+							cachedUses = cached and cached.uses
 						end
 						if isSafeGreaterThan(count, 0) then
 							itemCount = count
@@ -13981,13 +14049,10 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 					if showItemUses then
 						local uses = cachedUses
 						if uses == nil then
-							uses = Api.GetItemCount(resolvedItemId, false, true) or 0
-							if itemCache then
-								local slot = itemCache[resolvedItemId] or {}
-								slot.uses = uses
-								if slot.count == nil then slot.count = cachedCount end
-								itemCache[resolvedItemId] = slot
-							end
+							updateItemCountCacheForItem(resolvedItemId)
+							itemCache = shared and shared.itemCountCache
+							cached = itemCache and itemCache[resolvedItemId]
+							uses = cached and cached.uses or 0
 						end
 						if isSafeGreaterThan(uses, 0) then
 							itemUses = uses
@@ -14039,10 +14104,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 					show = cdmAuraData.show == true
 				end
 			end
-			if show and hideWhenNoResource and resourceInsufficient then
-				hiddenByNoResource = true
-				show = false
-			end
+			if show and hideWhenNoResource and resourceInsufficient then show = false end
 			if layoutEditActive then show = true end
 
 			if show then
@@ -14183,14 +14245,6 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 				data.cdmAuraUsesExpirationTime = cdmAuraData and cdmAuraData.cooldownUsesExpirationTime == true
 				data.cdmAuraUsesStartTime = cdmAuraData and cdmAuraData.cooldownUsesStartTime == true
 			end
-			if powerCheckSpells and resolvedType == "SPELL" and (entryCheckPower or hideWhenNoResource or readyGlowCheckPower) and (show or hiddenByNoResource) then
-				local spellId = effectiveSpellId or baseSpellId
-				if spellId and powerCheckSpells[spellId] and not visiblePowerSpellSeen[spellId] then
-					visiblePowerSpellSeen[spellId] = true
-					visiblePowerSpellCount = visiblePowerSpellCount + 1
-					visiblePowerSpells[visiblePowerSpellCount] = spellId
-				end
-			end
 		end
 	end
 
@@ -14206,11 +14260,6 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			visible[i] = nil
 		end
 	end
-	for i = visiblePowerSpellCount + 1, #visiblePowerSpells do
-		visiblePowerSpells[i] = nil
-	end
-	runtime.visiblePowerSpellCount = visiblePowerSpellCount
-
 	local count = fixedLayout and fixedSlotCount or visibleCount
 	local layoutCount = count > 0 and count or 1
 	local layoutShapeChanged = didLayoutShapeChange(runtime, layout, layoutCount)
@@ -17663,45 +17712,55 @@ refreshPanelsForCharges = function()
 	return false
 end
 
-local function updatePowerStatesVisible()
+local function updatePowerStatesVisible(powerTokens)
 	if not Api.IsSpellUsableFn then return false end
 	local runtime = CooldownPanels.runtime
+	local powerIndex = runtime and runtime.powerIndex
 	local powerCheckSpells = runtime and runtime.powerCheckSpells
-	local enabledPanels = runtime and runtime.enabledPanels
-	if not powerCheckSpells or not runtime.powerCheckActive or not enabledPanels then return false end
+	local powerPanelsBySpell = runtime and runtime.powerPanelsBySpell
+	if not powerCheckSpells or not runtime.powerCheckActive then return false end
 	runtime.powerInsufficient = runtime.powerInsufficient or {}
 	runtime.spellUnusable = runtime.spellUnusable or {}
-	runtime._eqolPowerCheckedScratch = runtime._eqolPowerCheckedScratch or {}
+	runtime._eqolPowerCheckSpellsScratch = runtime._eqolPowerCheckSpellsScratch or {}
 	runtime._eqolPowerChangedScratch = runtime._eqolPowerChangedScratch or {}
-	local checked = runtime._eqolPowerCheckedScratch
+	local spellsToCheck = runtime._eqolPowerCheckSpellsScratch
 	local changedBySpell = runtime._eqolPowerChangedScratch
-	for spellId in pairs(checked) do
-		checked[spellId] = nil
+	for spellId in pairs(spellsToCheck) do
+		spellsToCheck[spellId] = nil
 	end
 	for spellId in pairs(changedBySpell) do
 		changedBySpell[spellId] = nil
 	end
-	local panelsToRefresh
-	for panelId in pairs(enabledPanels) do
-		local panelRuntime = runtime[panelId]
-		local spellList = panelRuntime and panelRuntime.visiblePowerSpells
-		local spellCount = panelRuntime and panelRuntime.visiblePowerSpellCount or 0
-		if spellList and spellCount > 0 then
-			local panelChanged = false
-			for i = 1, spellCount do
-				local effectiveId = spellList[i]
-				if effectiveId and powerCheckSpells[effectiveId] then
-					if not checked[effectiveId] then
-						checked[effectiveId] = true
-						local isUsable, insufficientPower = Api.IsSpellUsableFn(effectiveId)
-						changedBySpell[effectiveId] = setPowerInsufficient(runtime, effectiveId, isUsable, insufficientPower) == true
-					end
-					if changedBySpell[effectiveId] then panelChanged = true end
+	local checkAll = true
+	if powerTokens and next(powerTokens) and powerIndex and next(powerIndex) then
+		checkAll = false
+		for token in pairs(powerTokens) do
+			local bucket = token and powerIndex[token] or nil
+			if bucket then
+				for spellId in pairs(bucket) do
+					spellsToCheck[spellId] = true
 				end
+			else
+				checkAll = true
+				break
 			end
-			if panelChanged then
-				panelsToRefresh = panelsToRefresh or {}
-				panelsToRefresh[panelId] = true
+		end
+		if not checkAll and not next(spellsToCheck) then checkAll = true end
+	end
+	local panelsToRefresh
+	local spellMap = checkAll and powerCheckSpells or spellsToCheck
+	for effectiveId in pairs(spellMap) do
+		if powerCheckSpells[effectiveId] then
+			local isUsable, insufficientPower = Api.IsSpellUsableFn(effectiveId)
+			changedBySpell[effectiveId] = setPowerInsufficient(runtime, effectiveId, isUsable, insufficientPower) == true
+			if changedBySpell[effectiveId] then
+				local panels = powerPanelsBySpell and powerPanelsBySpell[effectiveId] or nil
+				if panels then
+					panelsToRefresh = panelsToRefresh or {}
+					for panelId in pairs(panels) do
+						panelsToRefresh[panelId] = true
+					end
+				end
 			end
 		end
 	end
@@ -17717,16 +17776,32 @@ local function updatePowerStatesVisible()
 	return true
 end
 
-local function schedulePowerUsableRefresh()
+local function schedulePowerUsableRefresh(powerToken)
 	local runtime = CooldownPanels.runtime
 	if not runtime or not runtime.powerCheckActive then return end
+	runtime._eqolPendingPowerTokens = runtime._eqolPendingPowerTokens or {}
+	local pendingTokens = runtime._eqolPendingPowerTokens
+	if type(powerToken) == "string" and powerToken ~= "" then
+		pendingTokens[string.upper(powerToken)] = true
+	else
+		runtime._eqolPendingPowerFull = true
+	end
 	if runtime.powerRefreshPending then return end
 	runtime.powerRefreshPending = true
 	C_Timer.After(CooldownPanels.POWER_USABLE_REFRESH_DELAY, function()
 		local rt = CooldownPanels.runtime
 		if not rt then return end
+		local pending = rt._eqolPendingPowerTokens
+		local pendingFull = rt._eqolPendingPowerFull == true
 		rt.powerRefreshPending = nil
-		updatePowerStatesVisible()
+		rt._eqolPendingPowerFull = nil
+		updatePowerStatesVisible(pendingFull and nil or pending)
+		rt._eqolPendingPowerTokens = rt._eqolPendingPowerTokens or {}
+		if pending and next(pending) then
+			for token in pairs(pending) do
+				rt._eqolPendingPowerTokens[token] = nil
+			end
+		end
 	end)
 end
 
@@ -18212,9 +18287,9 @@ local function ensureUpdateFrame()
 			return
 		end
 		if event == "UNIT_POWER_UPDATE" then
-			local unit = ...
+			local unit, powerType = ...
 			if unit ~= "player" then return end
-			schedulePowerUsableRefresh()
+			schedulePowerUsableRefresh(powerType)
 			return
 		end
 		if event == "SPELL_UPDATE_ICON" then
@@ -18225,7 +18300,7 @@ local function ensureUpdateFrame()
 			local itemPanels = runtime and runtime.itemPanels
 			if not itemPanels or not next(itemPanels) then return end
 			local itemUsesPanels = runtime and runtime.itemUsesPanels
-			if itemUsesPanels and next(itemUsesPanels) then updateItemCountCache() end
+			if itemUsesPanels and next(itemUsesPanels) then updateItemCountCache(true) end
 			for panelId in pairs(itemPanels) do
 				if CooldownPanels:GetPanel(panelId) then CooldownPanels:RefreshPanel(panelId) end
 			end
@@ -18479,6 +18554,7 @@ function CooldownPanels:Init()
 	if self.InitStanceTracker then self:InitStanceTracker() end
 	self:NormalizeAll()
 	self:EnsureEditMode()
+	self:RebuildSpellIndex()
 	updateItemCountCache()
 	if CooldownPanels.refreshAssistedHighlightCVarState then CooldownPanels.refreshAssistedHighlightCVarState(nil, true) end
 	Keybinds.RebuildPanels()
