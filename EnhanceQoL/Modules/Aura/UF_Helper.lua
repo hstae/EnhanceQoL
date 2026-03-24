@@ -1068,6 +1068,9 @@ function H.buildHighlightConfig(cfg, def)
 	local mouseover = hcfg.mouseover
 	if mouseover == nil then mouseover = hdef.mouseover end
 	if mouseover == nil then mouseover = true end
+	local target = hcfg.target
+	if target == nil then target = hdef.target end
+	if target == nil then target = false end
 	local aggro = hcfg.aggro
 	if aggro == nil then aggro = hdef.aggro end
 	if aggro == nil then aggro = true end
@@ -1082,6 +1085,7 @@ function H.buildHighlightConfig(cfg, def)
 	return {
 		enabled = true,
 		mouseover = mouseover == true,
+		target = target == true,
 		aggro = aggro == true,
 		texture = texture,
 		size = size,
@@ -1141,6 +1145,8 @@ function H.updateHighlight(st, unit, playerUnit)
 	end
 	local show = false
 	if cfg.mouseover and st._hovered then
+		show = true
+	elseif cfg.target and UnitIsUnit and UnitExists and UnitExists("target") and UnitExists(unit) and UnitIsUnit(unit, "target") then
 		show = true
 	elseif cfg.aggro and (unit == (playerUnit or "player") or unit == "pet") and hasAggro(unit) then
 		show = true

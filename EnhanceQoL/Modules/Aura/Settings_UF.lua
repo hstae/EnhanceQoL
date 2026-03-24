@@ -2610,9 +2610,7 @@ addon.Aura.GetUFPowerLabel = getPowerLabel
 
 local function appendIncomingHealSettings(list, unit, healthDef, textureOpts, refresh, refreshSettingsUI)
 	local incomingHealColorDef = healthDef.incomingHealColor or { 0.2, 0.85, 0.35, 0.45 }
-	local function isIncomingHealEnabled()
-		return getValue(unit, { "health", "incomingHealEnabled" }, healthDef.incomingHealEnabled == true) == true
-	end
+	local function isIncomingHealEnabled() return getValue(unit, { "health", "incomingHealEnabled" }, healthDef.incomingHealEnabled == true) == true end
 	local function refreshIncomingHealRegistration()
 		if UF and UF.Refresh then
 			UF.Refresh()
@@ -2622,17 +2620,11 @@ local function appendIncomingHealSettings(list, unit, healthDef, textureOpts, re
 	end
 
 	list[#list + 1] = { name = L["Incoming heals"] or "Incoming heals", kind = settingType.Collapsible, id = "incomingHeal", defaultCollapsed = true }
-	list[#list + 1] = checkbox(
-		L["Show incoming heal bar"] or "Show incoming heal bar",
-		isIncomingHealEnabled,
-		function(val)
-			setValue(unit, { "health", "incomingHealEnabled" }, val and true or false)
-			refreshIncomingHealRegistration()
-			refreshSettingsUI()
-		end,
-		healthDef.incomingHealEnabled == true,
-		"incomingHeal"
-	)
+	list[#list + 1] = checkbox(L["Show incoming heal bar"] or "Show incoming heal bar", isIncomingHealEnabled, function(val)
+		setValue(unit, { "health", "incomingHealEnabled" }, val and true or false)
+		refreshIncomingHealRegistration()
+		refreshSettingsUI()
+	end, healthDef.incomingHealEnabled == true, "incomingHeal")
 
 	list[#list + 1] = checkbox(
 		L["Show sample incoming heals"] or "Show sample incoming heals",
@@ -3089,6 +3081,18 @@ local function buildUnitSettings(unit)
 			refresh()
 		end,
 		highlightDef.mouseover ~= false,
+		"highlight",
+		isHighlightEnabled
+	)
+
+	list[#list + 1] = checkbox(
+		L["Enable target highlight"] or "Enable target highlight",
+		function() return getValue(unit, { "highlight", "target" }, highlightDef.target == true) == true end,
+		function(val)
+			setValue(unit, { "highlight", "target" }, val and true or false)
+			refresh()
+		end,
+		highlightDef.target == true,
 		"highlight",
 		isHighlightEnabled
 	)
@@ -8001,7 +8005,11 @@ local function registerSettingsUI()
 		end,
 		parentSection = standalonePrivateAuraExpandable,
 	})
-	addon.functions.SettingsCreateText(cUF, L["UFStandalonePrivateAurasHint"] or "Configure placement, size, wrapping, and display options in Edit Mode.", { parentSection = standalonePrivateAuraExpandable })
+	addon.functions.SettingsCreateText(
+		cUF,
+		L["UFStandalonePrivateAurasHint"] or "Configure placement, size, wrapping, and display options in Edit Mode.",
+		{ parentSection = standalonePrivateAuraExpandable }
+	)
 	addon.functions.SettingsCreateButton(cUF, {
 		var = "ufStandalonePrivateAurasEditMode",
 		text = _G.HUD_EDIT_MODE_MENU or L["CooldownPanelEditModeButton"] or "Edit Mode",

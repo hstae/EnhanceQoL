@@ -945,6 +945,7 @@ local defaults = {
 		highlight = {
 			enabled = false,
 			mouseover = true,
+			target = false,
 			aggro = true,
 			texture = "DEFAULT",
 			size = 2,
@@ -9143,6 +9144,7 @@ onEvent = function(self, event, unit, ...)
 			AuraUtil.updateTargetAuraIcons()
 			if totCfg.enabled then updateTargetTargetFrame(totCfg) end
 			if focusCfg.enabled then updateFocusFrame(focusCfg) end
+			if UFHelper and UFHelper.updateAllHighlights then UFHelper.updateAllHighlights(states, UNIT, maxBossFrames) end
 			return
 		end
 		if UnitExists(unitToken) then
@@ -9209,6 +9211,7 @@ onEvent = function(self, event, unit, ...)
 		UFHelper.updatePvPIndicator(states[UNIT.TARGET], UNIT.TARGET, targetCfg, defaultsFor(UNIT.TARGET), true)
 		UFHelper.updateRoleIndicator(states[UNIT.TARGET], UNIT.TARGET, targetCfg, defaultsFor(UNIT.TARGET), true)
 		updateUnitStatusIndicator(totCfg, UNIT.TARGET_TARGET)
+		if UFHelper and UFHelper.updateAllHighlights then UFHelper.updateAllHighlights(states, UNIT, maxBossFrames) end
 	elseif event == "UNIT_AURA" and (unit == "target" or unit == UNIT.PLAYER or unit == UNIT.FOCUS or isBossUnit(unit)) then
 		local cfg = getCfg(unit)
 		if not cfg or cfg.enabled == false then return end
