@@ -617,6 +617,7 @@ function EditMode:RegisterButtons(id, buttons)
 					if not ok then geterrorhandler()(err) end
 				end,
 			}
+			if source.layout ~= nil then prepared.layout = source.layout end
 			self.lib:AddFrameSettingsButton(entry.frame, prepared)
 			entry.buttons[#entry.buttons + 1] = prepared
 		elseif source and source.text then
@@ -624,6 +625,7 @@ function EditMode:RegisterButtons(id, buttons)
 				text = source.text,
 				click = function() end,
 			}
+			if source.layout ~= nil then prepared.layout = source.layout end
 			self.lib:AddFrameSettingsButton(entry.frame, prepared)
 			entry.buttons[#entry.buttons + 1] = prepared
 		end

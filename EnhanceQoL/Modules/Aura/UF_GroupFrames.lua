@@ -24436,36 +24436,43 @@ function GF:EnsureEditMode()
 				local buttons = {
 					{
 						text = L["Toggle sample frames"] or "Toggle sample frames",
+						layout = "compact",
 						click = function() GF:ToggleEditModeSampleFrames(kind) end,
 					},
 					{
 						text = L["Toggle sample auras"] or "Toggle sample auras",
+						layout = "compact",
 						click = function() GF:ToggleEditModeSampleAuras() end,
 					},
 					{
 						text = L["Toggle status text"] or "Toggle status text",
+						layout = "compact",
 						click = function() GF:ToggleEditModeStatusText() end,
 					},
 				}
 				if kind == "raid" or kind == "party" then
 					table.insert(buttons, 1, {
 						text = L["Edit custom sort order"] or "Edit custom sort order",
+						layout = "compact",
 						click = function() GF:ToggleCustomSortEditor(kind) end,
 					})
 				end
 				if kind == "raid" or kind == "party" then
 					table.insert(buttons, 2, {
 						text = L["UFGroupHealerBuffEditModeButton"] or "Edit healer buff placement",
+						layout = "compact",
 						click = function() GF:ToggleHealerBuffPlacementEditor(kind) end,
 					})
 					table.insert(buttons, 3, {
 						text = L["UFGroupGlobalAuraIgnoreEditModeButton"] or "Edit global aura ignore",
+						layout = "compact",
 						click = function() GF:ToggleGlobalAuraIgnoreEditor(kind) end,
 					})
 				end
 				if kind == "raid" then
 					table.insert(buttons, 2, {
 						text = L["Cycle sample size (10/20/30/40)"] or "Cycle sample size (10/20/30/40)",
+						layout = "compact",
 						click = function() GF:CycleEditModeSampleSize(kind) end,
 					})
 				end
