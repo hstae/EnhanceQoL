@@ -419,7 +419,7 @@ local function buildHighlightConfig(cfg, def, key)
 	local sample = hcfg.sample
 	if sample == nil then sample = hdef.sample end
 	return {
-		enabled = false,
+		enabled = true,
 		texture = texture,
 		size = size,
 		color = color,

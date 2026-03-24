@@ -5,6 +5,7 @@
 ### 🐛 Fixed
 
 - Group Frames (Party / Raid / Edit Mode): Fixed the action buttons at the bottom of the settings panel using an uneven layout. They now use a consistent grid and the panel height behaves more cleanly when many options are visible.
+- Group Frames (Party / Raid / Edit Mode): Fixed `Hover`, `Target`, and `Aggro highlight` borders not showing anymore, including their sample preview.
 
 ## [9.9.2] - 2026-03-24
 
