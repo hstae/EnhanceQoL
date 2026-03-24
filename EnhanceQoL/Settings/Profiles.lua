@@ -123,6 +123,13 @@ local function resolveExportProfileName(profileName)
 	return getActiveProfileName()
 end
 
+local function resolveImportProfileName(meta)
+	if type(meta) ~= "table" then return nil end
+	local profileName = meta.profile
+	if type(profileName) == "string" and profileName ~= "" then return profileName end
+	return nil
+end
+
 local function exportActiveProfile(profileName)
 	if not serializer or not deflate then return nil, "NO_LIB" end
 	profileName = resolveExportProfileName(profileName)
@@ -149,8 +156,9 @@ local function exportActiveProfile(profileName)
 	return deflate:EncodeForPrint(compressed)
 end
 
-local function importActiveProfile(encoded)
+local function importProfile(encoded, options)
 	if not serializer or not deflate then return false, "NO_LIB" end
+	options = options or {}
 	encoded = tostring(encoded or "")
 	encoded = encoded:gsub("^%s+", ""):gsub("%s+$", "")
 	if encoded == "" then return false, "NO_INPUT" end
@@ -167,7 +175,10 @@ local function importActiveProfile(encoded)
 	if type(meta) ~= "table" or meta.addon ~= addonName or meta.kind ~= PROFILE_EXPORT_KIND then return false, "INVALID" end
 	if type(data) ~= "table" then return false, "NO_DATA" end
 
-	local target = getActiveProfileName()
+	local activeTarget = getActiveProfileName()
+	local importedTarget = resolveImportProfileName(meta)
+	local useImportedTarget = options.preferImportedProfileName == true and importedTarget ~= nil
+	local target = useImportedTarget and importedTarget or activeTarget
 	if not target then return false, "NO_ACTIVE" end
 
 	if not EnhanceQoLDB or type(EnhanceQoLDB.profiles) ~= "table" then return false, "NO_DB" end
@@ -175,14 +186,34 @@ local function importActiveProfile(encoded)
 	local sanitized = sanitizeProfileData(data)
 	normalizeProfileStorage(sanitized)
 	EnhanceQoLDB.profiles[target] = sanitized
-	addon.db = EnhanceQoLDB.profiles[target]
+
+	if useImportedTarget then
+		if options.setImportedProfileActive == true then
+			local guid = UnitGUID("player")
+			EnhanceQoLDB.profileKeys = EnhanceQoLDB.profileKeys or {}
+			if guid then EnhanceQoLDB.profileKeys[guid] = target end
+		end
+		if options.setImportedProfileGlobal == true then EnhanceQoLDB.profileGlobal = target end
+	end
+
+	if target == activeTarget or (useImportedTarget and options.setImportedProfileActive == true) then addon.db = EnhanceQoLDB.profiles[target] end
 
 	return true
 end
 
+local function importActiveProfile(encoded) return importProfile(encoded) end
+
+local function importExternalProfile(encoded)
+	return importProfile(encoded, {
+		preferImportedProfileName = true,
+		setImportedProfileActive = true,
+		setImportedProfileGlobal = true,
+	})
+end
+
 -- Public API for external installers (e.g. WagoInstaller).
 addon.exportProfile = exportActiveProfile
-addon.importProfile = importActiveProfile
+addon.importProfile = importExternalProfile
 
 local function exportErrorMessage(reason)
 	if reason == "NO_ACTIVE" then return L["ProfileExportNoActive"] or "No active profile found." end

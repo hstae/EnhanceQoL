@@ -47,6 +47,16 @@ local wipe = wipe
 local fontOrder = {}
 local borderOrder = {}
 local QUICK_SLOT_BORDER = "Interface\\Buttons\\UI-Quickslot2"
+local DEFAULT_NAMEPLATE_FEATURE_KEYS = constants.DEFAULT_NAMEPLATE_FEATURE_KEYS
+	or {
+		auraClickthrough = "nameplateAuraClickthrough",
+		mobColors = "nameplateMobColors",
+		mobColorBoss = "nameplateMobColorBoss",
+		mobColorMiniboss = "nameplateMobColorMiniboss",
+		mobColorCaster = "nameplateMobColorCaster",
+		mobColorMelee = "nameplateMobColorMelee",
+		mobColorTrivial = "nameplateMobColorTrivial",
+	}
 
 local function getCachedLSMMedia(mediaType)
 	local names = addon.functions and addon.functions.GetLSMMediaNames and addon.functions.GetLSMMediaNames(mediaType)
@@ -1211,7 +1221,6 @@ local function createFrameCategory()
 		end,
 		parentSection = expandable,
 	})
-
 end
 
 function addon.functions.initUIOptions()
@@ -1282,9 +1291,7 @@ function addon.functions.initUIOptions()
 
 	if addon.Aura and addon.Aura.ExperienceBar and addon.Aura.ExperienceBar.OnSettingChanged then addon.Aura.ExperienceBar:OnSettingChanged(addon.db["xpBarEnabled"]) end
 	addon.functions.InitDBValue("totalAbsorbTrackerEnabled", false)
-	if addon.Aura and addon.Aura.TotalAbsorbTracker and addon.Aura.TotalAbsorbTracker.OnSettingChanged then
-		addon.Aura.TotalAbsorbTracker:OnSettingChanged(addon.db["totalAbsorbTrackerEnabled"])
-	end
+	if addon.Aura and addon.Aura.TotalAbsorbTracker and addon.Aura.TotalAbsorbTracker.OnSettingChanged then addon.Aura.TotalAbsorbTracker:OnSettingChanged(addon.db["totalAbsorbTrackerEnabled"]) end
 
 	local combatDefaults = (addon.CombatText and addon.CombatText.defaults) or {}
 	local combatAlwaysModeCombatOnly = addon.CombatText and addon.CombatText.ALWAYS_VISIBLE_MODE_COMBAT_ONLY or "COMBAT_ONLY"
@@ -1329,6 +1336,7 @@ local function createNameplatesCategory()
 		name = label,
 		expanded = false,
 		colorizeTitle = false,
+		newTagID = "Nameplates",
 	})
 	addon.SettingsLayout.uiNameplatesExpandable = expandable
 
@@ -1361,6 +1369,61 @@ local function createNameplatesCategory()
 
 	table.sort(nameplateData, function(a, b) return a.text < b.text end)
 	addon.functions.SettingsCreateCheckboxes(category, nameplateData)
+
+	addon.functions.SettingsCreateHeadline(category, L["nameplateEnhancementsHeader"] or "Enhancements", {
+		parentSection = expandable,
+	})
+
+	addon.functions.SettingsCreateCheckbox(category, {
+		var = DEFAULT_NAMEPLATE_FEATURE_KEYS.auraClickthrough,
+		text = L["nameplateAuraClickthrough"] or "Make nameplate auras click-through",
+		desc = L["nameplateAuraClickthroughDesc"],
+		func = function(value)
+			if addon.functions.SetDefaultNameplateAuraClickthroughEnabled then
+				addon.functions.SetDefaultNameplateAuraClickthroughEnabled(value)
+			else
+				addon.db[DEFAULT_NAMEPLATE_FEATURE_KEYS.auraClickthrough] = value and true or false
+			end
+		end,
+		parentSection = expandable,
+	})
+
+	local mobColorsToggle = addon.functions.SettingsCreateCheckbox(category, {
+		var = DEFAULT_NAMEPLATE_FEATURE_KEYS.mobColors,
+		text = L["nameplateMobColors"] or "Color default nameplates",
+		desc = L["nameplateMobColorsDesc"],
+		func = function(value)
+			if addon.functions.SetDefaultNameplateMobColorsEnabled then
+				addon.functions.SetDefaultNameplateMobColorsEnabled(value)
+			else
+				addon.db[DEFAULT_NAMEPLATE_FEATURE_KEYS.mobColors] = value and true or false
+			end
+		end,
+		parentSection = expandable,
+	})
+
+	local function areMobColorsEnabled() return mobColorsToggle and mobColorsToggle.setting and mobColorsToggle.setting:GetValue() == true end
+
+	local function createNameplateMobColorPicker(var, text)
+		addon.functions.SettingsCreateColorPicker(category, {
+			var = var,
+			text = text,
+			callback = function()
+				if addon.functions.RefreshDefaultNameplateMobColors then addon.functions.RefreshDefaultNameplateMobColors() end
+			end,
+			parent = true,
+			element = mobColorsToggle.element,
+			parentCheck = areMobColorsEnabled,
+			colorizeLabel = false,
+			parentSection = expandable,
+		})
+	end
+
+	createNameplateMobColorPicker(DEFAULT_NAMEPLATE_FEATURE_KEYS.mobColorBoss, L["nameplateMobColorBoss"] or "Boss color")
+	createNameplateMobColorPicker(DEFAULT_NAMEPLATE_FEATURE_KEYS.mobColorMiniboss, L["nameplateMobColorMiniboss"] or "Mini-boss color")
+	createNameplateMobColorPicker(DEFAULT_NAMEPLATE_FEATURE_KEYS.mobColorCaster, L["nameplateMobColorCaster"] or "Caster color")
+	createNameplateMobColorPicker(DEFAULT_NAMEPLATE_FEATURE_KEYS.mobColorMelee, L["nameplateMobColorMelee"] or "Melee color")
+	createNameplateMobColorPicker(DEFAULT_NAMEPLATE_FEATURE_KEYS.mobColorTrivial, L["nameplateMobColorTrivial"] or "Trivial color")
 end
 
 local function createTotalAbsorbTrackerSettings(category, expandable)

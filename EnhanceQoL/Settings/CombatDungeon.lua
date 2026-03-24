@@ -57,6 +57,16 @@ local NAMEPLATE_MOB_COLOR_DEFAULTS = {
 	[NAMEPLATE_MOB_COLOR_MELEE_DB_KEY] = { r = 252 / 255, g = 252 / 255, b = 252 / 255, a = 1 },
 	[NAMEPLATE_MOB_COLOR_TRIVIAL_DB_KEY] = { r = 178 / 255, g = 142 / 255, b = 85 / 255, a = 1 },
 }
+addon.constants = addon.constants or {}
+addon.constants.DEFAULT_NAMEPLATE_FEATURE_KEYS = {
+	auraClickthrough = NAMEPLATE_AURA_CLICKTHROUGH_DB_KEY,
+	mobColors = NAMEPLATE_MOB_COLORS_DB_KEY,
+	mobColorBoss = NAMEPLATE_MOB_COLOR_BOSS_DB_KEY,
+	mobColorMiniboss = NAMEPLATE_MOB_COLOR_MINIBOSS_DB_KEY,
+	mobColorCaster = NAMEPLATE_MOB_COLOR_CASTER_DB_KEY,
+	mobColorMelee = NAMEPLATE_MOB_COLOR_MELEE_DB_KEY,
+	mobColorTrivial = NAMEPLATE_MOB_COLOR_TRIVIAL_DB_KEY,
+}
 local DIFFICULTY_IDS = (_G.DifficultyUtil and _G.DifficultyUtil.ID) or {}
 local COMBAT_LOG_DIFFICULTY_GROUPS = {
 	dungeon = {
@@ -573,6 +583,34 @@ local function requestFeatureReload()
 	if addon.functions.checkReloadFrame then addon.functions.checkReloadFrame() end
 end
 
+function addon.functions.SetDefaultNameplateAuraClickthroughEnabled(value)
+	local wasActive = isNameplateAuraClickthroughActive()
+	local enabled = value and true or false
+	addon.db[NAMEPLATE_AURA_CLICKTHROUGH_DB_KEY] = enabled
+	if enabled then
+		nameplateAuraClickthroughActive = true
+		syncNameplateAuraClickthrough()
+	elseif wasActive then
+		requestFeatureReload()
+	end
+end
+
+function addon.functions.SetDefaultNameplateMobColorsEnabled(value)
+	local wasActive = isNameplateMobColorsActive()
+	local enabled = value and true or false
+	addon.db[NAMEPLATE_MOB_COLORS_DB_KEY] = enabled
+	if enabled then
+		nameplateMobColorsActive = true
+		syncNameplateMobColors()
+	elseif wasActive then
+		requestFeatureReload()
+	end
+end
+
+function addon.functions.RefreshDefaultNameplateMobColors()
+	if isNameplateMobColorsActive() then syncNameplateMobColors() end
+end
+
 local function shouldUseTimeoutReleaseForCurrentContext()
 	if not addon.db or not addon.db["timeoutRelease"] then return false end
 
@@ -727,6 +765,8 @@ function addon.functions.initDungeonFrame()
 
 	nameplateAuraClickthroughActive = addon.db and addon.db[NAMEPLATE_AURA_CLICKTHROUGH_DB_KEY] == true
 	nameplateMobColorsActive = addon.db and addon.db[NAMEPLATE_MOB_COLORS_DB_KEY] == true
+	if nameplateAuraClickthroughActive then syncNameplateAuraClickthrough() end
+	if nameplateMobColorsActive then syncNameplateMobColors() end
 
 	local combatLogSection = addon.functions.SettingsCreateExpandableSection(cChar, {
 		name = L["combatLogSection"] or "Combat logging",
@@ -993,17 +1033,6 @@ if not sectionDungeon then
 	addon.SettingsLayout.gameplayDungeonsMythicSection = sectionDungeon
 end
 
-local sectionNameplates = addon.SettingsLayout.gameplayNameplatesSection
-if not sectionNameplates then
-	sectionNameplates = addon.functions.SettingsCreateExpandableSection(cChar, {
-		name = L["Nameplates"] or "Nameplates",
-		expanded = false,
-		colorizeTitle = false,
-		newTagID = "Nameplates",
-	})
-	addon.SettingsLayout.gameplayNameplatesSection = sectionNameplates
-end
-
 -- Mythic+ & Raid (Combat & Dungeon)
 local keystoneEnable
 local function isKeystoneEnabled() return keystoneEnable and keystoneEnable.setting and keystoneEnable.setting:GetValue() == true end
@@ -1166,68 +1195,6 @@ if cChar and sectionDungeon then
 		parentSection = sectionDungeon,
 	})
 end
-
-if cChar and sectionNameplates then
-	addon.functions.SettingsCreateCheckbox(cChar, {
-		var = NAMEPLATE_AURA_CLICKTHROUGH_DB_KEY,
-		text = L["nameplateAuraClickthrough"] or "Make nameplate auras click-through",
-		desc = L["nameplateAuraClickthroughDesc"],
-		func = function(value)
-			local wasActive = isNameplateAuraClickthroughActive()
-			addon.db[NAMEPLATE_AURA_CLICKTHROUGH_DB_KEY] = value and true or false
-			if value then
-				nameplateAuraClickthroughActive = true
-				syncNameplateAuraClickthrough()
-			elseif wasActive then
-				requestFeatureReload()
-			end
-		end,
-		parentSection = sectionNameplates,
-	})
-
-	local nameplateMobColorsToggle = addon.functions.SettingsCreateCheckbox(cChar, {
-		var = NAMEPLATE_MOB_COLORS_DB_KEY,
-		text = L["nameplateMobColors"] or "Color default nameplates",
-		desc = L["nameplateMobColorsDesc"],
-		func = function(value)
-			local wasActive = isNameplateMobColorsActive()
-			addon.db[NAMEPLATE_MOB_COLORS_DB_KEY] = value and true or false
-			if value then
-				nameplateMobColorsActive = true
-				syncNameplateMobColors()
-			elseif wasActive then
-				requestFeatureReload()
-			end
-		end,
-		parentSection = sectionNameplates,
-	})
-
-	local function areNameplateMobColorsEnabled() return nameplateMobColorsToggle and nameplateMobColorsToggle.setting and nameplateMobColorsToggle.setting:GetValue() == true end
-
-	local function createNameplateMobColorPicker(var, text)
-		addon.functions.SettingsCreateColorPicker(cChar, {
-			var = var,
-			text = text,
-			callback = function()
-				if isNameplateMobColorsActive() then syncNameplateMobColors() end
-			end,
-			parent = true,
-			element = nameplateMobColorsToggle.element,
-			parentCheck = areNameplateMobColorsEnabled,
-			colorizeLabel = false,
-			parentSection = sectionNameplates,
-		})
-	end
-
-	createNameplateMobColorPicker(NAMEPLATE_MOB_COLOR_BOSS_DB_KEY, L["nameplateMobColorBoss"] or "Boss color")
-	createNameplateMobColorPicker(NAMEPLATE_MOB_COLOR_MINIBOSS_DB_KEY, L["nameplateMobColorMiniboss"] or "Mini-boss color")
-	createNameplateMobColorPicker(NAMEPLATE_MOB_COLOR_CASTER_DB_KEY, L["nameplateMobColorCaster"] or "Caster color")
-	createNameplateMobColorPicker(NAMEPLATE_MOB_COLOR_MELEE_DB_KEY, L["nameplateMobColorMelee"] or "Melee color")
-	createNameplateMobColorPicker(NAMEPLATE_MOB_COLOR_TRIVIAL_DB_KEY, L["nameplateMobColorTrivial"] or "Trivial color")
-end
-
-if nameplateAuraClickthroughActive then syncNameplateAuraClickthrough() end
-if nameplateMobColorsActive then syncNameplateMobColors() end
 
 data = {
 	{
