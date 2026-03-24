@@ -11,7 +11,7 @@ addon.MythicPlus = addon.MythicPlus or {}
 addon.MythicPlus.functions = addon.MythicPlus.functions or {}
 addon.MythicPlus.variables = addon.MythicPlus.variables or {}
 
-local openRaidLib = LibStub:GetLibrary("LibOpenKeystone-1.0", true) or LibStub:GetLibrary("LibOpenRaid-1.0", true)
+local openRaidLib = LibStub:GetLibrary("LibOpenKeystone-1.0", true)
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_MythicPlus")
 
 local cModeIDs
@@ -1527,10 +1527,13 @@ end
 
 local isRegistered = false
 function addon.MythicPlus.functions.togglePartyKeystone()
+	local shouldEnable = addon.db["groupfinderShowPartyKeystone"] and not IsInRaid()
+	if openRaidLib and openRaidLib.SetEnabled then openRaidLib.SetEnabled(shouldEnable) end
+
 	if InCombatLockdown() then
 		doAfterCombat = true
 	else
-		if addon.db["groupfinderShowPartyKeystone"] and not IsInRaid() then
+		if shouldEnable then
 			if not isRegistered then
 				isRegistered = true
 				EnsureMeasureFontString()

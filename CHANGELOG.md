@@ -1,5 +1,11 @@
 # Changelog
 
+## [9.9.1] - 2026-03-24
+
+### 🐛 Fixed
+
+- Group Finder (Party Keystone): Fixed party keystone sharing continuing in the background even while the option was turned off.
+
 ## [9.9.0] - 2026-03-24
 
 ### ✨ Added
