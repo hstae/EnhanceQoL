@@ -559,6 +559,7 @@ globals = {
 	"SettingsPanel",
 	"MainStatusTrackingBarContainer",
 	"SecondaryStatusTrackingBarContainer",
+	"GetTotemDuration",
 	"MinimapBackdrop",
 	"SettingsSliderControlMixin",
 	"EQOL_ColorOverridesMixin",
