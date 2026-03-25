@@ -74,6 +74,7 @@ Tracker.defaults = Tracker.defaults
 		textAnchor = "CENTER",
 		textOffsetX = 0,
 		textOffsetY = 0,
+		textOnly = false,
 		abbreviateNumbers = false,
 	}
 
@@ -101,6 +102,7 @@ local DB_TEXT_COLOR = "totalAbsorbTrackerTextColor"
 local DB_TEXT_ANCHOR = "totalAbsorbTrackerTextAnchor"
 local DB_TEXT_OFFSET_X = "totalAbsorbTrackerTextOffsetX"
 local DB_TEXT_OFFSET_Y = "totalAbsorbTrackerTextOffsetY"
+local DB_TEXT_ONLY = "totalAbsorbTrackerTextOnly"
 local DB_ABBREVIATE = "totalAbsorbTrackerAbbreviateNumbers"
 
 local frame
@@ -216,6 +218,8 @@ function Tracker:GetTextOffsetX() return getDBValue(DB_TEXT_OFFSET_X, defaults.t
 
 function Tracker:GetTextOffsetY() return getDBValue(DB_TEXT_OFFSET_Y, defaults.textOffsetY) end
 
+function Tracker:GetTextOnly() return getDBValue(DB_TEXT_ONLY, defaults.textOnly) == true end
+
 function Tracker:GetAbbreviateNumbers() return getDBValue(DB_ABBREVIATE, defaults.abbreviateNumbers) == true end
 
 function Tracker:ResolveTextFont()
@@ -284,6 +288,7 @@ function Tracker:BuildLayoutRecordFromProfile()
 		textAnchor = self:GetTextAnchor(),
 		textOffsetX = self:GetTextOffsetX(),
 		textOffsetY = self:GetTextOffsetY(),
+		textOnly = self:GetTextOnly(),
 		abbreviateNumbers = self:GetAbbreviateNumbers(),
 	}
 end
@@ -338,6 +343,8 @@ function Tracker:ApplyLayoutData(data)
 	if textOffsetX == nil then textOffsetX = self:GetTextOffsetX() end
 	local textOffsetY = record.textOffsetY
 	if textOffsetY == nil then textOffsetY = self:GetTextOffsetY() end
+	local textOnly = record.textOnly
+	if textOnly == nil then textOnly = self:GetTextOnly() end
 	local abbreviateNumbers = record.abbreviateNumbers
 	if abbreviateNumbers == nil then abbreviateNumbers = self:GetAbbreviateNumbers() end
 
@@ -362,11 +369,11 @@ function Tracker:ApplyLayoutData(data)
 	addon.db[DB_TEXT_ANCHOR] = textAnchor
 	addon.db[DB_TEXT_OFFSET_X] = textOffsetX
 	addon.db[DB_TEXT_OFFSET_Y] = textOffsetY
+	addon.db[DB_TEXT_ONLY] = textOnly == true
 	addon.db[DB_ABBREVIATE] = abbreviateNumbers == true
 
 	if not frame then return end
 
-	frame:SetSize(iconSize, iconSize)
 	frame:ClearAllPoints()
 	frame:SetPoint(point, UIParent, relativePoint or point, x or 0, y or 0)
 
@@ -374,9 +381,10 @@ function Tracker:ApplyLayoutData(data)
 	frame.icon:SetPoint("CENTER", frame, "CENTER", iconOffsetX or 0, iconOffsetY or 0)
 	frame.icon:SetSize(iconSize, iconSize)
 	frame.icon:SetTexture(icon)
+	frame.icon:SetShown(not textOnly)
 
 	if frame.border then
-		if not borderEnabled then
+		if not borderEnabled or textOnly then
 			frame.border:SetBackdrop(nil)
 			frame.border:Hide()
 		else
@@ -418,6 +426,8 @@ function Tracker:ApplyLayoutData(data)
 		frame.text:SetAlpha(self.currentAmount)
 		frame.text:SetText(self:FormatAmount(self.currentAmount))
 	end
+
+	frame:SetSize(iconSize, iconSize)
 end
 
 function Tracker:EnsureFrame()
@@ -684,6 +694,14 @@ function Tracker:RegisterEditMode()
 				kind = SettingType.Collapsible,
 				id = "totalAbsorbTrackerText",
 				defaultCollapsed = true,
+			},
+			{
+				name = L["Text only mode"] or "Text only mode",
+				kind = SettingType.Checkbox,
+				field = "textOnly",
+				parentId = "totalAbsorbTrackerText",
+				get = function() return Tracker:GetTextOnly() end,
+				set = function(_, value) Tracker:ApplyLayoutData({ textOnly = value == true }) end,
 			},
 			{
 				name = L["Use short numbers"] or "Use short numbers",

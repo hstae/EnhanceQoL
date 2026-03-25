@@ -1291,6 +1291,7 @@ function addon.functions.initUIOptions()
 
 	if addon.Aura and addon.Aura.ExperienceBar and addon.Aura.ExperienceBar.OnSettingChanged then addon.Aura.ExperienceBar:OnSettingChanged(addon.db["xpBarEnabled"]) end
 	addon.functions.InitDBValue("totalAbsorbTrackerEnabled", false)
+	addon.functions.InitDBValue("totalAbsorbTrackerTextOnly", false)
 	if addon.Aura and addon.Aura.TotalAbsorbTracker and addon.Aura.TotalAbsorbTracker.OnSettingChanged then addon.Aura.TotalAbsorbTracker:OnSettingChanged(addon.db["totalAbsorbTrackerEnabled"]) end
 
 	local combatDefaults = (addon.CombatText and addon.CombatText.defaults) or {}
@@ -1446,7 +1447,7 @@ local function createTotalAbsorbTrackerSettings(category, expandable)
 		end,
 		parentSection = expandable,
 	})
-	addon.functions.SettingsCreateText(category, "|cffffd700" .. (L["totalAbsorbTrackerEditModeHint"] or "Configure icon, text, anchor, and offsets in Edit Mode.") .. "|r", {
+	addon.functions.SettingsCreateText(category, "|cffffd700" .. (L["totalAbsorbTrackerEditModeHint"] or "Configure icon, text, text-only mode, anchor, and offsets in Edit Mode.") .. "|r", {
 		parentSection = expandable,
 	})
 end

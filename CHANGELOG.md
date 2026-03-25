@@ -5,6 +5,7 @@
 ### 🐛 Fixed
 
 - Groupframes: Smoothing wasn't working as expected
+- Unit Frames (Target / Boss): Fixed the missing enemy-debuff filter option. Custom target and boss frames can now be switched between `Only my debuffs` and `All debuffs`, so teammate debuffs no longer stay hidden unintentionally.
 
 ---
 
