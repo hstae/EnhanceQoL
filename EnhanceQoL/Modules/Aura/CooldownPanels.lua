@@ -2130,6 +2130,7 @@ end
 function CooldownPanels.GetFixedGroupCells(group)
 	local cells = {}
 	if type(group) ~= "table" then return cells end
+	if CooldownPanels.IsFixedGroupStatic(group) ~= true and Helper.GetFixedGroupOrderedCells then return Helper.GetFixedGroupOrderedCells(group) end
 	for row = 0, (group.rows or 0) - 1 do
 		for column = 0, (group.columns or 0) - 1 do
 			cells[#cells + 1] = {
@@ -2259,6 +2260,8 @@ function CooldownPanels:CreateFixedGroup(panelId, column, row, columns, rows, na
 		columns = columns,
 		rows = rows,
 		mode = "DYNAMIC",
+		dynamicStartPoint = "TOPLEFT",
+		dynamicDirection = "RIGHT",
 		iconSize = nil,
 		layoutOverrides = nil,
 	}
@@ -2344,6 +2347,44 @@ function CooldownPanels:SetFixedGroupMode(panelId, groupId, mode)
 		if #members > capacity then return false, "GROUP_FULL" end
 	end
 	group.mode = mode
+	Helper.NormalizeFixedGroups(panel.layout)
+	Helper.InvalidateFixedLayoutCache(panel)
+	Helper.EnsureFixedSlotAssignments(panel)
+	self:InvalidateLayoutEditGrid(panelId)
+	return true
+end
+
+function CooldownPanels:SetFixedGroupDynamicStartPoint(panelId, groupId, startPoint)
+	panelId = normalizeId(panelId)
+	groupId = Helper.NormalizeFixedGroupId(groupId)
+	local panel = panelId and self:GetPanel(panelId) or nil
+	local group = panel and CooldownPanels.GetFixedGroupById(panel, groupId) or nil
+	if not (panel and group) then return false end
+	local currentStartPoint = Helper.NormalizeFixedGroupStartPoint(group.dynamicStartPoint, "TOPLEFT")
+	local currentDirection = Helper.NormalizeFixedGroupDynamicDirection(currentStartPoint, group.dynamicDirection, nil)
+	local nextStartPoint = Helper.NormalizeFixedGroupStartPoint(startPoint, currentStartPoint)
+	local nextDirection = Helper.NormalizeFixedGroupDynamicDirection(nextStartPoint, currentDirection, nil)
+	if currentStartPoint == nextStartPoint and currentDirection == nextDirection then return false end
+	group.dynamicStartPoint = nextStartPoint
+	group.dynamicDirection = nextDirection
+	Helper.NormalizeFixedGroups(panel.layout)
+	Helper.InvalidateFixedLayoutCache(panel)
+	Helper.EnsureFixedSlotAssignments(panel)
+	self:InvalidateLayoutEditGrid(panelId)
+	return true
+end
+
+function CooldownPanels:SetFixedGroupDynamicDirection(panelId, groupId, direction)
+	panelId = normalizeId(panelId)
+	groupId = Helper.NormalizeFixedGroupId(groupId)
+	local panel = panelId and self:GetPanel(panelId) or nil
+	local group = panel and CooldownPanels.GetFixedGroupById(panel, groupId) or nil
+	if not (panel and group) then return false end
+	local startPoint = Helper.NormalizeFixedGroupStartPoint(group.dynamicStartPoint, "TOPLEFT")
+	local currentDirection = Helper.NormalizeFixedGroupDynamicDirection(startPoint, group.dynamicDirection, nil)
+	local nextDirection = Helper.NormalizeFixedGroupDynamicDirection(startPoint, direction, currentDirection)
+	if currentDirection == nextDirection then return false end
+	group.dynamicDirection = nextDirection
 	Helper.NormalizeFixedGroups(panel.layout)
 	Helper.InvalidateFixedLayoutCache(panel)
 	Helper.EnsureFixedSlotAssignments(panel)
@@ -10245,6 +10286,60 @@ function CooldownPanels:BuildLayoutFixedGroupStandaloneSettings(panelId, groupId
 					local _, group = getPanelAndGroup()
 					return CooldownPanels.IsFixedGroupStatic(group)
 				end, function() setMode("STATIC") end)
+			end,
+		},
+		{
+			name = L["CooldownPanelStartPoint"] or "Start point",
+			kind = SettingType.Dropdown,
+			parentId = "cooldownPanelStandaloneFixedGroupGeneral",
+			height = 120,
+			disabled = function()
+				local _, group = getPanelAndGroup()
+				return group == nil or CooldownPanels.IsFixedGroupStatic(group)
+			end,
+			get = function()
+				local _, group = getPanelAndGroup()
+				return Helper.NormalizeFixedGroupStartPoint(group and group.dynamicStartPoint, "TOPLEFT")
+			end,
+			set = function(_, value)
+				if CooldownPanels:SetFixedGroupDynamicStartPoint(panelId, groupId, value) then refresh() end
+			end,
+			generator = function(_, root)
+				local _, group = getPanelAndGroup()
+				local current = Helper.NormalizeFixedGroupStartPoint(group and group.dynamicStartPoint, "TOPLEFT")
+				for _, option in ipairs(Helper.FixedGroupStartPointOptions or {}) do
+					root:CreateRadio(option.label, function() return current == option.value end, function()
+						if CooldownPanels:SetFixedGroupDynamicStartPoint(panelId, groupId, option.value) then refresh() end
+					end)
+				end
+			end,
+		},
+		{
+			name = L["CooldownPanelGrowthDirection"] or "Growth direction",
+			kind = SettingType.Dropdown,
+			parentId = "cooldownPanelStandaloneFixedGroupGeneral",
+			height = 90,
+			disabled = function()
+				local _, group = getPanelAndGroup()
+				return group == nil or CooldownPanels.IsFixedGroupStatic(group)
+			end,
+			get = function()
+				local _, group = getPanelAndGroup()
+				local startPoint = Helper.NormalizeFixedGroupStartPoint(group and group.dynamicStartPoint, "TOPLEFT")
+				return Helper.NormalizeFixedGroupDynamicDirection(startPoint, group and group.dynamicDirection, nil)
+			end,
+			set = function(_, value)
+				if CooldownPanels:SetFixedGroupDynamicDirection(panelId, groupId, value) then refresh() end
+			end,
+			generator = function(_, root)
+				local _, group = getPanelAndGroup()
+				local startPoint = Helper.NormalizeFixedGroupStartPoint(group and group.dynamicStartPoint, "TOPLEFT")
+				local current = Helper.NormalizeFixedGroupDynamicDirection(startPoint, group and group.dynamicDirection, nil)
+				for _, option in ipairs(Helper.GetFixedGroupDynamicDirectionOptions(startPoint)) do
+					root:CreateRadio(option.label, function() return current == option.value end, function()
+						if CooldownPanels:SetFixedGroupDynamicDirection(panelId, groupId, option.value) then refresh() end
+					end)
+				end
 			end,
 		},
 		{

@@ -100,6 +100,12 @@ Helper.GrowthPointOptions = {
 	{ value = "TOP", label = L["Center"] or "Center" },
 	{ value = "TOPRIGHT", label = L["Right"] or "Right" },
 }
+Helper.FixedGroupStartPointOptions = {
+	{ value = "TOPLEFT", label = L["Top Left"] or "Top Left" },
+	{ value = "TOPRIGHT", label = L["Top Right"] or "Top Right" },
+	{ value = "BOTTOMLEFT", label = L["Bottom Left"] or "Bottom Left" },
+	{ value = "BOTTOMRIGHT", label = L["Bottom Right"] or "Bottom Right" },
+}
 Helper.FontStyleOptions = {
 	{ value = "NONE", label = L["None"] or "None" },
 	{ value = "OUTLINE", label = L["Outline"] or "Outline" },
@@ -313,6 +319,26 @@ Helper.VALID_DIRECTIONS = {
 	UP = true,
 	DOWN = true,
 }
+Helper.VALID_FIXED_GROUP_START_POINTS = {
+	TOPLEFT = true,
+	TOPRIGHT = true,
+	BOTTOMLEFT = true,
+	BOTTOMRIGHT = true,
+}
+Helper.FIXED_GROUP_DYNAMIC_DIRECTIONS_BY_START_POINT = {
+	TOPLEFT = { RIGHT = true, DOWN = true },
+	TOPRIGHT = { LEFT = true, DOWN = true },
+	BOTTOMLEFT = { RIGHT = true, UP = true },
+	BOTTOMRIGHT = { LEFT = true, UP = true },
+}
+Helper.FIXED_GROUP_DIRECTION_OPTIONS_BY_START_POINT = {}
+for startPoint, validDirections in pairs(Helper.FIXED_GROUP_DYNAMIC_DIRECTIONS_BY_START_POINT) do
+	local options = {}
+	for _, option in ipairs(Helper.DirectionOptions) do
+		if option and validDirections[option.value] then options[#options + 1] = option end
+	end
+	Helper.FIXED_GROUP_DIRECTION_OPTIONS_BY_START_POINT[startPoint] = options
+end
 
 function Helper.NormalizeGlowStyle(style, fallback)
 	local normalized = type(style) == "string" and strupper(style) or nil
@@ -472,6 +498,35 @@ function Helper.NormalizeDirection(direction, fallback)
 	return "RIGHT"
 end
 
+function Helper.NormalizeFixedGroupStartPoint(value, fallback)
+	local upperValue = type(value) == "string" and strupper(value) or nil
+	if upperValue and Helper.VALID_FIXED_GROUP_START_POINTS[upperValue] then return upperValue end
+	local upperFallback = type(fallback) == "string" and strupper(fallback) or nil
+	if upperFallback and Helper.VALID_FIXED_GROUP_START_POINTS[upperFallback] then return upperFallback end
+	return "TOPLEFT"
+end
+
+function Helper.GetDefaultFixedGroupDynamicDirection(startPoint)
+	startPoint = Helper.NormalizeFixedGroupStartPoint(startPoint, "TOPLEFT")
+	if startPoint == "TOPRIGHT" or startPoint == "BOTTOMRIGHT" then return "LEFT" end
+	return "RIGHT"
+end
+
+function Helper.NormalizeFixedGroupDynamicDirection(startPoint, value, fallback)
+	startPoint = Helper.NormalizeFixedGroupStartPoint(startPoint, "TOPLEFT")
+	local validDirections = Helper.FIXED_GROUP_DYNAMIC_DIRECTIONS_BY_START_POINT[startPoint] or {}
+	local upperValue = type(value) == "string" and strupper(value) or nil
+	if upperValue and validDirections[upperValue] then return upperValue end
+	local upperFallback = type(fallback) == "string" and strupper(fallback) or nil
+	if upperFallback and validDirections[upperFallback] then return upperFallback end
+	return Helper.GetDefaultFixedGroupDynamicDirection(startPoint)
+end
+
+function Helper.GetFixedGroupDynamicDirectionOptions(startPoint)
+	startPoint = Helper.NormalizeFixedGroupStartPoint(startPoint, "TOPLEFT")
+	return Helper.FIXED_GROUP_DIRECTION_OPTIONS_BY_START_POINT[startPoint] or {}
+end
+
 function Helper.NormalizeLayoutMode(value, fallback)
 	if type(value) == "string" then
 		local upper = string.upper(value)
@@ -607,6 +662,62 @@ local function claimNextFreeFixedGroupCell(groupState, configuredColumns, config
 	return nil
 end
 
+local function appendFixedGroupRange(target, firstValue, count, ascending)
+	if count <= 0 then return target end
+	if ascending then
+		for offset = 0, count - 1 do
+			target[#target + 1] = firstValue + offset
+		end
+	else
+		for offset = count - 1, 0, -1 do
+			target[#target + 1] = firstValue + offset
+		end
+	end
+	return target
+end
+
+function Helper.GetFixedGroupOrderedCells(group)
+	local cells = {}
+	if type(group) ~= "table" then return cells end
+	local columns = Helper.NormalizeFixedGridSize(group.columns, 0)
+	local rows = Helper.NormalizeFixedGridSize(group.rows, 0)
+	local originColumn = Helper.NormalizeSlotCoordinate(group.column)
+	local originRow = Helper.NormalizeSlotCoordinate(group.row)
+	if not (originColumn and originRow) or columns <= 0 or rows <= 0 then return cells end
+
+	local startPoint = Helper.NormalizeFixedGroupStartPoint(group.dynamicStartPoint, "TOPLEFT")
+	local direction = Helper.NormalizeFixedGroupDynamicDirection(startPoint, group.dynamicDirection, nil)
+	local horizontalFirst = direction == "RIGHT" or direction == "LEFT"
+	local topToBottom = direction == "DOWN" or (horizontalFirst and (startPoint == "TOPLEFT" or startPoint == "TOPRIGHT"))
+	local leftToRight = direction == "RIGHT" or ((not horizontalFirst) and (startPoint == "TOPLEFT" or startPoint == "BOTTOMLEFT"))
+	local orderedColumns = appendFixedGroupRange({}, originColumn, columns, leftToRight)
+	local orderedRows = appendFixedGroupRange({}, originRow, rows, topToBottom)
+
+	if horizontalFirst then
+		for rowIndex = 1, #orderedRows do
+			local row = orderedRows[rowIndex]
+			for columnIndex = 1, #orderedColumns do
+				cells[#cells + 1] = {
+					column = orderedColumns[columnIndex],
+					row = row,
+				}
+			end
+		end
+	else
+		for columnIndex = 1, #orderedColumns do
+			local column = orderedColumns[columnIndex]
+			for rowIndex = 1, #orderedRows do
+				cells[#cells + 1] = {
+					column = column,
+					row = orderedRows[rowIndex],
+				}
+			end
+		end
+	end
+
+	return cells
+end
+
 function Helper.NormalizeFixedGroupId(value)
 	if type(value) == "number" then value = tostring(math.floor(value)) end
 	if type(value) ~= "string" then return nil end
@@ -664,6 +775,8 @@ function Helper.NormalizeFixedGroups(layout)
 				group.mode = Helper.NormalizeFixedGroupMode(group.mode, "DYNAMIC")
 				group._eqolIsStatic = group.mode == "STATIC"
 				group._eqolCapacity = columns * rows
+				group.dynamicStartPoint = Helper.NormalizeFixedGroupStartPoint(group.dynamicStartPoint, "TOPLEFT")
+				group.dynamicDirection = Helper.NormalizeFixedGroupDynamicDirection(group.dynamicStartPoint, group.dynamicDirection, nil)
 				group.iconSize = Helper.NormalizeFixedGroupIconSize(group.iconSize)
 				group.layoutOverrides = Helper.NormalizeFixedGroupLayoutOverrides(group.layoutOverrides)
 				seen[id] = true
@@ -752,6 +865,14 @@ function Helper.GetFixedGroupLocalIndex(group, column, row)
 	column = Helper.NormalizeSlotCoordinate(column)
 	row = Helper.NormalizeSlotCoordinate(row)
 	if not (column and row) then return nil end
+	if Helper.FixedGroupUsesStaticSlots(group) ~= true then
+		local orderedCells = Helper.GetFixedGroupOrderedCells(group)
+		for index = 1, #orderedCells do
+			local cell = orderedCells[index]
+			if cell and cell.column == column and cell.row == row then return index end
+		end
+		return nil
+	end
 	local relativeColumn = column - group.column + 1
 	local relativeRow = row - group.row + 1
 	if relativeColumn < 1 or relativeRow < 1 or relativeColumn > group.columns or relativeRow > group.rows then return nil end
@@ -975,10 +1096,12 @@ function Helper.GetFixedLayoutCache(panel)
 			if group and not Helper.FixedGroupUsesStaticSlots(group) then
 				local capacity = Helper.GetFixedGroupCapacity(group)
 				local targetIndices = group._eqolDynamicTargetIndices or {}
+				local orderedCells = Helper.GetFixedGroupOrderedCells(group)
 				for groupIndex = 1, capacity do
-					local column = group.column + ((groupIndex - 1) % group.columns)
-					local row = group.row + math.floor((groupIndex - 1) / group.columns)
-					if column <= boundsColumns and row <= boundsRows then
+					local cell = orderedCells[groupIndex]
+					local column = cell and cell.column or nil
+					local row = cell and cell.row or nil
+					if column and row and column <= boundsColumns and row <= boundsRows then
 						targetIndices[groupIndex] = ((row - 1) * boundsColumns) + column
 					else
 						targetIndices[groupIndex] = nil
@@ -1175,11 +1298,13 @@ function Helper.BuildFixedSlotEntryIds(panel, filterFn, includePreviewPadding)
 				end
 			else
 				local capacity = Helper.GetFixedGroupCapacity(group)
+				local orderedCells = Helper.GetFixedGroupOrderedCells(group)
 				local limit = math.min(capacity, #list)
 				for groupIndex = 1, limit do
-					local column = group.column + ((groupIndex - 1) % group.columns)
-					local row = group.row + math.floor((groupIndex - 1) / group.columns)
-					if column <= columns and row <= rows then slotEntryIds[((row - 1) * columns) + column] = list[groupIndex] end
+					local cell = orderedCells[groupIndex]
+					local column = cell and cell.column or nil
+					local row = cell and cell.row or nil
+					if column and row and column <= columns and row <= rows then slotEntryIds[((row - 1) * columns) + column] = list[groupIndex] end
 				end
 			end
 		end
