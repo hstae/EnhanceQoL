@@ -27,6 +27,7 @@ Api.GetInventoryItemCooldown = GetInventoryItemCooldown
 Api.GetInventorySlotInfo = GetInventorySlotInfo
 Api.GetActionInfo = GetActionInfo
 Api.GetActionText = C_ActionBar and C_ActionBar.GetActionText
+Api.IsAssistedCombatAction = C_ActionBar and C_ActionBar.IsAssistedCombatAction
 Api.GetCursorInfo = GetCursorInfo
 Api.GetCursorPosition = GetCursorPosition
 Api.ClearCursor = ClearCursor

@@ -18352,6 +18352,13 @@ local function setUpdateFrameEnabled(frame, enabled)
 	end
 end
 
+local function isAssistedCombatActionSlot(slot)
+	local actionSlot = tonumber(slot)
+	if not actionSlot or actionSlot <= 0 then return false end
+	if not Api.IsAssistedCombatAction then return false end
+	return Api.IsAssistedCombatAction(actionSlot) == true
+end
+
 function CooldownPanels:UpdateEventRegistration()
 	local frame = self.runtime and self.runtime.updateFrame
 	if not frame then return end
@@ -18434,6 +18441,8 @@ local function ensureUpdateFrame()
 		end
 		if event == "ACTIONBAR_SLOT_CHANGED" then
 			local slot = tonumber((...))
+			-- The Single Button Assistant rotates the assisted-combat slot without changing its binding.
+			if isAssistedCombatActionSlot(slot) then return end
 			Keybinds.RequestRefresh("Event:" .. event)
 
 			local root = ensureRoot()
