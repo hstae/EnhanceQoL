@@ -5478,6 +5478,10 @@ local function createIconFrame(parent)
 
 	icon.slotAnchor = CreateFrame("Frame", nil, parent)
 	icon.slotAnchor:EnableMouse(false)
+	icon.slotAnchorHandle = CreateFrame("Button", nil, icon.slotAnchor)
+	icon.slotAnchorHandle:SetAllPoints(icon.slotAnchor)
+	icon.slotAnchorHandle:EnableMouse(false)
+	icon.slotAnchorHandle:Hide()
 
 	icon.editorGhostTexture = icon.slotAnchor:CreateTexture(nil, "ARTWORK")
 	icon.editorGhostTexture:SetAllPoints(icon.slotAnchor)
@@ -12519,8 +12523,7 @@ function CooldownPanels:GetLayoutEditCursorSlot(panelId)
 		local icon = frame.icons[i]
 		local handle = icon and icon.layoutHandle
 		if handle and handle.IsShown and handle:IsShown() then
-			local slotAnchor = icon and icon.slotAnchor or nil
-			local bounds = slotAnchor or handle
+			local bounds = icon or handle
 			local left = bounds and bounds.GetLeft and bounds:GetLeft()
 			local right = bounds and bounds.GetRight and bounds:GetRight()
 			local top = bounds and bounds.GetTop and bounds:GetTop()
@@ -13472,9 +13475,46 @@ function CooldownPanels:ApplyLayout(panelId, countOverride)
 	if frame.label then frame.label:SetText(panel.name or "Cooldown Panel") end
 end
 
+function CooldownPanels.LayoutSlotAnchorHandleOnEnter(self)
+	local handle = self and self._eqolForwardHandle or nil
+	local script = handle and handle.GetScript and handle:GetScript("OnEnter") or nil
+	if script then script(handle) end
+end
+
+function CooldownPanels.LayoutSlotAnchorHandleOnLeave(self)
+	local handle = self and self._eqolForwardHandle or nil
+	local script = handle and handle.GetScript and handle:GetScript("OnLeave") or nil
+	if script then script(handle) end
+end
+
+function CooldownPanels.LayoutSlotAnchorHandleOnDragStart(self)
+	local handle = self and self._eqolForwardHandle or nil
+	local script = handle and handle.GetScript and handle:GetScript("OnDragStart") or nil
+	if script then script(handle) end
+end
+
+function CooldownPanels.LayoutSlotAnchorHandleOnDragStop(self)
+	local handle = self and self._eqolForwardHandle or nil
+	local script = handle and handle.GetScript and handle:GetScript("OnDragStop") or nil
+	if script then script(handle) end
+end
+
+function CooldownPanels.LayoutSlotAnchorHandleOnReceiveDrag(self)
+	local handle = self and self._eqolForwardHandle or nil
+	local script = handle and handle.GetScript and handle:GetScript("OnReceiveDrag") or nil
+	if script then script(handle) end
+end
+
+function CooldownPanels.LayoutSlotAnchorHandleOnMouseUp(self, btn)
+	local handle = self and self._eqolForwardHandle or nil
+	local script = handle and handle.GetScript and handle:GetScript("OnMouseUp") or nil
+	if script then script(handle, btn) end
+end
+
 function CooldownPanels:ConfigureEditModePanelIcon(panelId, icon, entryId, slotColumn, slotRow)
 	if not icon then return end
 	local handle = icon.layoutHandle
+	local slotAnchorHandle = icon.slotAnchorHandle
 	entryId = normalizeId(entryId)
 	slotColumn = Helper.NormalizeSlotCoordinate(slotColumn)
 	slotRow = Helper.NormalizeSlotCoordinate(slotRow)
@@ -13492,6 +13532,20 @@ function CooldownPanels:ConfigureEditModePanelIcon(panelId, icon, entryId, slotC
 		if handle._eqolLayoutConfigured ~= true then return end
 		handle:Hide()
 		handle:EnableMouse(false)
+		if slotAnchorHandle then
+			slotAnchorHandle:Hide()
+			slotAnchorHandle:EnableMouse(false)
+			slotAnchorHandle:SetScript("OnEnter", nil)
+			slotAnchorHandle:SetScript("OnLeave", nil)
+			slotAnchorHandle:SetScript("OnDragStart", nil)
+			slotAnchorHandle:SetScript("OnDragStop", nil)
+			slotAnchorHandle:SetScript("OnReceiveDrag", nil)
+			slotAnchorHandle:SetScript("OnMouseUp", nil)
+			slotAnchorHandle._eqolForwardHandle = nil
+			slotAnchorHandle._eqolLayoutEntryId = nil
+			slotAnchorHandle._eqolLayoutSlotColumn = nil
+			slotAnchorHandle._eqolLayoutSlotRow = nil
+		end
 		handle:SetScript("OnEnter", nil)
 		handle:SetScript("OnLeave", nil)
 		handle:SetScript("OnDragStart", nil)
@@ -13509,7 +13563,17 @@ function CooldownPanels:ConfigureEditModePanelIcon(panelId, icon, entryId, slotC
 		handle:EnableMouse(true)
 		handle:RegisterForDrag("LeftButton")
 		handle:ClearAllPoints()
-		handle:SetAllPoints(icon.slotAnchor or icon)
+		handle:SetAllPoints(icon)
+		if slotAnchorHandle then
+			slotAnchorHandle:Show()
+			slotAnchorHandle:EnableMouse(true)
+			slotAnchorHandle:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+			slotAnchorHandle:RegisterForDrag("LeftButton")
+			slotAnchorHandle._eqolForwardHandle = handle
+			slotAnchorHandle._eqolLayoutEntryId = entryId
+			slotAnchorHandle._eqolLayoutSlotColumn = slotColumn
+			slotAnchorHandle._eqolLayoutSlotRow = slotRow
+		end
 		handle._eqolLayoutEntryId = entryId
 		handle._eqolLayoutSlotColumn = slotColumn
 		handle._eqolLayoutSlotRow = slotRow
@@ -13520,7 +13584,17 @@ function CooldownPanels:ConfigureEditModePanelIcon(panelId, icon, entryId, slotC
 	handle:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 	handle:RegisterForDrag("LeftButton")
 	handle:ClearAllPoints()
-	handle:SetAllPoints(icon.slotAnchor or icon)
+	handle:SetAllPoints(icon)
+	if slotAnchorHandle then
+		slotAnchorHandle:Show()
+		slotAnchorHandle:EnableMouse(true)
+		slotAnchorHandle:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+		slotAnchorHandle:RegisterForDrag("LeftButton")
+		slotAnchorHandle._eqolForwardHandle = handle
+		slotAnchorHandle._eqolLayoutEntryId = entryId
+		slotAnchorHandle._eqolLayoutSlotColumn = slotColumn
+		slotAnchorHandle._eqolLayoutSlotRow = slotRow
+	end
 	handle._eqolLayoutEntryId = entryId
 	handle._eqolLayoutSlotColumn = slotColumn
 	handle._eqolLayoutSlotRow = slotRow
@@ -13657,6 +13731,14 @@ function CooldownPanels:ConfigureEditModePanelIcon(panelId, icon, entryId, slotC
 			CooldownPanels:RefreshEditor()
 		end
 	end)
+	if slotAnchorHandle then
+		slotAnchorHandle:SetScript("OnEnter", CooldownPanels.LayoutSlotAnchorHandleOnEnter)
+		slotAnchorHandle:SetScript("OnLeave", CooldownPanels.LayoutSlotAnchorHandleOnLeave)
+		slotAnchorHandle:SetScript("OnDragStart", CooldownPanels.LayoutSlotAnchorHandleOnDragStart)
+		slotAnchorHandle:SetScript("OnDragStop", CooldownPanels.LayoutSlotAnchorHandleOnDragStop)
+		slotAnchorHandle:SetScript("OnReceiveDrag", CooldownPanels.LayoutSlotAnchorHandleOnReceiveDrag)
+		slotAnchorHandle:SetScript("OnMouseUp", CooldownPanels.LayoutSlotAnchorHandleOnMouseUp)
+	end
 end
 
 function CooldownPanels:UpdatePreviewIcons(panelId, countOverride)
