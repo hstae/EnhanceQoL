@@ -1507,12 +1507,8 @@ local function spellHasCharges(spellId)
 	local info = C_Spell.GetSpellCharges(spellId)
 	if type(info) ~= "table" then return false end
 	local issecretvalue = _G.issecretvalue
-	if issecretvalue then
-		if issecretvalue(info) then return false end
-		if info.currentCharges ~= nil and issecretvalue(info.currentCharges) then return false end
-		if info.maxCharges ~= nil and issecretvalue(info.maxCharges) then return false end
-	end
 	local maxCharges = info.maxCharges
+	if issecretvalue and issecretvalue(maxCharges) then return false end
 	if type(maxCharges) ~= "number" then return false end
 	return maxCharges > 1
 end

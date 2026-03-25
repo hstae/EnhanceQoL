@@ -5906,6 +5906,21 @@ local function isCooldownActive(startTime, duration)
 	return (startTime + duration) > Api.GetTime()
 end
 
+function CooldownPanels.IsSpellCooldownInfoActive(cooldownIsActive, cooldownEnabled, startTime, duration)
+	if not (Api.issecretvalue and Api.issecretvalue(cooldownIsActive)) and type(cooldownIsActive) == "boolean" then return cooldownIsActive end
+	if not isSafeNotFalse(cooldownEnabled) then return false end
+	return isCooldownActive(startTime, duration)
+end
+
+function CooldownPanels.IsChargeInfoActive(chargesInfo)
+	if type(chargesInfo) ~= "table" then return false end
+	if not (Api.issecretvalue and Api.issecretvalue(chargesInfo.isActive)) and type(chargesInfo.isActive) == "boolean" then return chargesInfo.isActive end
+	if Api.issecretvalue and (Api.issecretvalue(chargesInfo.currentCharges) or Api.issecretvalue(chargesInfo.maxCharges)) then
+		return true
+	end
+	return isSafeLessThan(chargesInfo.currentCharges, chargesInfo.maxCharges)
+end
+
 local function getDurationRemaining(duration)
 	if not duration then return nil end
 	local remaining = duration.GetRemainingDuration(duration, Api.DurationModifierRealTime)
@@ -5914,10 +5929,18 @@ local function getDurationRemaining(duration)
 end
 
 local function getSpellCooldownInfo(spellID)
-	if not spellID or not Api.GetSpellCooldownInfo then return 0, 0, false, 1 end
+	if not spellID or not Api.GetSpellCooldownInfo then return 0, 0, false, 1, nil, false end
 	local a, b, c, d = Api.GetSpellCooldownInfo(spellID)
-	if type(a) == "table" then return a.startTime or 0, a.duration or 0, a.isEnabled, a.modRate or 1, a.isOnGCD or nil end
-	return a or 0, b or 0, c, d or 1
+	if type(a) == "table" then
+		local startTime = a.startTime or 0
+		local duration = a.duration or 0
+		local isEnabled = a.isEnabled
+		return startTime, duration, isEnabled, a.modRate or 1, a.isOnGCD or nil, CooldownPanels.IsSpellCooldownInfoActive(a.isActive, isEnabled, startTime, duration)
+	end
+	local startTime = a or 0
+	local duration = b or 0
+	local isEnabled = c
+	return startTime, duration, isEnabled, d or 1, nil, CooldownPanels.IsSpellCooldownInfoActive(nil, isEnabled, startTime, duration)
 end
 
 local getSpellCooldownDurationObject
@@ -5978,6 +6001,7 @@ function CooldownPanels:GetSpellPassState(spellId)
 	state.cooldownEnabled = nil
 	state.cooldownRate = nil
 	state.cooldownGCD = nil
+	state.cooldownIsActive = nil
 	state.cooldownDurationObject = nil
 	state.chargesInfo = nil
 	state.chargeDurationObject = nil
@@ -6062,18 +6086,18 @@ function CooldownPanels:GetCachedSpellCooldownDurationObject(spellId)
 end
 
 function CooldownPanels:GetCachedSpellCooldownInfo(spellId)
-	if not spellId then return 0, 0, false, 1 end
+	if not spellId then return 0, 0, false, 1, nil, false end
 	local runtime = self:EnsureSpellQueryCaches()
 	local pass = runtime.spellQueryPass
 	if not pass then return getSpellCooldownInfo(spellId) end
 	local cache = runtime.spellCooldownInfoCache
 	local cached = cache[spellId]
-	if cached and cached.pass == pass then return cached.startTime, cached.duration, cached.enabled, cached.modRate, cached.isOnGCD end
+	if cached and cached.pass == pass then return cached.startTime, cached.duration, cached.enabled, cached.modRate, cached.isOnGCD, cached.isActive end
 	cached = cached or {}
 	cache[spellId] = cached
 	cached.pass = pass
-	cached.startTime, cached.duration, cached.enabled, cached.modRate, cached.isOnGCD = getSpellCooldownInfo(spellId)
-	return cached.startTime, cached.duration, cached.enabled, cached.modRate, cached.isOnGCD
+	cached.startTime, cached.duration, cached.enabled, cached.modRate, cached.isOnGCD, cached.isActive = getSpellCooldownInfo(spellId)
+	return cached.startTime, cached.duration, cached.enabled, cached.modRate, cached.isOnGCD, cached.isActive
 end
 
 function CooldownPanels:GetCachedSpellChargesInfo(spellId)
@@ -6127,13 +6151,10 @@ function CooldownPanels:GetItemUseSpellID(itemID)
 	runtime.itemUseSpellCache = runtime.itemUseSpellCache or {}
 	local cached = runtime.itemUseSpellCache[itemID]
 	if cached ~= nil then return cached or nil end
-	if not Api.GetItemSpell then
-		runtime.itemUseSpellCache[itemID] = false
-		return nil
-	end
+	if not Api.GetItemSpell then return nil end
 	local _, spellId = Api.GetItemSpell(itemID)
 	spellId = tonumber(spellId)
-	runtime.itemUseSpellCache[itemID] = spellId or false
+	if spellId then runtime.itemUseSpellCache[itemID] = spellId end
 	return spellId
 end
 
@@ -14011,7 +14032,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			local chargeDurationObject
 			local cooldownDurationObject
 			local cooldownRemaining
-			local cooldownStart, cooldownDuration, cooldownEnabled, cooldownRate, cooldownGCD
+			local cooldownStart, cooldownDuration, cooldownEnabled, cooldownRate, cooldownGCD, cooldownIsActive
 			local show = false
 			local cooldownEnabledOk = true
 			local emptyItem = false
@@ -14055,7 +14076,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 					end
 					if (trackCooldown or (showCharges and chargesInfo)) and not cooldownDurationObject then
 						if spellPassState and spellPassState.infoLoaded == nil then
-							spellPassState.cooldownStart, spellPassState.cooldownDuration, spellPassState.cooldownEnabled, spellPassState.cooldownRate, spellPassState.cooldownGCD =
+							spellPassState.cooldownStart, spellPassState.cooldownDuration, spellPassState.cooldownEnabled, spellPassState.cooldownRate, spellPassState.cooldownGCD, spellPassState.cooldownIsActive =
 								self:GetCachedSpellCooldownInfo(spellId)
 							spellPassState.infoLoaded = true
 						end
@@ -14065,16 +14086,18 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 							cooldownEnabled = spellPassState.cooldownEnabled
 							cooldownRate = spellPassState.cooldownRate
 							cooldownGCD = spellPassState.cooldownGCD
+							cooldownIsActive = spellPassState.cooldownIsActive
 						else
-							cooldownStart, cooldownDuration, cooldownEnabled, cooldownRate, cooldownGCD = self:GetCachedSpellCooldownInfo(spellId)
+							cooldownStart, cooldownDuration, cooldownEnabled, cooldownRate, cooldownGCD, cooldownIsActive = self:GetCachedSpellCooldownInfo(spellId)
 						end
 					elseif cooldownDurationObject then
 						if spellPassState and spellPassState.infoLoaded == nil then
-							spellPassState.cooldownStart, spellPassState.cooldownDuration, spellPassState.cooldownEnabled, spellPassState.cooldownRate, spellPassState.cooldownGCD =
+							spellPassState.cooldownStart, spellPassState.cooldownDuration, spellPassState.cooldownEnabled, spellPassState.cooldownRate, spellPassState.cooldownGCD, spellPassState.cooldownIsActive =
 								self:GetCachedSpellCooldownInfo(spellId)
 							spellPassState.infoLoaded = true
 						end
 						cooldownGCD = spellPassState and spellPassState.cooldownGCD or select(5, self:GetCachedSpellCooldownInfo(spellId))
+						cooldownIsActive = spellPassState and spellPassState.cooldownIsActive or select(6, self:GetCachedSpellCooldownInfo(spellId))
 					end
 					if glowReady and showCooldown then
 						local readyDurationObject = cooldownDurationObject
@@ -14105,12 +14128,13 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 						end
 					end
 					cooldownEnabledOk = isSafeNotFalse(cooldownEnabled)
-					local durationActive = cooldownDurationObject ~= nil and (cooldownRemaining == nil or cooldownRemaining > 0)
-					show = alwaysShow
-					if not show and showCooldown and ((cooldownDurationObject ~= nil) or (cooldownEnabledOk and isCooldownActive(cooldownStart, cooldownDuration))) then show = true end
-					if not show and showCharges and chargesInfo and isSafeLessThan(chargesInfo.currentCharges, chargesInfo.maxCharges) then show = true end
-					if not show and showStacks and Helper.HasDisplayCount(stackCount) then show = true end
-				end
+						local cooldownInfoActive = CooldownPanels.IsSpellCooldownInfoActive(cooldownIsActive, cooldownEnabled, cooldownStart, cooldownDuration)
+						local durationActive = cooldownDurationObject ~= nil and (cooldownRemaining == nil or cooldownRemaining > 0) and cooldownInfoActive
+						show = alwaysShow
+						if not show and showCooldown and (durationActive or cooldownInfoActive) then show = true end
+						if not show and showCharges and chargesInfo and CooldownPanels.IsChargeInfoActive(chargesInfo) then show = true end
+						if not show and showStacks and Helper.HasDisplayCount(stackCount) then show = true end
+					end
 			elseif resolvedType == "ITEM" and resolvedItemId then
 				local itemCache = shared and shared.itemCountCache
 				local cached = itemCache and itemCache[resolvedItemId]
@@ -14341,6 +14365,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 				data.cooldownStart = cooldownStart or 0
 				data.cooldownDuration = cooldownDuration or 0
 				data.cooldownEnabled = cooldownEnabled
+				data.cooldownIsActive = cooldownIsActive
 				data.cooldownRate = cooldownRate or 1
 				data.cooldownGCD = cooldownGCD == true
 				data.cdmAuraActive = cdmAuraData and cdmAuraData.active == true
@@ -14491,15 +14516,18 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			local cooldownEnabledOk = isSafeNotFalse(data.cooldownEnabled)
 			if data.resolvedType == "ITEM" or data.resolvedType == "SLOT" then cooldownEnabledOk = data.cooldownEnabled ~= false and data.cooldownEnabled ~= 0 end
 			local cooldownRemaining = data.cooldownRemaining
+			local spellCooldownActive = CooldownPanels.IsSpellCooldownInfoActive(data.cooldownIsActive, data.cooldownEnabled, cooldownStart, cooldownDuration)
 			local durationActive = cooldownDurationObject ~= nil and (cooldownRemaining == nil or cooldownRemaining > 0)
+			if data.resolvedType == "SPELL" then durationActive = durationActive and spellCooldownActive end
 			local cdmAuraActive = data.cdmAuraActive == true
 			local cdmAuraDurationObject = data.cdmAuraDurationObject
 			local cdmAuraDurationActive = cdmAuraDurationObject ~= nil
-			local cooldownActive = data.showCooldown and (durationActive or (cooldownEnabledOk and isCooldownActive(cooldownStart, cooldownDuration)))
+			local cooldownActive = data.showCooldown and (durationActive or spellCooldownActive)
 			local usingCooldown = false
 			local desaturate = false
 			local hidden = false
 			local chargeCooldownHasAvailableCharge = false
+			local chargeInfoActive = false
 			local entryNoDesaturation = data.noDesaturation == true and not (data.resolvedType == "ITEM" and data.emptyItem == true)
 			local entryDrawEdge = data.cooldownDrawEdge ~= false
 			local entryDrawBling = data.cooldownDrawBling ~= false
@@ -14520,8 +14548,8 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 					icon.charges:Hide()
 				end
 				if data.showCooldown then
-					local chargesSecret = Api.issecretvalue and (Api.issecretvalue(data.chargesInfo.currentCharges) or Api.issecretvalue(data.chargesInfo.maxCharges))
-					if chargesSecret or isSafeLessThan(data.chargesInfo.currentCharges, data.chargesInfo.maxCharges) then
+						chargeInfoActive = CooldownPanels.IsChargeInfoActive(data.chargesInfo)
+					if chargeInfoActive then
 						cooldownStart = data.chargesInfo.cooldownStartTime or cooldownStart
 						cooldownDuration = data.chargesInfo.cooldownDuration or cooldownDuration
 						cooldownRate = data.chargesInfo.chargeModRate or cooldownRate
@@ -17756,19 +17784,20 @@ refreshPanelsForCharges = function()
 
 	for spellId, panels in pairs(chargesIndex) do
 		local info = Api.GetSpellChargesInfo(spellId)
-		local secret = false
 		local function safeNumber(value)
-			if Api.issecretvalue and Api.issecretvalue(value) then
-				secret = true
-				return nil
-			end
-			return type(value) == "number" and value or nil
+			if Api.issecretvalue and Api.issecretvalue(value) then return nil, true end
+			return type(value) == "number" and value or nil, false
 		end
-		local cur = safeNumber(info and info.currentCharges)
-		local max = safeNumber(info and info.maxCharges)
-		local start = safeNumber(info and info.cooldownStartTime)
-		local duration = safeNumber(info and info.cooldownDuration)
-		local rate = safeNumber(info and info.chargeModRate)
+		local function safeBoolean(value)
+			if Api.issecretvalue and Api.issecretvalue(value) then return nil, true end
+			return type(value) == "boolean" and value or nil, false
+		end
+		local cur, curSecret = safeNumber(info and info.currentCharges)
+		local max, maxSecret = safeNumber(info and info.maxCharges)
+		local start, startSecret = safeNumber(info and info.cooldownStartTime)
+		local duration, durationSecret = safeNumber(info and info.cooldownDuration)
+		local rate, rateSecret = safeNumber(info and info.chargeModRate)
+		local active, activeSecret = safeBoolean(info and info.isActive)
 
 		local state = chargesState[spellId]
 		local changed = false
@@ -17778,19 +17807,19 @@ refreshPanelsForCharges = function()
 			changed = true
 		end
 
-		if secret then
-			if not state.secret then changed = true end
-			state.secret = true
-		else
-			if state.secret then changed = true end
-			state.secret = nil
-			if state.cur ~= cur or state.max ~= max or state.start ~= start or state.duration ~= duration or state.rate ~= rate then changed = true end
-			state.cur = cur
-			state.max = max
-			state.start = start
-			state.duration = duration
-			state.rate = rate
+		local function updateStateField(field, value, isSecret)
+			local secretField = field .. "Secret"
+			local normalizedSecret = isSecret or nil
+			if state[field] ~= value or state[secretField] ~= normalizedSecret then changed = true end
+			state[field] = value
+			state[secretField] = normalizedSecret
 		end
+		updateStateField("cur", cur, curSecret)
+		updateStateField("max", max, maxSecret)
+		updateStateField("start", start, startSecret)
+		updateStateField("duration", duration, durationSecret)
+		updateStateField("rate", rate, rateSecret)
+		updateStateField("active", active, activeSecret)
 
 		if changed and panels then
 			panelsToRefresh = panelsToRefresh or {}
