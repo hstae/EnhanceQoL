@@ -80,6 +80,8 @@ local UNIT = {
 	FOCUS = "focus",
 	PET = "pet",
 }
+local ENEMY_DEBUFF_FILTER_MODE_PLAYER = "PLAYER"
+local ENEMY_DEBUFF_FILTER_MODE_ALL = "ALL"
 
 local UF_FRAME_NAMES = {
 	player = {
@@ -1283,6 +1285,7 @@ local defaults = {
 			showCooldownDebuffs = nil,
 			showBuffs = true,
 			showDebuffs = true,
+			enemyDebuffFilterMode = ENEMY_DEBUFF_FILTER_MODE_PLAYER,
 			blizzardDispelBorder = false,
 			blizzardDispelBorderAlpha = 1,
 			blizzardDispelBorderAlphaNot = 0,
@@ -1445,10 +1448,23 @@ local function defaultsFor(unit)
 	return defaults[unit] or defaults.player or {}
 end
 
-function AuraUtil.getAuraFilters(unit)
+function AuraUtil.normalizeEnemyDebuffFilterMode(value)
+	value = type(value) == "string" and value:upper() or nil
+	if value == ENEMY_DEBUFF_FILTER_MODE_ALL then return ENEMY_DEBUFF_FILTER_MODE_ALL end
+	return ENEMY_DEBUFF_FILTER_MODE_PLAYER
+end
+
+function AuraUtil.getAuraFilters(unit, ac, defAc)
 	if unit == UNIT.PLAYER or unit == "player" then return AURA_FILTER_HELPFUL, AURA_FILTER_HARMFUL_ALL end
 	if UnitIsFriend and unit and UnitIsFriend("player", unit) then return AURA_FILTER_HELPFUL, AURA_FILTER_HARMFUL_ALL end
-	return AURA_FILTER_HELPFUL, AURA_FILTER_HARMFUL
+
+	local harmfulFilter = AURA_FILTER_HARMFUL
+	local resolved = AuraUtil.resolveSingleAuraConfig(ac, defAc)
+	local debuffSection = resolved and resolved.debuff
+	local enemyDebuffFilterMode = AuraUtil.normalizeEnemyDebuffFilterMode(debuffSection and debuffSection.enemyDebuffFilterMode)
+	if enemyDebuffFilterMode == ENEMY_DEBUFF_FILTER_MODE_ALL then harmfulFilter = AURA_FILTER_HARMFUL_ALL end
+
+	return AURA_FILTER_HELPFUL, harmfulFilter
 end
 
 function AuraUtil.cloneAuraSettingValue(value)
@@ -1531,6 +1547,7 @@ function AuraUtil.buildLegacyAuraSection(src, isDebuff)
 	if src.max ~= nil then section.max = src.max end
 	if src.perRow ~= nil then section.perRow = src.perRow end
 	if src.showTooltip ~= nil then section.showTooltip = src.showTooltip and true or false end
+	if isDebuff and src.enemyDebuffFilterMode ~= nil then section.enemyDebuffFilterMode = AuraUtil.normalizeEnemyDebuffFilterMode(src.enemyDebuffFilterMode) end
 
 	local showCooldown = isDebuff and src.showCooldownDebuffs or src.showCooldownBuffs
 	if showCooldown == nil then showCooldown = src.showCooldown end
@@ -3208,11 +3225,11 @@ function AuraUtil.styleAuraDRText(btn, ac, drFontSizeOverride)
 	btn.drText:SetFont(UFHelper.getFont(ac.drFont), size, flags)
 end
 
-function AuraUtil.applyAuraToButton(btn, aura, ac, isDebuff, unitToken)
+function AuraUtil.applyAuraToButton(btn, aura, ac, isDebuff, unitToken, harmfulFilter)
 	if not btn or not aura then return end
 	unitToken = unitToken or "target"
 	if issecretvalue and issecretvalue(isDebuff) then
-		local _, harmfulFilter = AuraUtil.getAuraFilters(unitToken)
+		harmfulFilter = harmfulFilter or select(2, AuraUtil.getAuraFilters(unitToken, ac))
 		isDebuff = not C_UnitAuras.IsAuraFilteredOutByInstanceID(unitToken, aura.auraInstanceID, harmfulFilter)
 	end
 	btn.spellId = aura.spellId
@@ -3719,7 +3736,7 @@ function AuraUtil.updateTargetAuraIcons(startIndex, unit)
 	end
 	local auras, order, indexById = AuraUtil.getAuraTables(unit)
 	if not auras or not order or not indexById then return end
-	local _, harmfulFilter = AuraUtil.getAuraFilters(unit)
+	local _, harmfulFilter = AuraUtil.getAuraFilters(unit, ac, def and def.auraIcons)
 	local function isAuraDebuff(aura)
 		if issecretvalue and issecretvalue(aura.isHarmful) and C_UnitAuras and C_UnitAuras.IsAuraFilteredOutByInstanceID then
 			return not C_UnitAuras.IsAuraFilteredOutByInstanceID(unit, aura.auraInstanceID, harmfulFilter)
@@ -3826,7 +3843,7 @@ function AuraUtil.updateTargetAuraIcons(startIndex, unit)
 				local layout = isDebuff and debuffStyle or buffStyle
 				local btn
 				btn, st.auraButtons = AuraUtil.ensureAuraButton(st.auraContainer, st.auraButtons, i, layout)
-				AuraUtil.applyAuraToButton(btn, aura, layout, isDebuff, unit)
+				AuraUtil.applyAuraToButton(btn, aura, layout, isDebuff, unit, harmfulFilter)
 				AuraUtil.anchorAuraButton(btn, st.auraContainer, i, combinedLayout, perRowCombined, combinedPrimary, combinedSecondary)
 			end
 		end
@@ -3863,13 +3880,13 @@ function AuraUtil.updateTargetAuraIcons(startIndex, unit)
 				debuffCount = debuffCount + 1
 				local btn
 				btn, debuffButtons = AuraUtil.ensureAuraButton(st.debuffContainer, debuffButtons, debuffCount, debuffStyle)
-				AuraUtil.applyAuraToButton(btn, aura, debuffStyle, true, unit)
+				AuraUtil.applyAuraToButton(btn, aura, debuffStyle, true, unit, harmfulFilter)
 				AuraUtil.anchorAuraButton(btn, st.debuffContainer, debuffCount, debuffStyle, perRowDebuff, debPrimary, debSecondary)
 			else
 				buffCount = buffCount + 1
 				local btn
 				btn, buffButtons = AuraUtil.ensureAuraButton(st.auraContainer, buffButtons, buffCount, buffStyle)
-				AuraUtil.applyAuraToButton(btn, aura, buffStyle, false, unit)
+				AuraUtil.applyAuraToButton(btn, aura, buffStyle, false, unit, harmfulFilter)
 				AuraUtil.anchorAuraButton(btn, st.auraContainer, buffCount, buffStyle, perRow, buffPrimary, buffSecondary)
 			end
 		end
@@ -3976,7 +3993,7 @@ function AuraUtil.fullScanTargetAuras(unit)
 		AuraUtil.updateTargetAuraIcons(nil, unit)
 		return
 	end
-	local helpfulFilter, harmfulFilter = AuraUtil.getAuraFilters(unit)
+	local helpfulFilter, harmfulFilter = AuraUtil.getAuraFilters(unit, ac, def and def.auraIcons)
 	local helpfulLimit, harmfulLimit = AuraUtil.getTargetAuraQueryLimits(ac, def and def.auraIcons)
 	if showBuffs then AuraUtil.scanTargetAuraSlots(unit, helpfulFilter, helpfulLimit, buff.hidePermanentAuras == true) end
 	if showDebuffs then AuraUtil.scanTargetAuraSlots(unit, harmfulFilter, harmfulLimit, debuff.hidePermanentAuras == true) end
@@ -4236,6 +4253,7 @@ do
 		showCooldown = true,
 		showCooldownBuffs = nil,
 		showCooldownDebuffs = nil,
+		enemyDebuffFilterMode = ENEMY_DEBUFF_FILTER_MODE_PLAYER,
 		showTooltip = true,
 		hidePermanentAuras = false,
 		blizzardDispelBorder = false,
@@ -9246,7 +9264,7 @@ onEvent = function(self, event, unit, ...)
 			AuraUtil.fullScanTargetAuras(unit)
 			return
 		end
-		local helpfulFilter, harmfulFilter = AuraUtil.getAuraFilters(unit)
+		local helpfulFilter, harmfulFilter = AuraUtil.getAuraFilters(unit, ac, def and def.auraIcons)
 		local eventInfo = arg1
 		if not UnitExists(unit) then
 			AuraUtil.resetTargetAuras(unit)

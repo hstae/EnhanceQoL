@@ -333,6 +333,13 @@ function Helper.NormalizeTextureInput(value)
 	return (value:gsub("^%s+", ""):gsub("%s+$", ""))
 end
 
+function Helper.NormalizeFileDataID(value)
+	local numeric = tonumber(value)
+	if not numeric or numeric <= 0 then return nil end
+	if math.floor(numeric) ~= numeric then return nil end
+	return numeric
+end
+
 function Helper.ResolveTextureInput(value)
 	local input = Helper.NormalizeTextureInput(value)
 	if input == "" then return nil end
@@ -1745,6 +1752,7 @@ function Helper.NormalizeEntry(entry, defaults)
 	if entry.procGlowInset ~= nil then entry.procGlowInset = Helper.NormalizeGlowInset(entry.procGlowInset, nil) end
 	if type(entry.pandemicGlow) ~= "boolean" then entry.pandemicGlow = Helper.ENTRY_DEFAULTS.pandemicGlow end
 	if type(entry.hideIcon) ~= "boolean" then entry.hideIcon = Helper.ENTRY_DEFAULTS.hideIcon end
+	entry.customIconID = Helper.NormalizeFileDataID(entry.customIconID)
 	if type(entry.iconSizeUseGlobal) ~= "boolean" then entry.iconSizeUseGlobal = true end
 	entry.iconSize = Helper.ClampInt(entry.iconSize, 12, 128, Helper.ENTRY_DEFAULTS.iconSize or Helper.PANEL_LAYOUT_DEFAULTS.iconSize or 36)
 	entry.iconOffsetX = Helper.ClampInt(entry.iconOffsetX, -Helper.OFFSET_RANGE, Helper.OFFSET_RANGE, Helper.ENTRY_DEFAULTS.iconOffsetX or 0)

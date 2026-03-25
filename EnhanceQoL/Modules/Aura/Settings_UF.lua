@@ -588,6 +588,10 @@ local function appendUnitAuraSettings(list, unit, def, refreshSelf)
 		{ value = "DOWNLEFT", label = growthLabel(downLabel, leftLabel) },
 		{ value = "DOWNRIGHT", label = growthLabel(downLabel, rightLabel) },
 	}
+	local enemyDebuffFilterOptions = {
+		{ value = "PLAYER", label = L["UFAuraEnemyDebuffFilterPlayer"] or "Only my debuffs" },
+		{ value = "ALL", label = L["UFAuraEnemyDebuffFilterAll"] or "All debuffs" },
+	}
 
 	local function syncAuraState(ac)
 		if type(ac) ~= "table" then return end
@@ -650,6 +654,22 @@ local function appendUnitAuraSettings(list, unit, def, refreshSelf)
 			refreshSettingsUI()
 			refreshAuras()
 		end, auraDef.enabled ~= false, parentId)
+
+		if isDebuff and unit ~= "player" then
+			list[#list + 1] = radioDropdown(
+				L["UFAuraEnemyDebuffFilter"] or "Enemy debuff filter",
+				enemyDebuffFilterOptions,
+				function() return getAuraSectionValue(sectionKey, { "enemyDebuffFilterMode" }, auraDef.enemyDebuffFilterMode or "PLAYER") end,
+				function(val)
+					setAuraSectionValue(sectionKey, { "enemyDebuffFilterMode" }, val or "PLAYER")
+					refreshSelf()
+					refreshAuras()
+				end,
+				auraDef.enemyDebuffFilterMode or "PLAYER",
+				parentId
+			)
+			list[#list].isEnabled = isSectionEnabled
+		end
 
 		list[#list + 1] = checkbox(L["Show tooltip"] or "Show tooltip", function() return getAuraSectionValue(sectionKey, { "showTooltip" }, true) ~= false end, function(val)
 			setAuraSectionValue(sectionKey, { "showTooltip" }, val and true or false)
