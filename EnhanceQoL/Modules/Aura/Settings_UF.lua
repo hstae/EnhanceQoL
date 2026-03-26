@@ -1008,9 +1008,18 @@ local function toRGBA(value, fallback)
 	return value[1] or (fallback and fallback[1]) or 1, value[2] or (fallback and fallback[2]) or 1, value[3] or (fallback and fallback[3]) or 1, value[4] or (fallback and fallback[4]) or 1
 end
 
+local visualOnlyRefreshPending = false
+
+local function consumeVisualOnlyRefreshPending()
+	local pending = visualOnlyRefreshPending == true
+	visualOnlyRefreshPending = false
+	return pending
+end
+
 local function setColor(unit, path, r, g, b, a)
 	local _, _, _, curA = toRGBA(getValue(unit, path))
 	setValue(unit, path, { r or 1, g or 1, b or 1, a or curA or 1 })
+	visualOnlyRefreshPending = true
 end
 
 local function canRefresh() return addon.db ~= nil and addon.Aura and addon.Aura.UFInitialized end
@@ -1022,6 +1031,7 @@ local function refresh(unit)
 	elseif UF.Refresh then
 		UF.Refresh()
 	end
+	consumeVisualOnlyRefreshPending()
 end
 
 local refreshBatchDepth = 0
@@ -2709,12 +2719,13 @@ local function buildUnitSettings(unit)
 	local isBoss = isBossUnit(unit)
 	local refreshFunc = refresh
 	local function refreshSelf()
+		local visualOnlyRefresh = consumeVisualOnlyRefreshPending()
 		if isBoss and UF.UpdateBossFrames then
 			UF.UpdateBossFrames(true)
 		else
 			refreshFunc(unit)
 		end
-		if addon.EditModeLib and addon.EditModeLib.IsInEditMode and addon.EditModeLib:IsInEditMode() then refreshEditModeFrame(isBoss and "boss" or unit) end
+		if not visualOnlyRefresh and addon.EditModeLib and addon.EditModeLib.IsInEditMode and addon.EditModeLib:IsInEditMode() then refreshEditModeFrame(isBoss and "boss" or unit) end
 	end
 	local refresh = refreshSelf
 	local isPlayer = unit == "player"
@@ -3003,7 +3014,6 @@ local function buildUnitSettings(unit)
 			border.color = { color.r, color.g, color.b, color.a }
 			setValue(unit, { "border" }, border)
 			refresh()
-			refreshSettingsUI()
 		end,
 		colorDefault = {
 			r = (def.border and def.border.color and def.border.color[1]) or 0,
@@ -3080,7 +3090,6 @@ local function buildUnitSettings(unit)
 			highlight.color = { color.r, color.g, color.b, color.a }
 			setValue(unit, { "highlight" }, highlight)
 			refresh()
-			refreshSettingsUI()
 		end,
 		colorDefault = {
 			r = (highlightDef.color and highlightDef.color[1]) or 1,
@@ -3092,9 +3101,7 @@ local function buildUnitSettings(unit)
 
 	local function isHighlightEnabled() return getValue(unit, { "highlight", "enabled" }, highlightDef.enabled == true) == true end
 	local function isHighlightAggroEnabled() return isHighlightEnabled() and (isPlayer or isPet) end
-	local function isHighlightMouseoverEnabled()
-		return isHighlightEnabled() and (getValue(unit, { "highlight", "mouseover" }, highlightDef.mouseover ~= false) == true)
-	end
+	local function isHighlightMouseoverEnabled() return isHighlightEnabled() and (getValue(unit, { "highlight", "mouseover" }, highlightDef.mouseover ~= false) == true) end
 
 	list[#list + 1] = checkbox(
 		L["UFHighlightMouseover"] or "Highlight on mouseover",
@@ -4721,9 +4728,10 @@ local function buildUnitSettings(unit)
 				getColor = function() return toRGBA(getPowerOverride(token) or defaultColor, defaultColor) end,
 				onColor = function(color)
 					debounced("uf_powercolor_pick_" .. token, function()
+						local shouldRefreshSettings = getPowerOverride(token) == nil
 						setPowerOverride(token, color.r, color.g, color.b, color.a)
 						if UF and UF.Refresh then UF.Refresh() end
-						refreshSettingsUI()
+						if shouldRefreshSettings then refreshSettingsUI() end
 					end)
 				end,
 				colorDefault = { r = dr, g = dg, b = db, a = da },
@@ -4756,9 +4764,10 @@ local function buildUnitSettings(unit)
 				getColor = function() return toRGBA(getNPCOverride(entry.key) or defaultColor, defaultColor) end,
 				onColor = function(color)
 					debounced("uf_npccolor_pick_" .. entry.key, function()
+						local shouldRefreshSettings = getNPCOverride(entry.key) == nil
 						setNPCOverride(entry.key, color.r, color.g, color.b, color.a)
 						if UF and UF.Refresh then UF.Refresh() end
-						refreshSettingsUI()
+						if shouldRefreshSettings then refreshSettingsUI() end
 					end)
 				end,
 				colorDefault = { r = dr, g = dg, b = db, a = da },
