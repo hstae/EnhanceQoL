@@ -18590,6 +18590,7 @@ local function ensureUpdateFrame()
 			local anchorHelper = CooldownPanels.AnchorHelper
 			if anchorHelper and anchorHelper.HandleAddonLoaded then anchorHelper:HandleAddonLoaded(name) end
 			if type(name) == "string" and (name == "Dominos" or name == "Bartender4" or name == "ElvUI" or name:match("^Dominos_") or name:match("^Bartender4_")) then
+				if Keybinds.InvalidateButtonList then Keybinds.InvalidateButtonList() end
 				Keybinds.RequestRefresh("Event:ADDON_LOADED:" .. name)
 			end
 			if name == "Masque" then
@@ -18601,6 +18602,9 @@ local function ensureUpdateFrame()
 		if event == "PLAYER_LOGIN" then
 			local anchorHelper = CooldownPanels.AnchorHelper
 			if anchorHelper and anchorHelper.HandlePlayerLogin then anchorHelper:HandlePlayerLogin() end
+			if Keybinds.InvalidateButtonList then Keybinds.InvalidateButtonList() end
+			Keybinds.InvalidateCache()
+			Keybinds.RequestRefresh("Event:PLAYER_LOGIN")
 			if CooldownPanels.refreshAssistedHighlightCVarState then CooldownPanels.refreshAssistedHighlightCVarState("Event:PLAYER_LOGIN", true) end
 			refreshPanelsForCharges()
 			return
@@ -18655,10 +18659,11 @@ local function ensureUpdateFrame()
 			local slot = tonumber((...))
 			-- The Single Button Assistant rotates the assisted-combat slot without changing its binding.
 			if isAssistedCombatActionSlot(slot) then return end
-			Keybinds.RequestRefresh("Event:" .. event)
-
 			local root = ensureRoot()
-			if not (root and root.panels) then return end
+			if not (root and root.panels) then
+				Keybinds.RequestRefresh("Event:" .. event)
+				return
+			end
 
 			local trackedMacroIDs = {}
 			local trackedMacroNames = {}
@@ -18680,7 +18685,10 @@ local function ensureUpdateFrame()
 				end
 			end
 
-			if not next(trackedMacroIDs) and not next(trackedMacroNames) then return end
+			if not next(trackedMacroIDs) and not next(trackedMacroNames) then
+				Keybinds.RequestRefresh("Event:" .. event)
+				return
+			end
 
 			CooldownPanels.runtime = CooldownPanels.runtime or {}
 			local runtime = CooldownPanels.runtime
@@ -18747,10 +18755,13 @@ local function ensureUpdateFrame()
 			end
 
 			if shouldRefresh then
+				Keybinds.InvalidateCache()
 				runtime.iconCache = nil
 				updateItemCountCache()
 				CooldownPanels:RebuildSpellIndex()
 				CooldownPanels:RequestUpdate("Event:" .. event)
+			else
+				Keybinds.RequestRefresh("Event:" .. event)
 			end
 			return
 		end
@@ -18763,7 +18774,7 @@ local function ensureUpdateFrame()
 			return
 		end
 		if event == "UPDATE_MACROS" then
-			Keybinds.RequestRefresh("Event:" .. event)
+			Keybinds.InvalidateCache()
 			if CooldownPanels.runtime then CooldownPanels.runtime.iconCache = nil end
 			CooldownPanels:InvalidateSpellQueryCaches()
 			updateItemCountCache()

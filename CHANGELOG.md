@@ -1,5 +1,18 @@
 # Changelog
 
+## [9.10.3] - 2026-03-25
+
+### ✨ Added
+
+- Cooldown Panels (Fixed Slots / Dynamic Subgroups): Added configurable `Start point` and `Growth direction` options for dynamic subgroups.
+- Cooldown Panels (Fixed Slots / Dynamic Subgroups): Added subgroup-wide `Icon X` / `Icon Y` offsets so grouped icons can be nudged together without moving every entry manually.
+
+### 🐛 Fixed
+
+- Cooldown Panels (Fixed Slots / Layout Edit): Fixed moved icons in fixed-slot edit mode being hard to interact with. The visible shifted icon can now still be edited outside the panel area, while the ghost slot remains usable as an edit target.
+
+---
+
 ## [9.10.2] - 2026-03-25
 
 ### 🐛 Fixed

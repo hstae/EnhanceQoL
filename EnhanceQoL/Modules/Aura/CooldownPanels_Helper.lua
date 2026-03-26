@@ -2216,24 +2216,29 @@ local function getButtonActionSlot(button)
 	return nil
 end
 
-local function eachActionButton(callback)
-	if type(callback) ~= "function" then return end
+local function getCachedActionButtons()
+	local runtime = CooldownPanels.runtime or {}
+	if runtime._eqolActionButtons then return runtime._eqolActionButtons end
+	local buttons = {}
 	local seen = {}
-	local function visit(button)
-		if not button or seen[button] then return end
-		seen[button] = true
-		callback(button)
-	end
 
 	for _, info in ipairs(THIRD_PARTY_ACTION_BUTTON_PREFIXES) do
 		for i = 1, info.count do
-			visit(_G[info.prefix .. i])
+			local button = _G[info.prefix .. i]
+			if button and not seen[button] then
+				seen[button] = true
+				buttons[#buttons + 1] = button
+			end
 		end
 	end
 
 	for bar = 1, ELVUI_ACTION_BARS do
 		for buttonIndex = 1, ELVUI_ACTION_BUTTONS do
-			visit(_G["ElvUI_Bar" .. bar .. "Button" .. buttonIndex])
+			local button = _G["ElvUI_Bar" .. bar .. "Button" .. buttonIndex]
+			if button and not seen[button] then
+				seen[button] = true
+				buttons[#buttons + 1] = button
+			end
 		end
 	end
 
@@ -2241,8 +2246,24 @@ local function eachActionButton(callback)
 	local buttonCount = NUM_ACTIONBAR_BUTTONS or 12
 	for _, prefix in ipairs(buttonNames) do
 		for i = 1, buttonCount do
-			visit(_G[prefix .. i])
+			local button = _G[prefix .. i]
+			if button and not seen[button] then
+				seen[button] = true
+				buttons[#buttons + 1] = button
+			end
 		end
+	end
+
+	runtime._eqolActionButtons = buttons
+	CooldownPanels.runtime = runtime
+	return buttons
+end
+
+local function eachActionButton(callback)
+	if type(callback) ~= "function" then return end
+	local buttons = getCachedActionButtons()
+	for i = 1, #buttons do
+		callback(buttons[i])
 	end
 end
 
@@ -2412,10 +2433,27 @@ local function getBindingTextForSpell(spellId)
 	return nil
 end
 
+local function addSpellBindingLookup(lookup, spellId, keyText)
+	spellId = tonumber(spellId)
+	if not (lookup and lookup.spell and spellId and keyText) then return end
+	local current = lookup.spell[spellId]
+	if current == nil then
+		lookup.spell[spellId] = keyText
+	elseif current ~= keyText then
+		lookup.spell[spellId] = false
+	end
+end
+
+local function getLookupSpellBindingText(lookup, spellId)
+	local text = lookup and lookup.spell and spellId and lookup.spell[spellId] or nil
+	return type(text) == "string" and text or nil
+end
+
 local function buildKeybindLookup()
 	local runtime = CooldownPanels.runtime or {}
 	if runtime._eqolKeybindLookup then return runtime._eqolKeybindLookup end
 	local lookup = {
+		spell = {},
 		item = {},
 		macro = {},
 		macroName = {},
@@ -2435,7 +2473,13 @@ local function buildKeybindLookup()
 		end
 		if not (keyText and GetActionInfo) then return end
 		local actionType, actionId = GetActionInfo(slot)
-		if actionType == "item" and actionId then
+		if actionType == "spell" and actionId then
+			local spellId = tonumber(actionId)
+			if spellId then
+				addSpellBindingLookup(lookup, spellId, keyText)
+				addSpellBindingLookup(lookup, getEffectiveSpellId(spellId), keyText)
+			end
+		elseif actionType == "item" and actionId then
 			if not lookup.item[actionId] then lookup.item[actionId] = keyText end
 		elseif actionType == "macro" and actionId then
 			if not lookup.macro[actionId] then lookup.macro[actionId] = keyText end
@@ -2470,6 +2514,12 @@ function Keybinds.InvalidateCache()
 	CooldownPanels.runtime._eqolKeybindCache = nil
 end
 
+function Keybinds.InvalidateButtonList()
+	if not CooldownPanels.runtime then return end
+	CooldownPanels.runtime._eqolActionButtons = nil
+	CooldownPanels.runtime._eqolActionButtonSlotMap = nil
+end
+
 function Keybinds.MarkPanelsDirty()
 	CooldownPanels.runtime = CooldownPanels.runtime or {}
 	CooldownPanels.runtime.keybindPanelsDirty = true
@@ -2497,17 +2547,62 @@ function Keybinds.HasPanels()
 	return panels ~= nil and next(panels) ~= nil
 end
 
+local function refreshPanelKeybindsOnly(panelId)
+	if not panelId then return false end
+	if not (CooldownPanels and CooldownPanels.GetPanel) then return false end
+	if CooldownPanels.IsInEditMode and CooldownPanels:IsInEditMode() == true then return false end
+	if CooldownPanels.IsPanelLayoutEditActive and CooldownPanels:IsPanelLayoutEditActive(panelId) then return false end
+
+	local panel = CooldownPanels:GetPanel(panelId)
+	if not (panel and panel.layout and panel.layout.keybindsEnabled == true) then return true end
+
+	local runtimePanel = getRuntime(panelId)
+	local frame = runtimePanel and runtimePanel.frame or nil
+	local icons = frame and frame.icons or nil
+	local visible = runtimePanel and runtimePanel.visibleEntries or nil
+	if not (icons and visible) then return true end
+
+	for i = 1, #icons do
+		local icon = icons[i]
+		local keybind = icon and icon.keybind or nil
+		local data = visible[i]
+		if keybind then
+			local show = data and data.layout and data.layout.keybindsEnabled == true and data.entry ~= nil
+			local text = show and Keybinds.GetEntryKeybindText(data.entry, data.layout) or nil
+			if data then
+				data.showKeybinds = show == true
+				data.keybindText = text
+			end
+			if text then
+				if keybind.GetText and keybind:GetText() ~= text then keybind:SetText(text) end
+				if keybind.IsShown and not keybind:IsShown() then keybind:Show() end
+			else
+				if keybind.IsShown and keybind:IsShown() then keybind:Hide() end
+			end
+		end
+	end
+
+	return true
+end
+
 function Keybinds.RefreshPanels()
 	local runtime = CooldownPanels.runtime
 	if not runtime then return false end
 	local panels = (runtime.keybindPanelsDirty or not runtime.keybindPanels) and Keybinds.RebuildPanels() or runtime.keybindPanels
 	if not panels or not next(panels) then return false end
+	local refreshed = false
+	local enabledPanels = runtime.enabledPanels
 	for panelId in pairs(panels) do
-		if CooldownPanels.GetPanel and CooldownPanels.RefreshPanel then
-			if CooldownPanels:GetPanel(panelId) then CooldownPanels:RefreshPanel(panelId) end
+		if not enabledPanels or enabledPanels[panelId] == true then
+			local ok = refreshPanelKeybindsOnly(panelId)
+			if not ok and CooldownPanels.GetPanel and CooldownPanels.RefreshPanel and CooldownPanels:GetPanel(panelId) then
+				CooldownPanels:RefreshPanel(panelId)
+				ok = true
+			end
+			refreshed = ok or refreshed
 		end
 	end
-	return true
+	return refreshed
 end
 
 function Keybinds.RequestRefresh(cause)
@@ -2543,8 +2638,11 @@ function Keybinds.GetEntryKeybindText(entry, layout)
 
 	local text = nil
 	if entry.type == "SPELL" and entry.spellID then
+		local lookup = buildKeybindLookup()
 		local spellId = effectiveSpellId or entry.spellID
-		text = getBindingTextForSpell(spellId)
+		text = getLookupSpellBindingText(lookup, spellId)
+		if not text and effectiveSpellId and effectiveSpellId ~= entry.spellID then text = getLookupSpellBindingText(lookup, entry.spellID) end
+		if not text then text = getBindingTextForSpell(spellId) end
 		if not text and effectiveSpellId and effectiveSpellId ~= entry.spellID then text = getBindingTextForSpell(entry.spellID) end
 	elseif entry.type == "ITEM" and entry.itemID then
 		local lookup = buildKeybindLookup()
