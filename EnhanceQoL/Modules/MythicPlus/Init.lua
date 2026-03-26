@@ -340,9 +340,7 @@ function addon.MythicPlus.functions.addPullButton()
 		end
 		-- blizzard / DBM alignment
 		local _, _, _, _, _, _, _, instanceId = GetInstanceInfo()
-		if (addon.db["PullTimerType"] == 2 or addon.db["PullTimerType"] == 4) and (not InCombatLockdown or not InCombatLockdown()) then
-			C_PartyInfo.DoCountdown(duration)
-		end
+		if (addon.db["PullTimerType"] == 2 or addon.db["PullTimerType"] == 4) and (not InCombatLockdown or not InCombatLockdown()) then C_PartyInfo.DoCountdown(duration) end
 		if addon.db["PullTimerType"] == 3 or addon.db["PullTimerType"] == 4 then
 			C_ChatInfo.SendAddonMessage("D4", ("PT\t%d\t%d"):format(duration, instanceId), IsInGroup(2) and "INSTANCE_CHAT" or "RAID")
 		end
@@ -580,6 +578,14 @@ addon.MythicPlus.variables.portalCompendium = {
 			-- Valdrakken (Dragonflight)
 			[395277] = { text = "Vald", isClassTP = "MAGE", locID = 2112, x = 0.5432, y = 0.4788, zoneID = 2112 },
 			[395289] = { text = "Vald", isMagePortal = true, locID = 2112, x = 0.5432, y = 0.4788, zoneID = 2112 },
+			[376300] = {
+				text = "RHG",
+				isItem = true,
+				itemID = 193000,
+				isHearthstone = true,
+				equipSlot = 11,
+				icon = 4548920,
+			},
 		},
 	},
 	[100] = {
@@ -966,6 +972,17 @@ addon.MythicPlus.variables.portalCompendium = {
 				y = 0.7306,
 				zoneID = 210,
 			}, -- Boots of the Bay
+			[220746] = {
+				text = addon.MythicPlus.variables.hearthstoneName or "HS",
+				isItem = true,
+				itemID = 139590,
+				isHearthstone = true,
+				icon = 134941,
+				locID = 25,
+				x = 0.7093,
+				y = 0.4489,
+				zoneID = 25,
+			},
 
 			[139437] = {
 				text = "BP",

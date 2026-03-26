@@ -9253,41 +9253,48 @@ function GF:UnitButton_RegisterUnitEvents(self, unit)
 		self._eqolRegEv[ev] = nil
 	end
 
-	local function reg(ev)
+	local function regUnit(ev)
 		self:RegisterUnitEvent(ev, unit)
 		self._eqolRegEv[ev] = true
 	end
 
-	reg("UNIT_CONNECTION")
-	reg("UNIT_HEALTH")
-	reg("UNIT_MAXHEALTH")
+	local function reg(ev)
+		self:RegisterEvent(ev)
+		self._eqolRegEv[ev] = true
+	end
+
+	regUnit("UNIT_CONNECTION")
+	reg("PARTY_MEMBER_ENABLE")
+	reg("PARTY_MEMBER_DISABLE")
+	regUnit("UNIT_HEALTH")
+	regUnit("UNIT_MAXHEALTH")
 	if self._eqolUFState and self._eqolUFState._wantsIncomingHeal then
-		reg("UNIT_HEAL_PREDICTION")
-		reg("UNIT_MAX_HEALTH_MODIFIERS_CHANGED")
+		regUnit("UNIT_HEAL_PREDICTION")
+		regUnit("UNIT_MAX_HEALTH_MODIFIERS_CHANGED")
 	end
 	if self._eqolUFState and self._eqolUFState._wantsAbsorb then
-		reg("UNIT_ABSORB_AMOUNT_CHANGED")
-		reg("UNIT_HEAL_ABSORB_AMOUNT_CHANGED")
+		regUnit("UNIT_ABSORB_AMOUNT_CHANGED")
+		regUnit("UNIT_HEAL_ABSORB_AMOUNT_CHANGED")
 	end
 
 	local powerH = cfg and cfg.powerHeight or 0
 	local wantsPower = self._eqolUFState and self._eqolUFState._wantsPower
 	if wantsPower == nil then wantsPower = true end
 	if powerH and powerH > 0 and wantsPower then
-		reg("UNIT_POWER_UPDATE")
-		reg("UNIT_MAXPOWER")
-		reg("UNIT_DISPLAYPOWER")
+		regUnit("UNIT_POWER_UPDATE")
+		regUnit("UNIT_MAXPOWER")
+		regUnit("UNIT_DISPLAYPOWER")
 	end
 
-	reg("UNIT_NAME_UPDATE")
+	regUnit("UNIT_NAME_UPDATE")
 	if self._eqolUFState and self._eqolUFState._wantsPortrait then
-		reg("UNIT_PORTRAIT_UPDATE")
-		reg("UNIT_MODEL_CHANGED")
-		reg("UNIT_ENTERED_VEHICLE")
-		reg("UNIT_EXITED_VEHICLE")
-		reg("UNIT_EXITING_VEHICLE")
+		regUnit("UNIT_PORTRAIT_UPDATE")
+		regUnit("UNIT_MODEL_CHANGED")
+		regUnit("UNIT_ENTERED_VEHICLE")
+		regUnit("UNIT_EXITED_VEHICLE")
+		regUnit("UNIT_EXITING_VEHICLE")
 	end
-	reg("UNIT_FLAGS")
+	regUnit("UNIT_FLAGS")
 	local wantsLevel = self._eqolUFState and self._eqolUFState._wantsLevel
 	if not wantsLevel and UFHelper and UFHelper.textModeUsesLevel then
 		local hc = cfg and cfg.health or {}
@@ -9298,17 +9305,17 @@ function GF:UnitButton_RegisterUnitEvents(self, unit)
 			wantsLevel = true
 		end
 	end
-	if wantsLevel then reg("UNIT_LEVEL") end
+	if wantsLevel then regUnit("UNIT_LEVEL") end
 
-	if self._eqolUFState and (self._eqolUFState._wantsAuras or self._eqolUFState._wantsDispelTint or self._eqolUFState._wantsHealerBuffPlacement) then reg("UNIT_AURA") end
-	if self._eqolUFState and self._eqolUFState._wantsRangeFade then reg("UNIT_IN_RANGE_UPDATE") end
+	if self._eqolUFState and (self._eqolUFState._wantsAuras or self._eqolUFState._wantsDispelTint or self._eqolUFState._wantsHealerBuffPlacement) then regUnit("UNIT_AURA") end
+	if self._eqolUFState and self._eqolUFState._wantsRangeFade then regUnit("UNIT_IN_RANGE_UPDATE") end
 	if self._eqolUFState and self._eqolUFState._wantsAggroHighlight then
-		reg("UNIT_THREAT_SITUATION_UPDATE")
-		reg("UNIT_THREAT_LIST_UPDATE")
+		regUnit("UNIT_THREAT_SITUATION_UPDATE")
+		regUnit("UNIT_THREAT_LIST_UPDATE")
 	end
-	reg("INCOMING_SUMMON_CHANGED")
-	reg("INCOMING_RESURRECT_CHANGED")
-	reg("UNIT_PHASE")
+	regUnit("INCOMING_SUMMON_CHANGED")
+	regUnit("INCOMING_RESURRECT_CHANGED")
+	regUnit("UNIT_PHASE")
 end
 
 function GF.UnitButton_OnAttributeChanged(self, name, value)
@@ -9396,6 +9403,8 @@ local UNIT_DISPATCH = {
 	UNIT_NAME_UPDATE = dispatchUnitName,
 	UNIT_LEVEL = dispatchUnitLevel,
 	UNIT_CONNECTION = dispatchUnitConnection,
+	PARTY_MEMBER_ENABLE = dispatchUnitConnection,
+	PARTY_MEMBER_DISABLE = dispatchUnitConnection,
 	UNIT_PORTRAIT_UPDATE = dispatchUnitPortrait,
 	UNIT_MODEL_CHANGED = dispatchUnitPortrait,
 	UNIT_ENTERED_VEHICLE = dispatchUnitPortrait,
@@ -24708,6 +24717,8 @@ registerFeatureEvents = function(frame)
 		frame:RegisterEvent("PLAYER_REGEN_ENABLED")
 		frame:RegisterEvent("PLAYER_FLAGS_CHANGED")
 		frame:RegisterEvent("UNIT_CONNECTION")
+		frame:RegisterEvent("PARTY_MEMBER_ENABLE")
+		frame:RegisterEvent("PARTY_MEMBER_DISABLE")
 		frame:RegisterEvent("GROUP_ROSTER_UPDATE")
 		frame:RegisterEvent("UNIT_NAME_UPDATE")
 		frame:RegisterEvent("PARTY_LEADER_CHANGED")
@@ -24733,6 +24744,8 @@ unregisterFeatureEvents = function(frame)
 		frame:UnregisterEvent("PLAYER_REGEN_ENABLED")
 		frame:UnregisterEvent("PLAYER_FLAGS_CHANGED")
 		frame:UnregisterEvent("UNIT_CONNECTION")
+		frame:UnregisterEvent("PARTY_MEMBER_ENABLE")
+		frame:UnregisterEvent("PARTY_MEMBER_DISABLE")
 		frame:UnregisterEvent("GROUP_ROSTER_UPDATE")
 		frame:UnregisterEvent("UNIT_NAME_UPDATE")
 		frame:UnregisterEvent("PARTY_LEADER_CHANGED")
@@ -24833,7 +24846,7 @@ do
 			GF:RefreshReadyCheckIcons(event)
 		elseif event == "PLAYER_TARGET_CHANGED" then
 			GF:RefreshTargetHighlights()
-		elseif event == "UNIT_CONNECTION" then
+		elseif event == "UNIT_CONNECTION" or event == "PARTY_MEMBER_ENABLE" or event == "PARTY_MEMBER_DISABLE" then
 			local unit = ...
 			GF:RefreshConnectionState(unit)
 			if unit and C_Timer and C_Timer.After then C_Timer.After(0.25, function()

@@ -9,6 +9,7 @@
 
 ### 🐛 Fixed
 
+- Container Actions: `Crystallized Ethereal Voidsplinter` (`240175`) is now always ignored by the container action button, so Catalyst-charge items no longer get queued there or trigger error messages.
 - Groupframes: Smoothing wasn't working as expected
 - Talent Reminder: Fixed dungeon-specific talent reminders not reliably triggering in some seasonal dungeons.
 - Unit Frames (Target / Boss): Fixed the missing enemy-debuff filter option. Custom target and boss frames can now be switched between `Only my debuffs` and `All debuffs`, so teammate debuffs no longer stay hidden unintentionally.
