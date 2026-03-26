@@ -13,6 +13,7 @@
 - Talent Reminder: Fixed dungeon-specific talent reminders not reliably triggering in some seasonal dungeons.
 - Unit Frames (Target / Boss): Fixed the missing enemy-debuff filter option. Custom target and boss frames can now be switched between `Only my debuffs` and `All debuffs`, so teammate debuffs no longer stay hidden unintentionally.
 - Group Finder (Mythic+ score panel): Reduced occasional Blizzard UI errors when opening or updating the score panel next to Group Finder and Raider.IO tooltips.
+- Mythic+ (Chest Timers): Fixed the `+2` and `+3` timer labels overlapping each other next to the challenge timer. The labels now use a smaller font and stable relative anchoring so the vertical spacing stays consistent.
 - Cooldown Panels (Fixed Slots / Layout Edit): Fixed moved icons in fixed-slot edit mode being hard to interact with. The visible shifted icon can now still be edited outside the panel area, while the ghost slot remains usable as an edit target.
 - Group Frames (Party / Raid): Fixed absorb and heal-absorb overlays sometimes extending outside the frame, overlapping nearby group frames, or no longer filling correctly after the power bar was hidden.
 
