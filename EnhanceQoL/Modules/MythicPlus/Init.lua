@@ -223,6 +223,10 @@ function addon.MythicPlus.functions.addRCButton()
 	rcButton:SetHitRectInsets(15, 15, 15, 15)
 	rcButton:SetScript("OnClick", function(self, button)
 		if not self.readyCheckRunning then
+			if InCombatLockdown and InCombatLockdown() then
+				if UIErrorsFrame and UIErrorsFrame.AddMessage then UIErrorsFrame:AddMessage(L["readyCheckUnavailableInCombat"], 1, 0.1, 0.1) end
+				return
+			end
 			self.readyCheckRunning = true
 			DoReadyCheck()
 		end
@@ -336,7 +340,9 @@ function addon.MythicPlus.functions.addPullButton()
 		end
 		-- blizzard / DBM alignment
 		local _, _, _, _, _, _, _, instanceId = GetInstanceInfo()
-		if addon.db["PullTimerType"] == 2 or addon.db["PullTimerType"] == 4 then C_PartyInfo.DoCountdown(duration) end
+		if (addon.db["PullTimerType"] == 2 or addon.db["PullTimerType"] == 4) and (not InCombatLockdown or not InCombatLockdown()) then
+			C_PartyInfo.DoCountdown(duration)
+		end
 		if addon.db["PullTimerType"] == 3 or addon.db["PullTimerType"] == 4 then
 			C_ChatInfo.SendAddonMessage("D4", ("PT\t%d\t%d"):format(duration, instanceId), IsInGroup(2) and "INSTANCE_CHAT" or "RAID")
 		end
@@ -385,7 +391,9 @@ function addon.MythicPlus.functions.addPullButton()
 			self.spin:Stop()
 			self.ring:SetRotation(0)
 		end
-		C_PartyInfo.DoCountdown(0) -- abort Blizzard countdown
+		if not InCombatLockdown or not InCombatLockdown() then
+			C_PartyInfo.DoCountdown(0) -- abort Blizzard countdown
+		end
 		if not addon.db["noChatOnPullTimer"] then C_ChatInfo.SendChatMessage("PULL Canceled", "PARTY") end
 	end
 
