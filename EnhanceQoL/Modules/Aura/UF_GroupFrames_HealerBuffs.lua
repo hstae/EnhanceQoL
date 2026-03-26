@@ -244,6 +244,7 @@ local FAMILY_DATA = {
 	-- Holy Paladin
 	{ id = "paladin_beacon_of_light", classToken = "PALADIN", spec = "Holy", spellIds = { 53563 }, fallbackName = "Beacon of Light" },
 	{ id = "paladin_eternal_flame", classToken = "PALADIN", spec = "Holy", spellIds = { 156322 }, fallbackName = "Eternal Flame" },
+	{ id = "paladin_dawnlight", classToken = "PALADIN", spec = "Holy", spellIds = { 431381 }, fallbackName = "Dawnlight" },
 	{ id = "paladin_beacon_of_faith", classToken = "PALADIN", spec = "Holy", spellIds = { 156910 }, fallbackName = "Beacon of Faith" },
 	{ id = "paladin_beacon_of_the_savior", classToken = "PALADIN", spec = "Holy", spellIds = { 1244893 }, fallbackName = "Beacon of the Savior" },
 	{ id = "paladin_beacon_of_virtue", classToken = "PALADIN", spec = "Holy", spellIds = { 200025 }, fallbackName = "Beacon of Virtue" },
