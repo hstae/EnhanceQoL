@@ -46,6 +46,7 @@ local COOLDOWN_VIEWER_VISIBILITY_MODES = constants.COOLDOWN_VIEWER_VISIBILITY_MO
 local wipe = wipe
 local fontOrder = {}
 local borderOrder = {}
+local focusInterruptSoundOrder = {}
 local QUICK_SLOT_BORDER = "Interface\\Buttons\\UI-Quickslot2"
 local DEFAULT_NAMEPLATE_FEATURE_KEYS = constants.DEFAULT_NAMEPLATE_FEATURE_KEYS
 	or {
@@ -176,6 +177,57 @@ local function buildBorderDropdown()
 		borderOrder[i] = key
 	end
 	return map
+end
+
+local function buildFocusInterruptSoundDropdown()
+	local list, order
+	if addon.functions and addon.functions.GetLSMMediaDropdown then
+		list, order = addon.functions.GetLSMMediaDropdown("sound", true, "")
+	else
+		list = { [""] = "" }
+		order = { "" }
+		local names = addon.functions and addon.functions.GetLSMMediaNames and addon.functions.GetLSMMediaNames("sound") or {}
+		for i = 1, #names do
+			local name = names[i]
+			if type(name) == "string" and name ~= "" then
+				list[name] = name
+				order[#order + 1] = name
+			end
+		end
+	end
+
+	wipe(focusInterruptSoundOrder)
+	for i = 1, #(order or {}) do
+		focusInterruptSoundOrder[i] = order[i]
+	end
+
+	return list or {}
+end
+
+local function previewFocusInterruptSound(value)
+	if type(value) ~= "string" or value == "" then return end
+
+	local numeric = tonumber(value)
+	if numeric and PlaySound then
+		PlaySound(numeric, "Master")
+		return
+	end
+
+	local soundHash = addon.functions and addon.functions.GetLSMMediaHash and addon.functions.GetLSMMediaHash("sound")
+	local file = type(soundHash) == "table" and soundHash[value] or nil
+	if type(file) == "string" and file ~= "" and PlaySoundFile then PlaySoundFile(file, "Master") end
+end
+
+local function getNormalizedFocusInterruptSoundValue()
+	local cfg = addon.db and addon.db.focusInterruptTracker
+	local sound = cfg and cfg.sound
+	local value = sound and sound.file
+	if type(value) ~= "string" or value == "" then return "" end
+
+	local soundHash = addon.functions and addon.functions.GetLSMMediaHash and addon.functions.GetLSMMediaHash("sound")
+	if type(soundHash) == "table" and type(soundHash[value]) == "string" and soundHash[value] ~= "" then return value end
+
+	return ""
 end
 
 local function createActionBarVisibility(category, expandable)
@@ -1508,7 +1560,7 @@ local function createCastbarCategory()
 	addon.functions.SettingsCreateHeadline(category, L["FocusInterruptTracker"] or "Focus Interrupt Tracker", {
 		parentSection = expandable,
 	})
-	addon.functions.SettingsCreateCheckbox(category, {
+	local focusInterruptTrackerEnabled = addon.functions.SettingsCreateCheckbox(category, {
 		var = "focusInterruptTrackerEnabled",
 		text = L["focusInterruptTrackerEnabled"] or "Enable Focus interrupt tracker",
 		desc = L["focusInterruptTrackerDesc"] or "Shows an interrupt indicator near the focus frame when your interrupt is ready and the focus cast can be interrupted.",
@@ -1524,7 +1576,62 @@ local function createCastbarCategory()
 		end,
 		parentSection = expandable,
 	})
+	local focusInterruptSound = addon.functions.SettingsCreateCheckbox(category, {
+		var = "focusInterruptTrackerSoundEnabled",
+		text = L["focusInterruptTrackerSoundEnabled"] or "Play sound on focus cast",
+		desc = L["focusInterruptTrackerSoundEnabledDesc"]
+			or "Plays a sound when your focus starts casting while your interrupt is ready.",
+		get = function()
+			local cfg = addon.db and addon.db.focusInterruptTracker
+			local sound = cfg and cfg.sound
+			return sound and sound.enabled == true or false
+		end,
+		func = function(value)
+			addon.db.focusInterruptTracker = type(addon.db.focusInterruptTracker) == "table" and addon.db.focusInterruptTracker or {}
+			addon.db.focusInterruptTracker.sound = type(addon.db.focusInterruptTracker.sound) == "table" and addon.db.focusInterruptTracker.sound or {}
+			addon.db.focusInterruptTracker.sound.enabled = value and true or false
+		end,
+		parent = true,
+		element = focusInterruptTrackerEnabled and focusInterruptTrackerEnabled.element,
+		parentCheck = function()
+			local cfg = addon.db and addon.db.focusInterruptTracker
+			return cfg and cfg.enabled == true or false
+		end,
+		parentSection = expandable,
+	})
+	addon.functions.SettingsCreateSoundDropdown(category, {
+		var = "focusInterruptTrackerSoundFile",
+		text = L["focusInterruptTrackerSoundFile"] or "Sound",
+		desc = L["focusInterruptTrackerSoundFileDesc"] or "SharedMedia sound to play for new focus casts.",
+		listFunc = buildFocusInterruptSoundDropdown,
+		order = focusInterruptSoundOrder,
+		default = "",
+		get = function()
+			return getNormalizedFocusInterruptSoundValue()
+		end,
+		set = function(value)
+			addon.db.focusInterruptTracker = type(addon.db.focusInterruptTracker) == "table" and addon.db.focusInterruptTracker or {}
+			addon.db.focusInterruptTracker.sound = type(addon.db.focusInterruptTracker.sound) == "table" and addon.db.focusInterruptTracker.sound or {}
+			addon.db.focusInterruptTracker.sound.file = type(value) == "string" and value or ""
+		end,
+		callback = function(value)
+			previewFocusInterruptSound(value)
+		end,
+		parent = true,
+		element = focusInterruptSound and focusInterruptSound.element,
+		parentCheck = function()
+			local cfg = addon.db and addon.db.focusInterruptTracker
+			local sound = cfg and cfg.sound
+			return cfg and cfg.enabled == true and sound and sound.enabled == true or false
+		end,
+		parentSection = expandable,
+		placeholderText = NONE,
+		playbackChannel = "Master",
+	})
 	addon.functions.SettingsCreateText(category, "|cffffd700" .. (L["focusInterruptTrackerEditModeHint"] or "Configure display mode, icon, font, anchor, and border in Edit Mode.") .. "|r", {
+		parentSection = expandable,
+	})
+	addon.functions.SettingsCreateText(category, "|cffffd700" .. (L["focusInterruptTrackerSoundWarning"] or "Sound also plays for non-interruptible casts because the interruptibility flag is secret.") .. "|r", {
 		parentSection = expandable,
 	})
 

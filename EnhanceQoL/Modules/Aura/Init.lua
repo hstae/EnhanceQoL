@@ -107,6 +107,10 @@ function addon.Aura.functions.InitDB()
 			enabled = false,
 			color = { 0, 0, 0, 0.35 },
 		},
+		sound = {
+			enabled = false,
+			file = "",
+		},
 		border = {
 			enabled = false,
 			texture = "DEFAULT",
