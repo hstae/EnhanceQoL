@@ -19,7 +19,7 @@ CooldownPanels.Bars = CooldownPanels.Bars or {}
 local Bars = CooldownPanels.Bars
 if Bars._eqolSupplementLoaded == true then return end
 Bars._eqolSupplementLoaded = true
-Bars._eqolDebugEnabled = true
+Bars._eqolDebugEnabled = false
 
 local CreateFrame = CreateFrame
 local GetTime = GetTime

@@ -21,6 +21,8 @@ local function cleanupDebugArtifactsProfile(profile)
 		profile[PROFILE_DEBUG_KEYS[i]] = nil
 	end
 
+	if type(profile.cooldownPanels) == "table" then profile.cooldownPanels._eqolBarsDebug = nil end
+
 	if type(profile._temp) == "table" then
 		profile._temp.ufProfileDebug = nil
 		profile._temp.ufProfileTrace = nil
