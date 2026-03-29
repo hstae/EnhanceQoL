@@ -161,6 +161,7 @@ local function ensureMarchingAntsOverlay(host)
 	overlay:EnableMouse(false)
 	overlay.Texture = overlay:CreateTexture(nil, "ARTWORK")
 	overlay.Texture:SetAllPoints()
+	overlay.Texture:SetAlpha(0)
 	if not (overlay.Texture.SetAtlas and overlay.Texture:SetAtlas(MARCHING_ANTS_ATLAS)) then
 		overlay.Texture:SetTexture(BLIZZARD_GLOW_TEXTURE)
 		overlay.Texture:SetTexCoord(0.00781250, 0.50781250, 0.27734375, 0.52734375)
@@ -197,6 +198,7 @@ local function ensureMarchingAntsOverlay(host)
 
 	overlay:SetScript("OnHide", function(self)
 		if self.Anim and self.Anim.IsPlaying and self.Anim:IsPlaying() then self.Anim:Stop() end
+		if self.Texture then self.Texture:SetAlpha(0) end
 	end)
 
 	host._eqolMarchingAntsOverlay = overlay
@@ -219,6 +221,7 @@ local function startMarchingAnts(host, opts)
 	if not overlay then return end
 	overlay:Show()
 	if overlay.Anim and overlay.Anim.IsPlaying and not overlay.Anim:IsPlaying() then overlay.Anim:Play() end
+	if not overlay.FlipAnim and overlay.Texture then overlay.Texture:SetAlpha(1) end
 end
 
 local function stopMarchingAnts(host)

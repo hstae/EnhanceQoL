@@ -1142,6 +1142,14 @@ local function ensureBloodlustAnchor()
 					kind = settingType.Divider,
 				},
 				{
+					name = L["mythicPlusBloodlustTrackerSoundOnDebuffFade"] or "Play sound when Bloodlust lockout fades",
+					kind = settingType.Checkbox,
+					get = function() return addon.db and addon.db["mythicPlusBloodlustTrackerSoundOnDebuffFade"] == true end,
+					set = function(_, value)
+						if addon.db then addon.db["mythicPlusBloodlustTrackerSoundOnDebuffFade"] = value == true end
+					end,
+				},
+				{
 					name = L["mythicPlusBloodlustTrackerReadySoundOnEncounterStart"] or "Play sound on ENCOUNTER_START when Bloodlust is ready",
 					kind = settingType.Checkbox,
 					get = function() return addon.db and addon.db["mythicPlusBloodlustTrackerReadySoundOnEncounterStart"] == true end,
@@ -1156,7 +1164,9 @@ local function ensureBloodlustAnchor()
 					set = function(_, value)
 						if addon.db then addon.db["mythicPlusBloodlustTrackerUseCustomReadySound"] = value == true end
 					end,
-					isEnabled = function() return addon.db and addon.db["mythicPlusBloodlustTrackerReadySoundOnEncounterStart"] == true end,
+					isEnabled = function()
+						return addon.db and (addon.db["mythicPlusBloodlustTrackerSoundOnDebuffFade"] == true or addon.db["mythicPlusBloodlustTrackerReadySoundOnEncounterStart"] == true)
+					end,
 				},
 				{
 					name = L["mythicPlusBloodlustTrackerReadySound"] or "Ready reminder sound",
@@ -1184,7 +1194,8 @@ local function ensureBloodlustAnchor()
 						end
 					end,
 					isEnabled = function()
-						return addon.db and addon.db["mythicPlusBloodlustTrackerReadySoundOnEncounterStart"] == true and addon.db["mythicPlusBloodlustTrackerUseCustomReadySound"] == true
+						return addon.db and addon.db["mythicPlusBloodlustTrackerUseCustomReadySound"] == true
+							and (addon.db["mythicPlusBloodlustTrackerSoundOnDebuffFade"] == true or addon.db["mythicPlusBloodlustTrackerReadySoundOnEncounterStart"] == true)
 					end,
 				},
 			}
@@ -1501,7 +1512,9 @@ local function refreshBloodlustTracker(playReadySound)
 	if auraInstanceID and not (issecretvalue and issecretvalue(auraInstanceID)) then bloodlustTrackedAuraInstanceIDs[auraInstanceID] = true end
 
 	local isActive = aura ~= nil
+	local classToken = addon.variables.unitClass
 	local shouldPlayDebuffActiveSound = false
+	local shouldPlayDebuffFadeSound = false
 	if bloodlustStateInitialized and not bloodlustStateActive and isActive and addon.db["mythicPlusBloodlustTrackerSoundOnDebuffActive"] then
 		local expiration = aura and aura.expirationTime
 		if expiration and not (issecretvalue and issecretvalue(expiration)) then
@@ -1512,8 +1525,13 @@ local function refreshBloodlustTracker(playReadySound)
 			end
 		end
 	end
+	if bloodlustStateInitialized and bloodlustStateActive and not isActive and addon.db["mythicPlusBloodlustTrackerSoundOnDebuffFade"]
+		and BLOODLUST_READY_CLASSES[classToken]
+	then
+		shouldPlayDebuffFadeSound = true
+	end
 	if shouldPlayDebuffActiveSound then playBloodlustSound("mythicPlusBloodlustTrackerUseCustomDebuffSound", "mythicPlusBloodlustTrackerDebuffSoundFile") end
-	local classToken = addon.variables.unitClass
+	if shouldPlayDebuffFadeSound then playBloodlustSound("mythicPlusBloodlustTrackerUseCustomReadySound", "mythicPlusBloodlustTrackerReadySoundFile") end
 	if playReadySound and not isActive and addon.db["mythicPlusBloodlustTrackerReadySoundOnEncounterStart"] and BLOODLUST_READY_CLASSES[classToken] then
 		playBloodlustSound("mythicPlusBloodlustTrackerUseCustomReadySound", "mythicPlusBloodlustTrackerReadySoundFile")
 	end

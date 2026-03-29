@@ -850,9 +850,7 @@ function Reminder:GetGroupContext()
 	return GROUP_CONTEXT_SOLO
 end
 
-function Reminder:IsOnlyOutOfCombatEnabled()
-	return getValue(DB_ONLY_OUT_OF_COMBAT, defaults.onlyOutOfCombat) == true
-end
+function Reminder:IsOnlyOutOfCombatEnabled() return getValue(DB_ONLY_OUT_OF_COMBAT, defaults.onlyOutOfCombat) == true end
 
 function Reminder:IsRuntimeEvaluationBlockedByCombat()
 	if self:IsOnlyOutOfCombatEnabled() ~= true then return false end
@@ -860,9 +858,7 @@ function Reminder:IsRuntimeEvaluationBlockedByCombat()
 	return InCombatLockdown() == true
 end
 
-function Reminder:IsRoleFilterEnabled()
-	return getValue(DB_ROLE_FILTER_ENABLED, defaults.roleFilterEnabled) == true
-end
+function Reminder:IsRoleFilterEnabled() return getValue(DB_ROLE_FILTER_ENABLED, defaults.roleFilterEnabled) == true end
 
 function Reminder:DoesRoleFilterApplyToCurrentContext()
 	if self:IsRoleFilterEnabled() ~= true then return false end
@@ -1142,9 +1138,7 @@ local function paladinRitesGetSelfStatus(provider, reminder)
 	end
 
 	local missingEntries = {}
-	if provider.trackRites == true and not hasRite then
-		missingEntries[1] = makeSelfMissingEntry(activeSpellId, provider.fallbackName or "Rite")
-	end
+	if provider.trackRites == true and not hasRite then missingEntries[1] = makeSelfMissingEntry(activeSpellId, provider.fallbackName or "Rite") end
 
 	if reminder:GetCurrentSpecId() == PALADIN_SPEC_HOLY then
 		reminder.runtimeEligibleUnits = reminder.runtimeEligibleUnits or {}
@@ -1152,8 +1146,7 @@ local function paladinRitesGetSelfStatus(provider, reminder)
 
 		if #eligibleUnits > 1 then
 			totalRequirements = totalRequirements + 1
-			local beaconOfLightDisplaySpellId = normalizeSpellId(provider.beaconOfLightDisplaySpellId)
-				or normalizeSpellId(provider.beaconOfLightSpellIds and provider.beaconOfLightSpellIds[1])
+			local beaconOfLightDisplaySpellId = normalizeSpellId(provider.beaconOfLightDisplaySpellId) or normalizeSpellId(provider.beaconOfLightSpellIds and provider.beaconOfLightSpellIds[1])
 			if not anyUnitHasAnyAuraSpellId(reminder, eligibleUnits, provider.beaconOfLightSpellIds) then
 				missingEntries[#missingEntries + 1] = makeSelfMissingEntry(beaconOfLightDisplaySpellId, provider.beaconOfLightLabel or "Beacon of Light")
 			end
@@ -1162,8 +1155,7 @@ local function paladinRitesGetSelfStatus(provider, reminder)
 		local shouldTrackSecondBeacon = #eligibleUnits > 1 and hasKnownSpellInList(provider.beaconOfFaithKnownSpellIds or provider.beaconOfFaithSpellIds)
 		if shouldTrackSecondBeacon then
 			totalRequirements = totalRequirements + 1
-			local beaconOfFaithDisplaySpellId = normalizeSpellId(provider.beaconOfFaithDisplaySpellId)
-				or normalizeSpellId(provider.beaconOfFaithSpellIds and provider.beaconOfFaithSpellIds[1])
+			local beaconOfFaithDisplaySpellId = normalizeSpellId(provider.beaconOfFaithDisplaySpellId) or normalizeSpellId(provider.beaconOfFaithSpellIds and provider.beaconOfFaithSpellIds[1])
 			if not anyUnitHasAnyAuraSpellId(reminder, eligibleUnits, provider.beaconOfFaithSpellIds) then
 				missingEntries[#missingEntries + 1] = makeSelfMissingEntry(beaconOfFaithDisplaySpellId, provider.beaconOfFaithLabel or "Beacon of Faith")
 			end
@@ -1231,7 +1223,9 @@ local function shamanEnhancementGetSelfStatus(provider, reminder)
 
 	local skyfuryDisplayId = normalizeSpellId(provider.skyfuryDisplaySpellId) or normalizeSpellId(provider.skyfurySpellIds and provider.skyfurySpellIds[1])
 	local skyfuryMissingCount, skyfuryTotal = 0, 0
-	if trackSkyfury and shouldEvaluateGroupResponsibilities then skyfuryMissingCount, skyfuryTotal = reminder:GetGroupBuffMissingCountBySpellIds(provider.skyfurySpellIds, true) end
+	if trackSkyfury and shouldEvaluateGroupResponsibilities then
+		skyfuryMissingCount, skyfuryTotal = reminder:GetGroupBuffMissingCountBySpellIds(provider.skyfurySpellIds, true)
+	end
 	if shouldEvaluateGroupResponsibilities and skyfuryTotal > 0 then
 		totalRequirements = totalRequirements + 1
 		if skyfuryMissingCount > 0 then missingEntries[#missingEntries + 1] = makeSelfMissingEntry(skyfuryDisplayId, provider.skyfuryLabel or "Skyfury", skyfuryMissingCount, skyfuryTotal) end
@@ -1278,7 +1272,9 @@ local function shamanRestorationGetSelfStatus(provider, reminder)
 
 	local skyfuryDisplayId = normalizeSpellId(provider.skyfuryDisplaySpellId) or normalizeSpellId(provider.skyfurySpellIds and provider.skyfurySpellIds[1])
 	local skyfuryMissingCount, skyfuryTotal = 0, 0
-	if trackSkyfury and shouldEvaluateGroupResponsibilities then skyfuryMissingCount, skyfuryTotal = reminder:GetGroupBuffMissingCountBySpellIds(provider.skyfurySpellIds, true) end
+	if trackSkyfury and shouldEvaluateGroupResponsibilities then
+		skyfuryMissingCount, skyfuryTotal = reminder:GetGroupBuffMissingCountBySpellIds(provider.skyfurySpellIds, true)
+	end
 	if shouldEvaluateGroupResponsibilities and skyfuryTotal > 0 then
 		totalRequirements = totalRequirements + 1
 		if skyfuryMissingCount > 0 then missingEntries[#missingEntries + 1] = makeSelfMissingEntry(skyfuryDisplayId, provider.skyfuryLabel or "Skyfury", skyfuryMissingCount, skyfuryTotal) end
@@ -1402,9 +1398,7 @@ local function evokerSupportGetSelfStatus(provider, reminder)
 				end
 			end
 
-			if not hasBlisteringOnTarget then
-				missingEntries[#missingEntries + 1] = makeSelfMissingEntry(blisteringDisplaySpellId, provider.blisteringLabel or "Blistering Scales")
-			end
+			if not hasBlisteringOnTarget then missingEntries[#missingEntries + 1] = makeSelfMissingEntry(blisteringDisplaySpellId, provider.blisteringLabel or "Blistering Scales") end
 		end
 	end
 
@@ -1942,9 +1936,7 @@ function Reminder:ClearTrackedAuraState(state)
 	state.initialized = false
 end
 
-function Reminder:ClearPendingAuraUpdates()
-	self.pendingAuraUpdates = nil
-end
+function Reminder:ClearPendingAuraUpdates() self.pendingAuraUpdates = nil end
 
 function Reminder:GetPendingAuraUpdate(unit)
 	if type(unit) ~= "string" or unit == "" then return nil end
@@ -1967,7 +1959,7 @@ function Reminder:QueuePendingAuraReset(unit)
 	if not entry then return end
 	entry.reset = true
 	entry.fullRefresh = false
-	entry.updates = nil
+	entry.updateInfo = nil
 end
 
 function Reminder:QueuePendingAuraDelta(unit, updateInfo)
@@ -1978,7 +1970,7 @@ function Reminder:QueuePendingAuraDelta(unit, updateInfo)
 	if entry.fullRefresh == true then return end
 	if not updateInfo or (issecretvalue and issecretvalue(updateInfo)) then
 		entry.fullRefresh = true
-		entry.updates = nil
+		entry.updateInfo = nil
 		return
 	end
 
@@ -1986,16 +1978,17 @@ function Reminder:QueuePendingAuraDelta(unit, updateInfo)
 	if issecretvalue and issecretvalue(isFullUpdate) then isFullUpdate = true end
 	if isFullUpdate == true then
 		entry.fullRefresh = true
-		entry.updates = nil
+		entry.updateInfo = nil
 		return
 	end
 
-	local updates = entry.updates
-	if type(updates) ~= "table" then
-		updates = {}
-		entry.updates = updates
+	if entry.updateInfo then
+		entry.fullRefresh = true
+		entry.updateInfo = nil
+		return
 	end
-	updates[#updates + 1] = updateInfo
+
+	entry.updateInfo = updateInfo
 end
 
 function Reminder:FlushPendingAuraUpdates()
@@ -2018,18 +2011,20 @@ function Reminder:FlushPendingAuraUpdates()
 	local canRefreshGroupState = self:IsGroupMissingStateValid(provider, self.groupMissingState)
 	for unit, entry in pairs(pending) do
 		if type(entry) == "table" then
+			local touched = false
 			if entry.reset == true then
 				local state = self:GetUnitAuraState(unit)
 				if state then self:ResetUnitAuraState(state) end
+				touched = true
 			elseif entry.fullRefresh == true then
 				self:FullRefreshUnitAuraState(unit, provider)
-			elseif type(entry.updates) == "table" then
-				for i = 1, #entry.updates do
-					self:ApplyDeltaToUnitAuraState(unit, entry.updates[i], provider)
-				end
+				touched = true
+			elseif entry.updateInfo then
+				self:ApplyDeltaToUnitAuraState(unit, entry.updateInfo, provider)
+				touched = true
 			end
 
-			if canRefreshGroupState == true and self:IsRosterUnit(unit) then
+			if touched == true and canRefreshGroupState == true and self:IsRosterUnit(unit) then
 				dirtyUnits = dirtyUnits or {}
 				dirtyUnits[unit] = true
 			end
@@ -2628,9 +2623,7 @@ function Reminder:SetGlowShown(show)
 	end
 
 	for target in pairs(nextTargets) do
-		if styleChanged or insetChanged or not self.glowTargets[target] then
-			Glow.Start(target, REMINDER_GLOW_KEY, style, { inset = inset })
-		end
+		if styleChanged or insetChanged or not self.glowTargets[target] then Glow.Start(target, REMINDER_GLOW_KEY, style, { inset = inset }) end
 		self.glowTargets[target] = true
 	end
 
@@ -2863,7 +2856,14 @@ function Reminder:CollectOtherHealerUnits(target, includeAIFollowers)
 	local units = self:GetRosterUnits()
 	for i = 1, #units do
 		local unit = units[i]
-		if not isPlayerUnit(unit) and (includeAIFollowers == true or not isAIFollowerUnit(unit)) and UnitExists(unit) and UnitIsConnected(unit) and not UnitIsDeadOrGhost(unit) and isUnitHealerRole(unit) then
+		if
+			not isPlayerUnit(unit)
+			and (includeAIFollowers == true or not isAIFollowerUnit(unit))
+			and UnitExists(unit)
+			and UnitIsConnected(unit)
+			and not UnitIsDeadOrGhost(unit)
+			and isUnitHealerRole(unit)
+		then
 			target[#target + 1] = unit
 		end
 	end
@@ -2880,9 +2880,7 @@ function Reminder:CollectEligibleUnits(target, includeAIFollowers)
 	local units = self:GetRosterUnits()
 	for i = 1, #units do
 		local unit = units[i]
-		if (includeAIFollowers == true or not isAIFollowerUnit(unit)) and UnitExists(unit) and UnitIsConnected(unit) and not UnitIsDeadOrGhost(unit) then
-			target[#target + 1] = unit
-		end
+		if (includeAIFollowers == true or not isAIFollowerUnit(unit)) and UnitExists(unit) and UnitIsConnected(unit) and not UnitIsDeadOrGhost(unit) then target[#target + 1] = unit end
 	end
 
 	return target
@@ -3116,7 +3114,9 @@ function Reminder:UpdateDisplay()
 	end
 
 	local missing, total = 0, 0
-	if classProvider then missing, total = self:ComputeMissing(classProvider) end
+	if classProvider then
+		missing, total = self:ComputeMissing(classProvider)
+	end
 	local supplementalEntries = self:GetSupplementalMissingEntries()
 	local supplementalMissing = type(supplementalEntries) == "table" and #supplementalEntries or 0
 	if total <= 0 and supplementalMissing > 0 and type(supplementalEntries) == "table" and supplementalEntries[1] and supplementalEntries[1].spellId then

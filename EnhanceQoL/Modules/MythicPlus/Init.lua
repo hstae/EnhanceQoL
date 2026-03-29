@@ -82,6 +82,7 @@ function addon.MythicPlus.functions.InitDB()
 	init("mythicPlusBloodlustTrackerSoundOnDebuffActive", false)
 	init("mythicPlusBloodlustTrackerUseCustomDebuffSound", false)
 	init("mythicPlusBloodlustTrackerDebuffSoundFile", "")
+	init("mythicPlusBloodlustTrackerSoundOnDebuffFade", false)
 	init("mythicPlusBloodlustTrackerReadySoundOnEncounterStart", false)
 	init("mythicPlusBloodlustTrackerUseCustomReadySound", false)
 	init("mythicPlusBloodlustTrackerReadySoundFile", "")
@@ -517,7 +518,7 @@ addon.MythicPlus.variables.portalCompendium = {
 			[1254563] = { text = "NPX", cId = { [559] = true }, mapID = 2556, locID = 2405, x = 0.6484, y = 0.6158, zoneID = 2556 },
 			[1254572] = { text = "MT", cId = { [558] = true }, mapID = 2511, locID = 2424, x = 0.6329, y = 0.1549, zoneID = 2511 },
 			-- [1254580] = { text = "DON", mapID = 2514, locID = 2437, x = 0.2969, y = 0.8454, zoneID = 2514 },
-			[1254400] = { text = "WRS", cId = { [557] = true }, mapID = 2494, locID = 2395, x = 0.3543, y = 0.7908, zoneID = 2494 },
+			[1254400] = { text = "WS", cId = { [557] = true }, mapID = 2494, locID = 2395, x = 0.3543, y = 0.7908, zoneID = 2494 },
 			[1271425] = { text = "ABUN", isItem = true, itemID = 252607, icon = 1362642, locID = 2437, x = 0.31263855520737, y = 0.26260265863074, zoneID = 2437 }, -- Abundont Beacon
 			[1259190] = { text = "SMC", isClassTP = "MAGE", locID = 2393, x = 0.5279, y = 0.6556, zoneID = 2393 }, -- Teleport: Silvermoon City
 			[1259194] = { text = "SMC", isMagePortal = true, locID = 2393, x = 0.5279, y = 0.6556, zoneID = 2393 }, -- Portal: Silvermoon City
@@ -684,7 +685,7 @@ addon.MythicPlus.variables.portalCompendium = {
 			-- Dalaran (Broken Isles, Legion)
 			[224869] = { text = "DalB", isClassTP = "MAGE", locID = 627, x = 0.6042, y = 0.4440, zoneID = 627 },
 			[224871] = { text = "DalB", isMagePortal = true, locID = 627, x = 0.6042, y = 0.4440, zoneID = 627 },
-			[1254551] = { text = "SotT", cId = { [239] = true }, mapID = 903, locID = 882, x = 0.2503, y = 0.528, zoneID = 903 },
+			[1254551] = { text = "SEAT", cId = { [239] = true }, mapID = 903, locID = 882, x = 0.2503, y = 0.528, zoneID = 903 },
 			[227334] = { text = "FMW", isToy = true, toyID = 141605, isHearthstone = true, icon = 132161 },
 			[82674] = { text = addon.MythicPlus.variables.hearthstoneName or "HS", isItem = true, itemID = 64457, isHearthstone = true, icon = 458240 },
 			[223444] = {

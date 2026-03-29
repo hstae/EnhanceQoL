@@ -2,6 +2,11 @@
 
 ## [9.12.0] - 2026-03-27
 
+### ✨ Added
+
+- Data Panels (Item Level): Added a stream option to hide the average item level and show only the equipped item level in the panel text.
+- Data Panels (Stats): Added per-stat options for `Mastery` and `Versatility` to hide the second percentage value and show only the primary percentage.
+
 ### 🐛 Fixed
 
 - Class Buff Reminder (Holy Paladin): Added tracking for `Beacon of Light` and `Beacon of Faith`. The reminder now behaves correctly in groups, counts self-casts properly.
