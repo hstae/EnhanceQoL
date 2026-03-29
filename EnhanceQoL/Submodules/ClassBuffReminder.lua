@@ -2024,9 +2024,8 @@ function Reminder:FlushPendingAuraUpdates()
 				touched = true
 			end
 
-			if touched == true and canRefreshGroupState == true and self:IsRosterUnit(unit) then
-				dirtyUnits = dirtyUnits or {}
-				dirtyUnits[unit] = true
+			if touched == true and canRefreshGroupState == true then
+				dirtyUnits = self:CollectGroupStateUnitsForUnit(dirtyUnits, unit)
 			end
 		end
 	end
@@ -2288,11 +2287,51 @@ function Reminder:GetGroupMissingState(provider)
 	return self:RebuildGroupMissingState(provider)
 end
 
+function Reminder:CollectGroupStateUnitsForUnit(target, unit)
+	if type(unit) ~= "string" or unit == "" then return target end
+	self:GetRosterUnits()
+
+	if self.rosterUnitLookup and self.rosterUnitLookup[unit] == true then
+		target = target or {}
+		target[unit] = true
+		return target
+	end
+
+	local units = self.rosterUnits
+	if type(units) ~= "table" or #units <= 0 then return target end
+
+	local matched
+	local unitIdentity = getUnitIdentity(unit)
+	local canCompareUnits = UnitExists and UnitExists(unit) and UnitIsUnit
+	for i = 1, #units do
+		local rosterUnit = units[i]
+		if rosterUnit == unit then
+			target = target or {}
+			target[rosterUnit] = true
+			matched = true
+		elseif canCompareUnits and UnitExists(rosterUnit) and UnitIsUnit(rosterUnit, unit) then
+			target = target or {}
+			target[rosterUnit] = true
+			matched = true
+		elseif unitIdentity and unitIdentity == getUnitIdentity(rosterUnit) then
+			target = target or {}
+			target[rosterUnit] = true
+			matched = true
+		end
+	end
+
+	if matched == true then return target end
+	return target
+end
+
 function Reminder:RefreshGroupMissingStateUnit(provider, unit)
 	local state = self.groupMissingState
 	if not self:IsGroupMissingStateValid(provider, state) then return nil end
-	if not self:IsRosterUnit(unit) then return state end
-	self:ApplyGroupUnitMissingStatus(state, unit, self:GetGroupUnitMissingStatus(provider, unit))
+	local matchedUnits = self:CollectGroupStateUnitsForUnit(nil, unit)
+	if type(matchedUnits) ~= "table" then return state end
+	for matchedUnit in pairs(matchedUnits) do
+		self:ApplyGroupUnitMissingStatus(state, matchedUnit, self:GetGroupUnitMissingStatus(provider, matchedUnit))
+	end
 	return state
 end
 
