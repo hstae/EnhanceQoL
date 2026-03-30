@@ -10,6 +10,7 @@
 - Data Panels (Stats): Added per-stat options for `Mastery` and `Versatility` to hide the second percentage value and show only the primary percentage.
 - Group Frames (Main Tank): Added an optional `Player first` setting so your own frame can stay at the front when you are assigned as a Main Tank.
 - Group Frames (Private Auras): Added a `Text scale` setting so countdown and duration text can be made easier to read.
+- Group Frames (Raid): Added per-group visibility toggles in Edit Mode so whole raid groups can be hidden when needed, for example bench/sub groups.
 - Cooldown Panels: Added an `Ignore Masque` option for whole panels and, if needed, separately per entry.
 - Cooldown Panels: Added vertical mirror options for state textures, including the second texture in double-texture setups.
 
@@ -19,6 +20,7 @@
 - Cooldown Panels (Tracked Auras): Fixed heavy lag spikes caused by tracked-aura panels doing too much repeated refresh work in some situations.
 - Cooldown Panels (Spells): Fixed some spell icons not dimming correctly after use.
 - Group Frames (Main Tank / Private Auras): Raised the Main Tank private-aura size limit to `100`.
+- Resource Bars (Spec Switch / Edit Mode): Fixed moved resource bars snapping back on `X` / `Y` after switching specs. Resource-bar positions now stay on their spec anchor settings instead of being overwritten by Edit Mode layout data.
 
 ---
 
