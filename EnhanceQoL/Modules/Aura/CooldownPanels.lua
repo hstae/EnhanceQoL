@@ -5373,7 +5373,10 @@ function CooldownPanels:ResolveFixedGroupSlotSpacingOffset(panel, frame, entry, 
 	local centerOffsetX, centerOffsetY = 0, 0
 	local placementCount = nil
 	local placementIndex = nil
+	local placement = nil
+	local centerGrowth = false
 	if not CooldownPanels.IsFixedGroupStatic(group) and Helper.GetFixedGroupDynamicPlacement then
+		centerGrowth = Helper.IsFixedGroupCenterGrowth and Helper.IsFixedGroupCenterGrowth(group) == true
 		if type(fixedContext) == "table" then
 			placementCount = math.floor(tonumber(fixedContext.dynamicCount) or 0)
 			placementIndex = math.floor(tonumber(fixedContext.dynamicLocalIndex) or 0)
@@ -5392,15 +5395,49 @@ function CooldownPanels:ResolveFixedGroupSlotSpacingOffset(panel, frame, entry, 
 			end
 		end
 		if placementCount and placementCount > 0 and placementIndex and placementIndex > 0 then
-			local placement = Helper.GetFixedGroupDynamicPlacement(group, placementIndex, placementCount)
+			placement = Helper.GetFixedGroupDynamicPlacement(group, placementIndex, placementCount)
 			if placement then
 				slotColumn = Helper.NormalizeSlotCoordinate(placement.column, slotColumn)
 				slotRow = Helper.NormalizeSlotCoordinate(placement.row, slotRow)
-				centerOffsetX = (tonumber(placement.offsetSlotsX) or 0) * desiredStep
-				centerOffsetY = (tonumber(placement.offsetSlotsY) or 0) * desiredStep
+				if not centerGrowth then
+					centerOffsetX = (tonumber(placement.offsetSlotsX) or 0) * desiredStep
+					centerOffsetY = (tonumber(placement.offsetSlotsY) or 0) * desiredStep
+				end
 			end
 		end
 	end
+
+	local icons = frame.icons or nil
+	local function getSlotCenter(column, row)
+		column = Helper.NormalizeSlotCoordinate(column)
+		row = Helper.NormalizeSlotCoordinate(row)
+		if not (icons and fixedGridColumns > 0 and column and row) then return nil, nil end
+		local index = ((row - 1) * fixedGridColumns) + column
+		local icon = icons[index]
+		local slot = icon and (icon.slotAnchor or icon) or nil
+		if not (slot and slot.GetCenter) then return nil, nil end
+		local x, y = slot:GetCenter()
+		if not (x and y) then return nil, nil end
+		return x, y
+	end
+
+	if centerGrowth and placement then
+		local rowCount = math.floor(tonumber(placement.rowCount) or 0)
+		local columnIndex = tonumber(placement.columnIndex)
+		local rowIndex = tonumber(placement.rowIndex)
+		local currentX, currentY = getSlotCenter(slotColumn, slotRow)
+		local leftX = select(1, getSlotCenter(group.column, placement.row))
+		local rightX = select(1, getSlotCenter(group.column + group.columns - 1, placement.row))
+		local startPoint = Helper.NormalizeFixedGroupStartPoint(group.dynamicStartPoint, "TOPLEFT")
+		local startRow = startPoint == "BOTTOM" and (group.row + group.rows - 1) or group.row
+		local _, startY = getSlotCenter(group.column, startRow)
+		if currentX and currentY and leftX and rightX and startY and rowCount > 0 and columnIndex ~= nil and rowIndex ~= nil then
+			local desiredCenterX = ((leftX + rightX) / 2) + ((columnIndex - ((rowCount - 1) / 2)) * desiredStep)
+			local desiredCenterY = startY + ((startPoint == "BOTTOM" and rowIndex or -rowIndex) * desiredStep)
+			return desiredCenterX - currentX, desiredCenterY - currentY
+		end
+	end
+
 	if targetSpacing == baseSpacing and centerOffsetX == 0 and centerOffsetY == 0 then return 0, 0 end
 
 	local anchorColumn = group.column
@@ -5419,7 +5456,6 @@ function CooldownPanels:ResolveFixedGroupSlotSpacingOffset(panel, frame, entry, 
 	anchorRow = Helper.NormalizeSlotCoordinate(anchorRow)
 	if not (anchorColumn and anchorRow) then return 0, 0 end
 
-	local icons = frame.icons or nil
 	local anchorIndex = ((anchorRow - 1) * fixedGridColumns) + anchorColumn
 	local currentIndex = ((slotRow - 1) * fixedGridColumns) + slotColumn
 	local anchorIcon = icons and icons[anchorIndex] or nil
