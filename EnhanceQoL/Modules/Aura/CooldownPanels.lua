@@ -5353,7 +5353,7 @@ function CooldownPanels:ResolveEntryIconVisualLayout(layout, entry, baseSize)
 	return cache.size, cache.offsetX, cache.offsetY
 end
 
-function CooldownPanels:ResolveFixedGroupSlotSpacingOffset(panel, frame, entry, layout, fixedGridColumns, slotColumn, slotRow, visualSize)
+function CooldownPanels:ResolveFixedGroupSlotSpacingOffset(panel, frame, entry, layout, fixedGridColumns, slotColumn, slotRow, visualSize, fixedContext)
 	if not (panel and frame and entry and layout) then return 0, 0 end
 	if not Helper.IsFixedLayout(panel.layout) then return 0, 0 end
 	fixedGridColumns = Helper.NormalizeFixedGridSize(fixedGridColumns, 0)
@@ -5369,13 +5369,52 @@ function CooldownPanels:ResolveFixedGroupSlotSpacingOffset(panel, frame, entry, 
 
 	local baseSpacing = Helper.ClampInt(panel.layout and panel.layout.spacing, 0, Helper.SPACING_RANGE or 200, Helper.PANEL_LAYOUT_DEFAULTS.spacing)
 	local targetSpacing = Helper.ClampInt(layout and layout.spacing, 0, Helper.SPACING_RANGE or 200, baseSpacing)
-	if targetSpacing == baseSpacing then return 0, 0 end
+	local desiredStep = visualSize + targetSpacing
+	local centerOffsetX, centerOffsetY = 0, 0
+	local placementCount = nil
+	local placementIndex = nil
+	if not CooldownPanels.IsFixedGroupStatic(group) and Helper.GetFixedGroupDynamicPlacement then
+		if type(fixedContext) == "table" then
+			placementCount = math.floor(tonumber(fixedContext.dynamicCount) or 0)
+			placementIndex = math.floor(tonumber(fixedContext.dynamicLocalIndex) or 0)
+		end
+		if placementCount == nil or placementCount < 1 or placementIndex == nil or placementIndex < 1 then
+			local cache = Helper.GetFixedLayoutCache and Helper.GetFixedLayoutCache(panel) or nil
+			local groupEntryIds = cache and cache.groupEntryIds and cache.groupEntryIds[group.id] or nil
+			if groupEntryIds then
+				placementCount = #groupEntryIds
+				for index = 1, placementCount do
+					if groupEntryIds[index] == entry.id then
+						placementIndex = index
+						break
+					end
+				end
+			end
+		end
+		if placementCount and placementCount > 0 and placementIndex and placementIndex > 0 then
+			local placement = Helper.GetFixedGroupDynamicPlacement(group, placementIndex, placementCount)
+			if placement then
+				slotColumn = Helper.NormalizeSlotCoordinate(placement.column, slotColumn)
+				slotRow = Helper.NormalizeSlotCoordinate(placement.row, slotRow)
+				centerOffsetX = (tonumber(placement.offsetSlotsX) or 0) * desiredStep
+				centerOffsetY = (tonumber(placement.offsetSlotsY) or 0) * desiredStep
+			end
+		end
+	end
+	if targetSpacing == baseSpacing and centerOffsetX == 0 and centerOffsetY == 0 then return 0, 0 end
 
-	local startPoint = CooldownPanels.IsFixedGroupStatic(group) and "TOPLEFT" or Helper.NormalizeFixedGroupStartPoint(group.dynamicStartPoint, "TOPLEFT")
 	local anchorColumn = group.column
 	local anchorRow = group.row
-	if startPoint:find("RIGHT") then anchorColumn = group.column + group.columns - 1 end
-	if startPoint:find("BOTTOM") then anchorRow = group.row + group.rows - 1 end
+	if not CooldownPanels.IsFixedGroupStatic(group) and Helper.GetFixedGroupDynamicPlacement and placementCount and placementCount > 0 then
+		local anchorPlacement = Helper.GetFixedGroupDynamicPlacement(group, 1, placementCount)
+		anchorColumn = anchorPlacement and anchorPlacement.column or anchorColumn
+		anchorRow = anchorPlacement and anchorPlacement.row or anchorRow
+	elseif not CooldownPanels.IsFixedGroupStatic(group) then
+		local orderedCells = Helper.GetFixedGroupOrderedCells and Helper.GetFixedGroupOrderedCells(group) or nil
+		local anchorCell = orderedCells and orderedCells[1] or nil
+		anchorColumn = anchorCell and anchorCell.column or anchorColumn
+		anchorRow = anchorCell and anchorCell.row or anchorRow
+	end
 	anchorColumn = Helper.NormalizeSlotCoordinate(anchorColumn)
 	anchorRow = Helper.NormalizeSlotCoordinate(anchorRow)
 	if not (anchorColumn and anchorRow) then return 0, 0 end
@@ -5393,15 +5432,14 @@ function CooldownPanels:ResolveFixedGroupSlotSpacingOffset(panel, frame, entry, 
 	local currentX, currentY = currentSlot:GetCenter()
 	if not (anchorX and anchorY and currentX and currentY) then return 0, 0 end
 
-	local desiredStep = visualSize + targetSpacing
 	local desiredDeltaX = (slotColumn - anchorColumn) * desiredStep
 	local desiredDeltaY = (anchorRow - slotRow) * desiredStep
 	local actualDeltaX = currentX - anchorX
 	local actualDeltaY = currentY - anchorY
-	return desiredDeltaX - actualDeltaX, desiredDeltaY - actualDeltaY
+	return (desiredDeltaX - actualDeltaX) + centerOffsetX, (desiredDeltaY - actualDeltaY) + centerOffsetY
 end
 
-function CooldownPanels:ApplyEntryIconVisualLayout(icon, layout, entry, panel, fixedGridColumns, slotColumn, slotRow)
+function CooldownPanels:ApplyEntryIconVisualLayout(icon, layout, entry, panel, fixedGridColumns, slotColumn, slotRow, fixedContext)
 	if not icon then return end
 	local slotAnchor = icon.slotAnchor
 	local baseSize = Helper.ClampInt(icon._eqolBaseSlotSize, 12, 128, Helper.PANEL_LAYOUT_DEFAULTS.iconSize)
@@ -5416,7 +5454,8 @@ function CooldownPanels:ApplyEntryIconVisualLayout(icon, layout, entry, panel, f
 			fixedGridColumns,
 			slotColumn or icon._eqolPreviewCellColumn or icon._eqolLayoutSlotColumn,
 			slotRow or icon._eqolPreviewCellRow or icon._eqolLayoutSlotRow,
-			size
+			size,
+			fixedContext
 		)
 	end
 	offsetX = offsetX + (fixedOffsetX or 0)
@@ -5550,8 +5589,12 @@ local function applyStateTexture(icon, data)
 	local height = baseHeight * scale * heightScale
 
 	local function setRegionTexCoord(region, left, right, top, bottom, mirroredHorizontal, mirroredVertical)
-		if mirroredHorizontal then left, right = right, left end
-		if mirroredVertical then top, bottom = bottom, top end
+		if mirroredHorizontal then
+			left, right = right, left
+		end
+		if mirroredVertical then
+			top, bottom = bottom, top
+		end
 		region:SetTexCoord(left, right, top, bottom)
 	end
 
@@ -10508,7 +10551,7 @@ function CooldownPanels:BuildLayoutFixedGroupStandaloneSettings(panelId, groupId
 			name = L["CooldownPanelStartPoint"] or "Start point",
 			kind = SettingType.Dropdown,
 			parentId = "cooldownPanelStandaloneFixedGroupGeneral",
-			height = 120,
+			height = 160,
 			disabled = function()
 				local _, group = getPanelAndGroup()
 				return group == nil or CooldownPanels.IsFixedGroupStatic(group)
@@ -14321,6 +14364,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 	local fixedGroupById = fixedLayout and (fixedLayoutCache and fixedLayoutCache.groupById or {}) or nil
 	local fixedStaticTargetIndices = fixedLayout and fixedLayoutCache and fixedLayoutCache.staticTargetIndexByEntryId or nil
 	local fixedGroupVisibleCounts = fixedLayout and {} or nil
+	local fixedCenterGroupVisibleData = fixedLayout and {} or nil
 	local effectiveLayoutCache = {}
 	if fixedLayout then
 		if fixedLayoutCache then
@@ -14664,16 +14708,23 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 				visibleCount = visibleCount + 1
 				local targetIndex = visibleCount
 				local data = nil
+				local fixedGroup = nil
+				local fixedGroupCenterGrowth = false
 				if fixedLayout then
-					local fixedGroup = entry.fixedGroupId and fixedGroupById and fixedGroupById[entry.fixedGroupId] or nil
+					fixedGroup = entry.fixedGroupId and fixedGroupById and fixedGroupById[entry.fixedGroupId] or nil
 					if fixedGroup then
 						if fixedGroup._eqolIsStatic == true then
 							targetIndex = fixedStaticTargetIndices and fixedStaticTargetIndices[entryId] or nil
 						else
 							local groupVisibleCount = (fixedGroupVisibleCounts[fixedGroup.id] or 0) + 1
 							fixedGroupVisibleCounts[fixedGroup.id] = groupVisibleCount
-							targetIndex = fixedGroup._eqolDynamicTargetIndices and fixedGroup._eqolDynamicTargetIndices[groupVisibleCount] or nil
-							if not (targetIndex and targetIndex <= fixedSlotCount) then targetIndex = nil end
+							fixedGroupCenterGrowth = Helper.IsFixedGroupCenterGrowth and Helper.IsFixedGroupCenterGrowth(fixedGroup) == true
+							if not fixedGroupCenterGrowth then
+								targetIndex = fixedGroup._eqolDynamicTargetIndices and fixedGroup._eqolDynamicTargetIndices[groupVisibleCount] or nil
+								if not (targetIndex and targetIndex <= fixedSlotCount) then targetIndex = nil end
+							else
+								targetIndex = nil
+							end
 						end
 					else
 						targetIndex = fixedStaticTargetIndices and fixedStaticTargetIndices[entryId] or nil
@@ -14708,6 +14759,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 				data.liveGlowAllowed = entryLayout.hideGlowOutOfCombat ~= true or playerInCombat == true
 				data.entry = entry
 				data.entryId = entryId
+				data.fixedContext = nil
 				data.hideOnCooldown = entryHideOnCooldown == true
 				data.showOnCooldown = entryShowOnCooldown == true
 				data.resolvedType = resolvedType
@@ -14797,6 +14849,44 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 				data.cdmAuraInactiveDesaturate = cdmAuraData and cdmAuraData.inactiveDesaturate == true
 					or cdmAuraAlwaysShowMode == (CooldownPanels.CDM_AURA_ALWAYS_SHOW_MODE and CooldownPanels.CDM_AURA_ALWAYS_SHOW_MODE.DESATURATE or "DESATURATE")
 				data.cdmAuraDurationObject = cdmAuraData and cdmAuraData.cooldownDurationObject or nil
+				if fixedGroupCenterGrowth and fixedGroup then
+					local centerList = fixedCenterGroupVisibleData[fixedGroup.id]
+					if not centerList then
+						centerList = {}
+						fixedCenterGroupVisibleData[fixedGroup.id] = centerList
+					end
+					data.fixedContext = {
+						dynamicLocalIndex = fixedGroupVisibleCounts[fixedGroup.id] or #centerList + 1,
+					}
+					centerList[#centerList + 1] = data
+				end
+			end
+		end
+	end
+
+	if fixedLayout and fixedCenterGroupVisibleData then
+		for groupId, centerList in pairs(fixedCenterGroupVisibleData) do
+			local fixedGroup = fixedGroupById and fixedGroupById[groupId] or nil
+			local totalCount = centerList and #centerList or 0
+			if fixedGroup and totalCount > 0 then
+				for localIndex = 1, totalCount do
+					local centerData = centerList[localIndex]
+					local placement = Helper.GetFixedGroupDynamicPlacement and Helper.GetFixedGroupDynamicPlacement(fixedGroup, localIndex, totalCount) or nil
+					local column = Helper.NormalizeSlotCoordinate(placement and placement.column)
+					local row = Helper.NormalizeSlotCoordinate(placement and placement.row)
+					local centerTargetIndex = column and row and fixedGridColumns > 0 and (((row - 1) * fixedGridColumns) + column) or nil
+					if centerTargetIndex and centerTargetIndex <= fixedSlotCount then
+						visible[centerTargetIndex] = centerData
+						if visibleSlotsUsed and not visibleSlotsUsed[centerTargetIndex] then
+							visibleSlotsUsed[centerTargetIndex] = true
+							visibleSlotCount = visibleSlotCount + 1
+							visibleSlotIndices[visibleSlotCount] = centerTargetIndex
+						end
+						centerData.fixedContext = centerData.fixedContext or {}
+						centerData.fixedContext.dynamicLocalIndex = localIndex
+						centerData.fixedContext.dynamicCount = totalCount
+					end
+				end
 			end
 		end
 	end
@@ -14901,7 +14991,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			local showGhostIcon = layoutEditActive and data.showGhostIcon == true
 			local hideOnCooldown = data.hideOnCooldown == true
 			local showOnCooldown = data.showOnCooldown == true
-			CooldownPanels:ApplyEntryIconVisualLayout(icon, data.layout, data.entry, fixedLayout and panel or nil, fixedLayout and fixedGridColumns or nil, slotColumn, slotRow)
+			CooldownPanels:ApplyEntryIconVisualLayout(icon, data.layout, data.entry, fixedLayout and panel or nil, fixedLayout and fixedGridColumns or nil, slotColumn, slotRow, data.fixedContext)
 			self:SyncMasqueButton(icon, data.ignoreMasque == true)
 			CooldownPanels:HideEditorGhostIcon(icon)
 			if showOnCooldown then

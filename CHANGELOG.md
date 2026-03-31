@@ -17,6 +17,7 @@
 ### 🐛 Fixed
 
 - Class Buff Reminder (Holy Paladin): Added tracking for `Beacon of Light` and `Beacon of Faith`. The reminder now behaves correctly in groups, counts self-casts properly.
+- Cooldown Panels (Fixed Slots / Dynamic Subgroups): Fixed `TOP/BOTTOM + CENTER` subgroup anchoring to use true centered placement based on the actual visible icon count, including half-slot offsets for even counts.
 - Cooldown Panels (Tracked Auras): Fixed heavy lag spikes caused by tracked-aura panels doing too much repeated refresh work in some situations.
 - Cooldown Panels (Spells): Fixed some spell icons not dimming correctly after use.
 - Group Frames (Main Tank / Private Auras): Raised the Main Tank private-aura size limit to `100`.
