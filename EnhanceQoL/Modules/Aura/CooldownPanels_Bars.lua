@@ -2111,22 +2111,29 @@ refreshChargeBarRuntimeState = function(state, icon)
 	local spellId = safeNumber(state.spellId)
 	if not spellId then return state end
 
-	local chargesInfo = CooldownPanels.GetCachedSpellChargesInfo and CooldownPanels:GetCachedSpellChargesInfo(spellId) or nil
-	local chargeDurationObject = CooldownPanels.GetCachedSpellChargeDurationObject and CooldownPanels:GetCachedSpellChargeDurationObject(spellId) or nil
+	-- local chargesInfo = CooldownPanels.GetCachedSpellChargesInfo and CooldownPanels:GetCachedSpellChargesInfo(spellId) or nil
+	local chargesInfo = C_Spell.GetSpellCharges(spellId)
+	-- local chargeDurationObject = CooldownPanels.GetCachedSpellChargeDurationObject and CooldownPanels:GetCachedSpellChargeDurationObject(spellId) or nil
+	local chargeDurationObject = C_Spell.GetSpellChargeDuration(spellId)
 	local chargeRemaining = getDurationObjectRemaining(chargeDurationObject)
-	if chargeRemaining ~= nil and chargeRemaining <= 0 then chargeDurationObject = nil end
-	local rawCooldownDurationObject = CooldownPanels.GetCachedSpellCooldownDurationObject and CooldownPanels:GetCachedSpellCooldownDurationObject(spellId) or nil
+	-- if chargeRemaining ~= nil and chargeRemaining <= 0 then chargeDurationObject = nil end
+	local rawCooldownDurationObject = C_Spell.GetSpellCooldownDuration(spellId)
 	local cooldownDurationObject = rawCooldownDurationObject
 	local cooldownRemaining = getDurationObjectRemaining(cooldownDurationObject)
-	if cooldownRemaining ~= nil and cooldownRemaining <= 0 then
-		cooldownDurationObject = nil
-		cooldownRemaining = nil
-	end
+	-- if cooldownRemaining ~= nil and cooldownRemaining <= 0 then
+	-- 	cooldownDurationObject = nil
+	-- 	cooldownRemaining = nil
+	-- end
+
 
 	local cooldownStart, cooldownDuration, cooldownEnabled, cooldownRate, cooldownGCD, cooldownIsActive = 0, 0, false, 1, nil, false
 	if CooldownPanels.GetCachedSpellCooldownInfo then
-		cooldownStart, cooldownDuration, cooldownEnabled, cooldownRate, cooldownGCD, cooldownIsActive = CooldownPanels:GetCachedSpellCooldownInfo(spellId)
+		-- cooldownStart, cooldownDuration, cooldownEnabled, cooldownRate, cooldownGCD, cooldownIsActive = CooldownPanels:GetCachedSpellCooldownInfo(spellId)
+		local cdInfo = C_Spell.GetSpellCooldown(spellId)
+		cooldownStart, cooldownDuration, cooldownEnabled, cooldownRate, cooldownGCD, cooldownIsActive =
+			cdInfo.startTime, cdInfo.duration, cdInfo.isEnabled, cdInfo.modeRate, cdInfo.isOnGCD, cdInfo.isActive
 	end
+	print(chargesInfo.isActive, chargesInfo.currentCharges, cooldownIsActive, cooldownEnabled, cooldownGCD, cooldownDurationObject:GetRemainingDuration(), chargeDurationObject:GetRemainingDuration())
 
 	local chargeApiIsActive = nil
 	if type(chargesInfo) == "table" and not (Api.issecretvalue and Api.issecretvalue(chargesInfo.isActive)) and type(chargesInfo.isActive) == "boolean" then
@@ -2167,27 +2174,22 @@ refreshChargeBarRuntimeState = function(state, icon)
 	local recentChargeSpellcastAt = recentSpellcastAtBySpellId[spellId]
 	local recentChargeSpend = state.previousChargePhase == "PARTIAL" and type(recentChargeSpellcastAt) == "number" and (now - recentChargeSpellcastAt) >= 0 and (now - recentChargeSpellcastAt) <= 2
 	if maxCharges == 2 then
-		if cooldownGCD == true and displayedCharges ~= nil then
-			if displayedCharges <= 0 then
-				chargePhase = "EMPTY"
-			elseif displayedCharges < maxCharges then
-				chargePhase = "PARTIAL"
-			else
-				chargePhase = "FULL"
-			end
-		elseif cooldownGCD == true and recentChargeSpend == true then
-			chargePhase = "EMPTY"
-		elseif cooldownGCD == true and state.previousChargePhase == "EMPTY" then
-			chargePhase = "EMPTY"
-		elseif resolvedCooldownActive == true or (cooldownGCD ~= true and cachedCooldownActive == true) then
-			chargePhase = "EMPTY"
-		elseif rechargeActive == true then
-			chargePhase = "PARTIAL"
-		else
+		if chargeApiIsActive ~= true then
 			chargePhase = "FULL"
+		elseif cooldownGCD ~= true and cooldownIsActive == true then
+			chargePhase = "EMPTY"
+		else
+			chargePhase = "PARTIAL"
 		end
+		rechargeActive = chargePhase == "PARTIAL"
 		lastChargeDepleted = chargePhase == "EMPTY"
-		if entryKey then phaseByKey[entryKey] = chargePhase end
+		cachedCooldownActive = lastChargeDepleted == true
+		cachedCooldownDurationObject = cachedCooldownActive and cooldownDurationObject or nil
+		if entryKey then
+			activeByKey[entryKey] = cachedCooldownActive
+			durationByKey[entryKey] = cachedCooldownDurationObject
+			phaseByKey[entryKey] = chargePhase
+		end
 	end
 
 	local rechargeStart = chargesInfo and safeNumber(chargesInfo.cooldownStartTime) or nil
@@ -2211,9 +2213,11 @@ refreshChargeBarRuntimeState = function(state, icon)
 	state.maxCharges = maxCharges
 	state.chargeDurationObject = rechargeActive == true and chargeDurationObject or nil
 	state.rawCooldownDurationObject = rawCooldownDurationObject
-	state.cooldownDurationObject = lastChargeDepleted == true and cooldownDurationObject or nil
+	state.cooldownDurationObject = lastChargeDepleted == true and cachedCooldownDurationObject or nil
 	state.cooldownRemaining = cooldownRemaining
+	state.cooldownEnabled = cooldownEnabled
 	state.cooldownGCD = cooldownGCD == true
+	state.cooldownIsActive = cooldownIsActive == true
 	state.cooldownInfoActive = lastChargeDepleted == true
 	state.lastNonGCDCooldownActive = lastChargeDepleted == true
 	state.lastNonGCDCooldownDurationObject = cachedCooldownDurationObject
@@ -2444,8 +2448,7 @@ buildBarState = function(panelId, entryId, entry, icon, preview)
 		showIcon = getStoredBoolean(entry, "barShowIcon", Bars.DEFAULTS.barShowIcon),
 		showLabel = getStoredBoolean(entry, "barShowLabel", Bars.DEFAULTS.barShowLabel),
 		showValueText = mode ~= Bars.BAR_MODE.STACKS and getStoredBoolean(entry, "barShowValueText", Bars.DEFAULTS.barShowValueText),
-		showStacks = (resolvedType == "SPELL" or resolvedType == "CDM_AURA")
-			and (mode == Bars.BAR_MODE.STACKS or getStoredBoolean(entry, "showStacks", false)),
+		showStacks = (resolvedType == "SPELL" or resolvedType == "CDM_AURA") and (mode == Bars.BAR_MODE.STACKS or getStoredBoolean(entry, "showStacks", false)),
 		stackDisplayText = nil,
 		progress = 1,
 		icon = icon,
