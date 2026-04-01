@@ -4,11 +4,12 @@
 	<Script file="CooldownPanels_Stance.lua" />
 	<Script file="CooldownPanels.lua" />
 	<Script file="CooldownPanels_CDMAuras.lua" />
-	<!-- <Script file="CooldownPanels_Bars.lua" /> -->
+	<Script file="CooldownPanels_Bars.lua" />
 	<Script file="UF_Helper.lua" />
 	<Script file="StandalonePrivateAuras.lua" />
 	<Script file="FocusInterruptTracker.lua" />
 	<Script file="UF.lua" />
+	<Script file="UF_Masque.lua" />
 	<Script file="UF_StandaloneCastbar.lua" />
 	<Include file="UF_GroupFrames.xml" />
 	<Script file="UF_GroupFrames_Helper.lua" />

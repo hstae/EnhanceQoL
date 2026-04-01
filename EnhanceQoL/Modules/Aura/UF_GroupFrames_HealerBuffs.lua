@@ -2288,7 +2288,12 @@ local function renderIconStyleForGroup(btn, st, state, compiled, cfg, group, cha
 			button._hbIndicatorStyle = group.style
 		end
 		if button.SetSize and button._hbButtonSize ~= group.size then
-			button:SetSize(group.size, group.size)
+			if AuraUtil and AuraUtil.setAuraButtonSize then
+				AuraUtil.setAuraButtonSize(button, group.size)
+			else
+				button:SetSize(group.size, group.size)
+				button._eqolAuraButtonSize = group.size
+			end
 			button._hbButtonSize = group.size
 		end
 		positionAuraButton(button, container, primary, secondary, index, group.perRow, group.size, group.spacing)

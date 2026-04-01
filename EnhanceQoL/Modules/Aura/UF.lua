@@ -48,9 +48,6 @@ local function DisableBossFrames()
 end
 
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_Aura")
-local MSQ = LibStub("Masque", true)
-local MSQgroup
-if MSQ then MSQgroup = MSQ:Group("EnhanceQoL", L["Unit Frame Buffs/Debuffs"]) end
 local LSM = LibStub("LibSharedMedia-3.0")
 local AceGUI = addon.AceGUI or LibStub("AceGUI-3.0")
 local DEFAULT_NOT_INTERRUPTIBLE_COLOR = { 204 / 255, 204 / 255, 204 / 255, 1 }
@@ -3043,6 +3040,7 @@ function AuraUtil.ensureAuraButton(container, icons, index, ac)
 	if not btn then
 		btn = CreateFrame("Button", nil, container, "BackdropTemplate")
 		btn:SetSize(ac.size, ac.size)
+		btn._eqolAuraButtonSize = ac.size
 		btn.icon = btn:CreateTexture(nil, "ARTWORK")
 		btn.icon:SetAllPoints(btn)
 		btn.cd = CreateFrame("Cooldown", nil, btn, "CooldownFrameTemplate")
@@ -3101,7 +3099,12 @@ function AuraUtil.ensureAuraButton(container, icons, index, ac)
 		end)
 		icons[index] = btn
 	else
-		btn:SetSize(ac.size, ac.size)
+		if AuraUtil.setAuraButtonSize then
+			AuraUtil.setAuraButtonSize(btn, ac and ac.size)
+		elseif ac and ac.size and btn.SetSize then
+			btn:SetSize(ac.size, ac.size)
+			btn._eqolAuraButtonSize = ac.size
+		end
 		if btn.overlay and btn.cd then
 			btn.overlay:SetFrameStrata(btn.cd:GetFrameStrata())
 			btn.overlay:SetFrameLevel(btn.cd:GetFrameLevel() + 5)
@@ -3123,27 +3126,13 @@ function AuraUtil.ensureAuraButton(container, icons, index, ac)
 		end
 	end
 
-	if MSQgroup then btn._eqolMasqueRegions = btn._eqolMasqueRegions or {
+	if AuraUtil.getMasqueGroup and AuraUtil.getMasqueGroup() then btn._eqolMasqueRegions = btn._eqolMasqueRegions or {
 		Icon = btn.icon,
 		Cooldown = btn.cd,
 		Border = btn.border,
 	} end
 
 	return btn, icons
-end
-
-local function syncAuraMasqueButton(btn, isDebuff)
-	if not (MSQgroup and btn) then return end
-	btn._eqolMasqueRegions = btn._eqolMasqueRegions or {
-		Icon = btn.icon,
-		Cooldown = btn.cd,
-		Border = btn.border,
-	}
-	local desiredType = (isDebuff == true) and "Debuff" or "Buff"
-	if btn._eqolMasqueType ~= desiredType then
-		MSQgroup:AddButton(btn, btn._eqolMasqueRegions, desiredType, true)
-		btn._eqolMasqueType = desiredType
-	end
 end
 
 function AuraUtil.styleAuraCount(btn, ac, countFontSizeOverride)
@@ -3271,7 +3260,7 @@ function AuraUtil.applyAuraToButton(btn, aura, ac, isDebuff, unitToken, harmfulF
 	btn.auraInstanceID = aura.auraInstanceID
 	btn.unitToken = unitToken
 	btn.isDebuff = isDebuff
-	syncAuraMasqueButton(btn, isDebuff)
+	if AuraUtil.syncMasqueButton then AuraUtil.syncMasqueButton(btn, isDebuff) end
 	btn._showTooltip = ac.showTooltip ~= false
 	btn.icon:SetTexture(aura.icon or "")
 	btn.cd:Clear()

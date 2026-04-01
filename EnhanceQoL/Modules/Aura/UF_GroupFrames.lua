@@ -7278,7 +7278,12 @@ function GF:LayoutAuras(self)
 				local buttons = st[meta.buttonsKey]
 				if buttons and container then
 					for i, btn in ipairs(buttons) do
-						if btn.SetSize then btn:SetSize(size, size) end
+						if AuraUtil and AuraUtil.setAuraButtonSize then
+							AuraUtil.setAuraButtonSize(btn, size)
+						elseif btn.SetSize then
+							btn:SetSize(size, size)
+							btn._eqolAuraButtonSize = size
+						end
 						positionAuraButton(btn, container, primary, secondary, i, perRow, size, spacing)
 						btn._auraLayoutKey = key
 					end
