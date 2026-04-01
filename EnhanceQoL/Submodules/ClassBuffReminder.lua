@@ -11,6 +11,7 @@ addon.ClassBuffReminder = addon.ClassBuffReminder or {}
 local Reminder = addon.ClassBuffReminder
 
 local L = LibStub("AceLocale-3.0"):GetLocale(parentAddonName)
+local LSM = LibStub("LibSharedMedia-3.0", true)
 local EditMode = addon.EditMode
 local Glow = addon.Glow
 local SettingType = EditMode and EditMode.lib and EditMode.lib.SettingType
@@ -64,11 +65,20 @@ local DB_SCALE = "classBuffReminderScale"
 local DB_ICON_SIZE = "classBuffReminderIconSize"
 local DB_FONT_SIZE = "classBuffReminderFontSize"
 local DB_ICON_GAP = "classBuffReminderIconGap"
+local DB_BORDER_ENABLED = "classBuffReminderBorderEnabled"
+local DB_BORDER_TEXTURE = "classBuffReminderBorderTexture"
+local DB_BORDER_SIZE = "classBuffReminderBorderSize"
+local DB_BORDER_OFFSET = "classBuffReminderBorderOffset"
+local DB_BORDER_COLOR = "classBuffReminderBorderColor"
 local DB_XY_TEXT_SIZE = "classBuffReminderXYTextSize"
 local DB_XY_TEXT_OUTLINE = "classBuffReminderXYTextOutline"
 local DB_XY_TEXT_COLOR = "classBuffReminderXYTextColor"
 local DB_XY_TEXT_OFFSET_X = "classBuffReminderXYTextOffsetX"
 local DB_XY_TEXT_OFFSET_Y = "classBuffReminderXYTextOffsetY"
+local BORDER_SIZE_MIN = 1
+local BORDER_SIZE_MAX = 24
+local BORDER_OFFSET_MIN = -20
+local BORDER_OFFSET_MAX = 20
 
 Reminder.defaults = Reminder.defaults
 	or {
@@ -98,6 +108,11 @@ Reminder.defaults = Reminder.defaults
 		iconSize = 64,
 		fontSize = 13,
 		iconGap = 6,
+		borderEnabled = false,
+		borderTexture = "DEFAULT",
+		borderSize = 1,
+		borderOffset = 0,
+		borderColor = { r = 1, g = 1, b = 1, a = 1 },
 		xyTextSize = 13,
 		xyTextOutline = TEXT_OUTLINE_OUTLINE,
 		xyTextColor = { r = 1, g = 1, b = 1, a = 1 },
@@ -116,6 +131,11 @@ if defaults.hideForTank == nil then defaults.hideForTank = false end
 if defaults.hideForDamager == nil then defaults.hideForDamager = false end
 if defaults.hideForNoRole == nil then defaults.hideForNoRole = false end
 if defaults.showIfOnlyProvider == nil then defaults.showIfOnlyProvider = true end
+if defaults.borderEnabled == nil then defaults.borderEnabled = false end
+if defaults.borderTexture == nil or defaults.borderTexture == "" then defaults.borderTexture = "DEFAULT" end
+if defaults.borderSize == nil then defaults.borderSize = 1 end
+if defaults.borderOffset == nil then defaults.borderOffset = 0 end
+if type(defaults.borderColor) ~= "table" then defaults.borderColor = { r = 1, g = 1, b = 1, a = 1 } end
 
 local PROVIDER_SCOPE_GROUP = "GROUP"
 local PROVIDER_SCOPE_SELF = "SELF"
@@ -369,6 +389,11 @@ local function getValue(key, fallback)
 	return value
 end
 
+local function isLikelyFilePath(value)
+	if type(value) ~= "string" or value == "" then return false end
+	return value:find("/", 1, true) ~= nil or value:find("\\", 1, true) ~= nil
+end
+
 local function isTrackedUnit(unit)
 	if type(unit) ~= "string" then return false end
 	if unit == "player" then return true end
@@ -500,6 +525,39 @@ local function normalizeTextOutline(value)
 	return TEXT_OUTLINE_OUTLINE
 end
 
+local function normalizeBorderTexture(value)
+	if type(value) ~= "string" or value == "" then return defaults.borderTexture or "DEFAULT" end
+	if value == "DEFAULT" or value == "SOLID" then return value end
+	return value
+end
+
+local function resolveBorderTexture(value)
+	local key = normalizeBorderTexture(value)
+	if key == "DEFAULT" or key == "SOLID" then return "Interface\\Buttons\\WHITE8x8" end
+	if isLikelyFilePath(key) then return key end
+	if LSM and LSM.Fetch then
+		local texture = LSM:Fetch("border", key, true)
+		if texture then return texture end
+	end
+	return "Interface\\Buttons\\WHITE8x8"
+end
+
+local function normalizeBorderSize(value)
+	local size = tonumber(value) or defaults.borderSize or 1
+	size = math.floor(size + 0.5)
+	if size < BORDER_SIZE_MIN then size = BORDER_SIZE_MIN end
+	if size > BORDER_SIZE_MAX then size = BORDER_SIZE_MAX end
+	return size
+end
+
+local function normalizeBorderOffset(value)
+	local offset = tonumber(value) or defaults.borderOffset or 0
+	offset = math.floor(offset + 0.5)
+	if offset < BORDER_OFFSET_MIN then offset = BORDER_OFFSET_MIN end
+	if offset > BORDER_OFFSET_MAX then offset = BORDER_OFFSET_MAX end
+	return offset
+end
+
 local function normalizeRoleFilterContext(value)
 	if value == ROLE_FILTER_CONTEXT_ANY_GROUP then return ROLE_FILTER_CONTEXT_ANY_GROUP end
 	if value == ROLE_FILTER_CONTEXT_PARTY_ONLY then return ROLE_FILTER_CONTEXT_PARTY_ONLY end
@@ -554,6 +612,21 @@ local function centeredAxisOffset(index, count, step)
 	local spacing = tonumber(step)
 	if not idx or not total or not spacing then return 0 end
 	return ((idx - 1) - ((total - 1) / 2)) * spacing
+end
+
+local function getBorderOptions()
+	local options = {
+		{ value = "DEFAULT", label = _G.DEFAULT or "Default" },
+		{ value = "SOLID", label = "Solid" },
+	}
+	local mediaOptions = addon.functions and addon.functions.GetLSMMediaOptions and addon.functions.GetLSMMediaOptions("border") or {}
+	for i = 1, #mediaOptions do
+		options[#options + 1] = {
+			value = mediaOptions[i].value,
+			label = mediaOptions[i].label,
+		}
+	end
+	return options
 end
 
 local function safeIsPlayerSpell(spellId)
@@ -1782,6 +1855,11 @@ function Reminder:GetGlowStyle() return normalizeGlowStyle(getValue(DB_GLOW_STYL
 
 function Reminder:GetGlowInset() return normalizeGlowInset(getValue(DB_GLOW_INSET, defaults.glowInset)) end
 function Reminder:GetGrowthFromCenter() return getValue(DB_GROWTH_FROM_CENTER, defaults.growthFromCenter) == true end
+function Reminder:IsBorderEnabled() return getValue(DB_BORDER_ENABLED, defaults.borderEnabled) == true end
+function Reminder:GetBorderTextureKey() return normalizeBorderTexture(getValue(DB_BORDER_TEXTURE, defaults.borderTexture)) end
+function Reminder:GetBorderSize() return normalizeBorderSize(getValue(DB_BORDER_SIZE, defaults.borderSize)) end
+function Reminder:GetBorderOffset() return normalizeBorderOffset(getValue(DB_BORDER_OFFSET, defaults.borderOffset)) end
+function Reminder:GetBorderColor() return normalizeColor(getValue(DB_BORDER_COLOR, defaults.borderColor), defaults.borderColor) end
 
 function Reminder:GetIconCountTextStyle()
 	local size = clamp(getValue(DB_XY_TEXT_SIZE, defaults.xyTextSize), 8, 64, defaults.xyTextSize)
@@ -2039,9 +2117,7 @@ function Reminder:FlushPendingAuraUpdates()
 				touched = true
 			end
 
-			if touched == true and canRefreshGroupState == true then
-				dirtyUnits = self:CollectGroupStateUnitsForUnit(dirtyUnits, unit)
-			end
+			if touched == true and canRefreshGroupState == true then dirtyUnits = self:CollectGroupStateUnitsForUnit(dirtyUnits, unit) end
 		end
 	end
 
@@ -2368,6 +2444,13 @@ function Reminder:EnsureFrame()
 	bg:SetAllPoints(frame)
 	bg:SetColorTexture(0, 0, 0, 0.45)
 	frame.bg = bg
+
+	local border = CreateFrame("Frame", nil, frame, "BackdropTemplate")
+	border:SetFrameStrata(frame:GetFrameStrata())
+	border:SetFrameLevel((frame:GetFrameLevel() or 0) + 5)
+	border:EnableMouse(false)
+	border:Hide()
+	frame.border = border
 
 	local iconHolder = CreateFrame("Button", nil, frame)
 	iconHolder:SetSize(defaults.iconSize, defaults.iconSize)
@@ -2767,6 +2850,11 @@ function Reminder:ApplyVisualSettings()
 	local displayMode = normalizeDisplayMode(getValue(DB_DISPLAY_MODE, defaults.displayMode))
 	local growthDirection = normalizeGrowthDirection(getValue(DB_GROWTH_DIRECTION, defaults.growthDirection))
 	local xyTextSize, xyTextOutline, xyTextR, xyTextG, xyTextB, xyTextA, xyOffsetX, xyOffsetY = self:GetIconCountTextStyle()
+	local borderEnabled = self:IsBorderEnabled()
+	local borderTexture = self:GetBorderTextureKey()
+	local borderSize = self:GetBorderSize()
+	local borderOffset = self:GetBorderOffset()
+	local borderR, borderG, borderB, borderA = self:GetBorderColor()
 	local scaledIconSize = math.max(14, math.floor((iconSize * scale) + 0.5))
 	local scaledFontSize = math.max(9, math.floor((fontSize * scale) + 0.5))
 	local scaledIconGap = math.max(0, math.floor((iconGap * scale) + 0.5))
@@ -2783,10 +2871,18 @@ function Reminder:ApplyVisualSettings()
 		if addon.db[DB_FONT_SIZE] ~= fontSize then addon.db[DB_FONT_SIZE] = fontSize end
 		if addon.db[DB_ICON_GAP] ~= iconGap then addon.db[DB_ICON_GAP] = iconGap end
 		if addon.db[DB_GROWTH_DIRECTION] ~= growthDirection then addon.db[DB_GROWTH_DIRECTION] = growthDirection end
+		if addon.db[DB_BORDER_ENABLED] ~= borderEnabled then addon.db[DB_BORDER_ENABLED] = borderEnabled end
+		if addon.db[DB_BORDER_TEXTURE] ~= borderTexture then addon.db[DB_BORDER_TEXTURE] = borderTexture end
+		if addon.db[DB_BORDER_SIZE] ~= borderSize then addon.db[DB_BORDER_SIZE] = borderSize end
+		if addon.db[DB_BORDER_OFFSET] ~= borderOffset then addon.db[DB_BORDER_OFFSET] = borderOffset end
 		if addon.db[DB_XY_TEXT_SIZE] ~= xyTextSize then addon.db[DB_XY_TEXT_SIZE] = xyTextSize end
 		if addon.db[DB_XY_TEXT_OUTLINE] ~= xyTextOutline then addon.db[DB_XY_TEXT_OUTLINE] = xyTextOutline end
 		if addon.db[DB_XY_TEXT_OFFSET_X] ~= xyOffsetX then addon.db[DB_XY_TEXT_OFFSET_X] = xyOffsetX end
 		if addon.db[DB_XY_TEXT_OFFSET_Y] ~= xyOffsetY then addon.db[DB_XY_TEXT_OFFSET_Y] = xyOffsetY end
+		local currentBorderColor = addon.db[DB_BORDER_COLOR]
+		if type(currentBorderColor) ~= "table" or currentBorderColor.r ~= borderR or currentBorderColor.g ~= borderG or currentBorderColor.b ~= borderB or currentBorderColor.a ~= borderA then
+			addon.db[DB_BORDER_COLOR] = { r = borderR, g = borderG, b = borderB, a = borderA }
+		end
 		local currentColor = addon.db[DB_XY_TEXT_COLOR]
 		if type(currentColor) ~= "table" or currentColor.r ~= xyTextR or currentColor.g ~= xyTextG or currentColor.b ~= xyTextB or currentColor.a ~= xyTextA then
 			addon.db[DB_XY_TEXT_COLOR] = { r = xyTextR, g = xyTextG, b = xyTextB, a = xyTextA }
@@ -2834,6 +2930,27 @@ function Reminder:ApplyVisualSettings()
 		local minHeight = math.floor((30 * scale) + 0.5)
 		if height < minHeight then height = minHeight end
 		frame:SetSize(width, height)
+	end
+
+	if frame.border and frame.border.SetBackdrop then
+		frame.border:SetFrameStrata(frame:GetFrameStrata())
+		frame.border:SetFrameLevel((frame:GetFrameLevel() or 0) + 5)
+		if borderEnabled then
+			frame.border:SetBackdrop({
+				edgeFile = resolveBorderTexture(borderTexture),
+				edgeSize = borderSize,
+				insets = { left = 0, right = 0, top = 0, bottom = 0 },
+			})
+			frame.border:SetBackdropBorderColor(borderR, borderG, borderB, borderA)
+			frame.border:SetBackdropColor(0, 0, 0, 0)
+			frame.border:ClearAllPoints()
+			frame.border:SetPoint("TOPLEFT", frame, "TOPLEFT", -borderOffset, borderOffset)
+			frame.border:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", borderOffset, -borderOffset)
+			frame.border:Show()
+		else
+			frame.border:SetBackdrop(nil)
+			frame.border:Hide()
+		end
 	end
 
 	self:ApplySamplePreview(scaledIconSize, scale, scaledIconGap)
@@ -3874,6 +3991,95 @@ function Reminder:RegisterEditMode()
 				set = function(_, value) setNumber(DB_XY_TEXT_OFFSET_Y, value, -60, 60, defaults.xyTextOffsetY) end,
 				formatter = function(value) return tostring(math.floor((tonumber(value) or defaults.xyTextOffsetY) + 0.5)) end,
 				isShown = function() return isIconOnlyModeActive() end,
+			},
+			{
+				name = L["Border"] or "Border",
+				kind = SettingType.Collapsible,
+				id = "border",
+				defaultCollapsed = true,
+			},
+			{
+				name = L["Use border"] or "Use border",
+				kind = SettingType.Checkbox,
+				parentId = "border",
+				default = defaults.borderEnabled == true,
+				get = function() return Reminder:IsBorderEnabled() end,
+				set = function(_, value)
+					if addon.db then addon.db["classBuffReminderBorderEnabled"] = value == true end
+					Reminder:ApplyVisualSettings()
+					Reminder:RequestUpdate(true)
+				end,
+			},
+			{
+				name = L["Border texture"] or "Border texture",
+				kind = SettingType.Dropdown,
+				parentId = "border",
+				height = 220,
+				get = function() return Reminder:GetBorderTextureKey() end,
+				set = function(_, value)
+					if addon.db then addon.db["classBuffReminderBorderTexture"] = (type(value) == "string" and value ~= "" and value) or "DEFAULT" end
+					Reminder:ApplyVisualSettings()
+					Reminder:RequestUpdate(true)
+				end,
+				generator = function(_, root)
+					local options = {
+						{ value = "DEFAULT", label = _G.DEFAULT or "Default" },
+						{ value = "SOLID", label = "Solid" },
+					}
+					local mediaOptions = addon.functions and addon.functions.GetLSMMediaOptions and addon.functions.GetLSMMediaOptions("border") or {}
+					for i = 1, #mediaOptions do
+						options[#options + 1] = {
+							value = mediaOptions[i].value,
+							label = mediaOptions[i].label,
+						}
+					end
+					for i = 1, #options do
+						local option = options[i]
+						root:CreateRadio(option.label, function() return Reminder:GetBorderTextureKey() == option.value end, function()
+							if addon.db then addon.db["classBuffReminderBorderTexture"] = option.value end
+							Reminder:ApplyVisualSettings()
+							Reminder:RequestUpdate(true)
+						end)
+					end
+				end,
+				isEnabled = function() return Reminder:IsBorderEnabled() end,
+			},
+			{
+				name = L["Border size"] or "Border size",
+				kind = SettingType.Slider,
+				parentId = "border",
+				minValue = 1,
+				maxValue = 24,
+				valueStep = 1,
+				default = defaults.borderSize,
+				get = function() return Reminder:GetBorderSize() end,
+				set = function(_, value) setNumber("classBuffReminderBorderSize", value, 1, 24, defaults.borderSize) end,
+				isEnabled = function() return Reminder:IsBorderEnabled() end,
+			},
+			{
+				name = L["Border offset"] or "Border offset",
+				kind = SettingType.Slider,
+				parentId = "border",
+				minValue = -20,
+				maxValue = 20,
+				valueStep = 1,
+				default = defaults.borderOffset,
+				get = function() return Reminder:GetBorderOffset() end,
+				set = function(_, value) setNumber("classBuffReminderBorderOffset", value, -20, 20, defaults.borderOffset) end,
+				isEnabled = function() return Reminder:IsBorderEnabled() end,
+			},
+			{
+				name = L["Border color"] or "Border color",
+				kind = SettingType.Color,
+				parentId = "border",
+				default = defaults.borderColor,
+				hasOpacity = true,
+				get = function()
+					local r, g, b, a = Reminder:GetBorderColor()
+					return { r = r, g = g, b = b, a = a }
+				end,
+				set = function(_, value) setColor("classBuffReminderBorderColor", value, defaults.borderColor) end,
+				isEnabled = function() return Reminder:IsBorderEnabled() end,
 			},
 		}
 	end

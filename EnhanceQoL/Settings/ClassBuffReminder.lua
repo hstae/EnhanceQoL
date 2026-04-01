@@ -32,6 +32,11 @@ local DB_SCALE = "classBuffReminderScale"
 local DB_ICON_SIZE = "classBuffReminderIconSize"
 local DB_FONT_SIZE = "classBuffReminderFontSize"
 local DB_ICON_GAP = "classBuffReminderIconGap"
+local DB_BORDER_ENABLED = "classBuffReminderBorderEnabled"
+local DB_BORDER_TEXTURE = "classBuffReminderBorderTexture"
+local DB_BORDER_SIZE = "classBuffReminderBorderSize"
+local DB_BORDER_OFFSET = "classBuffReminderBorderOffset"
+local DB_BORDER_COLOR = "classBuffReminderBorderColor"
 local DB_XY_TEXT_SIZE = "classBuffReminderXYTextSize"
 local DB_XY_TEXT_OUTLINE = "classBuffReminderXYTextOutline"
 local DB_XY_TEXT_COLOR = "classBuffReminderXYTextColor"
@@ -69,6 +74,11 @@ local defaults = (Reminder and Reminder.defaults)
 		iconSize = 64,
 		fontSize = 13,
 		iconGap = 6,
+		borderEnabled = false,
+		borderTexture = "DEFAULT",
+		borderSize = 1,
+		borderOffset = 0,
+		borderColor = { r = 1, g = 1, b = 1, a = 1 },
 		xyTextSize = 13,
 		xyTextOutline = "OUTLINE",
 		xyTextColor = { r = 1, g = 1, b = 1, a = 1 },
@@ -85,6 +95,11 @@ if defaults.hideForTank == nil then defaults.hideForTank = false end
 if defaults.hideForDamager == nil then defaults.hideForDamager = false end
 if defaults.hideForNoRole == nil then defaults.hideForNoRole = false end
 if defaults.showIfOnlyProvider == nil then defaults.showIfOnlyProvider = true end
+if defaults.borderEnabled == nil then defaults.borderEnabled = false end
+if defaults.borderTexture == nil or defaults.borderTexture == "" then defaults.borderTexture = "DEFAULT" end
+if defaults.borderSize == nil then defaults.borderSize = 1 end
+if defaults.borderOffset == nil then defaults.borderOffset = 0 end
+if type(defaults.borderColor) ~= "table" then defaults.borderColor = { r = 1, g = 1, b = 1, a = 1 } end
 
 local function refreshReminder()
 	if Reminder and Reminder.OnSettingChanged then Reminder:OnSettingChanged() end
@@ -182,6 +197,11 @@ function addon.functions.initClassBuffReminder()
 	init(DB_ICON_SIZE, defaults.iconSize)
 	init(DB_FONT_SIZE, defaults.fontSize)
 	init(DB_ICON_GAP, defaults.iconGap)
+	init(DB_BORDER_ENABLED, defaults.borderEnabled)
+	init(DB_BORDER_TEXTURE, defaults.borderTexture)
+	init(DB_BORDER_SIZE, defaults.borderSize)
+	init(DB_BORDER_OFFSET, defaults.borderOffset)
+	init(DB_BORDER_COLOR, defaults.borderColor)
 	init(DB_XY_TEXT_SIZE, defaults.xyTextSize)
 	init(DB_XY_TEXT_OUTLINE, defaults.xyTextOutline)
 	init(DB_XY_TEXT_COLOR, defaults.xyTextColor)

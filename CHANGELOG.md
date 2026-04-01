@@ -5,6 +5,8 @@
 ### ✨ Added
 
 - Group Frames / Unit Frames (Name / Level): Added configurable `Frame strata` and `Frame level` settings for `Name` and `Level` text so overlapping can be resolved cleanly.
+- Unit Frames (Boss): Increased the configurable boss-frame count up to `8`.
+- Class Buff Reminder: Added an optional configurable border in Edit Mode .
 
 ### 🐛 Fixed
 

@@ -5824,6 +5824,15 @@ local function setAllHooks()
 		gcdBar:OnMediaRegistered(mediaType, mediaKey)
 	end
 
+	local function refreshClassBuffReminderForMedia(mediaType, mediaKey)
+		if mediaType ~= "border" then return end
+		local reminder = addon.ClassBuffReminder
+		if not (reminder and reminder.frame and reminder.GetBorderTextureKey and reminder.ApplyVisualSettings and reminder.RequestUpdate) then return end
+		if reminder:GetBorderTextureKey() ~= mediaKey then return end
+		reminder:ApplyVisualSettings()
+		reminder:RequestUpdate(true)
+	end
+
 	local function refreshGlobalFontConsumers()
 		if ActionBarLabels then
 			if ActionBarLabels.RefreshAllMacroNameVisibility then ActionBarLabels.RefreshAllMacroNameVisibility() end
@@ -5903,6 +5912,7 @@ local function setAllHooks()
 			refreshExperienceBarForMedia(mediaType, mediaKey)
 			refreshTotalAbsorbTrackerForMedia(mediaType, mediaKey)
 			refreshGCDBarForMedia(mediaType, mediaKey)
+			refreshClassBuffReminderForMedia(mediaType, mediaKey)
 			if addon.MythicPlus and addon.MythicPlus.functions and addon.MythicPlus.functions.refreshBloodlustMedia then addon.MythicPlus.functions.refreshBloodlustMedia(mediaType, mediaKey) end
 		elseif mediaType == "font" then
 			refreshExperienceBarForMedia(mediaType, mediaKey)
