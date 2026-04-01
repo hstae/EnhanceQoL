@@ -74,6 +74,60 @@ local EDIT_MODE_SAMPLE_MAX = 100
 local AURA_FILTERS = GFH.AuraFilters
 local SECRET_TEXT_UPDATE_INTERVAL = 0.1
 local FONT_DROPDOWN_SCROLL_HEIGHT = 220
+GF._FRAME_STRATA_INDEX = GF._FRAME_STRATA_INDEX or {
+	BACKGROUND = true,
+	LOW = true,
+	MEDIUM = true,
+	HIGH = true,
+	DIALOG = true,
+	FULLSCREEN = true,
+	FULLSCREEN_DIALOG = true,
+	TOOLTIP = true,
+}
+GF._FRAME_STRATA_OPTIONS_WITH_DEFAULT = GF._FRAME_STRATA_OPTIONS_WITH_DEFAULT or {
+	{ value = "", label = DEFAULT or "Default" },
+	{ value = "BACKGROUND", label = "BACKGROUND" },
+	{ value = "LOW", label = "LOW" },
+	{ value = "MEDIUM", label = "MEDIUM" },
+	{ value = "HIGH", label = "HIGH" },
+	{ value = "DIALOG", label = "DIALOG" },
+	{ value = "FULLSCREEN", label = "FULLSCREEN" },
+	{ value = "FULLSCREEN_DIALOG", label = "FULLSCREEN_DIALOG" },
+	{ value = "TOOLTIP", label = "TOOLTIP" },
+}
+
+function GF.NormalizeFrameStrataToken(value)
+	if type(value) ~= "string" or value == "" then return nil end
+	local token = string.upper(value)
+	if token == "DEFAULT" then return nil end
+	if GF._FRAME_STRATA_INDEX[token] then return token end
+	return nil
+end
+
+function GF.SyncFrameLayerAbove(child, parent, offset, strata)
+	if not (child and parent) then return end
+	local targetStrata = GF.NormalizeFrameStrataToken(strata)
+	if not targetStrata and parent.GetFrameStrata then targetStrata = parent:GetFrameStrata() end
+	if child.SetFrameStrata and targetStrata and child:GetFrameStrata() ~= targetStrata then child:SetFrameStrata(targetStrata) end
+	if child.SetFrameLevel and parent.GetFrameLevel then
+		local targetLevel = (parent:GetFrameLevel() or 0) + (offset or 1)
+		if targetLevel < 0 then targetLevel = 0 end
+		if child:GetFrameLevel() ~= targetLevel then child:SetFrameLevel(targetLevel) end
+	end
+end
+
+function GF.EnsureTextOverlayLayer(st, key, parent)
+	if not (st and parent) then return nil end
+	local layer = st[key]
+	if not layer then
+		layer = CreateFrame("Frame", nil, parent)
+		layer:EnableMouse(false)
+		st[key] = layer
+	end
+	if layer.GetParent and layer:GetParent() ~= parent then layer:SetParent(parent) end
+	layer:SetAllPoints(parent)
+	return layer
+end
 
 function GF.ClampAuraCount(value, fallback, maxValue)
 	local normalized = tonumber(value)
@@ -322,25 +376,8 @@ local function ensureBorderFrame(frame, borderCfg)
 		frame._ufBorder = border
 	end
 	local targetStrata = frame:GetFrameStrata()
-	local strata = borderCfg and borderCfg.strata
-	if strata ~= nil then
-		strata = tostring(strata):upper()
-		if strata == "DEFAULT" then strata = "" end
-		if
-			strata ~= ""
-			and strata ~= "BACKGROUND"
-			and strata ~= "LOW"
-			and strata ~= "MEDIUM"
-			and strata ~= "HIGH"
-			and strata ~= "DIALOG"
-			and strata ~= "FULLSCREEN"
-			and strata ~= "FULLSCREEN_DIALOG"
-			and strata ~= "TOOLTIP"
-		then
-			strata = ""
-		end
-		if strata ~= "" then targetStrata = strata end
-	end
+	local strata = GF.NormalizeFrameStrataToken(borderCfg and borderCfg.strata)
+	if strata then targetStrata = strata end
 	border:SetFrameStrata(targetStrata)
 	local baseLevel = frame:GetFrameLevel() or 0
 	local levelOffset = clampNumber(tonumber(borderCfg and borderCfg.frameLevelOffset), -20, 1000, 3)
@@ -763,12 +800,21 @@ end
 
 local function syncTextFrameLevels(st)
 	if not st then return end
-	setFrameLevelAbove(st.healthTextLayer, st.health, 5)
-	setFrameLevelAbove(st.powerTextLayer, st.power, 5)
+	local frame = st.frame
+	local cfg = frame and frame._eqolCfg or nil
+	local scfg = cfg and cfg.status or EMPTY
+	GF.SyncFrameLayerAbove(st.healthTextLayer, st.health, 5)
+	GF.SyncFrameLayerAbove(st.powerTextLayer, st.power, 5)
+	local nameLevelOffset = tonumber(scfg.nameFrameLevelOffset)
+	if nameLevelOffset == nil then nameLevelOffset = 5 end
+	GF.SyncFrameLayerAbove(st.nameTextLayer or st.healthTextLayer, st.health, nameLevelOffset, scfg.nameStrata)
+	local levelOffset = tonumber(scfg.levelFrameLevelOffset)
+	if levelOffset == nil then levelOffset = 5 end
+	GF.SyncFrameLayerAbove(st.levelTextLayer or st.healthTextLayer, st.health, levelOffset, scfg.levelStrata)
 	if st.statusIconLayer then
 		local parent = st.healthTextLayer or st.health or GF.GetLayoutAnchorFrame(st, st.barGroup) or st.barGroup or st.frame
 		local anchor = GF.GetLayoutAnchorFrame(st, st.barGroup)
-		setFrameLevelAbove(st.statusIconLayer, parent, 6)
+		GF.SyncFrameLayerAbove(st.statusIconLayer, parent, 6)
 		if anchor and st.statusIconLayer.SetAllPoints then st.statusIconLayer:SetAllPoints(anchor) end
 	end
 end
@@ -5593,6 +5639,9 @@ function GF:BuildButton(self)
 		st.powerTextLayer = CreateFrame("Frame", nil, st.power)
 		st.powerTextLayer:SetAllPoints(st.power)
 	end
+	local textOverlayParent = st.layoutAnchor or st.barGroup or st.health or self
+	local nameTextLayer = GF.EnsureTextOverlayLayer(st, "nameTextLayer", textOverlayParent)
+	local levelTextLayer = GF.EnsureTextOverlayLayer(st, "levelTextLayer", textOverlayParent)
 	if not st.statusIconLayer then
 		st.statusIconLayer = CreateFrame("Frame", nil, st.layoutAnchor or st.barGroup)
 		st.statusIconLayer:SetAllPoints(st.layoutAnchor or st.barGroup)
@@ -5615,9 +5664,11 @@ function GF:BuildButton(self)
 	if not st.powerTextCenter then st.powerTextCenter = st.powerTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight") end
 	if not st.powerTextRight then st.powerTextRight = st.powerTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight") end
 
-	if not st.nameText then st.nameText = st.healthTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight") end
+	if not st.nameText then st.nameText = nameTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight") end
+	if st.nameText.GetParent and st.nameText:GetParent() ~= nameTextLayer then st.nameText:SetParent(nameTextLayer) end
 	st.name = st.nameText
-	if not st.levelText then st.levelText = st.healthTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight") end
+	if not st.levelText then st.levelText = levelTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight") end
+	if st.levelText.GetParent and st.levelText:GetParent() ~= levelTextLayer then st.levelText:SetParent(levelTextLayer) end
 	if not st.statusText then st.statusText = st.healthTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight") end
 	if not st.groupNumberText then st.groupNumberText = st.healthTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight") end
 	if not st.privateAuras then
@@ -12108,6 +12159,8 @@ GF._groupCopySectionRules = {
 		{ "text" },
 		{ "status", "nameColorMode" },
 		{ "status", "nameColor" },
+		{ "status", "nameStrata" },
+		{ "status", "nameFrameLevelOffset" },
 	},
 	health = {
 		{ "health" },
@@ -12145,6 +12198,8 @@ GF._groupCopySectionRules = {
 		{ "status", "levelFont" },
 		{ "status", "levelFontOutline" },
 		{ "status", "levelAnchor" },
+		{ "status", "levelStrata" },
+		{ "status", "levelFrameLevelOffset" },
 		{ "status", "levelOffset" },
 	},
 	statustext = {
@@ -12747,6 +12802,14 @@ function GF._copyUnitSourceSectionToGroup(sectionId, src, dest)
 			dest.status.nameColor = GF._groupCopyCloneValue(sc.nameColor)
 			copied = true
 		end
+		if sc.nameStrata ~= nil then
+			dest.status.nameStrata = sc.nameStrata
+			copied = true
+		end
+		if sc.nameFrameLevelOffset ~= nil then
+			dest.status.nameFrameLevelOffset = sc.nameFrameLevelOffset
+			copied = true
+		end
 		if sc.nameOffset ~= nil then
 			dest.text.nameOffset = GF._groupCopyCloneValue(sc.nameOffset)
 			copied = true
@@ -12821,7 +12884,7 @@ function GF._copyUnitSourceSectionToGroup(sectionId, src, dest)
 		if type(sc) ~= "table" then return false end
 		dest.status = dest.status or {}
 		local copied = false
-		for _, field in ipairs({ "levelEnabled", "hideLevelAtMax", "levelColorMode", "levelColor", "levelFontSize", "levelFont", "levelFontOutline", "levelAnchor" }) do
+		for _, field in ipairs({ "levelEnabled", "hideLevelAtMax", "levelColorMode", "levelColor", "levelFontSize", "levelFont", "levelFontOutline", "levelAnchor", "levelStrata", "levelFrameLevelOffset" }) do
 			if sc[field] ~= nil then
 				dest.status[field] = GF._groupCopyCloneValue(sc[field])
 				copied = true
@@ -15661,6 +15724,59 @@ local function buildEditModeSettings(kind, editModeId)
 			end,
 		},
 		{
+			name = string.format("%s (%s)", L["UFStrata"] or "Frame strata", NAME or "Name"),
+			kind = SettingType.Dropdown,
+			field = "nameStrata",
+			parentId = "text",
+			values = GF._FRAME_STRATA_OPTIONS_WITH_DEFAULT,
+			get = function()
+				local cfg = getCfg(kind)
+				local sc = cfg and cfg.status or {}
+				return GF.NormalizeFrameStrataToken(sc.nameStrata) or ""
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.status = cfg.status or {}
+				cfg.status.nameStrata = GF.NormalizeFrameStrataToken(value)
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "nameStrata", cfg.status.nameStrata or "", nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			isEnabled = function()
+				local cfg = getCfg(kind)
+				local tc = cfg and cfg.text or {}
+				return tc.showName ~= false
+			end,
+		},
+		{
+			name = string.format("%s (%s)", L["UFFrameLevel"] or "Frame level", NAME or "Name"),
+			kind = SettingType.Slider,
+			allowInput = true,
+			field = "nameFrameLevelOffset",
+			parentId = "text",
+			minValue = -20,
+			maxValue = 50,
+			valueStep = 1,
+			get = function()
+				local cfg = getCfg(kind)
+				local sc = cfg and cfg.status or {}
+				return sc.nameFrameLevelOffset or 5
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.status = cfg.status or {}
+				cfg.status.nameFrameLevelOffset = clampNumber(value, -20, 50, cfg.status.nameFrameLevelOffset or 5)
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "nameFrameLevelOffset", cfg.status.nameFrameLevelOffset, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			isEnabled = function()
+				local cfg = getCfg(kind)
+				local tc = cfg and cfg.text or {}
+				return tc.showName ~= false
+			end,
+		},
+		{
 			name = L["Health"] or "Health",
 			kind = SettingType.Collapsible,
 			id = "health",
@@ -17261,6 +17377,59 @@ local function buildEditModeSettings(kind, editModeId)
 				cfg.status = cfg.status or {}
 				cfg.status.levelAnchor = value
 				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "levelAnchor", value, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			isEnabled = function()
+				local cfg = getCfg(kind)
+				local sc = cfg and cfg.status or {}
+				return sc.levelEnabled ~= false
+			end,
+		},
+		{
+			name = string.format("%s (%s)", L["UFStrata"] or "Frame strata", LEVEL or "Level"),
+			kind = SettingType.Dropdown,
+			field = "levelStrata",
+			parentId = "level",
+			values = GF._FRAME_STRATA_OPTIONS_WITH_DEFAULT,
+			get = function()
+				local cfg = getCfg(kind)
+				local sc = cfg and cfg.status or {}
+				return GF.NormalizeFrameStrataToken(sc.levelStrata) or ""
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.status = cfg.status or {}
+				cfg.status.levelStrata = GF.NormalizeFrameStrataToken(value)
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "levelStrata", cfg.status.levelStrata or "", nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			isEnabled = function()
+				local cfg = getCfg(kind)
+				local sc = cfg and cfg.status or {}
+				return sc.levelEnabled ~= false
+			end,
+		},
+		{
+			name = string.format("%s (%s)", L["UFFrameLevel"] or "Frame level", LEVEL or "Level"),
+			kind = SettingType.Slider,
+			allowInput = true,
+			field = "levelFrameLevelOffset",
+			parentId = "level",
+			minValue = -20,
+			maxValue = 50,
+			valueStep = 1,
+			get = function()
+				local cfg = getCfg(kind)
+				local sc = cfg and cfg.status or {}
+				return sc.levelFrameLevelOffset or 5
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.status = cfg.status or {}
+				cfg.status.levelFrameLevelOffset = clampNumber(value, -20, 50, cfg.status.levelFrameLevelOffset or 5)
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "levelFrameLevelOffset", cfg.status.levelFrameLevelOffset, nil, true) end
 				GF:ApplyHeaderAttributes(kind)
 			end,
 			isEnabled = function()
@@ -23489,6 +23658,14 @@ local function applyEditModeData(kind, data)
 		cfg.text = cfg.text or {}
 		cfg.text.fontOutline = data.nameFontOutline
 	end
+	if data.nameStrata ~= nil then
+		cfg.status = cfg.status or {}
+		cfg.status.nameStrata = GF.NormalizeFrameStrataToken(data.nameStrata)
+	end
+	if data.nameFrameLevelOffset ~= nil then
+		cfg.status = cfg.status or {}
+		cfg.status.nameFrameLevelOffset = clampNumber(data.nameFrameLevelOffset, -20, 50, cfg.status.nameFrameLevelOffset or 5)
+	end
 	if data.healthClassColor ~= nil or data.healthUseCustomColor ~= nil then cfg.health = cfg.health or {} end
 	if data.healthUseCustomColor ~= nil then cfg.health.useCustomColor = data.healthUseCustomColor and true or false end
 	if data.healthClassColor ~= nil then cfg.health.useClassColor = data.healthClassColor and true or false end
@@ -23672,9 +23849,13 @@ local function applyEditModeData(kind, data)
 	if
 		data.nameColorMode ~= nil
 		or data.nameColor ~= nil
+		or data.nameStrata ~= nil
+		or data.nameFrameLevelOffset ~= nil
 		or data.levelEnabled ~= nil
 		or data.levelColorMode ~= nil
 		or data.levelColor ~= nil
+		or data.levelStrata ~= nil
+		or data.levelFrameLevelOffset ~= nil
 		or data.hideLevelAtMax ~= nil
 		or data.levelClassColor ~= nil
 		or data.statusTextEnabled ~= nil
@@ -23730,6 +23911,8 @@ local function applyEditModeData(kind, data)
 	if data.levelFont ~= nil then cfg.status.levelFont = data.levelFont end
 	if data.levelFontOutline ~= nil then cfg.status.levelFontOutline = data.levelFontOutline end
 	if data.levelAnchor ~= nil then cfg.status.levelAnchor = data.levelAnchor end
+	if data.levelStrata ~= nil then cfg.status.levelStrata = GF.NormalizeFrameStrataToken(data.levelStrata) end
+	if data.levelFrameLevelOffset ~= nil then cfg.status.levelFrameLevelOffset = clampNumber(data.levelFrameLevelOffset, -20, 50, cfg.status.levelFrameLevelOffset or 5) end
 	if data.levelOffsetX ~= nil or data.levelOffsetY ~= nil then
 		cfg.status.levelOffset = cfg.status.levelOffset or {}
 		if data.levelOffsetX ~= nil then cfg.status.levelOffset.x = data.levelOffsetX end
@@ -24316,6 +24499,8 @@ local function applyEditModeData(kind, data)
 		or data.nameFontSize ~= nil
 		or data.nameFont ~= nil
 		or data.nameFontOutline ~= nil
+		or data.nameStrata ~= nil
+		or data.nameFrameLevelOffset ~= nil
 		or data.nameClassColor ~= nil
 		or data.nameColor ~= nil
 	local refreshRangeFade = data.rangeFadeEnabled ~= nil or data.rangeFadeAlpha ~= nil or data.rangeFadeOfflineAlpha ~= nil
@@ -24515,6 +24700,8 @@ function GF:EnsureEditMode()
 				nameFontSize = (cfg.text and cfg.text.fontSize) or (DEFAULTS[kind] and DEFAULTS[kind].text and DEFAULTS[kind].text.fontSize) or 12,
 				nameFont = (cfg.text and cfg.text.font) or (DEFAULTS[kind] and DEFAULTS[kind].text and DEFAULTS[kind].text.font) or nil,
 				nameFontOutline = (cfg.text and cfg.text.fontOutline) or (DEFAULTS[kind] and DEFAULTS[kind].text and DEFAULTS[kind].text.fontOutline) or "OUTLINE",
+				nameStrata = GF.NormalizeFrameStrataToken(sc.nameStrata) or "",
+				nameFrameLevelOffset = sc.nameFrameLevelOffset or 5,
 				healthClassColor = (cfg.health and cfg.health.useClassColor) == true,
 				healthUseCustomColor = (cfg.health and cfg.health.useCustomColor) == true,
 				healthColor = (cfg.health and cfg.health.color) or ((DEFAULTS[kind] and DEFAULTS[kind].health and DEFAULTS[kind].health.color) or { 0, 0.8, 0, 1 }),
@@ -24575,6 +24762,8 @@ function GF:EnsureEditMode()
 				levelFont = sc.levelFont or (cfg.text and cfg.text.font) or (cfg.health and cfg.health.font) or nil,
 				levelFontOutline = sc.levelFontOutline or (cfg.text and cfg.text.fontOutline) or (cfg.health and cfg.health.fontOutline) or "OUTLINE",
 				levelAnchor = sc.levelAnchor or "RIGHT",
+				levelStrata = GF.NormalizeFrameStrataToken(sc.levelStrata) or "",
+				levelFrameLevelOffset = sc.levelFrameLevelOffset or 5,
 				levelOffsetX = (sc.levelOffset and sc.levelOffset.x) or 0,
 				levelOffsetY = (sc.levelOffset and sc.levelOffset.y) or 0,
 				statusTextEnabled = (sc.unitStatus and sc.unitStatus.enabled) ~= false,

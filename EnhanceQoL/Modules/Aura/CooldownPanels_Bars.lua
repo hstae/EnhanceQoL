@@ -2443,8 +2443,9 @@ buildBarState = function(panelId, entryId, entry, icon, preview)
 		preview = preview == true,
 		showIcon = getStoredBoolean(entry, "barShowIcon", Bars.DEFAULTS.barShowIcon),
 		showLabel = getStoredBoolean(entry, "barShowLabel", Bars.DEFAULTS.barShowLabel),
-		showValueText = getStoredBoolean(entry, "barShowValueText", Bars.DEFAULTS.barShowValueText),
-		showStacks = getStoredBoolean(entry, "showStacks", false) and (resolvedType == "SPELL" or resolvedType == "CDM_AURA"),
+		showValueText = mode ~= Bars.BAR_MODE.STACKS and getStoredBoolean(entry, "barShowValueText", Bars.DEFAULTS.barShowValueText),
+		showStacks = (resolvedType == "SPELL" or resolvedType == "CDM_AURA")
+			and (mode == Bars.BAR_MODE.STACKS or getStoredBoolean(entry, "showStacks", false)),
 		stackDisplayText = nil,
 		progress = 1,
 		icon = icon,
@@ -2541,10 +2542,9 @@ buildBarState = function(panelId, entryId, entry, icon, preview)
 			state.valueText = format("%d/%d", state.currentCharges or 0, state.maxCharges)
 		else
 			local stackDisplayText, stackValue = Bars.ResolveStackDisplay(panelId, entryId, resolvedType, icon, nil)
-			state.stackDisplayText = stackDisplayText
+			state.stackDisplayText = stackDisplayText or tostring(stackValue or min(max(1, state.stackMax or Bars.DEFAULTS.barStackMax), 2))
 			local stackMax = max(1, state.stackMax or Bars.DEFAULTS.barStackMax)
 			state.progress = clamp((stackValue or min(stackMax, 2)) / max(stackMax, 1), 0, 1)
-			state.valueText = stackDisplayText or tostring(stackValue or min(stackMax, 2))
 			state.stackFillValue = stackValue or min(stackMax, 2)
 			state.stackFillMax = stackMax
 		end
@@ -2662,31 +2662,27 @@ buildBarState = function(panelId, entryId, entry, icon, preview)
 				state.texture = runtimeData.iconTextureID or state.texture
 			end
 			local stackDisplayText, stackValue, rawStackValue = Bars.ResolveStackDisplay(panelId, entryId, resolvedType, icon, runtimeData)
-			state.stackDisplayText = stackDisplayText
+			state.stackDisplayText = stackDisplayText or (stackValue ~= nil and tostring(stackValue) or nil)
 			local stackMax = max(1, state.stackMax or Bars.DEFAULTS.barStackMax)
 			state.stackFillValue = rawStackValue
 			state.stackFillMax = stackMax
 			if stackValue ~= nil then
 				progress = clamp(stackValue / stackMax, 0, 1)
-				valueText = stackDisplayText or tostring(stackValue)
 			elseif Helper.HasDisplayCount and Helper.HasDisplayCount(stackDisplayText) then
 				progress = 0
-				valueText = stackDisplayText
 			else
 				progress = 0
 			end
 		else
 			local stackDisplayText, stackValue, rawStackValue = Bars.ResolveStackDisplay(panelId, entryId, resolvedType, icon, nil)
-			state.stackDisplayText = stackDisplayText
+			state.stackDisplayText = stackDisplayText or (stackValue ~= nil and tostring(stackValue) or nil)
 			local stackMax = max(1, state.stackMax or Bars.DEFAULTS.barStackMax)
 			state.stackFillValue = rawStackValue
 			state.stackFillMax = stackMax
 			if stackValue and stackMax > 0 then
 				progress = clamp(stackValue / stackMax, 0, 1)
-				valueText = stackDisplayText or tostring(stackValue)
 			elseif Helper.HasDisplayCount and Helper.HasDisplayCount(stackDisplayText) then
 				progress = 0
-				valueText = stackDisplayText
 			else
 				progress = 1
 			end
@@ -2696,6 +2692,8 @@ buildBarState = function(panelId, entryId, entry, icon, preview)
 	state.progress = progress or 0
 	if mode == Bars.BAR_MODE.COOLDOWN then
 		state.valueText = cooldownValueVisible and (valueText or getCooldownText(icon) or nil) or nil
+	elseif mode == Bars.BAR_MODE.STACKS then
+		state.valueText = nil
 	else
 		state.valueText = valueText or nil
 	end
@@ -2704,8 +2702,6 @@ buildBarState = function(panelId, entryId, entry, icon, preview)
 			state.valueText = "12.4"
 		elseif mode == Bars.BAR_MODE.CHARGES then
 			state.valueText = state.segmentedCharges == true and "1/2" or "2/3"
-		else
-			state.valueText = state.stackDisplayText or (resolvedType == "CDM_AURA" and "2" or "3")
 		end
 	end
 	if layoutEditActive and state.showStacks and not (Helper.HasDisplayCount and Helper.HasDisplayCount(state.stackDisplayText)) then
@@ -4049,7 +4045,7 @@ Bars.AppendBarStandaloneDetailHeaders = function(settings, ctx)
 		name = L["CooldownPanelBarChargesHeader"] or (L["CooldownPanelBarModeCharges"] or "Charges"),
 		kind = SettingType.Collapsible,
 		id = "eqolCooldownPanelStandaloneBarCharges",
-		defaultCollapsed = false,
+		defaultCollapsed = true,
 		isShown = function()
 			local currentEntry = getStandaloneBarContextEntry(ctx)
 			return normalizeBarMode(currentEntry and currentEntry.barMode, Bars.DEFAULTS.barMode) == Bars.BAR_MODE.CHARGES
@@ -4059,23 +4055,28 @@ Bars.AppendBarStandaloneDetailHeaders = function(settings, ctx)
 		name = L["CooldownPanelBarCooldownHeader"] or (L["CooldownPanelBarModeCooldown"] or "Cooldown"),
 		kind = SettingType.Collapsible,
 		id = "eqolCooldownPanelStandaloneBarCooldown",
-		defaultCollapsed = false,
+		defaultCollapsed = true,
+		isShown = function()
+			local currentEntry = getStandaloneBarContextEntry(ctx)
+			return normalizeBarMode(currentEntry and currentEntry.barMode, Bars.DEFAULTS.barMode) ~= Bars.BAR_MODE.STACKS
+		end,
 	}
 	settings[#settings + 1] = {
 		name = L["CooldownPanelBarStacksHeader"] or (L["CooldownPanelBarModeStacks"] or "Stacks"),
 		kind = SettingType.Collapsible,
 		id = "eqolCooldownPanelStandaloneBarStacks",
-		defaultCollapsed = false,
+		defaultCollapsed = true,
 		isShown = function()
 			local currentEntry = getStandaloneBarContextEntry(ctx)
-			return supportsBarMode(currentEntry, Bars.BAR_MODE.STACKS)
+			local mode = normalizeBarMode(currentEntry and currentEntry.barMode, Bars.DEFAULTS.barMode)
+			return supportsBarMode(currentEntry, Bars.BAR_MODE.STACKS) and mode ~= Bars.BAR_MODE.CHARGES
 		end,
 	}
 	settings[#settings + 1] = {
 		name = L["CooldownPanelBarLabelHeader"] or "Label",
 		kind = SettingType.Collapsible,
 		id = "eqolCooldownPanelStandaloneBarLabel",
-		defaultCollapsed = false,
+		defaultCollapsed = true,
 	}
 end
 

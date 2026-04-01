@@ -515,7 +515,8 @@ local function requestAuraRefresh()
 		UF.FullScanTargetAuras("player")
 		UF.FullScanTargetAuras("target")
 		UF.FullScanTargetAuras("focus")
-		for i = 1, 5 do
+		local bossCount = (UF.GetBossFrameCount and UF.GetBossFrameCount()) or (UF.GetSupportedBossFrameCount and UF.GetSupportedBossFrameCount()) or 8
+		for i = 1, bossCount do
 			UF.FullScanTargetAuras("boss" .. tostring(i))
 		end
 	end

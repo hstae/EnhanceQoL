@@ -2,6 +2,10 @@
 
 ## [9.12.0-beta3] - 2026-04-01
 
+### ✨ Added
+
+- Group Frames / Unit Frames (Name / Level): Added configurable `Frame strata` and `Frame level` settings for `Name` and `Level` text so overlapping can be resolved cleanly.
+
 ### 🐛 Fixed
 
 - Group Frames / Resource Bars: Registered `PLAYER_SPECIALIZATION_CHANGED` as a player-scoped unit event so spec-switch updates stay scoped correctly.

@@ -21,7 +21,7 @@ local TotemFrameUtil = UF.TotemFrameUtil
 addon.variables = addon.variables or {}
 addon.variables.ufSampleAbsorb = addon.variables.ufSampleAbsorb or {}
 addon.variables.ufSampleHealAbsorb = addon.variables.ufSampleHealAbsorb or {}
-local maxBossFrames = MAX_BOSS_FRAMES or 5
+local maxBossFrames = 8
 local UF_PROFILE_SHARE_KIND = "EQOL_UF_PROFILE"
 local smoothFill = Enum.StatusBarInterpolation.ExponentialEaseOut
 local TEXT_UPDATE_INTERVAL = 0.1
@@ -1068,6 +1068,8 @@ local defaults = {
 			fontOutline = "OUTLINE",
 			nameColorMode = "CLASS", -- CLASS or CUSTOM
 			nameColor = { 0.8, 0.8, 1, 1 },
+			nameStrata = nil,
+			nameFrameLevelOffset = 5,
 			nameUseReactionColor = false,
 			levelColor = { 1, 0.85, 0, 1 },
 			levelStrata = nil,
@@ -1729,6 +1731,18 @@ local function ensureDB(unit)
 	return udb
 end
 
+function UF.GetBossFrameCount(cfg)
+	if cfg == nil then cfg = ensureDB("boss") end
+	local value = tonumber(cfg and cfg.bossCount)
+	if value then value = math.floor(value + 0.5) end
+	if not value or value < 1 then value = MAX_BOSS_FRAMES or 5 end
+	if value > maxBossFrames then value = maxBossFrames end
+	return value
+end
+
+UF.GetDefaultBossFrameCount = function() return MAX_BOSS_FRAMES or 5 end
+UF.GetSupportedBossFrameCount = function() return maxBossFrames end
+
 local function hasVisibilityRules(cfg)
 	if not cfg then return false end
 	local raw = cfg.visibility
@@ -1968,6 +1982,8 @@ local function copySettings(fromUnit, toUnit, opts)
 			{ "status", "fontOutline" },
 			{ "status", "nameColorMode" },
 			{ "status", "nameColor" },
+			{ "status", "nameStrata" },
+			{ "status", "nameFrameLevelOffset" },
 			{ "status", "nameUseReactionColor" },
 			{ "status", "nameAnchor" },
 			{ "status", "nameOffset" },
@@ -2093,7 +2109,8 @@ local function updateAllRaidTargetIcons()
 	checkRaidTargetIcon(UNIT.TARGET_TARGET, states[UNIT.TARGET_TARGET])
 	checkRaidTargetIcon(UNIT.PET, states[UNIT.PET])
 	checkRaidTargetIcon(UNIT.FOCUS, states[UNIT.FOCUS])
-	for i = 1, maxBossFrames do
+	local bossCount = UF.GetBossFrameCount()
+	for i = 1, bossCount do
 		local u = "boss" .. i
 		if states[u] then checkRaidTargetIcon(u, states[u]) end
 	end
@@ -2648,9 +2665,7 @@ function UF.ExportProfile(scopeKey, profileName)
 			local exportedMappings = {}
 			for specKey, mappedProfile in pairs(specMappings) do
 				local specID = tonumber(specKey)
-				if specID and specID > 0 and type(mappedProfile) == "string" and mappedProfile ~= "" then
-					exportedMappings[specID] = mappedProfile
-				end
+				if specID and specID > 0 and type(mappedProfile) == "string" and mappedProfile ~= "" then exportedMappings[specID] = mappedProfile end
 			end
 			if next(exportedMappings) then payload.specMappings = exportedMappings end
 		end
@@ -2738,9 +2753,7 @@ function UF.ImportProfile(encoded, scopeKey)
 		if sourceSpecMappings and UFProfileManager and UFProfileManager.SetSpecMapping then
 			for specKey, mappedProfile in pairs(sourceSpecMappings) do
 				local specID = tonumber(specKey)
-				if specID and specID > 0 and type(mappedProfile) == "string" and mappedProfile ~= "" then
-					UFProfileManager.SetSpecMapping(specID, mappedProfile)
-				end
+				if specID and specID > 0 and type(mappedProfile) == "string" and mappedProfile ~= "" then UFProfileManager.SetSpecMapping(specID, mappedProfile) end
 			end
 		end
 	else
@@ -4063,6 +4076,31 @@ local function applyVisibilityDriver(unit, enabled)
 	local cfg = ensureDB(unit)
 	local def = defaultsFor(unit)
 	local inEdit = addon.EditModeLib and addon.EditModeLib.IsInEditMode and addon.EditModeLib:IsInEditMode()
+	if isBossUnit(unit) and _G.RegisterUnitWatch and _G.UnregisterUnitWatch then
+		local hideInClientScene = UFHelper and UFHelper.shouldHideInClientScene and UFHelper.shouldHideInClientScene(cfg, def)
+		local forceClientSceneHide = enabled and not inEdit and hideInClientScene and UF._clientSceneActive == true
+		if UFHelper and UFHelper.applyClientSceneAlphaOverride then UFHelper.applyClientSceneAlphaOverride(st, forceClientSceneHide) end
+		if InCombatLockdown() then return end
+		local frame = st.frame
+		if frame.EQOL_VisibilityStateDriver or st._visibilityCond or (frame.GetAttribute and frame:GetAttribute("state-visibility") ~= nil) then
+			if UnregisterStateDriver then UnregisterStateDriver(frame, "visibility") end
+			if frame.SetAttribute then frame:SetAttribute("state-visibility", nil) end
+			frame.EQOL_VisibilityStateDriver = nil
+			st._visibilityCond = nil
+		end
+		local registered = (_G.UnitWatchRegistered and _G.UnitWatchRegistered(frame)) or frame.EQOL_BossUnitWatchRegistered == true
+		if enabled then
+			if not registered then
+				local ok = pcall(_G.RegisterUnitWatch, frame)
+				if ok then frame.EQOL_BossUnitWatchRegistered = true end
+			end
+		else
+			if registered then pcall(_G.UnregisterUnitWatch, frame) end
+			frame.EQOL_BossUnitWatchRegistered = nil
+			if frame.Hide then frame:Hide() end
+		end
+		return
+	end
 	local hideInClientScene = UFHelper and UFHelper.shouldHideInClientScene and UFHelper.shouldHideInClientScene(cfg, def)
 	local forceClientSceneHide = enabled and not inEdit and hideInClientScene and UF._clientSceneActive == true
 	if UFHelper and UFHelper.applyClientSceneAlphaOverride then UFHelper.applyClientSceneAlphaOverride(st, forceClientSceneHide) end
@@ -4183,9 +4221,11 @@ local function applyVisibilityRules(unit)
 	end
 	local opts = { noStateDriver = true, fadeAlpha = fadeAlpha }
 	if unit == "boss" then
+		local bossCount = UF.GetBossFrameCount(cfg)
 		for i = 1, maxBossFrames do
 			local info = UNITS["boss" .. i]
-			if info and info.frameName then ApplyFrameVisibilityConfig(info.frameName, { unitToken = "boss" }, useConfig, opts) end
+			local frameConfig = i <= bossCount and useConfig or nil
+			if info and info.frameName then ApplyFrameVisibilityConfig(info.frameName, { unitToken = "boss" }, frameConfig, opts) end
 			if UFHelper and UFHelper.applyClientSceneAlphaOverride then UFHelper.applyClientSceneAlphaOverride(states["boss" .. i], forceClientSceneHide) end
 		end
 		return
@@ -4211,8 +4251,9 @@ function UF.RefreshClientSceneVisibility()
 	applyVisibilityDriver(UNIT.FOCUS, ensureDB(UNIT.FOCUS).enabled)
 	applyVisibilityDriver(UNIT.PET, ensureDB(UNIT.PET).enabled)
 	local bossEnabled = ensureDB("boss").enabled
+	local bossCount = bossEnabled and UF.GetBossFrameCount() or 0
 	for i = 1, maxBossFrames do
-		applyVisibilityDriver("boss" .. i, bossEnabled)
+		applyVisibilityDriver("boss" .. i, bossEnabled and i <= bossCount)
 	end
 	applyVisibilityRulesAll()
 end
@@ -4341,6 +4382,7 @@ do
 
 	local bossDefaults = CopyTable(defaults.target)
 	bossDefaults.enabled = false
+	bossDefaults.bossCount = MAX_BOSS_FRAMES or 5
 	bossDefaults.anchor = { point = "CENTER", relativeTo = "UIParent", relativePoint = "CENTER", x = 400, y = 200 }
 	bossDefaults.width = 220
 	bossDefaults.healthHeight = 20
@@ -6535,6 +6577,17 @@ local function syncTextFrameLevels(st)
 	setFrameLevelAbove(st.powerTextLayer, st.power, 5)
 	if st.secondaryPowerTextLayer and st.secondaryPower then setFrameLevelAbove(st.secondaryPowerTextLayer, st.secondaryPower, 5) end
 	setFrameLevelAbove(st.statusTextLayer, statusAnchor, 5)
+	local nameLayer = st.nameTextLayer or st.statusTextLayer
+	local nameLevelOffset = tonumber(scfg.nameFrameLevelOffset)
+	if nameLevelOffset == nil then nameLevelOffset = 5 end
+	setFrameLevelAbove(nameLayer, statusAnchor, nameLevelOffset)
+	if nameLayer and nameLayer.SetFrameStrata then
+		local nameStrata = normalizeStrataToken(scfg.nameStrata)
+		local fallbackStrata
+		if statusAnchor and statusAnchor.GetFrameStrata then fallbackStrata = statusAnchor:GetFrameStrata() end
+		if not fallbackStrata and st.status and st.status.GetFrameStrata then fallbackStrata = st.status:GetFrameStrata() end
+		if nameStrata or fallbackStrata then nameLayer:SetFrameStrata(nameStrata or fallbackStrata) end
+	end
 	local levelLayer = st.levelTextLayer or st.statusTextLayer
 	local levelOffset = tonumber(scfg.levelFrameLevelOffset)
 	if levelOffset == nil then levelOffset = 5 end
@@ -7561,6 +7614,8 @@ local function ensureFrames(unit)
 	end
 	st.statusTextLayer = st.statusTextLayer or CreateFrame("Frame", nil, st.status)
 	st.statusTextLayer:SetAllPoints(st.status)
+	st.nameTextLayer = st.nameTextLayer or CreateFrame("Frame", nil, st.status)
+	st.nameTextLayer:SetAllPoints(st.status)
 	st.levelTextLayer = st.levelTextLayer or CreateFrame("Frame", nil, st.status)
 	st.levelTextLayer:SetAllPoints(st.status)
 	if (unit == UNIT.PLAYER or unit == UNIT.TARGET or unit == UNIT.FOCUS) and not st.dispelTint then
@@ -7586,8 +7641,10 @@ local function ensureFrames(unit)
 		st.secondaryPowerTextCenter = st.secondaryPowerTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 		st.secondaryPowerTextRight = st.secondaryPowerTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	end
-	st.nameText = st.statusTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-	st.levelText = st.levelTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	st.nameText = st.nameText or st.nameTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	if st.nameText.GetParent and st.nameText:GetParent() ~= st.nameTextLayer then st.nameText:SetParent(st.nameTextLayer) end
+	st.levelText = st.levelText or st.levelTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	if st.levelText.GetParent and st.levelText:GetParent() ~= st.levelTextLayer then st.levelText:SetParent(st.levelTextLayer) end
 	st.unitStatusText = st.statusTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	st.unitGroupText = st.statusTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	st.raidIcon = st.statusTextLayer:CreateTexture(nil, "OVERLAY", nil, 7)
@@ -8122,7 +8179,8 @@ local function layoutBossFrames(cfg)
 	local shown = 0
 	local maxWidth = 0
 	local frameHeight = 0
-	for i = 1, maxBossFrames do
+	local bossCount = UF.GetBossFrameCount(cfg)
+	for i = 1, bossCount do
 		local unit = "boss" .. i
 		local st = states[unit]
 		if st and st.frame then
@@ -8314,6 +8372,27 @@ local function applyBossEditSample(idx, cfg)
 	if st.castBar and cdef.enabled ~= false then UF.SetSampleCast(unit) end
 end
 
+function UF._setBossFrameInactive(unit)
+	local st = states[unit]
+	if not st or not st.frame then return end
+	applyVisibilityDriver(unit, false)
+	if st.barGroup then st.barGroup:Hide() end
+	if st.status then st.status:Hide() end
+	if st.auraContainer then AuraUtil.hideAuraContainers(st) end
+	AuraUtil.resetTargetAuras(unit)
+	AuraUtil.HideSingleDispelIndicator(unit)
+	if st.castBar then
+		stopCast(unit)
+		st.castBar:Hide()
+	end
+	if st.privateAuras and UFHelper and UFHelper.RemovePrivateAuras then
+		UFHelper.RemovePrivateAuras(st.privateAuras)
+		if st.privateAuras.Hide then st.privateAuras:Hide() end
+	end
+	st._hovered = false
+	UFHelper.updateHighlight(st, unit, UNIT.PLAYER)
+end
+
 local function updateBossFrames(force)
 	local cfg = ensureDB("boss")
 	if not cfg.enabled then
@@ -8324,67 +8403,72 @@ local function updateBossFrames(force)
 	if not bossContainer then ensureBossContainer() end
 	DisableBossFrames()
 	local inEdit = addon.EditModeLib and addon.EditModeLib:IsInEditMode()
+	local bossCount = UF.GetBossFrameCount(cfg)
 	for i = 1, maxBossFrames do
 		local unit = "boss" .. i
-		if force or not states[unit] or not states[unit].frame or inEdit then applyConfig(unit) end
-		local st = states[unit]
-		if st then st.cfg = cfg end
-		if st and st.frame then
-			if inEdit then
-				if not InCombatLockdown() then
-					if UnregisterStateDriver then UnregisterStateDriver(st.frame, "visibility") end
-					if st.frame.SetAttribute then st.frame:SetAttribute("state-visibility", nil) end
-					if st.frame.SetAttribute then st.frame:SetAttribute("unit", "player") end
-					st.frame:Show()
-				else
-					bossInitPending = true
-				end
-				if st.barGroup then st.barGroup:Show() end
-				if st.status then st.status:Show() end
-				applyBossEditSample(i, cfg)
-				if st.auraContainer then AuraUtil.fullScanTargetAuras(unit) end
-			else
-				local exists = UnitExists and UnitExists(unit)
-				if not InCombatLockdown() then
-					if st.frame.SetAttribute then st.frame:SetAttribute("unit", unit) end
-					applyVisibilityDriver(unit, cfg.enabled)
-				else
-					if exists then
-						bossShowPending = true
-						bossHidePending = nil
+		if i > bossCount then
+			UF._setBossFrameInactive(unit)
+		else
+			if force or not states[unit] or not states[unit].frame or inEdit then applyConfig(unit) end
+			local st = states[unit]
+			if st then st.cfg = cfg end
+			if st and st.frame then
+				if inEdit then
+					if not InCombatLockdown() then
+						if UnregisterStateDriver then UnregisterStateDriver(st.frame, "visibility") end
+						if st.frame.SetAttribute then st.frame:SetAttribute("state-visibility", nil) end
+						if st.frame.SetAttribute then st.frame:SetAttribute("unit", "player") end
+						st.frame:Show()
 					else
-						bossHidePending = true
-						bossShowPending = nil
+						bossInitPending = true
 					end
-				end
-				if exists then
 					if st.barGroup then st.barGroup:Show() end
 					if st.status then st.status:Show() end
-					updateNameAndLevel(cfg, unit)
-					updateHealth(cfg, unit)
-					updatePower(cfg, unit)
-					checkRaidTargetIcon(unit, st)
-					AuraUtil.fullScanTargetAuras(unit)
-					if st.castBar and cfg.cast and cfg.cast.enabled ~= false then
-						setCastInfoFromUnit(unit)
-						if UF.ShouldShowSampleCast(unit) and (not st.castInfo or not UnitCastingInfo or (UnitCastingInfo and not UnitCastingInfo(unit))) then UF.SetSampleCast(unit) end
-					elseif st.castBar then
-						stopCast(unit)
-						st.castBar:Hide()
-					end
+					applyBossEditSample(i, cfg)
+					if st.auraContainer then AuraUtil.fullScanTargetAuras(unit) end
 				else
-					if st.barGroup then st.barGroup:Hide() end
-					if st.status then st.status:Hide() end
-					if st.auraContainer then AuraUtil.hideAuraContainers(st) end
-					AuraUtil.resetTargetAuras(unit)
-					if st.castBar then
-						stopCast(unit)
-						st.castBar:Hide()
+					local exists = UnitExists and UnitExists(unit)
+					if not InCombatLockdown() then
+						if st.frame.SetAttribute then st.frame:SetAttribute("unit", unit) end
+						applyVisibilityDriver(unit, cfg.enabled)
+					else
+						if exists then
+							bossShowPending = true
+							bossHidePending = nil
+						else
+							bossHidePending = true
+							bossShowPending = nil
+						end
+					end
+					if exists then
+						if st.barGroup then st.barGroup:Show() end
+						if st.status then st.status:Show() end
+						updateNameAndLevel(cfg, unit)
+						updateHealth(cfg, unit)
+						updatePower(cfg, unit)
+						checkRaidTargetIcon(unit, st)
+						AuraUtil.fullScanTargetAuras(unit)
+						if st.castBar and cfg.cast and cfg.cast.enabled ~= false then
+							setCastInfoFromUnit(unit)
+							if UF.ShouldShowSampleCast(unit) and (not st.castInfo or not UnitCastingInfo or (UnitCastingInfo and not UnitCastingInfo(unit))) then UF.SetSampleCast(unit) end
+						elseif st.castBar then
+							stopCast(unit)
+							st.castBar:Hide()
+						end
+					else
+						if st.barGroup then st.barGroup:Hide() end
+						if st.status then st.status:Hide() end
+						if st.auraContainer then AuraUtil.hideAuraContainers(st) end
+						AuraUtil.resetTargetAuras(unit)
+						if st.castBar then
+							stopCast(unit)
+							st.castBar:Hide()
+						end
 					end
 				end
 			end
+			UFHelper.updateHighlight(st, unit, UNIT.PLAYER)
 		end
-		UFHelper.updateHighlight(st, unit, UNIT.PLAYER)
 	end
 	anchorBossContainer(cfg)
 	layoutBossFrames(cfg)
@@ -8551,7 +8635,8 @@ function UF._buildRegisteredUnitTokens()
 		addToken(UNIT.PLAYER) -- UNIT_PET uses "player" as event unit
 	end
 	if bossCfg.enabled then
-		for i = 1, maxBossFrames do
+		local bossCount = UF.GetBossFrameCount(bossCfg)
+		for i = 1, bossCount do
 			addToken("boss" .. i)
 		end
 	end
@@ -8601,18 +8686,23 @@ local function ensureBossFramesReady(cfg)
 		bossInitPending = true
 		return
 	end
+	local bossCount = UF.GetBossFrameCount(cfg)
 	for i = 1, maxBossFrames do
 		local unit = "boss" .. i
-		applyConfig(unit)
-		if addon.EditModeLib and addon.EditModeLib:IsInEditMode() then
-			local st = states[unit]
-			if st and st.frame then
-				if UnregisterStateDriver then UnregisterStateDriver(st.frame, "visibility") end
-				st.frame:SetAttribute("state-visibility", nil)
-				st.frame:Show()
-			end
+		if i > bossCount then
+			UF._setBossFrameInactive(unit)
 		else
-			applyVisibilityDriver(unit, cfg.enabled)
+			applyConfig(unit)
+			if addon.EditModeLib and addon.EditModeLib:IsInEditMode() then
+				local st = states[unit]
+				if st and st.frame then
+					if UnregisterStateDriver then UnregisterStateDriver(st.frame, "visibility") end
+					st.frame:SetAttribute("state-visibility", nil)
+					st.frame:Show()
+				end
+			else
+				applyVisibilityDriver(unit, cfg.enabled)
+			end
 		end
 	end
 	if bossContainer then bossContainer:Show() end
@@ -8648,7 +8738,8 @@ local function rebuildAllowedEventUnits()
 	if focusCfg.enabled then allowedEventUnit[UNIT.FOCUS] = true end
 	if petCfg.enabled then allowedEventUnit[UNIT.PET] = true end
 	if bossCfg.enabled then
-		for i = 1, maxBossFrames do
+		local bossCount = UF.GetBossFrameCount(bossCfg)
+		for i = 1, bossCount do
 			allowedEventUnit["boss" .. i] = true
 		end
 	end
@@ -9159,7 +9250,8 @@ function UF.UpdateAllTexts(force)
 	UF.UpdateUnitTexts(UNIT.TARGET_TARGET, force)
 	UF.UpdateUnitTexts(UNIT.FOCUS, force)
 	UF.UpdateUnitTexts(UNIT.PET, force)
-	for i = 1, maxBossFrames do
+	local bossCount = UF.GetBossFrameCount()
+	for i = 1, bossCount do
 		UF.UpdateUnitTexts("boss" .. i, force)
 	end
 end
@@ -9249,7 +9341,7 @@ onEvent = function(self, event, unit, ...)
 		UF.UpdateAllPvPIndicators()
 		UF.UpdateAllRoleIndicators(false)
 		UF.UpdateAllLeaderIndicators(false)
-		UFHelper.updateAllHighlights(states, UNIT, maxBossFrames)
+		UFHelper.updateAllHighlights(states, UNIT, UF.GetBossFrameCount(bossCfg))
 		updateAllRaidTargetIcons()
 		if bossCfg.enabled then
 			updateBossFrames(true)
@@ -9309,7 +9401,7 @@ onEvent = function(self, event, unit, ...)
 			AuraUtil.updateTargetAuraIcons()
 			if totCfg.enabled then updateTargetTargetFrame(totCfg) end
 			if focusCfg.enabled then updateFocusFrame(focusCfg) end
-			if UFHelper and UFHelper.updateAllHighlights then UFHelper.updateAllHighlights(states, UNIT, maxBossFrames) end
+			if UFHelper and UFHelper.updateAllHighlights then UFHelper.updateAllHighlights(states, UNIT, UF.GetBossFrameCount()) end
 			return
 		end
 		if UnitExists(unitToken) then
@@ -9376,7 +9468,7 @@ onEvent = function(self, event, unit, ...)
 		UFHelper.updatePvPIndicator(states[UNIT.TARGET], UNIT.TARGET, targetCfg, defaultsFor(UNIT.TARGET), true)
 		UFHelper.updateRoleIndicator(states[UNIT.TARGET], UNIT.TARGET, targetCfg, defaultsFor(UNIT.TARGET), true)
 		updateUnitStatusIndicator(totCfg, UNIT.TARGET_TARGET)
-		if UFHelper and UFHelper.updateAllHighlights then UFHelper.updateAllHighlights(states, UNIT, maxBossFrames) end
+		if UFHelper and UFHelper.updateAllHighlights then UFHelper.updateAllHighlights(states, UNIT, UF.GetBossFrameCount()) end
 	elseif event == "UNIT_AURA" and (unit == "target" or unit == UNIT.PLAYER or unit == UNIT.FOCUS or isBossUnit(unit)) then
 		local cfg = getCfg(unit)
 		if not cfg or cfg.enabled == false then return end

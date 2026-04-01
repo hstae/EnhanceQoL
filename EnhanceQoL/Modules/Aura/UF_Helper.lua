@@ -122,7 +122,7 @@ local npcColorUnits = {
 	focus = true,
 	boss = true,
 }
-for i = 1, (MAX_BOSS_FRAMES or 5) do
+for i = 1, 8 do
 	npcColorUnits["boss" .. i] = true
 end
 
@@ -1127,7 +1127,8 @@ function H.ApplyPrivateAuras(container, unit, cfg, parent, levelFrame, showSampl
 		end
 		if changed or not anchor.anchorID then
 			removePrivateAuraAnchor(anchor)
-			anchor.anchorID = buildPrivateAuraAnchor(anchor, effectiveUnit, i, logicalSize, borderScale, showFrame, showNumbers, durationEnabled, durationPoint, durationOffsetX, durationOffsetY, layout)
+			anchor.anchorID =
+				buildPrivateAuraAnchor(anchor, effectiveUnit, i, logicalSize, borderScale, showFrame, showNumbers, durationEnabled, durationPoint, durationOffsetX, durationOffsetY, layout)
 		end
 		stripCooldownEdge(anchor)
 	end
@@ -1228,9 +1229,7 @@ function H.applyHighlightStyle(st, highlightCfg)
 		st._highlightFrame = nil
 		return
 	end
-	if st._highlightFrame and st._highlightFrame.GetParent and st._highlightFrame:GetParent() ~= host then
-		st._highlightFrame:Hide()
-	end
+	if st._highlightFrame and st._highlightFrame.GetParent and st._highlightFrame:GetParent() ~= host then st._highlightFrame:Hide() end
 	highlight = ensureHighlightFrame(host)
 	if not highlight then return end
 	st._highlightFrame = highlight
