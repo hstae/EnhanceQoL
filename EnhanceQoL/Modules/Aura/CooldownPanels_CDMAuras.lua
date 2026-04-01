@@ -1668,6 +1668,7 @@ function CDMAuras:BuildRuntimeData(panelId, entryId, entry, entryLayout, alwaysS
 	data.spellID = entry.spellID
 	data.buffName = entry.buffName or (scanInfo and scanInfo.buffName) or getSpellName(entry.spellID) or tostring(resolvedCooldownID or entry.cooldownID)
 	data.iconTextureID = iconTextureID
+	data.rawApplications = applications
 	data.stackCount = stackCount
 	data.pandemicActive = pandemicActive
 	data.auraInstanceID = auraInstanceID

@@ -1,5 +1,5 @@
 local parentAddonName = "EnhanceQoL"
-local addonName, addon = ...
+local addon = select(2, ...)
 
 if _G[parentAddonName] then
 	addon = _G[parentAddonName]
@@ -38,8 +38,7 @@ local min = math.min
 local max = math.max
 local next = next
 local strfind = string.find
-local table_unpack = table and rawget(table, "unpack") or nil
-local unpack = table_unpack or unpack
+local unpack = (table and rawget(table, "unpack")) or unpack
 local wipe = table.wipe or function(tbl)
 	for key in pairs(tbl) do
 		tbl[key] = nil
@@ -204,12 +203,15 @@ local function getTextValue(value)
 end
 
 local function safeNumber(value)
-	if type(value) == "number" and not isSecretValue(value) then return value end
+	if type(value) == "number" and not isSecretValue(value) then
+		if value ~= value or value == math.huge or value == -math.huge then return nil end
+		return value
+	end
 	if type(value) == "string" then
 		if isSecretValue(value) then return nil end
 		if value == "" then return nil end
 		local numeric = tonumber(value)
-		if numeric then return numeric end
+		if numeric ~= nil and numeric == numeric and numeric ~= math.huge and numeric ~= -math.huge then return numeric end
 	end
 	return nil
 end
@@ -422,8 +424,8 @@ Bars.ResolveStackDisplay = function(panelId, entryId, resolvedType, icon, runtim
 	local displayText = nil
 	local rawValue = nil
 	if resolvedType == "CDM_AURA" then
-		rawValue = runtimeData and runtimeData.stackCount or nil
-		displayText = Helper.NormalizeDisplayCount and Helper.NormalizeDisplayCount(rawValue) or getTextValue(rawValue)
+		rawValue = runtimeData and runtimeData.rawApplications or nil
+		displayText = Helper.NormalizeDisplayCount and Helper.NormalizeDisplayCount(runtimeData and runtimeData.stackCount or nil) or getTextValue(runtimeData and runtimeData.stackCount or nil)
 	else
 		local entryKey = Helper.GetEntryKey(panelId, entryId)
 		local shared = CooldownPanels.runtime
@@ -446,7 +448,7 @@ Bars.ResolveStackDisplay = function(panelId, entryId, resolvedType, icon, runtim
 	local runtime = CooldownPanels.runtime.cooldownPanelBars
 	runtime.stackValueByEntryKey = runtime.stackValueByEntryKey or {}
 	local cachedNumeric = runtime.stackValueByEntryKey[entryKey]
-	local numericValue = safeNumber(displayText)
+	local numericValue = resolvedType == "CDM_AURA" and safeNumber(rawValue) or safeNumber(displayText)
 	if numericValue ~= nil then
 		runtime.stackValueByEntryKey[entryKey] = numericValue
 		cachedNumeric = numericValue
@@ -1935,9 +1937,16 @@ end
 
 Bars.SetStatusBarRangedValue = function(statusBar, value, maxValue)
 	if not statusBar then return end
-	local resolvedMax = max(1, safeNumber(maxValue) or 1)
+	local resolvedMax = safeNumber(maxValue) or 1
+	if resolvedMax < 1 then
+		resolvedMax = 1
+	elseif resolvedMax > 3.402823e+38 then
+		resolvedMax = 3.402823e+38
+	end
+
+	if value == nil then value = 0 end
 	if statusBar.SetMinMaxValues then statusBar:SetMinMaxValues(0, resolvedMax, BAR_STATUS_INTERPOLATION_IMMEDIATE) end
-	if statusBar.SetValue then statusBar:SetValue(value, BAR_STATUS_INTERPOLATION_IMMEDIATE) end
+	if statusBar.SetValue then statusBar:SetValue(value or 0, BAR_STATUS_INTERPOLATION_IMMEDIATE) end
 	if statusBar.SetToTargetValue then statusBar:SetToTargetValue() end
 	statusBar._eqolTimerDurationObject = nil
 	statusBar._eqolTimerDurationKey = nil
@@ -2434,7 +2443,7 @@ buildBarState = function(panelId, entryId, entry, icon, preview)
 		else
 			local stackDisplayText, stackValue = Bars.ResolveStackDisplay(panelId, entryId, resolvedType, icon, nil)
 			state.stackDisplayText = stackDisplayText
-			local stackMax = resolvedType == "CDM_AURA" and state.stackMax or getStackSessionMax(Helper.GetEntryKey(panelId, entryId), stackValue or 3, true)
+			local stackMax = max(1, state.stackMax or Bars.DEFAULTS.barStackMax)
 			state.progress = clamp((stackValue or min(stackMax, 2)) / max(stackMax, 1), 0, 1)
 			state.valueText = stackDisplayText or tostring(stackValue or min(stackMax, 2))
 			state.stackFillValue = stackValue or min(stackMax, 2)
@@ -2556,10 +2565,8 @@ buildBarState = function(panelId, entryId, entry, icon, preview)
 			local stackDisplayText, stackValue, rawStackValue = Bars.ResolveStackDisplay(panelId, entryId, resolvedType, icon, runtimeData)
 			state.stackDisplayText = stackDisplayText
 			local stackMax = max(1, state.stackMax or Bars.DEFAULTS.barStackMax)
-			if Helper.HasDisplayCount and Helper.HasDisplayCount(rawStackValue) then
-				state.stackFillValue = rawStackValue
-				state.stackFillMax = stackMax
-			end
+			state.stackFillValue = rawStackValue
+			state.stackFillMax = stackMax
 			if stackValue ~= nil then
 				progress = clamp(stackValue / stackMax, 0, 1)
 				valueText = stackDisplayText or tostring(stackValue)
@@ -2570,14 +2577,11 @@ buildBarState = function(panelId, entryId, entry, icon, preview)
 				progress = 0
 			end
 		else
-			local entryKey = Helper.GetEntryKey(panelId, entryId)
 			local stackDisplayText, stackValue, rawStackValue = Bars.ResolveStackDisplay(panelId, entryId, resolvedType, icon, nil)
 			state.stackDisplayText = stackDisplayText
-			local stackMax = getStackSessionMax(entryKey, stackValue, false)
-			if Helper.HasDisplayCount and Helper.HasDisplayCount(rawStackValue) then
-				state.stackFillValue = rawStackValue
-				state.stackFillMax = stackMax
-			end
+			local stackMax = max(1, state.stackMax or Bars.DEFAULTS.barStackMax)
+			state.stackFillValue = rawStackValue
+			state.stackFillMax = stackMax
 			if stackValue and stackMax > 0 then
 				progress = clamp(stackValue / stackMax, 0, 1)
 				valueText = stackDisplayText or tostring(stackValue)
@@ -2947,8 +2951,8 @@ layoutBarFrame = function(barFrame, icon, span, layout, state)
 		barFrame.fill:Show()
 		barFrame.fillBg:Show()
 		barFrame.fill:SetStatusBarColor(fillColor[1], fillColor[2], fillColor[3], fillColor[4])
-		if state.mode == Bars.BAR_MODE.STACKS and Helper.HasDisplayCount and Helper.HasDisplayCount(state.stackFillValue) then
-			Bars.SetStatusBarRangedValue(barFrame.fill, state.stackFillValue, state.stackFillMax)
+		if state.mode == Bars.BAR_MODE.STACKS then
+			Bars.SetStatusBarRangedValue(barFrame.fill, state.stackFillValue ~= nil and state.stackFillValue or 0, state.stackFillMax or max(1, state.stackMax or Bars.DEFAULTS.barStackMax))
 		else
 			local timerCacheKey = nil
 			if state.fillDurationObject ~= nil then
