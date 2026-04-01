@@ -454,6 +454,9 @@ Bars.ResolveStackDisplay = function(panelId, entryId, resolvedType, icon, runtim
 	if numericValue ~= nil then
 		runtime.stackValueByEntryKey[entryKey] = numericValue
 		cachedNumeric = numericValue
+	elseif resolvedType == "CDM_AURA" and not (runtimeData and runtimeData.active == true) then
+		runtime.stackValueByEntryKey[entryKey] = nil
+		cachedNumeric = nil
 	elseif displayText == nil and resolvedType == "CDM_AURA" and runtimeData and runtimeData.active == true then
 		displayText = "1"
 		runtime.stackValueByEntryKey[entryKey] = 1
