@@ -345,6 +345,7 @@ local function normalizeTextContentMode(value)
 	if value == "NONE" then return "NONE" end
 	if value == "LEVEL" then return "LEVEL" end
 	if value == "CURMAX" then return "CURMAX" end
+	if value == "CURMAX_NEEDED" then return "CURMAX_NEEDED" end
 	if value == "PERCENT" then return "PERCENT" end
 	if value == "CURMAXPERCENT" then return "CURMAXPERCENT" end
 	if value == "RESTED" then return "RESTED" end
@@ -363,6 +364,7 @@ local function textModeOptions()
 		{ value = "NONE", label = L["xpBarTextTypeNone"] or "None" },
 		{ value = "LEVEL", label = L["xpBarTextTypeLevel"] or "Level" },
 		{ value = "CURMAX", label = L["xpBarTextTypeCurMax"] or "Current / Max" },
+		{ value = "CURMAX_NEEDED", label = L["xpBarTextTypeCurMaxNeeded"] or "Current / Max (needed)" },
 		{ value = "PERCENT", label = L["xpBarTextTypePercent"] or "Percent" },
 		{ value = "CURMAXPERCENT", label = L["xpBarTextTypeCurMaxPercent"] or "Current / Max (percent)" },
 		{ value = "RESTED", label = L["xpBarTextTypeRested"] or "Rested XP" },
@@ -656,6 +658,9 @@ local function formatXPText(mode, ctx, abbreviateNumbers)
 	if mode == "NONE" then return nil end
 	if mode == "LEVEL" then return (L["xpBarTextLevelFmt"] or "Level %d"):format(ctx.level or 0) end
 	if mode == "CURMAX" then return formatNumber(ctx.current, abbreviateNumbers) .. " / " .. formatNumber(ctx.max, abbreviateNumbers) end
+	if mode == "CURMAX_NEEDED" then
+		return string.format("%s / %s (%s)", formatNumber(ctx.current, abbreviateNumbers), formatNumber(ctx.max, abbreviateNumbers), formatNumber(ctx.remaining or 0, abbreviateNumbers))
+	end
 	if mode == "PERCENT" then return string.format("%.1f%%", ctx.currentPercent or 0) end
 	if mode == "CURMAXPERCENT" then return string.format("%s / %s (%.1f%%)", formatNumber(ctx.current, abbreviateNumbers), formatNumber(ctx.max, abbreviateNumbers), ctx.currentPercent or 0) end
 	if mode == "RESTED" then return string.format("+%s", formatNumber(ctx.rested or 0, abbreviateNumbers)) end
