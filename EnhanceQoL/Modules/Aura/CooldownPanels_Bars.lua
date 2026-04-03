@@ -3173,6 +3173,7 @@ local function showBarModeMenu(owner, panelId, entryId)
 			function() return normalizeBarMode(entry.barMode, Bars.DEFAULTS.barMode) == Bars.BAR_MODE.COOLDOWN end,
 			function() setEntryBarMode(panelId, entryId, Bars.BAR_MODE.COOLDOWN) end
 		)
+		--@debug@
 		if supportsBarMode(entry, Bars.BAR_MODE.CHARGES) then
 			rootDescription:CreateRadio(
 				getEntryBarModeLabel(Bars.BAR_MODE.CHARGES),
@@ -3180,6 +3181,7 @@ local function showBarModeMenu(owner, panelId, entryId)
 				function() setEntryBarMode(panelId, entryId, Bars.BAR_MODE.CHARGES) end
 			)
 		end
+		--@end-debug@
 		if supportsBarMode(entry, Bars.BAR_MODE.STACKS) then
 			rootDescription:CreateRadio(
 				getEntryBarModeLabel(Bars.BAR_MODE.STACKS),
@@ -3477,7 +3479,9 @@ local function appendBarStandaloneAppearanceSettings(settings, ctx)
 			if not currentEntry then return end
 			for _, option in ipairs({
 				{ value = Bars.BAR_MODE.COOLDOWN, label = getEntryBarModeLabel(Bars.BAR_MODE.COOLDOWN) },
+				--@debug@
 				{ value = Bars.BAR_MODE.CHARGES, label = getEntryBarModeLabel(Bars.BAR_MODE.CHARGES) },
+				--@end-debug@
 				{ value = Bars.BAR_MODE.STACKS, label = getEntryBarModeLabel(Bars.BAR_MODE.STACKS) },
 			}) do
 				if supportsBarMode(currentEntry, option.value) then

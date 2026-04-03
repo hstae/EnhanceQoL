@@ -4,7 +4,9 @@
 	<Script file="CooldownPanels_Stance.lua" />
 	<Script file="CooldownPanels.lua" />
 	<Script file="CooldownPanels_CDMAuras.lua" />
-	<!-- <Script file="CooldownPanels_Bars.lua" /> -->
+	<!--@beta@-->
+	<Script file="CooldownPanels_Bars.lua" />
+	<!--@end-beta@-->
 	<Script file="UF_Helper.lua" />
 	<Script file="StandalonePrivateAuras.lua" />
 	<Script file="FocusInterruptTracker.lua" />
