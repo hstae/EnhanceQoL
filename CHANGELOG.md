@@ -6,6 +6,7 @@
 
 - Cooldown Panels: Fixed entry-level charges overrides sometimes snapping back to the panel style after changing another charges setting like color, size, or placement.
 - Cooldown Panels: Fixed shifted icons sometimes leaving behind a ghost preview after opening and closing Blizzard Edit Mode.
+- Cooldown Panels: Fixed ready sounds for some spells not firing reliably in combat, including charge-based transitions.
 
 ---
 

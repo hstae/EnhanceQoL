@@ -468,6 +468,36 @@ local function getBaseSpellId(spellId)
 	return id
 end
 
+function CooldownPanels:GetReadySoundStateKey(spellId)
+	local id = tonumber(spellId)
+	if not id then return nil end
+	local effectiveId = getEffectiveSpellId(id) or id
+	return self:GetCanonicalSpellVariantID(effectiveId) or getBaseSpellId(effectiveId) or effectiveId
+end
+
+function CooldownPanels:GetReadySoundQuerySpellId(spellId)
+	local id = tonumber(spellId)
+	if not id then return nil end
+	return getEffectiveSpellId(id) or id
+end
+
+function CooldownPanels:SpellIndexHasSpell(index, spellId)
+	local id = tonumber(spellId)
+	if not (index and id) then return false end
+	local canonicalId = self:GetReadySoundStateKey(id)
+	local baseId = getBaseSpellId(id) or id
+	local effectiveId = getEffectiveSpellId(id) or id
+	return index[id] ~= nil or index[baseId] ~= nil or index[effectiveId] ~= nil or (canonicalId and index[canonicalId] ~= nil) or false
+end
+
+function CooldownPanels:GetTrustedReadyUnavailable(spellId)
+	local querySpellId = self:GetReadySoundQuerySpellId(spellId)
+	if not (querySpellId and C_Spell and C_Spell.GetSpellCooldown) then return false end
+	local info = C_Spell.GetSpellCooldown(querySpellId)
+	if type(info) ~= "table" then return false end
+	return info.isActive == true and info.isOnGCD == false
+end
+
 function CooldownPanels:EnsureStaticSpellVariantGroupsLoaded()
 	self.runtime = self.runtime or {}
 	if self.runtime.staticSpellVariantGroupsLoaded == true then return end
@@ -3861,6 +3891,7 @@ function CooldownPanels:RebuildSpellIndex()
 	if updateRangeCheckSpells then updateRangeCheckSpells(rangeCheckSpells) end
 	self:RebuildPowerIndex()
 	self:RebuildChargesIndex()
+	self:PrimeReadySoundStates()
 	local cdmAuras = self.CDMAuras
 	if cdmAuras and cdmAuras.UpdateEventRegistration then cdmAuras:UpdateEventRegistration() end
 	if self.UpdateEventRegistration then self:UpdateEventRegistration() end
@@ -15072,7 +15103,8 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			icon.cooldown._eqolPanelId = panelId
 			icon.cooldown._eqolEntryId = data.entryId
 			icon.cooldown._eqolCooldownIsGCD = data.cooldownGCD == true
-			icon.cooldown._eqolSoundReady = data.soundReady and not data.cooldownGCD
+			-- Spell ready sounds are event-driven from trusted cooldown booleans, not timer callbacks.
+			icon.cooldown._eqolSoundReady = data.soundReady and not data.cooldownGCD and data.resolvedType ~= "SPELL"
 			icon.cooldown._eqolSoundName = data.soundName
 			icon.cooldown._eqolGlowReady = data.glowReady
 			icon.cooldown._eqolGlowDuration = data.glowDuration
@@ -18363,6 +18395,178 @@ refreshPanelsForSpell = function(spellId)
 	return refreshed
 end
 
+function CooldownPanels:GetReadySoundState(spellId, create)
+	local runtime = self.runtime
+	if not runtime then return nil end
+	local stateKey = self:GetReadySoundStateKey(spellId)
+	if not stateKey then return nil end
+	runtime.readySoundStates = runtime.readySoundStates or {}
+	local states = runtime.readySoundStates
+	local state = states[stateKey]
+	if not state and create ~= false then
+		state = {}
+		states[stateKey] = state
+	end
+	return state
+end
+
+function CooldownPanels:PrimeReadySoundStateForSpell(spellId)
+	local runtime = self.runtime
+	local querySpellId = self:GetReadySoundQuerySpellId(spellId)
+	if not (runtime and querySpellId and self:SpellIndexHasSpell(runtime.spellIndex, querySpellId)) then return end
+	local state = self:GetReadySoundState(spellId, true)
+	if not state then return end
+	state.initialized = true
+	state.unavailable = self:GetTrustedReadyUnavailable(querySpellId) == true
+end
+
+function CooldownPanels:PrimeReadySoundStates()
+	local runtime = self.runtime
+	if not runtime then return end
+	runtime.readySoundStates = {}
+	local index = runtime.spellIndex
+	if not index then return end
+	local primed = {}
+	for spellId in pairs(index) do
+		local stateKey = self:GetReadySoundStateKey(spellId)
+		if stateKey and not primed[stateKey] then
+			primed[stateKey] = true
+			self:PrimeReadySoundStateForSpell(spellId)
+		end
+	end
+end
+
+function CooldownPanels:EvaluateReadySoundTransitionForSpell(spellId)
+	local runtime = self.runtime
+	local querySpellId = self:GetReadySoundQuerySpellId(spellId)
+	if not (runtime and querySpellId and self:SpellIndexHasSpell(runtime.spellIndex, querySpellId)) then return false end
+	local state = self:GetReadySoundState(spellId, true)
+	if not state then return false end
+	local unavailable = self:GetTrustedReadyUnavailable(querySpellId) == true
+	local shouldPlay = state.initialized == true and state.unavailable == true and unavailable ~= true
+	state.initialized = true
+	state.unavailable = unavailable
+	return shouldPlay
+end
+
+function CooldownPanels:TriggerReadySoundForSpell(spellId)
+	local id = tonumber(spellId)
+	if not id then return end
+	local runtime = self.runtime
+	local index = runtime and runtime.spellIndex
+	if not index then return end
+
+	local panels
+	local function mergePanels(map)
+		if not map then return end
+		panels = panels or {}
+		for panelId in pairs(map) do
+			panels[panelId] = true
+		end
+	end
+
+	local canonicalId = self:GetReadySoundStateKey(id)
+	local baseId = getBaseSpellId(id)
+	local effectiveId = getEffectiveSpellId(id)
+	mergePanels(index[id])
+	if baseId and baseId ~= id then mergePanels(index[baseId]) end
+	if effectiveId and effectiveId ~= id then mergePanels(index[effectiveId]) end
+	if canonicalId and canonicalId ~= id and canonicalId ~= baseId and canonicalId ~= effectiveId then mergePanels(index[canonicalId]) end
+	if not panels then return end
+
+	local root = ensureRoot()
+	local panelOrder = root and root.order
+	local targetKey = canonicalId or id
+
+	local function scanPanel(panelId)
+		local panel = self:GetPanel(panelId)
+		if not (panel and panel.order and panel.entries) then return false end
+
+		for _, entryId in ipairs(panel.order) do
+			local entry = panel.entries[entryId]
+			if entry then
+				local entrySpellId
+				if entry.type == "SPELL" and entry.spellID then
+					entrySpellId = tonumber(entry.spellID)
+				elseif entry.type == "MACRO" then
+					local macro = CooldownPanels.ResolveMacroEntry(entry)
+					if macro and macro.kind == "SPELL" and macro.spellID then entrySpellId = tonumber(macro.spellID) end
+				end
+				if entrySpellId and self:GetReadySoundStateKey(entrySpellId) == targetKey then
+					local _, enabledField, soundField = self:GetEntrySoundConfig(entry)
+					if enabledField and soundField and entry[enabledField] == true then
+						local soundName = normalizeSoundName(entry[soundField])
+						if soundName and soundName ~= "None" then
+							playSoundName(soundName)
+							return true
+						end
+					end
+				end
+			end
+		end
+
+		return false
+	end
+
+	if panelOrder then
+		for _, panelId in ipairs(panelOrder) do
+			if panels[panelId] and scanPanel(panelId) then return end
+		end
+	end
+	for panelId in pairs(panels) do
+		if scanPanel(panelId) then return end
+	end
+end
+
+function CooldownPanels:SweepReadySoundTransitions()
+	local runtime = self.runtime
+	local index = runtime and runtime.spellIndex
+	if not index then return false end
+	local handled = {}
+	local played = false
+	for spellId in pairs(index) do
+		local stateKey = self:GetReadySoundStateKey(spellId)
+		if stateKey and not handled[stateKey] then
+			handled[stateKey] = true
+			if self:EvaluateReadySoundTransitionForSpell(spellId) then
+				self:TriggerReadySoundForSpell(spellId)
+				played = true
+			end
+		end
+	end
+	return played
+end
+
+function CooldownPanels:HandleReadySoundSpellEvent(spellId, baseSpellId, fallbackSweep)
+	local runtime = self.runtime
+	local index = runtime and runtime.spellIndex
+	if not index then return false end
+	local seenKeys = {}
+	local handled = false
+	local played = false
+
+	local function process(id)
+		id = tonumber(id)
+		if not id then return end
+		local stateKey = self:GetReadySoundStateKey(id)
+		local querySpellId = self:GetReadySoundQuerySpellId(id)
+		if not (stateKey and querySpellId and self:SpellIndexHasSpell(index, querySpellId)) then return end
+		if seenKeys[stateKey] then return end
+		seenKeys[stateKey] = true
+		handled = true
+		if self:EvaluateReadySoundTransitionForSpell(id) then
+			self:TriggerReadySoundForSpell(id)
+			played = true
+		end
+	end
+
+	process(spellId)
+	process(baseSpellId)
+
+	if not handled and fallbackSweep == true then played = self:SweepReadySoundTransitions() or played end
+	return played
+end
+
 CooldownPanels.TraceChargeSpellSnapshot = function(stage, spellId, extra)
 	local numericId = tonumber(spellId)
 	if not numericId then return end
@@ -19276,17 +19480,29 @@ local function ensureUpdateFrame()
 			return
 		end
 		if event == "SPELL_UPDATE_COOLDOWN" then
-			local spellId = ...
-			if spellId ~= nil then
+			local spellId, baseSpellId = ...
+			if spellId ~= nil or baseSpellId ~= nil then
 				CooldownPanels.TraceChargeSpellSnapshot("trace51505_event_SPELL_UPDATE_COOLDOWN_before", spellId, { event = event })
-				CooldownPanels:InvalidateSpellQueryCaches("duration", spellId)
-				CooldownPanels:InvalidateSpellQueryCaches("info", spellId)
+				local function invalidateCooldownCachesForId(id)
+					if id == nil then return end
+					CooldownPanels:InvalidateSpellQueryCaches("duration", id)
+					CooldownPanels:InvalidateSpellQueryCaches("info", id)
+				end
+				invalidateCooldownCachesForId(spellId)
+				if baseSpellId ~= spellId then invalidateCooldownCachesForId(baseSpellId) end
+				CooldownPanels:HandleReadySoundSpellEvent(spellId, baseSpellId, true)
 				CooldownPanels.TraceChargeSpellSnapshot("trace51505_event_SPELL_UPDATE_COOLDOWN_after", spellId, { event = event })
-				refreshPanelsForSpell(spellId)
+				if spellId ~= nil then
+					refreshPanelsForSpell(spellId)
+				elseif baseSpellId ~= nil then
+					refreshPanelsForSpell(baseSpellId)
+				end
 				return
 			end
 			CooldownPanels:InvalidateSpellQueryCaches("duration")
 			CooldownPanels:InvalidateSpellQueryCaches("info")
+			CooldownPanels:HandleReadySoundSpellEvent(nil, nil, true)
+			return
 		end
 		if event == "SPELL_UPDATE_USES" then
 			local spellId, baseSpellId = ...
@@ -19294,16 +19510,18 @@ local function ensureUpdateFrame()
 			return
 		end
 		if event == "SPELL_UPDATE_CHARGES" then
-			local spellId = ...
+			local spellId, baseSpellId = ...
 			if spellId ~= nil then
 				CooldownPanels.TraceChargeSpellSnapshot("trace51505_event_SPELL_UPDATE_CHARGES_before", spellId, { event = event })
 				CooldownPanels.InvalidateChargeCachesForSpell(spellId)
+				CooldownPanels:HandleReadySoundSpellEvent(spellId, baseSpellId, true)
 				CooldownPanels.TraceChargeSpellSnapshot("trace51505_event_SPELL_UPDATE_CHARGES_after", spellId, { event = event })
 			else
 				CooldownPanels:InvalidateSpellQueryCaches("charges")
 				CooldownPanels:InvalidateSpellQueryCaches("chargeDuration")
 				CooldownPanels:InvalidateSpellQueryCaches("duration")
 				CooldownPanels:InvalidateSpellQueryCaches("info")
+				CooldownPanels:HandleReadySoundSpellEvent(nil, nil, true)
 			end
 			refreshPanelsForCharges()
 			return
