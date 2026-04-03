@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.12.0-beta8] - 2026-04-03
+
+### ✨ Added
+
+- Cooldown Panels: Added a `Only show Panels of my Spec` option to the panel filter menu in the editor.
+
+---
+
 ## [9.12.0-beta7] - 2026-04-03
 
 ### ✨ Added
