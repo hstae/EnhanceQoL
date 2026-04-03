@@ -211,6 +211,16 @@ local function ensureMarchingAntsOverlay(host)
 		overlay.FlipAnim = flipAnim
 	end
 
+	local function resumeMarchingAnts(self)
+		if not self then return end
+		if self.Texture then self.Texture:SetAlpha(1) end
+		if self.Anim and self.Anim.IsPlaying and not self.Anim:IsPlaying() then self.Anim:Play() end
+	end
+
+	overlay:SetScript("OnShow", function(self)
+		resumeMarchingAnts(self)
+	end)
+
 	overlay:SetScript("OnHide", function(self)
 		if self.Anim and self.Anim.IsPlaying and self.Anim:IsPlaying() then self.Anim:Stop() end
 		if self.Texture then self.Texture:SetAlpha(0) end
@@ -234,9 +244,9 @@ end
 local function startMarchingAnts(host, opts)
 	local overlay = updateMarchingAntsOverlay(host, opts)
 	if not overlay then return end
+	if overlay.Texture then overlay.Texture:SetAlpha(1) end
 	overlay:Show()
 	if overlay.Anim and overlay.Anim.IsPlaying and not overlay.Anim:IsPlaying() then overlay.Anim:Play() end
-	if not overlay.FlipAnim and overlay.Texture then overlay.Texture:SetAlpha(1) end
 end
 
 local function stopMarchingAnts(host)
@@ -254,6 +264,7 @@ local function ensureFlashOverlay(host)
 	overlay:EnableMouse(false)
 	overlay.Texture = overlay:CreateTexture(nil, "ARTWORK")
 	overlay.Texture:SetAllPoints()
+	overlay.Texture:SetAlpha(0)
 	if not (overlay.Texture.SetAtlas and overlay.Texture:SetAtlas(FLASH_GLOW_ATLAS)) then
 		overlay.Texture:SetTexture(BLIZZARD_GLOW_TEXTURE)
 		overlay.Texture:SetTexCoord(0.00781250, 0.50781250, 0.27734375, 0.52734375)
@@ -273,8 +284,26 @@ local function ensureFlashOverlay(host)
 	alphaAnim:SetToAlpha(1)
 	overlay.AlphaAnim = alphaAnim
 
+	local function resumeFlashOverlay(self)
+		if not self then return end
+		if self.Texture then
+			local alpha = 1
+			if self.AlphaAnim and self.AlphaAnim.GetToAlpha then
+				local toAlpha = self.AlphaAnim:GetToAlpha()
+				if type(toAlpha) == "number" then alpha = toAlpha end
+			end
+			self.Texture:SetAlpha(alpha)
+		end
+		if self.Anim and self.Anim.IsPlaying and not self.Anim:IsPlaying() then self.Anim:Play() end
+	end
+
+	overlay:SetScript("OnShow", function(self)
+		resumeFlashOverlay(self)
+	end)
+
 	overlay:SetScript("OnHide", function(self)
 		if self.Anim and self.Anim.IsPlaying and self.Anim:IsPlaying() then self.Anim:Stop() end
+		if self.Texture then self.Texture:SetAlpha(0) end
 	end)
 
 	host._eqolFlashOverlay = overlay
@@ -299,6 +328,14 @@ end
 local function startFlash(host, opts)
 	local overlay = updateFlashOverlay(host, opts)
 	if not overlay then return end
+	if overlay.Texture then
+		local alpha = 1
+		if overlay.AlphaAnim and overlay.AlphaAnim.GetToAlpha then
+			local toAlpha = overlay.AlphaAnim:GetToAlpha()
+			if type(toAlpha) == "number" then alpha = toAlpha end
+		end
+		overlay.Texture:SetAlpha(alpha)
+	end
 	overlay:Show()
 	if overlay.Anim and overlay.Anim.IsPlaying and not overlay.Anim:IsPlaying() then overlay.Anim:Play() end
 end
@@ -466,6 +503,11 @@ local function ensureBlizzardOverlay(host)
 	createTargetAlphaAnim(overlay.animOut, overlay.outerGlow, 2, 0.2, 1, 0)
 	overlay.animOut:SetScript("OnFinished", blizzardAnimOutFinished)
 
+	overlay:SetScript("OnShow", function(self)
+		if self.animIn and self.animIn:IsPlaying() then return end
+		if self.animOut and self.animOut:IsPlaying() then return end
+		applyBlizzardOverlayRestState(self)
+	end)
 	overlay:SetScript("OnHide", blizzardOverlayOnHide)
 	overlay:SetScript("OnUpdate", blizzardOverlayOnUpdate)
 
@@ -519,7 +561,7 @@ local function startBlizzard(host, opts)
 		return
 	end
 	if overlay.animIn and overlay.animIn:IsPlaying() then return end
-	overlay.ants:SetAlpha(1)
+	applyBlizzardOverlayRestState(overlay)
 end
 
 local function stopBlizzard(host)
