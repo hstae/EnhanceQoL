@@ -4791,43 +4791,20 @@ local function initUI()
 		return mouseButton == "LeftButton" and isDetachedButtonSinkMoveModifierActive()
 	end
 
-	local function setDetachedButtonSinkScaleKeepingPosition(button, scale, persistPosition)
-		if not button or not button.SetScale then return end
-
-		local point, relativeTo, relativePoint, xOfs, yOfs = button:GetPoint(1)
-		local beforeX, beforeY = button:GetCenter()
-
-		button:SetScale(scale)
-
-		if not point or not beforeX or not beforeY then
-			if persistPosition then saveSimpleFramePoint(button, "detachedButtonSinkData") end
-			return
-		end
-
-		local afterX, afterY = button:GetCenter()
-		if not afterX or not afterY then
-			if persistPosition then saveSimpleFramePoint(button, "detachedButtonSinkData") end
-			return
-		end
-
-		local deltaX = beforeX - afterX
-		local deltaY = beforeY - afterY
-		if math.abs(deltaX) >= 0.01 or math.abs(deltaY) >= 0.01 then
-			local relative = relativeTo or UIParent
-			local relativeScale = (relative and relative.GetEffectiveScale and relative:GetEffectiveScale()) or (UIParent and UIParent.GetEffectiveScale and UIParent:GetEffectiveScale()) or 1
-			if relativeScale == 0 then relativeScale = 1 end
-
-			button:ClearAllPoints()
-			button:SetPoint(point, relative, relativePoint or point, (xOfs or 0) + (deltaX / relativeScale), (yOfs or 0) + (deltaY / relativeScale))
-		end
-
-		if persistPosition then saveSimpleFramePoint(button, "detachedButtonSinkData") end
-	end
-
 	local function applyDetachedButtonSinkScale(button)
 		button = button or (addon.variables and addon.variables.buttonSinkDetachedToggle)
 		if not button then return end
-		setDetachedButtonSinkScaleKeepingPosition(button, getDetachedButtonSinkScale(), true)
+		local scale = getDetachedButtonSinkScale()
+		local buttonSize = math.max(1, math.floor((31 * scale) + 0.5))
+		local overlaySize = math.max(1, math.floor((50 * scale) + 0.5))
+		local backgroundSize = math.max(1, math.floor((24 * scale) + 0.5))
+		local iconSize = math.max(1, math.floor((18 * scale) + 0.5))
+
+		button:SetScale(1)
+		button:SetSize(buttonSize, buttonSize)
+		if button.eqolOverlay then button.eqolOverlay:SetSize(overlaySize, overlaySize) end
+		if button.eqolBackground then button.eqolBackground:SetSize(backgroundSize, backgroundSize) end
+		if button.icon then button.icon:SetSize(iconSize, iconSize) end
 	end
 	addon.functions.applyDetachedButtonSinkScale = applyDetachedButtonSinkScale
 
@@ -5003,6 +4980,7 @@ local function initUI()
 		local button = CreateFrame("Button", nil, UIParent)
 		button:SetFrameStrata("MEDIUM")
 		button:SetFrameLevel(8)
+		button:SetScale(1)
 		button:SetSize(31, 31)
 		button:SetMovable(true)
 		button:SetClampedToScreen(true)
@@ -5015,11 +4993,13 @@ local function initUI()
 		overlay:SetSize(50, 50)
 		overlay:SetTexture(136430)
 		overlay:SetPoint("TOPLEFT", button, "TOPLEFT")
+		button.eqolOverlay = overlay
 
 		local background = button:CreateTexture(nil, "BACKGROUND")
 		background:SetSize(24, 24)
 		background:SetTexture(136467)
 		background:SetPoint("CENTER", button, "CENTER")
+		button.eqolBackground = background
 
 		local icon = button:CreateTexture(nil, "ARTWORK")
 		icon:SetSize(18, 18)
@@ -5027,9 +5007,9 @@ local function initUI()
 		icon:SetPoint("CENTER", button, "CENTER")
 		button.icon = icon
 
-		button:SetScale(getDetachedButtonSinkScale())
 		migrateDetachedButtonSinkPointData(button)
 		restoreSimpleFramePoint(button, "detachedButtonSinkData", "CENTER", 0, 0)
+		applyDetachedButtonSinkScale(button)
 
 		local function stopDetachedDrag(self)
 			if not self._eqolDragging then return end
