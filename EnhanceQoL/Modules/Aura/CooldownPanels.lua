@@ -5562,7 +5562,6 @@ end
 function CooldownPanels:HideEditorGhostIcon(icon)
 	local texture = icon and icon.editorGhostTexture or nil
 	if not texture then return end
-	if texture._eqolGhostShown ~= true then return end
 	texture:SetTexture(nil)
 	texture:Hide()
 	texture._eqolGhostShown = false
@@ -14958,6 +14957,13 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 	local layoutShapeChanged = didLayoutShapeChange(runtime, layout, layoutCount)
 	if layoutShapeChanged then self:ApplyLayout(panelId, layoutCount) end
 	ensureIconCount(frame, count)
+	if not layoutEditActive and frame.icons then
+		-- Preview ghosts live on slot anchors, so clear them before sparse fixed updates can skip empty slots.
+		for i = 1, #frame.icons do
+			local icon = frame.icons[i]
+			if icon then CooldownPanels:HideEditorGhostIcon(icon) end
+		end
+	end
 
 	runtime.entryToIcon = runtime.entryToIcon or {}
 	local entryToIcon = runtime.entryToIcon
@@ -14983,6 +14989,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 		if not data then
 			icon.entryId = nil
 			if not layoutEditActive and icon._eqolRuntimeEmpty == true then
+				CooldownPanels:HideEditorGhostIcon(icon)
 				icon:Hide()
 			else
 				CooldownPanels:ApplyEntryIconVisualLayout(icon, nil, nil)
