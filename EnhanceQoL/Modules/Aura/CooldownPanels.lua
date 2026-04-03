@@ -7914,6 +7914,10 @@ local function showPanelFilterMenu(owner)
 			if addon.db then addon.db.cooldownPanelsFilterClass = addon.db.cooldownPanelsFilterClass ~= true end
 			CooldownPanels:RefreshEditor()
 		end)
+		rootDescription:CreateCheckbox(L["CooldownPanelOnlyMySpec"] or "Only show Panels of my Spec", function() return addon.db and addon.db.cooldownPanelsFilterSpec == true end, function()
+			if addon.db then addon.db.cooldownPanelsFilterSpec = addon.db.cooldownPanelsFilterSpec ~= true end
+			CooldownPanels:RefreshEditor()
+		end)
 		rootDescription:CreateCheckbox(L["CooldownPanelHideEmptyGroups"] or "Hide empty groups", function() return addon.db and addon.db.cooldownPanelsHideEmptyGroups == true end, function()
 			if addon.db then addon.db.cooldownPanelsHideEmptyGroups = addon.db.cooldownPanelsHideEmptyGroups ~= true end
 			CooldownPanels:RefreshEditor()
@@ -11310,6 +11314,7 @@ local function ensureEditor()
 	panelTitle:SetPoint("TOPLEFT", left, "TOPLEFT", 12, -12)
 
 	if addon.db and addon.db.cooldownPanelsFilterClass == nil then addon.db.cooldownPanelsFilterClass = false end
+	if addon.db and addon.db.cooldownPanelsFilterSpec == nil then addon.db.cooldownPanelsFilterSpec = false end
 	if addon.db and addon.db.cooldownPanelsHideEmptyGroups == nil then addon.db.cooldownPanelsHideEmptyGroups = false end
 	local filterButton = CreateFrame("Button", nil, left)
 	filterButton:SetSize(18, 18)
@@ -12394,11 +12399,15 @@ local function movePanelInOrder(root, panelId, targetPanelId)
 	return true
 end
 
-local function findFirstPanelForClass(root, classSpecs)
+local function findFirstPanelForFilters(root, classSpecs, filterByClass, filterBySpec)
 	if not root or not root.order then return nil end
 	for _, panelId in ipairs(root.order) do
 		local panel = root.panels and root.panels[panelId]
-		if panel and panelMatchesPlayerClass(panel, classSpecs) then return panelId end
+		if panel then
+			local matchesClass = not filterByClass or panelMatchesPlayerClass(panel, classSpecs)
+			local matchesSpec = not filterBySpec or panelAllowsSpec(panel)
+			if matchesClass and matchesSpec then return panelId end
+		end
 	end
 	return nil
 end
@@ -12412,6 +12421,7 @@ local function refreshPanelList(editor, root, classSpecs)
 	local spacing = 4
 	local index = 0
 	local filterByClass = addon.db and addon.db.cooldownPanelsFilterClass == true
+	local filterBySpec = addon.db and addon.db.cooldownPanelsFilterSpec == true
 	local hideEmptyGroups = addon.db and addon.db.cooldownPanelsHideEmptyGroups == true
 	local groups = root.editorGroups or {}
 	local groupedPanelIds = {}
@@ -12428,17 +12438,21 @@ local function refreshPanelList(editor, root, classSpecs)
 
 	for _, panelId in ipairs(root.order or {}) do
 		local panel = root.panels and root.panels[panelId]
-		if panel and (not filterByClass or panelMatchesPlayerClass(panel, classSpecs)) then
-			local groupId = normalizeId(panel.editorGroupId)
-			if groupId and groups[groupId] then
-				local bucket = groupedPanelIds[groupId]
-				if not bucket then
-					bucket = {}
-					groupedPanelIds[groupId] = bucket
+		if panel then
+			local matchesClass = not filterByClass or panelMatchesPlayerClass(panel, classSpecs)
+			local matchesSpec = not filterBySpec or panelAllowsSpec(panel)
+			if matchesClass and matchesSpec then
+				local groupId = normalizeId(panel.editorGroupId)
+				if groupId and groups[groupId] then
+					local bucket = groupedPanelIds[groupId]
+					if not bucket then
+						bucket = {}
+						groupedPanelIds[groupId] = bucket
+					end
+					bucket[#bucket + 1] = panelId
+				else
+					ungroupedPanelIds[#ungroupedPanelIds + 1] = panelId
 				end
-				bucket[#bucket + 1] = panelId
-			else
-				ungroupedPanelIds[#ungroupedPanelIds + 1] = panelId
 			end
 		end
 	end
@@ -13682,11 +13696,16 @@ function CooldownPanels:RefreshEditor()
 	if panelId and (not root.panels or not root.panels[panelId]) then panelId = root.order and root.order[1] or nil end
 
 	local filterByClass = addon.db and addon.db.cooldownPanelsFilterClass == true
+	local filterBySpec = addon.db and addon.db.cooldownPanelsFilterSpec == true
 	local hideEmptyGroups = addon.db and addon.db.cooldownPanelsHideEmptyGroups == true
 	local classSpecs = filterByClass and getPlayerClassSpecMap() or nil
-	if filterByClass and panelId then
+	if (filterByClass or filterBySpec) and panelId then
 		local selectedPanel = root.panels and root.panels[panelId]
-		if selectedPanel and not panelMatchesPlayerClass(selectedPanel, classSpecs) then panelId = findFirstPanelForClass(root, classSpecs) end
+		if selectedPanel then
+			local matchesClass = not filterByClass or panelMatchesPlayerClass(selectedPanel, classSpecs)
+			local matchesSpec = not filterBySpec or panelAllowsSpec(selectedPanel)
+			if not (matchesClass and matchesSpec) then panelId = findFirstPanelForFilters(root, classSpecs, filterByClass, filterBySpec) end
+		end
 	end
 	editor.selectedPanelId = panelId
 	root.selectedPanel = panelId
@@ -13695,7 +13714,7 @@ function CooldownPanels:RefreshEditor()
 	if panel then Helper.NormalizePanel(panel, root.defaults) end
 
 	if editor.filterButton and editor.filterButton.icon then
-		if filterByClass or hideEmptyGroups then
+		if filterByClass or filterBySpec or hideEmptyGroups then
 			editor.filterButton.icon:SetVertexColor(1, 0.82, 0.2, 1)
 		else
 			editor.filterButton.icon:SetVertexColor(1, 1, 1, 0.9)
@@ -19055,6 +19074,7 @@ local function performSpecAwareRebuild(cause)
 		cause = cause,
 		fullRefresh = true,
 	})
+	if CooldownPanels.IsEditorOpen and CooldownPanels:IsEditorOpen() then CooldownPanels:RefreshEditor() end
 end
 
 local function runDelayedSpecAwareRebuild()
