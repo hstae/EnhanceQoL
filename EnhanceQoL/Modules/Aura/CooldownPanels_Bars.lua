@@ -1930,7 +1930,6 @@ refreshChargeBarRuntimeState = function(state, icon)
 
 	local chargesInfo = CooldownPanels.GetCachedSpellChargesInfo and CooldownPanels:GetCachedSpellChargesInfo(spellId) or nil
 	local chargeDurationObject = CooldownPanels.GetCachedSpellChargeDurationObject and CooldownPanels:GetCachedSpellChargeDurationObject(spellId) or nil
-	local chargeRemaining = getDurationObjectRemaining(chargeDurationObject)
 	local rawCooldownDurationObject = CooldownPanels.GetCachedSpellCooldownDurationObject and CooldownPanels:GetCachedSpellCooldownDurationObject(spellId) or nil
 	local cooldownDurationObject = rawCooldownDurationObject
 	local cooldownRemaining = getDurationObjectRemaining(cooldownDurationObject)
@@ -2057,7 +2056,6 @@ refreshChargeBarRuntimeState = function(state, icon)
 		local freshChargeDurationObject = C_Spell.GetSpellChargeDuration(spellId)
 		if freshChargeDurationObject ~= nil then
 			chargeDurationObject = freshChargeDurationObject
-			chargeRemaining = getDurationObjectRemaining(freshChargeDurationObject)
 			chargeDurationObjectRefreshed = true
 		end
 	end
@@ -2067,7 +2065,6 @@ refreshChargeBarRuntimeState = function(state, icon)
 	local rechargeRate = chargesInfo and (safeNumber(chargesInfo.chargeModRate) or 1) or 1
 	if chargeTimerActive ~= true then
 		chargeDurationObject = nil
-		chargeRemaining = nil
 		rechargeStart = nil
 		rechargeDuration = nil
 	end
