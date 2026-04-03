@@ -236,10 +236,16 @@ local COSMETIC_BAR_KEYS = {
 	"gradientEndColor",
 	"gradientDirection",
 	"staggerHighColors",
+	"useStaggerMaxOverride",
+	"staggerMaxPercent",
 	"staggerHighThreshold",
+	"staggerVeryHighThreshold",
 	"staggerExtremeThreshold",
 	"staggerHighColor",
+	"staggerVeryHighColor",
 	"staggerExtremeColor",
+	"staggerCriticalThreshold",
+	"staggerCriticalColor",
 	"useMaelstromFiveColor",
 	"useMaelstromTenStacks",
 	"useMaelstromCarryFill",
@@ -620,10 +626,14 @@ end
 RB.STAGGER_YELLOW_THRESHOLD = 0.30
 RB.STAGGER_RED_THRESHOLD = 0.60
 RB.STAGGER_EXTRA_THRESHOLD_HIGH = 200
+RB.STAGGER_EXTRA_THRESHOLD_VERY_HIGH = 250
 RB.STAGGER_EXTRA_THRESHOLD_EXTREME = 300
+RB.STAGGER_EXTRA_THRESHOLD_CRITICAL = 350
 RB.STAGGER_EXTRA_COLORS = {
 	high = { r = 0.62, g = 0.2, b = 1.0, a = 1 },
+	veryHigh = { r = 0.85, g = 0.2, b = 1.0, a = 1 },
 	extreme = { r = 1.0, g = 0.2, b = 0.8, a = 1 },
+	critical = { r = 1.0, g = 0.1, b = 0.45, a = 1 },
 }
 RB.STAGGER_FALLBACK_COLORS = {
 	green = { r = 0.52, g = 1.0, b = 0.52 },
@@ -642,13 +652,24 @@ local function getStaggerStateColor(percent, cfg)
 	local info = (GetPowerBarColor and GetPowerBarColor("STAGGER")) or (PowerBarColor and PowerBarColor["STAGGER"])
 	if cfg and cfg.staggerHighColors == true then
 		local high = tonumber(cfg.staggerHighThreshold) or RB.STAGGER_EXTRA_THRESHOLD_HIGH
+		local veryHigh = tonumber(cfg.staggerVeryHighThreshold) or RB.STAGGER_EXTRA_THRESHOLD_VERY_HIGH
 		local extreme = tonumber(cfg.staggerExtremeThreshold) or RB.STAGGER_EXTRA_THRESHOLD_EXTREME
+		local critical = tonumber(cfg.staggerCriticalThreshold) or RB.STAGGER_EXTRA_THRESHOLD_CRITICAL
 		if high < 0 then high = 0 end
+		if veryHigh < high then veryHigh = high end
+		if extreme < veryHigh then extreme = veryHigh end
+		if critical < extreme then critical = extreme end
 		if extreme < high then extreme = high end
 		local highRatio = high / 100
+		local veryHighRatio = veryHigh / 100
 		local extremeRatio = extreme / 100
-		if percent >= extremeRatio then
+		local criticalRatio = critical / 100
+		if percent >= criticalRatio then
+			return getColorComponents(cfg.staggerCriticalColor, RB.STAGGER_EXTRA_COLORS.critical)
+		elseif percent >= extremeRatio then
 			return getColorComponents(cfg.staggerExtremeColor, RB.STAGGER_EXTRA_COLORS.extreme)
+		elseif percent >= veryHighRatio then
+			return getColorComponents(cfg.staggerVeryHighColor, RB.STAGGER_EXTRA_COLORS.veryHigh)
 		elseif percent >= highRatio then
 			return getColorComponents(cfg.staggerHighColor, RB.STAGGER_EXTRA_COLORS.high)
 		end
@@ -2683,9 +2704,7 @@ local function backfillAnchorFromLayout(anchor, barType, specIndex)
 		local legacyId = ResourceBars.GetEditModeLegacyFrameId(barType)
 		if legacyId and legacyId ~= frameId then
 			local legacy = store and store[legacyId]
-			if legacy and legacy.x ~= nil and legacy.y ~= nil then
-				data = legacy
-			end
+			if legacy and legacy.x ~= nil and legacy.y ~= nil then data = legacy end
 		end
 	end
 	if not data or data.x == nil or data.y == nil then return end
@@ -3815,9 +3834,12 @@ function updatePowerBar(type, runeSlot)
 		local cfg = getBarSettings(type) or {}
 		local maxHealth = UnitHealthMax("player") or 1
 		if maxHealth <= 0 then return end
-		if bar._lastMax ~= maxHealth then
-			bar._lastMax = maxHealth
-			bar:SetMinMaxValues(0, maxHealth)
+		local maxPercent = cfg.useStaggerMaxOverride == true and (tonumber(cfg.staggerMaxPercent) or 200) or 100
+		if maxPercent < 100 then maxPercent = 100 end
+		local staggerMax = maxHealth * (maxPercent / 100)
+		if bar._lastMax ~= staggerMax then
+			bar._lastMax = staggerMax
+			bar:SetMinMaxValues(0, staggerMax)
 		end
 		local curPower = (UnitStagger and UnitStagger("player")) or 0
 
@@ -3826,8 +3848,9 @@ function updatePowerBar(type, runeSlot)
 		setBarValue(bar, curPower, smooth)
 		bar._lastVal = curPower
 
-		local percent = maxHealth > 0 and (curPower / maxHealth) or 0
-		local percentDisplay = percent * 100
+		local fillPercent = staggerMax > 0 and (curPower / staggerMax) or 0
+		local staggerPercent = maxHealth > 0 and (curPower / maxHealth) or 0
+		local percentDisplay = staggerPercent * 100
 		local percentStr = formatPercentDisplay(percentDisplay, cfg)
 		if bar.text then
 			local useShortNumbers = cfg.shortNumbers ~= false
@@ -3842,7 +3865,7 @@ function updatePowerBar(type, runeSlot)
 					bar._lastText = ""
 				end
 			else
-				local text = ResourceBars.FormatBarTextByStyle(style, formatNumber(curPower, useShortNumbers), formatNumber(maxHealth, useShortNumbers), percentStr)
+				local text = ResourceBars.FormatBarTextByStyle(style, formatNumber(curPower, useShortNumbers), formatNumber(staggerMax, useShortNumbers), percentStr)
 				if (not addon.variables.isMidnight or (issecretvalue and not issecretvalue(text))) and bar._lastText ~= text then
 					bar.text:SetText(text)
 					bar._lastText = text
@@ -3861,7 +3884,7 @@ function updatePowerBar(type, runeSlot)
 			local custom = cfg.barColor or RB.WHITE
 			baseR, baseG, baseB, baseA = custom[1] or 1, custom[2] or 1, custom[3] or 1, custom[4] or 1
 		else
-			local r, g, b, a = getStaggerStateColor(percent, cfg)
+			local r, g, b, a = getStaggerStateColor(staggerPercent, cfg)
 			baseR, baseG, baseB = r or 1, g or 1, b or 1
 			baseA = a or (cfg.barColor and cfg.barColor[4]) or 1
 		end
@@ -3870,7 +3893,7 @@ function updatePowerBar(type, runeSlot)
 
 		local targetR, targetG, targetB, targetA = baseR, baseG, baseB, baseA
 		local flag
-		if cfg.useMaxColor == true and curPower >= max(maxHealth, 1) then
+		if cfg.useMaxColor == true and curPower >= max(staggerMax, 1) then
 			local maxCol = cfg.maxColor or RB.DEFAULT_MAX_COLOR
 			targetR, targetG, targetB, targetA = maxCol[1] or targetR, maxCol[2] or targetG, maxCol[3] or targetB, maxCol[4] or targetA
 			flag = "max"
@@ -6003,11 +6026,9 @@ local function eventHandler(self, event, unit, arg1)
 		if scheduleRelativeFrameWidthSync then scheduleRelativeFrameWidthSync() end
 	elseif event == "PLAYER_DEAD" or event == "PLAYER_ALIVE" or event == "PLAYER_UNGHOST" then
 		ResourceBars.RefreshBarsAfterPlayerStateChange(event)
-		if After and event ~= "PLAYER_DEAD" then
-			After(0.20, function()
-				if frameAnchor then ResourceBars.RefreshBarsAfterPlayerStateChange(event .. "_DELAYED") end
-			end)
-		end
+		if After and event ~= "PLAYER_DEAD" then After(0.20, function()
+			if frameAnchor then ResourceBars.RefreshBarsAfterPlayerStateChange(event .. "_DELAYED") end
+		end) end
 		return
 	elseif event == "PET_BATTLE_OPENING_START" then
 		ResourceBars._petBattleOpen = true
@@ -6819,7 +6840,9 @@ ResourceBars.ABSOLUTE_THRESHOLD_COLOR_DEFAULTS_VOID_METAMORPHOSIS = RB.ABSOLUTE_
 ResourceBars.ABSOLUTE_THRESHOLD_COLOR_DEFAULTS_CONTINUOUS = RB.ABSOLUTE_THRESHOLD_COLOR_DEFAULTS_CONTINUOUS
 ResourceBars.ABSOLUTE_THRESHOLD_COLOR_DEFAULTS_PERCENT = RB.ABSOLUTE_THRESHOLD_COLOR_DEFAULTS_PERCENT
 ResourceBars.STAGGER_EXTRA_THRESHOLD_HIGH = RB.STAGGER_EXTRA_THRESHOLD_HIGH
+ResourceBars.STAGGER_EXTRA_THRESHOLD_VERY_HIGH = RB.STAGGER_EXTRA_THRESHOLD_VERY_HIGH
 ResourceBars.STAGGER_EXTRA_THRESHOLD_EXTREME = RB.STAGGER_EXTRA_THRESHOLD_EXTREME
+ResourceBars.STAGGER_EXTRA_THRESHOLD_CRITICAL = RB.STAGGER_EXTRA_THRESHOLD_CRITICAL
 ResourceBars.STAGGER_EXTRA_COLORS = RB.STAGGER_EXTRA_COLORS
 ResourceBars.getBarSettings = getBarSettings
 ResourceBars.getAnchor = getAnchor
