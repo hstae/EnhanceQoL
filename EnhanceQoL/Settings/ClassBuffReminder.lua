@@ -10,6 +10,7 @@ local DB_ENABLED = "classBuffReminderEnabled"
 local DB_SHOW_PARTY = "classBuffReminderShowParty"
 local DB_SHOW_RAID = "classBuffReminderShowRaid"
 local DB_SHOW_SOLO = "classBuffReminderShowSolo"
+local DB_HIDE_IN_RESTED_AREA = "classBuffReminderHideInRestedArea"
 local DB_ONLY_OUT_OF_COMBAT = "classBuffReminderOnlyOutOfCombat"
 local DB_ROLE_FILTER_ENABLED = "classBuffReminderRoleFilterEnabled"
 local DB_ROLE_FILTER_CONTEXT = "classBuffReminderRoleFilterContext"
@@ -29,6 +30,8 @@ local DB_GROWTH_DIRECTION = "classBuffReminderGrowthDirection"
 local DB_GROWTH_FROM_CENTER = "classBuffReminderGrowthFromCenter"
 local DB_TRACK_FLASKS = "classBuffReminderTrackFlasks"
 local DB_TRACK_FLASKS_INSTANCE_ONLY = "classBuffReminderTrackFlasksInstanceOnly"
+local DB_TRACK_FOOD = "classBuffReminderTrackFood"
+local DB_TRACK_FOOD_INSTANCE_ONLY = "classBuffReminderTrackFoodInstanceOnly"
 local DB_SCALE = "classBuffReminderScale"
 local DB_ICON_SIZE = "classBuffReminderIconSize"
 local DB_FONT_SIZE = "classBuffReminderFontSize"
@@ -53,6 +56,7 @@ local defaults = (Reminder and Reminder.defaults)
 		showParty = true,
 		showRaid = true,
 		showSolo = false,
+		hideInRestedArea = false,
 		onlyOutOfCombat = false,
 		roleFilterEnabled = false,
 		roleFilterContext = "RAID_ONLY",
@@ -72,6 +76,8 @@ local defaults = (Reminder and Reminder.defaults)
 		growthFromCenter = false,
 		trackFlasks = false,
 		trackFlasksInstanceOnly = false,
+		trackFood = false,
+		trackFoodInstanceOnly = false,
 		scale = 1,
 		iconSize = 64,
 		fontSize = 13,
@@ -90,6 +96,7 @@ local defaults = (Reminder and Reminder.defaults)
 if defaults.glowStyle == nil then defaults.glowStyle = "MARCHING_ANTS" end
 if defaults.glowInset == nil then defaults.glowInset = 0 end
 if type(defaults.glowColor) ~= "table" then defaults.glowColor = { r = 0.95, g = 0.95, b = 0.2, a = 1 } end
+if defaults.hideInRestedArea == nil then defaults.hideInRestedArea = false end
 if defaults.onlyOutOfCombat == nil then defaults.onlyOutOfCombat = false end
 if defaults.roleFilterEnabled == nil then defaults.roleFilterEnabled = false end
 if defaults.roleFilterContext == nil then defaults.roleFilterContext = "RAID_ONLY" end
@@ -98,6 +105,8 @@ if defaults.hideForTank == nil then defaults.hideForTank = false end
 if defaults.hideForDamager == nil then defaults.hideForDamager = false end
 if defaults.hideForNoRole == nil then defaults.hideForNoRole = false end
 if defaults.showIfOnlyProvider == nil then defaults.showIfOnlyProvider = true end
+if defaults.trackFood == nil then defaults.trackFood = false end
+if defaults.trackFoodInstanceOnly == nil then defaults.trackFoodInstanceOnly = false end
 if defaults.borderEnabled == nil then defaults.borderEnabled = false end
 if defaults.borderTexture == nil or defaults.borderTexture == "" then defaults.borderTexture = "DEFAULT" end
 if defaults.borderSize == nil then defaults.borderSize = 1 end
@@ -133,6 +142,24 @@ local function openFlaskSettings()
 	Settings.OpenToCategory(gameplayCategory:GetID(), L["Flask Macro"] or "Flask Macro")
 end
 
+local function openFoodSettings()
+	if addon.functions and addon.functions.OpenBuffFoodMacroSettings then
+		addon.functions.OpenBuffFoodMacroSettings()
+		return
+	end
+
+	if not (Settings and Settings.OpenToCategory) then return end
+	local gameplayCategory = addon.SettingsLayout and addon.SettingsLayout.rootGAMEPLAY
+	if not gameplayCategory then return end
+
+	if InCombatLockdown and InCombatLockdown() then
+		if UIErrorsFrame and ERR_NOT_IN_COMBAT then UIErrorsFrame:AddMessage(ERR_NOT_IN_COMBAT, 1, 0, 0) end
+		return
+	end
+
+	Settings.OpenToCategory(gameplayCategory:GetID(), L["Buff Food Macro"] or "Buff Food Macro")
+end
+
 local expandable = addon.functions.SettingsCreateExpandableSection(cat, {
 	name = L["Class Buff Reminder"] or "Class Buff Reminder",
 	newTagID = "ClassBuffReminder",
@@ -158,6 +185,17 @@ addon.functions.SettingsCreateCheckbox(cat, {
 	parentSection = expandable,
 })
 
+addon.functions.SettingsCreateCheckbox(cat, {
+	var = DB_HIDE_IN_RESTED_AREA,
+	text = L["ClassBuffReminderHideInRestedArea"] or "Don't show in rested areas",
+	desc = L["ClassBuffReminderHideInRestedAreaDesc"] or "Suppresses the entire reminder while you are in a rested area.",
+	func = function(value)
+		addon.db[DB_HIDE_IN_RESTED_AREA] = value == true
+		refreshReminder()
+	end,
+	parentSection = expandable,
+})
+
 addon.functions.SettingsCreateText(cat, L["ClassBuffReminderFlaskSharedHint"] or "Flask preferences are shared with Flask Macro (Gameplay -> Macros & Consumables).", {
 	parentSection = expandable,
 })
@@ -170,6 +208,14 @@ addon.functions.SettingsCreateButton(cat, {
 	parentSection = expandable,
 })
 
+addon.functions.SettingsCreateButton(cat, {
+	var = "classBuffReminderOpenFoodSettings",
+	text = L["ClassBuffReminderOpenFoodSettings"] or "Open Food settings",
+	desc = L["ClassBuffReminderOpenFoodSettingsDesc"] or "Jumps to Gameplay -> Macros & Consumables and focuses Buff Food Macro settings.",
+	func = openFoodSettings,
+	parentSection = expandable,
+})
+
 function addon.functions.initClassBuffReminder()
 	if not addon.functions or not addon.functions.InitDBValue then return end
 	local init = addon.functions.InitDBValue
@@ -178,6 +224,7 @@ function addon.functions.initClassBuffReminder()
 	init(DB_SHOW_PARTY, defaults.showParty)
 	init(DB_SHOW_RAID, defaults.showRaid)
 	init(DB_SHOW_SOLO, defaults.showSolo)
+	init(DB_HIDE_IN_RESTED_AREA, defaults.hideInRestedArea)
 	init(DB_ONLY_OUT_OF_COMBAT, defaults.onlyOutOfCombat)
 	init(DB_ROLE_FILTER_ENABLED, defaults.roleFilterEnabled)
 	init(DB_ROLE_FILTER_CONTEXT, normalizeRoleFilterContext(defaults.roleFilterContext))
@@ -197,6 +244,8 @@ function addon.functions.initClassBuffReminder()
 	init(DB_GROWTH_FROM_CENTER, defaults.growthFromCenter)
 	init(DB_TRACK_FLASKS, defaults.trackFlasks)
 	init(DB_TRACK_FLASKS_INSTANCE_ONLY, defaults.trackFlasksInstanceOnly)
+	init(DB_TRACK_FOOD, defaults.trackFood)
+	init(DB_TRACK_FOOD_INSTANCE_ONLY, defaults.trackFoodInstanceOnly)
 	init(DB_SCALE, defaults.scale)
 	init(DB_ICON_SIZE, defaults.iconSize)
 	init(DB_FONT_SIZE, defaults.fontSize)

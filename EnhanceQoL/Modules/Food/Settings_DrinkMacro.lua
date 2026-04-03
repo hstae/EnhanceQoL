@@ -38,6 +38,10 @@ end
 local function refreshBuffFoodMacro()
 	if addon.BuffFoods and addon.BuffFoods.functions and addon.BuffFoods.functions.syncEventRegistration then addon.BuffFoods.functions.syncEventRegistration() end
 	if addon.BuffFoods and addon.BuffFoods.functions and addon.BuffFoods.functions.updateBuffFoodMacro then addon.BuffFoods.functions.updateBuffFoodMacro(false) end
+	if addon.ClassBuffReminder then
+		if addon.ClassBuffReminder.InvalidateFoodCache then addon.ClassBuffReminder:InvalidateFoodCache() end
+		if addon.ClassBuffReminder.RequestUpdate then addon.ClassBuffReminder:RequestUpdate(true) end
+	end
 end
 
 local function buildDrinkMacroSettings()
@@ -846,4 +850,22 @@ function addon.functions.OpenFlaskMacroSettings()
 	if convenienceSection and convenienceSection.data then convenienceSection.data.expanded = true end
 
 	Settings.OpenToCategory(gameplayCategory:GetID(), L["Flask Macro"] or "Flask Macro")
+end
+
+function addon.functions.OpenBuffFoodMacroSettings()
+	if not (Settings and Settings.OpenToCategory) then return end
+	if InCombatLockdown and InCombatLockdown() then
+		if UIErrorsFrame and ERR_NOT_IN_COMBAT then UIErrorsFrame:AddMessage(ERR_NOT_IN_COMBAT, 1, 0, 0) end
+		return
+	end
+
+	if addon.functions and addon.functions.initDrinkMacro then addon.functions.initDrinkMacro() end
+
+	local gameplayCategory = addon.SettingsLayout and addon.SettingsLayout.rootGAMEPLAY
+	if not gameplayCategory then return end
+
+	local convenienceSection = addon.SettingsLayout and addon.SettingsLayout.gameplayConvenienceSection
+	if convenienceSection and convenienceSection.data then convenienceSection.data.expanded = true end
+
+	Settings.OpenToCategory(gameplayCategory:GetID(), L["Buff Food Macro"] or "Buff Food Macro")
 end

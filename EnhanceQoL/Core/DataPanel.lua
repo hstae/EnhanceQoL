@@ -2071,7 +2071,12 @@ function DataPanel.Create(id, name, existingOnly)
 				if partSpacing < 0 then partSpacing = 0 end
 				local spacingChanged = data.partsSpacing ~= partSpacing
 				if spacingChanged then data.partsSpacing = partSpacing end
+				local partsLayout = payload.partsLayout == "vertical" and "vertical" or "horizontal"
+				local layoutChanged = data.partsLayout ~= partsLayout
+				if layoutChanged then data.partsLayout = partsLayout end
 				local totalWidth = 0
+				local totalHeight = 0
+				local partsPositionChanged = layoutChanged or spacingChanged
 				for i, part in ipairs(payload.parts) do
 					local secureSpec = part and part.secure
 					local isSecure = secureSpec ~= nil
@@ -2134,12 +2139,15 @@ function DataPanel.Create(id, name, existingOnly)
 						data.parts[i] = child
 						isNew = true
 					end
-					if isNew or spacingChanged then
+					if isNew then partsPositionChanged = true end
+					if isNew or spacingChanged or layoutChanged then
 						child:ClearAllPoints()
-						if i == 1 then
-							child:SetPoint("LEFT", button, "LEFT", 0, 0)
-						else
-							child:SetPoint("LEFT", data.parts[i - 1], "RIGHT", partSpacing, 0)
+						if partsLayout ~= "vertical" then
+							if i == 1 then
+								child:SetPoint("LEFT", button, "LEFT", 0, 0)
+							else
+								child:SetPoint("LEFT", data.parts[i - 1], "RIGHT", partSpacing, 0)
+							end
 						end
 					end
 					child.slot = data
@@ -2208,12 +2216,14 @@ function DataPanel.Create(id, name, existingOnly)
 					end
 					local partHeight = tonumber(part.height)
 					if not partHeight then partHeight = tonumber(part.iconHeight) or tonumber(part.iconSize) or tonumber(part.iconWidth) or buttonHeight end
-					if partHeight < buttonHeight then partHeight = buttonHeight end
+					if partsLayout ~= "vertical" and partHeight < buttonHeight then partHeight = buttonHeight end
 					if isNew or heightChanged or child.lastHeight ~= partHeight then
 						child.lastHeight = partHeight
 						child:SetHeight(partHeight)
+						if partsLayout == "vertical" then partsPositionChanged = true end
 					end
 					if isNew or partsFontChanged then panel:ApplyFontStyle(child.text, font, size) end
+					if isNew or layoutChanged then child.text:SetJustifyH(partsLayout == "vertical" and "CENTER" or "LEFT") end
 					local iconSpec = part.icon
 					local overlaySpec = part.iconOverlay
 					local useIcons = iconSpec ~= nil or overlaySpec ~= nil
@@ -2304,11 +2314,35 @@ function DataPanel.Create(id, name, existingOnly)
 						if (isNew or textChanged or partsFontChanged) and hasInlineTexture(rawText) then panel:ScheduleTextReflow() end
 					end
 					child.currencyID = part.id
-					totalWidth = totalWidth + (child.lastWidth or 0) + (i > 1 and partSpacing or 0)
+					if partsLayout == "vertical" then
+						totalWidth = math.max(totalWidth, child.lastWidth or 0)
+						totalHeight = totalHeight + (child.lastHeight or 0) + (i > 1 and partSpacing or 0)
+					else
+						totalWidth = totalWidth + (child.lastWidth or 0) + (i > 1 and partSpacing or 0)
+					end
 				end
 				if data.parts then
 					for i = #payload.parts + 1, #data.parts do
 						data.parts[i]:Hide()
+					end
+				end
+				if partsLayout == "vertical" then
+					local stackChanged = partsPositionChanged or data.partsStackHeight ~= totalHeight or data.partsStackWidth ~= totalWidth
+					if stackChanged then
+						data.partsStackHeight = totalHeight
+						data.partsStackWidth = totalWidth
+						local topOffset = totalHeight / 2
+						for i = 1, #payload.parts do
+							local child = data.parts[i]
+							if child then
+								child:ClearAllPoints()
+								if i == 1 then
+									child:SetPoint("TOP", button, "CENTER", 0, topOffset)
+								else
+									child:SetPoint("TOP", data.parts[i - 1], "BOTTOM", 0, -partSpacing)
+								end
+							end
+						end
 					end
 				end
 				if totalWidth ~= data.lastWidth then
