@@ -18,6 +18,7 @@ local HB = UF.GroupFramesHealerBuffs
 local GFH = UF.GroupFramesHelper
 local AuraUtil = UF.AuraUtil
 local UFHelper = addon.Aura.UFHelper
+local Pixel = GFH and GFH.Pixel
 
 local floor = math.floor
 local max = math.max
@@ -1072,13 +1073,21 @@ end
 
 local function setSinglePointCached(frame, point, relativeTo, relativePoint, x, y)
 	if not frame then return false end
+	if Pixel and Pixel.Round then
+		x = Pixel.Round(x or 0, frame)
+		y = Pixel.Round(y or 0, frame)
+	end
 	local cache = frame._hbPointCache
 	if cache and cache.mode == 1 and cache.point == point and cache.relativeTo == relativeTo and cache.relativePoint == relativePoint and cache.x == x and cache.y == y then return false end
 	frame._hbAllPointsTarget = nil
 	cache = cache or {}
 	frame._hbPointCache = cache
 	if frame.ClearAllPoints then frame:ClearAllPoints() end
-	frame:SetPoint(point, relativeTo, relativePoint, x, y)
+	if Pixel and Pixel.SetPoint then
+		Pixel.SetPoint(frame, point, relativeTo, relativePoint, x, y)
+	else
+		frame:SetPoint(point, relativeTo, relativePoint, x, y)
+	end
 	cache.mode = 1
 	cache.point = point
 	cache.relativeTo = relativeTo
@@ -1090,6 +1099,12 @@ end
 
 local function setTwoPointsCached(frame, firstPoint, firstRelativeTo, firstRelativePoint, firstX, firstY, secondPoint, secondRelativeTo, secondRelativePoint, secondX, secondY)
 	if not frame then return false end
+	if Pixel and Pixel.Round then
+		firstX = Pixel.Round(firstX or 0, frame)
+		firstY = Pixel.Round(firstY or 0, frame)
+		secondX = Pixel.Round(secondX or 0, frame)
+		secondY = Pixel.Round(secondY or 0, frame)
+	end
 	local cache = frame._hbPointCache
 	if
 		cache
@@ -1111,8 +1126,13 @@ local function setTwoPointsCached(frame, firstPoint, firstRelativeTo, firstRelat
 	cache = cache or {}
 	frame._hbPointCache = cache
 	if frame.ClearAllPoints then frame:ClearAllPoints() end
-	frame:SetPoint(firstPoint, firstRelativeTo, firstRelativePoint, firstX, firstY)
-	frame:SetPoint(secondPoint, secondRelativeTo, secondRelativePoint, secondX, secondY)
+	if Pixel and Pixel.SetPoint then
+		Pixel.SetPoint(frame, firstPoint, firstRelativeTo, firstRelativePoint, firstX, firstY)
+		Pixel.SetPoint(frame, secondPoint, secondRelativeTo, secondRelativePoint, secondX, secondY)
+	else
+		frame:SetPoint(firstPoint, firstRelativeTo, firstRelativePoint, firstX, firstY)
+		frame:SetPoint(secondPoint, secondRelativeTo, secondRelativePoint, secondX, secondY)
+	end
 	cache.mode = 2
 	cache.firstPoint = firstPoint
 	cache.firstRelativeTo = firstRelativeTo
@@ -1129,8 +1149,16 @@ end
 
 local function setSizeCached(frame, width, height)
 	if not (frame and frame.SetSize) then return false end
+	if Pixel and Pixel.Round then
+		width = Pixel.Round(width or 0, frame)
+		height = Pixel.Round(height or 0, frame)
+	end
 	if frame._hbCachedWidth == width and frame._hbCachedHeight == height then return false end
-	frame:SetSize(width, height)
+	if Pixel and Pixel.SetSize then
+		Pixel.SetSize(frame, width, height)
+	else
+		frame:SetSize(width, height)
+	end
 	frame._hbCachedWidth = width
 	frame._hbCachedHeight = height
 	return true
@@ -1311,8 +1339,12 @@ local function ensureVisualLayers(btn, st, forceLayout)
 	if iconLayer.SetFrameLevel and root.GetFrameLevel then setFrameLevelCached(iconLayer, (root:GetFrameLevel() or 0) + 30) end
 
 	if not st.healerBuffTint then
-		st.healerBuffTint = root:CreateTexture(nil, "ARTWORK", nil, 2)
-		st.healerBuffTint:SetColorTexture(0, 0, 0, 0)
+		st.healerBuffTint = (Pixel and Pixel.CreateTexture and Pixel.CreateTexture(root, nil, "ARTWORK", nil, 2)) or root:CreateTexture(nil, "ARTWORK", nil, 2)
+		if Pixel and Pixel.SetColorTexture then
+			Pixel.SetColorTexture(st.healerBuffTint, 0, 0, 0, 0)
+		else
+			st.healerBuffTint:SetColorTexture(0, 0, 0, 0)
+		end
 		st.healerBuffTint:Hide()
 	end
 	if st.healerBuffTint.GetParent and st.healerBuffTint:GetParent() ~= root then st.healerBuffTint:SetParent(root) end
@@ -1321,9 +1353,17 @@ local function ensureVisualLayers(btn, st, forceLayout)
 	if not st.healerBuffBar then
 		st.healerBuffBar = CreateFrame("StatusBar", nil, root)
 		st.healerBuffBar:EnableMouse(false)
-		st.healerBuffBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+		if Pixel and Pixel.SetStatusBarTexture then
+			Pixel.SetStatusBarTexture(st.healerBuffBar, "Interface\\Buttons\\WHITE8x8")
+		else
+			st.healerBuffBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+		end
 		st.healerBuffBar:SetMinMaxValues(0, 1)
-		st.healerBuffBar:SetValue(1)
+		if Pixel and Pixel.SetStatusBarValue then
+			Pixel.SetStatusBarValue(st.healerBuffBar, 1, false, true)
+		else
+			st.healerBuffBar:SetValue(1)
+		end
 		st.healerBuffBar:Hide()
 	end
 	setFrameParentCached(st.healerBuffBar, root)
@@ -1390,7 +1430,11 @@ end
 local function updateAnimatedBarValue(bar, now)
 	if not (bar and bar.SetValue) then return end
 	local fill = getTimedBarFill(bar._hbTrackedDuration, bar._hbTrackedExpirationTime, now)
-	bar:SetValue(fill ~= nil and fill or 1)
+	if Pixel and Pixel.SetStatusBarValue then
+		Pixel.SetStatusBarValue(bar, fill ~= nil and fill or 1, false, true)
+	else
+		bar:SetValue(fill ~= nil and fill or 1)
+	end
 end
 
 local function setAnimatedBarAura(bar, aura)
@@ -1399,7 +1443,11 @@ local function setAnimatedBarAura(bar, aura)
 	local expirationTime = aura and tonumber(aura.expirationTime) or nil
 	if not (duration and duration > 0 and expirationTime and expirationTime > 0) then
 		clearAnimatedBarState(bar)
-		if bar.SetValue then bar:SetValue(1) end
+		if Pixel and Pixel.SetStatusBarValue then
+			Pixel.SetStatusBarValue(bar, 1, false, true)
+		elseif bar.SetValue then
+			bar:SetValue(1)
+		end
 		return false
 	end
 	bar._hbTrackedDuration = duration
@@ -1869,7 +1917,11 @@ local function styleSquareButton(btn, color)
 	if not btn then return end
 	local r, g, b, a = resolveColor(color)
 	if btn.icon then
-		btn.icon:SetTexture("Interface\\Buttons\\WHITE8x8")
+		if Pixel and Pixel.SetTexture then
+			Pixel.SetTexture(btn.icon, "Interface\\Buttons\\WHITE8x8")
+		else
+			btn.icon:SetTexture("Interface\\Buttons\\WHITE8x8")
+		end
 		btn.icon:SetTexCoord(0, 1, 0, 1)
 		btn.icon:SetVertexColor(r, g, b, a)
 		if btn.icon.SetDesaturated then btn.icon:SetDesaturated(false) end
@@ -2288,15 +2340,15 @@ local function renderIconStyleForGroup(btn, st, state, compiled, cfg, group, cha
 			button._hbIndicatorGroupId = group.id
 			button._hbIndicatorStyle = group.style
 		end
-		if button.SetSize and button._hbButtonSize ~= group.size then
-			if AuraUtil and AuraUtil.setAuraButtonSize then
-				AuraUtil.setAuraButtonSize(button, group.size)
-			else
-				button:SetSize(group.size, group.size)
-				button._eqolAuraButtonSize = group.size
+			if button.SetSize and button._hbButtonSize ~= group.size then
+				if AuraUtil and AuraUtil.setAuraButtonSize then
+					AuraUtil.setAuraButtonSize(button, group.size)
+				else
+					setSizeCached(button, group.size, group.size)
+					button._eqolAuraButtonSize = group.size
+				end
+				button._hbButtonSize = group.size
 			end
-			button._hbButtonSize = group.size
-		end
 		positionAuraButton(button, container, primary, secondary, index, group.perRow, group.size, group.spacing)
 		button:Show()
 	end
@@ -2363,8 +2415,15 @@ local function renderBar(st, group, trackedAura, colorRule)
 		bar:Hide()
 		return
 	end
+	local scale = getEffectiveScale(st.healerBuffRoot or bar)
 	local inset = group.inset or 0
-	local thickness = max(1, group.barThickness or 6)
+	inset = max(0, roundToPixel(inset, scale))
+	local thickness
+	if Pixel and Pixel.Round then
+		thickness = Pixel.Round(max(1, group.barThickness or 6), bar, 1)
+	else
+		thickness = max(1, roundToPixel(group.barThickness or 6, scale))
+	end
 	local r, g, b, a = resolveDisplayColor(group, colorRule)
 	local ox, oy = getStyleAnchoredOffsets(st.healerBuffRoot, group, inset)
 	local orientation = group.barOrientation == ORIENT_VERTICAL and ORIENT_VERTICAL or ORIENT_HORIZONTAL
@@ -2382,14 +2441,22 @@ local function renderBar(st, group, trackedAura, colorRule)
 	if group.barOrientation == ORIENT_VERTICAL then
 		setTwoPointsCached(bar, "TOP", st.healerBuffRoot, "TOP", ox, oy - inset, "BOTTOM", st.healerBuffRoot, "BOTTOM", ox, oy + inset)
 		if bar._hbBarWidth ~= thickness then
-			bar:SetWidth(thickness)
+			if Pixel and Pixel.SetWidth then
+				Pixel.SetWidth(bar, thickness, 1)
+			else
+				bar:SetWidth(thickness)
+			end
 			bar._hbBarWidth = thickness
 		end
 		bar._hbBarHeight = nil
 	else
 		setTwoPointsCached(bar, "LEFT", st.healerBuffRoot, "LEFT", ox + inset, oy, "RIGHT", st.healerBuffRoot, "RIGHT", ox - inset, oy)
 		if bar._hbBarHeight ~= thickness then
-			bar:SetHeight(thickness)
+			if Pixel and Pixel.SetHeight then
+				Pixel.SetHeight(bar, thickness, 1)
+			else
+				bar:SetHeight(thickness)
+			end
 			bar._hbBarHeight = thickness
 		end
 		bar._hbBarWidth = nil
@@ -2398,7 +2465,11 @@ local function renderBar(st, group, trackedAura, colorRule)
 		setAnimatedBarAura(bar, trackedAura)
 	else
 		clearAnimatedBarState(bar)
-		bar:SetValue(1)
+		if Pixel and Pixel.SetStatusBarValue then
+			Pixel.SetStatusBarValue(bar, 1, false, true)
+		else
+			bar:SetValue(1)
+		end
 	end
 	bar:Show()
 end
