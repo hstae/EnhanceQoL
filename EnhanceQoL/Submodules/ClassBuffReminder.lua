@@ -3959,7 +3959,6 @@ end
 
 function Reminder:RequestUpdate(immediate)
 	if immediate or not (C_Timer and C_Timer.After) then
-		self:FlushPendingAuraUpdates()
 		self:UpdateDisplay()
 		return
 	end
@@ -3968,7 +3967,6 @@ function Reminder:RequestUpdate(immediate)
 	self.updatePending = true
 	C_Timer.After(0.08, function()
 		Reminder.updatePending = false
-		Reminder:FlushPendingAuraUpdates()
 		Reminder:UpdateDisplay()
 	end)
 end
@@ -4988,6 +4986,7 @@ function Reminder:OnSettingChanged()
 	self:InvalidateRosterCache()
 	self:InvalidateFlaskCache()
 	self:InvalidateFoodCache()
+	self:InvalidateWeaponBuffCache()
 	self:MarkAuraStatesDirty()
 
 	if runtimeActive then

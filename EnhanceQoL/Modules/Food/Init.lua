@@ -56,6 +56,7 @@ local function syncSharedFoodBagItemCountCache(counts)
 	addon.BuffFoods.bagItemCountCache = counts
 	addon.BuffFoods.bagItemCountCacheReady = true
 	addon.WeaponBuffs.bagItemCountCache = counts
+	addon.WeaponBuffs.bagItemCountCacheReady = true
 	return counts
 end
 
@@ -63,6 +64,7 @@ local function invalidateSharedFoodBagItemCountCache()
 	addon.foodBagItemCountCacheReady = false
 	addon.Flasks.bagItemCountCacheReady = false
 	addon.BuffFoods.bagItemCountCacheReady = false
+	addon.WeaponBuffs.bagItemCountCacheReady = false
 end
 
 function addon.functions.shouldMaintainFoodBagItemCountCache()
@@ -76,14 +78,6 @@ function addon.functions.shouldMaintainFoodBagItemCountCache()
 	if reminder.IsFoodTrackingEnabled and reminder:IsFoodTrackingEnabled() then return true end
 	if reminder.IsWeaponBuffTrackingEnabled and reminder:IsWeaponBuffTrackingEnabled() then return true end
 	return false
-end
-
-function addon.functions.shouldWarmWeaponBuffCandidates()
-	local reminder = addon.ClassBuffReminder
-	if not reminder then return false end
-	if not reminder.IsEnabled or reminder:IsEnabled() ~= true then return false end
-	if not reminder.IsWeaponBuffTrackingEnabled then return false end
-	return reminder:IsWeaponBuffTrackingEnabled() == true
 end
 
 function addon.functions.rebuildFoodBagItemCountCache()
@@ -134,14 +128,7 @@ sharedFoodBagItemCountCacheFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 sharedFoodBagItemCountCacheFrame:RegisterEvent("BAG_UPDATE_DELAYED")
 sharedFoodBagItemCountCacheFrame:SetScript("OnEvent", function(_, event)
 	if event ~= "PLAYER_LOGIN" and event ~= "PLAYER_ENTERING_WORLD" and event ~= "BAG_UPDATE_DELAYED" then return end
-	if addon.functions.shouldMaintainFoodBagItemCountCache and addon.functions.shouldMaintainFoodBagItemCountCache() ~= true then
-		invalidateSharedFoodBagItemCountCache()
-		return
-	end
-	addon.functions.rebuildFoodBagItemCountCache()
-	if addon.functions.shouldWarmWeaponBuffCandidates and addon.functions.shouldWarmWeaponBuffCandidates() == true and addon.WeaponBuffs and addon.WeaponBuffs.functions and addon.WeaponBuffs.functions.getAvailableCandidates then
-		addon.WeaponBuffs.functions.getAvailableCandidates()
-	end
+	invalidateSharedFoodBagItemCountCache()
 end)
 
 function addon.Recuperate.Update()

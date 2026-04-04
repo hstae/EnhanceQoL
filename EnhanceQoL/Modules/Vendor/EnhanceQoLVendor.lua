@@ -100,6 +100,7 @@ local destroyProtected = {
 
 local pendingSellMarksUpdate = false
 local pendingSellMarksReset = false
+local sellMarksDirty = true
 local pendingDestroyButtonUpdate = false
 
 local function scheduleDestroyButtonUpdate()
@@ -660,6 +661,7 @@ local function hookBaganatorItemButton(itemButton)
 			itemButton:HookScript("OnShow", function(self)
 				refreshBaganatorVisibleButtonState(self)
 				applySellDestroyOverlayToItemButton(self)
+				updateSellMarks()
 				if addon.db and addon.db["vendorDestroyEnable"] then scheduleDestroyButtonUpdate() end
 			end)
 			itemButton:HookScript("OnHide", function(self)
@@ -1881,14 +1883,19 @@ local function performUpdateSellMarks(resetCache)
 end
 
 function updateSellMarks(_, resetCache)
+	sellMarksDirty = true
 	if resetCache then pendingSellMarksReset = true end
+	if not inventoryOpen() then return end
 	if pendingSellMarksUpdate then return end
 	pendingSellMarksUpdate = true
 	C_Timer.After(0.05, function()
+		pendingSellMarksUpdate = false
+		if not inventoryOpen() then return end
+		if not sellMarksDirty and not pendingSellMarksReset then return end
 		local doReset = pendingSellMarksReset
 		pendingSellMarksReset = false
-		pendingSellMarksUpdate = false
 		performUpdateSellMarks(doReset)
+		sellMarksDirty = false
 	end)
 end
 
