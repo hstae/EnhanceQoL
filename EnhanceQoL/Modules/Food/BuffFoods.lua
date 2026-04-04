@@ -239,38 +239,12 @@ local function getCurrentSpecID()
 end
 
 local function rebuildBagItemCountCache()
-	local counts = {}
-	local maxBag = tonumber(NUM_TOTAL_EQUIPPED_BAG_SLOTS) or tonumber(NUM_BAG_SLOTS) or 4
-
-	if C_Container and C_Container.GetContainerNumSlots and C_Container.GetContainerItemInfo then
-		for bag = 0, maxBag do
-			local slotCount = C_Container.GetContainerNumSlots(bag) or 0
-			for slot = 1, slotCount do
-				local info = C_Container.GetContainerItemInfo(bag, slot)
-				local itemId = info and tonumber(info.itemID) or nil
-				if itemId and itemId > 0 then counts[itemId] = (counts[itemId] or 0) + (tonumber(info.stackCount) or 1) end
-			end
-		end
-	elseif GetContainerNumSlots and GetContainerItemID and GetContainerItemInfo then
-		for bag = 0, maxBag do
-			local slotCount = GetContainerNumSlots(bag) or 0
-			for slot = 1, slotCount do
-				local itemId = tonumber(GetContainerItemID(bag, slot))
-				if itemId and itemId > 0 then
-					local _, stackCount = GetContainerItemInfo(bag, slot)
-					counts[itemId] = (counts[itemId] or 0) + (tonumber(stackCount) or 1)
-				end
-			end
-		end
-	end
-
-	addon.BuffFoods.bagItemCountCache = counts
-	addon.BuffFoods.bagItemCountCacheReady = true
-	return counts
+	if addon.functions and addon.functions.rebuildFoodBagItemCountCache then return addon.functions.rebuildFoodBagItemCountCache() end
+	return {}
 end
 
 local function getBagItemCountCache()
-	if addon.BuffFoods.bagItemCountCacheReady == true and type(addon.BuffFoods.bagItemCountCache) == "table" then return addon.BuffFoods.bagItemCountCache end
+	if addon.functions and addon.functions.getFoodBagItemCountCache then return addon.functions.getFoodBagItemCountCache() end
 	return rebuildBagItemCountCache()
 end
 
@@ -399,12 +373,3 @@ function addon.BuffFoods.functions.updateAllowedBuffFoods(specID)
 	addon.BuffFoods.lastSelectedPreference = selectedPreference
 	return candidates, selectedType
 end
-
-local bagItemCountCacheFrame = addon.BuffFoods.bagItemCountCacheFrame or CreateFrame("Frame")
-addon.BuffFoods.bagItemCountCacheFrame = bagItemCountCacheFrame
-bagItemCountCacheFrame:RegisterEvent("PLAYER_LOGIN")
-bagItemCountCacheFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-bagItemCountCacheFrame:RegisterEvent("BAG_UPDATE_DELAYED")
-bagItemCountCacheFrame:SetScript("OnEvent", function(_, event)
-	if event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" or event == "BAG_UPDATE_DELAYED" then rebuildBagItemCountCache() end
-end)

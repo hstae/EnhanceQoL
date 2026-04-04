@@ -936,6 +936,8 @@ function Reminder:GetCurrentSpecId()
 	return specId
 end
 
+function Reminder:IsEnabled() return getValue(DB_ENABLED, defaults.enabled) == true end
+
 function Reminder:IsFlaskTrackingEnabled() return getValue(DB_TRACK_FLASKS, defaults.trackFlasks) == true end
 
 function Reminder:IsFlaskInstanceOnlyEnabled() return getValue(DB_TRACK_FLASKS_INSTANCE_ONLY, defaults.trackFlasksInstanceOnly) == true end

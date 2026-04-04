@@ -14,7 +14,6 @@ local C_Item_RequestLoadItemDataByID = C_Item and C_Item.RequestLoadItemDataByID
 addon.WeaponBuffs = addon.WeaponBuffs or {}
 addon.WeaponBuffs.functions = addon.WeaponBuffs.functions or {}
 addon.WeaponBuffs.filteredWeaponBuffs = addon.WeaponBuffs.filteredWeaponBuffs or {}
-addon.WeaponBuffs.bagItemCountCache = addon.WeaponBuffs.bagItemCountCache or {}
 
 addon.WeaponBuffs.items = addon.WeaponBuffs.items
 	or {
@@ -46,38 +45,13 @@ end
 requestItemNameData()
 
 local function rebuildBagItemCountCache()
-	local counts = {}
-	local maxBag = tonumber(NUM_TOTAL_EQUIPPED_BAG_SLOTS) or tonumber(NUM_BAG_SLOTS) or 4
-
-	if C_Container and C_Container.GetContainerNumSlots and C_Container.GetContainerItemInfo then
-		for bag = 0, maxBag do
-			local slotCount = C_Container.GetContainerNumSlots(bag) or 0
-			for slot = 1, slotCount do
-				local info = C_Container.GetContainerItemInfo(bag, slot)
-				local itemId = info and tonumber(info.itemID) or nil
-				if itemId and itemId > 0 then counts[itemId] = (counts[itemId] or 0) + (tonumber(info.stackCount) or 1) end
-			end
-		end
-	elseif GetContainerNumSlots and GetContainerItemID and GetContainerItemInfo then
-		for bag = 0, maxBag do
-			local slotCount = GetContainerNumSlots(bag) or 0
-			for slot = 1, slotCount do
-				local itemId = tonumber(GetContainerItemID(bag, slot))
-				if itemId and itemId > 0 then
-					local _, stackCount = GetContainerItemInfo(bag, slot)
-					counts[itemId] = (counts[itemId] or 0) + (tonumber(stackCount) or 1)
-				end
-			end
-		end
-	end
-
-	addon.WeaponBuffs.bagItemCountCache = counts
-	return counts
+	if addon.functions and addon.functions.rebuildFoodBagItemCountCache then return addon.functions.rebuildFoodBagItemCountCache() end
+	return {}
 end
 
 local function getBagItemCount(itemId)
-	local counts = addon.WeaponBuffs.bagItemCountCache
-	if type(counts) ~= "table" then counts = rebuildBagItemCountCache() end
+	if addon.functions and addon.functions.getFoodBagItemCount then return addon.functions.getFoodBagItemCount(itemId) end
+	local counts = rebuildBagItemCountCache()
 	return tonumber(counts[itemId]) or 0
 end
 
@@ -114,15 +88,3 @@ function addon.WeaponBuffs.functions.getAvailableCandidates()
 	addon.WeaponBuffs.filteredWeaponBuffs = available
 	return available
 end
-
-local bagItemCountCacheFrame = addon.WeaponBuffs.bagItemCountCacheFrame or CreateFrame("Frame")
-addon.WeaponBuffs.bagItemCountCacheFrame = bagItemCountCacheFrame
-bagItemCountCacheFrame:RegisterEvent("PLAYER_LOGIN")
-bagItemCountCacheFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-bagItemCountCacheFrame:RegisterEvent("BAG_UPDATE_DELAYED")
-bagItemCountCacheFrame:SetScript("OnEvent", function(_, event)
-	if event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" or event == "BAG_UPDATE_DELAYED" then
-		rebuildBagItemCountCache()
-		addon.WeaponBuffs.functions.getAvailableCandidates()
-	end
-end)
