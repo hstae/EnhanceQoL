@@ -13871,7 +13871,7 @@ local function buildEditModeSettings(kind, editModeId)
 				if not cfg then return end
 				if not cfg.relativeTo or cfg.relativeTo == "" then cfg.relativeTo = "UIParent" end
 				local raw = clampNumber(value, -4000, 4000, cfg.x or 0)
-				cfg.x = roundToPixel(raw, 1)
+				cfg.x = raw
 				local v = cfg.x
 				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "x", v, nil, true) end
 				if EditMode and EditMode.RefreshFrame then
@@ -13913,7 +13913,7 @@ local function buildEditModeSettings(kind, editModeId)
 				if not cfg then return end
 				if not cfg.relativeTo or cfg.relativeTo == "" then cfg.relativeTo = "UIParent" end
 				local raw = clampNumber(value, -4000, 4000, cfg.y or 0)
-				cfg.y = roundToPixel(raw, 1)
+				cfg.y = raw
 				local v = cfg.y
 				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "y", v, nil, true) end
 				if EditMode and EditMode.RefreshFrame then
@@ -23442,8 +23442,8 @@ function GF._syncGroupEditModeLayoutData(kind, editModeId, layoutName)
 	local def = DEFAULTS[kind] or {}
 	local point = tostring((cfg and cfg.point) or def.point or data.point or "CENTER"):upper()
 	local relativePoint = tostring((cfg and (cfg.relativePoint or cfg.point)) or def.relativePoint or def.point or point):upper()
-	local x = roundToPixel(clampNumber((cfg and cfg.x) or def.x or data.x or 0, -4000, 4000, 0), 1)
-	local y = roundToPixel(clampNumber((cfg and cfg.y) or def.y or data.y or 0, -4000, 4000, 0), 1)
+	local x = clampNumber((cfg and cfg.x) or def.x or data.x or 0, -4000, 4000, 0)
+	local y = clampNumber((cfg and cfg.y) or def.y or data.y or 0, -4000, 4000, 0)
 
 	data.point = point
 	data.relativePoint = relativePoint
@@ -23464,8 +23464,8 @@ local function applyEditModeData(kind, data)
 		cfg.point = tostring(data.point or cfg.point or "CENTER"):upper()
 		cfg.relativePoint = tostring(data.relativePoint or cfg.point):upper()
 		if not cfg.relativeTo or cfg.relativeTo == "" then cfg.relativeTo = "UIParent" end
-		cfg.x = roundToPixel(clampNumber((data.x ~= nil and data.x or cfg.x) or 0, -4000, 4000, cfg.x or 0), 1)
-		cfg.y = roundToPixel(clampNumber((data.y ~= nil and data.y or cfg.y) or 0, -4000, 4000, cfg.y or 0), 1)
+		cfg.x = clampNumber((data.x ~= nil and data.x or cfg.x) or 0, -4000, 4000, cfg.x or 0)
+		cfg.y = clampNumber((data.y ~= nil and data.y or cfg.y) or 0, -4000, 4000, cfg.y or 0)
 		if data.point ~= cfg.point then
 			data.point = cfg.point
 			positionChanged = true

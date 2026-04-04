@@ -245,7 +245,11 @@ local NotifyInspect = NotifyInspect
 local ClearInspectPlayer = ClearInspectPlayer
 local C_SpecializationInfo = C_SpecializationInfo
 local C_CreatureInfo = C_CreatureInfo
+local abs = math.abs
 local floor = math.floor
+local ceil = math.ceil
+local max = math.max
+local GetPhysicalScreenSize = GetPhysicalScreenSize
 local UnitIsUnit = UnitIsUnit
 local UnitExists = UnitExists
 local UnitIsPlayer = UnitIsPlayer
@@ -273,23 +277,114 @@ function H.GetEffectiveScale(frame)
 	return 1
 end
 
-function H.RoundToPixel(value, scale)
-	value = tonumber(value) or 0
-	scale = tonumber(scale) or 1
-	if scale <= 0 then return value end
-	if value == 0 then return 0 end
-	local scaled = value * scale
-	if scaled >= 0 then
-		scaled = floor(scaled + 0.5)
-	else
-		scaled = ceil(scaled - 0.5)
+H.Pixel = H.Pixel or {}
+local Pixel = H.Pixel
+
+local function roundNearestInt(value)
+	if value >= 0 then
+		return floor(value + 0.5)
 	end
-	return scaled / scale
+	return ceil(value - 0.5)
+end
+
+function Pixel.GetScale(regionOrScale)
+	if type(regionOrScale) == "number" then
+		local scale = tonumber(regionOrScale) or 1
+		if scale > 0 then return scale end
+		return 1
+	end
+	return H.GetEffectiveScale(regionOrScale)
+end
+
+function Pixel.GetPixelToUIUnitFactor()
+	local _, physicalHeight = GetPhysicalScreenSize()
+	physicalHeight = tonumber(physicalHeight) or 0
+	if physicalHeight <= 0 then return 1 end
+	return 768 / physicalHeight
+end
+
+function Pixel.Round(value, regionOrScale, minPixels)
+	value = tonumber(value) or 0
+	local scale = Pixel.GetScale(regionOrScale)
+	if value == 0 and (not minPixels or minPixels == 0) then return 0 end
+
+	if PixelUtil and PixelUtil.GetNearestPixelSize then
+		return PixelUtil.GetNearestPixelSize(value, scale, minPixels)
+	end
+
+	local factor = Pixel.GetPixelToUIUnitFactor()
+	local pixels = roundNearestInt((value * scale) / factor)
+	if minPixels then
+		minPixels = tonumber(minPixels) or 0
+		if value < 0 then
+			if pixels > -minPixels then pixels = -minPixels end
+		elseif pixels < minPixels then
+			pixels = minPixels
+		end
+	end
+	return (pixels * factor) / scale
+end
+
+function Pixel.RoundMultiple(value, regionOrScale, pixelMultiple, minPixels)
+	value = tonumber(value) or 0
+	pixelMultiple = max(1, floor((tonumber(pixelMultiple) or 1) + 0.5))
+	if value == 0 and (not minPixels or minPixels == 0) then return 0 end
+
+	local scale = Pixel.GetScale(regionOrScale)
+	local factor = Pixel.GetPixelToUIUnitFactor()
+	local pixels = roundNearestInt((value * scale) / factor)
+	local sign = pixels < 0 and -1 or 1
+	pixels = abs(pixels)
+	pixels = roundNearestInt(pixels / pixelMultiple) * pixelMultiple
+	if minPixels then
+		minPixels = tonumber(minPixels) or 0
+		if pixels < minPixels then pixels = minPixels end
+	end
+	return ((pixels * sign) * factor) / scale
+end
+
+function Pixel.RoundEven(value, regionOrScale, minEvenPixels)
+	return Pixel.RoundMultiple(value, regionOrScale, 2, minEvenPixels or 2)
+end
+
+function Pixel.RoundPoint(x, y, regionOrScale, minXPixels, minYPixels)
+	return Pixel.Round(x, regionOrScale, minXPixels), Pixel.Round(y, regionOrScale, minYPixels)
+end
+
+function Pixel.SetPoint(region, point, relativeTo, relativePoint, x, y, minXPixels, minYPixels)
+	if not region then return end
+	region:SetPoint(
+		point,
+		relativeTo,
+		relativePoint,
+		Pixel.Round(x, region, minXPixels),
+		Pixel.Round(y, region, minYPixels)
+	)
+end
+
+function Pixel.SetWidth(region, width, minPixels)
+	if not region then return end
+	region:SetWidth(Pixel.Round(width, region, minPixels))
+end
+
+function Pixel.SetHeight(region, height, minPixels)
+	if not region then return end
+	region:SetHeight(Pixel.Round(height, region, minPixels))
+end
+
+function Pixel.SetSize(region, width, height, minWidthPixels, minHeightPixels)
+	if not region then return end
+	Pixel.SetWidth(region, width, minWidthPixels)
+	Pixel.SetHeight(region, height, minHeightPixels)
+end
+
+function H.RoundToPixel(value, scale)
+	return Pixel.Round(value, scale)
 end
 
 function H.SnapPointOffsets(relativeFrame, relativePoint, x, y, scale)
-	scale = scale or H.GetEffectiveScale(relativeFrame)
-	return H.RoundToPixel(x, scale), H.RoundToPixel(y, scale)
+	scale = scale or relativeFrame
+	return Pixel.RoundPoint(x, y, scale)
 end
 
 function H.LayoutTexts(bar, leftFS, centerFS, rightFS, cfg, scale, anchorFrame)
@@ -438,19 +533,7 @@ function H.SetPointFromCfg(frame, cfg)
 	local rp = cfg.relativePoint or p
 	local x = tonumber(cfg.x) or 0
 	local y = tonumber(cfg.y) or 0
-	if x >= 0 then
-		x = floor(x + 0.5)
-	else
-		x = ceil(x - 0.5)
-	end
-	if y >= 0 then
-		y = floor(y + 0.5)
-	else
-		y = ceil(y - 0.5)
-	end
-	if cfg.x ~= x then cfg.x = x end
-	if cfg.y ~= y then cfg.y = y end
-	frame:SetPoint(p, rel, rp, x, y)
+	Pixel.SetPoint(frame, p, rel, rp, x, y)
 end
 local LOCALIZED_CLASS_NAMES_FEMALE = LOCALIZED_CLASS_NAMES_FEMALE
 local RAID_CLASS_COLORS = RAID_CLASS_COLORS
