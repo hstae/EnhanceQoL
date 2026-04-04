@@ -7,6 +7,7 @@ addon.Aura.UF = addon.Aura.UF or {}
 local UF = addon.Aura.UF
 UF.GroupFramesHelper = UF.GroupFramesHelper or {}
 local H = UF.GroupFramesHelper
+local PixelUtil = _G.PixelUtil
 
 H.COLOR_WHITE = { 1, 1, 1, 1 }
 H.COLOR_WHITE_90 = { 1, 1, 1, 0.9 }

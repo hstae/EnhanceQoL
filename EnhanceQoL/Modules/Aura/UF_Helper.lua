@@ -11,6 +11,7 @@ end
 addon.Aura = addon.Aura or {}
 addon.Aura.UFHelper = addon.Aura.UFHelper or {}
 local H = addon.Aura.UFHelper
+local PixelUtil = _G.PixelUtil
 
 addon.variables = addon.variables or {}
 
