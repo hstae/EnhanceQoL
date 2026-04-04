@@ -7,7 +7,6 @@ addon.Aura.UF = addon.Aura.UF or {}
 local UF = addon.Aura.UF
 UF.GroupFramesHelper = UF.GroupFramesHelper or {}
 local H = UF.GroupFramesHelper
-local PixelUtil = _G.PixelUtil
 
 H.COLOR_WHITE = { 1, 1, 1, 1 }
 H.COLOR_WHITE_90 = { 1, 1, 1, 0.9 }
@@ -314,8 +313,8 @@ function Pixel.Round(value, regionOrScale, minPixels)
 	local scale = Pixel.GetScale(regionOrScale)
 	if value == 0 and (not minPixels or minPixels == 0) then return 0 end
 
-	if PixelUtil and PixelUtil.GetNearestPixelSize then
-		return PixelUtil.GetNearestPixelSize(value, scale, minPixels)
+	if _G.PixelUtil and _G.PixelUtil.GetNearestPixelSize then
+		return _G.PixelUtil.GetNearestPixelSize(value, scale, minPixels)
 	end
 
 	local factor = Pixel.GetPixelToUIUnitFactor()

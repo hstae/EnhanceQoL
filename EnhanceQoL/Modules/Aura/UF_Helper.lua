@@ -11,7 +11,6 @@ end
 addon.Aura = addon.Aura or {}
 addon.Aura.UFHelper = addon.Aura.UFHelper or {}
 local H = addon.Aura.UFHelper
-local PixelUtil = _G.PixelUtil
 
 addon.variables = addon.variables or {}
 
@@ -2921,9 +2920,9 @@ function H.applyNameCharLimit(st, scfg, defStatus)
 	if width and width > 0 then
 		local snappedWidth = width
 		local scale = (st.nameText.GetEffectiveScale and st.nameText:GetEffectiveScale()) or (UIParent and UIParent.GetEffectiveScale and UIParent:GetEffectiveScale()) or 1
-		if PixelUtil and PixelUtil.GetNearestPixelSize then
+		if _G.PixelUtil and _G.PixelUtil.GetNearestPixelSize then
 			-- Centered name regions blur easily on odd pixel widths; keep the width on an even pixel count.
-			snappedWidth = PixelUtil.GetNearestPixelSize(width * 0.5, scale, 1) * 2
+			snappedWidth = _G.PixelUtil.GetNearestPixelSize(width * 0.5, scale, 1) * 2
 		end
 		if st._eqolNameTextWidth ~= snappedWidth then
 			st.nameText:SetWidth(snappedWidth)
