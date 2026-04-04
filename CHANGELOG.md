@@ -10,6 +10,7 @@
 
 - Group Frames / Auras: Fixed centered buff and debuff layouts drifting off-center when the visible aura count used fewer rows or columns than the configured max.
 - Chat History / Copy Chat: Fixed longer copied chat logs being cut off in the copy dialog, so older lines are no longer truncated and the full visible filtered history can be selected.
+- Group Finder / Mythic+ Score Panel: Fixed an occasional Blizzard UI error when opening the score panel or updating it next to Group Finder tooltips.
 
 ---
 
