@@ -43,6 +43,12 @@ local delimiterOptions = GFH.delimiterOptions
 local outlineOptions = GFH.outlineOptions
 local ensureAuraConfig = GFH.EnsureAuraConfig
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_Aura")
+GF.splitRoleViewerRoleOptions = {
+	{ value = "ALL", label = L["All"] or "All" },
+	{ value = "TANK", label = TANK or "Tank" },
+	{ value = "HEALER", label = HEALER or "Healer" },
+	{ value = "DAMAGER", label = DAMAGER or "DPS" },
+}
 
 local function textureOptions() return GFH.TextureOptions(LSM) end
 local function fontOptions() return GFH.FontOptions(LSM) end
@@ -1147,62 +1153,6 @@ function GF.BuildPartyCenterGrowthNameList(cfg)
 	return nameList, 0, count
 end
 
-function GF.IsUnitMainTank(unit)
-	if not (unit and UnitInRaid and UnitInRaid(unit)) then return false end
-	if GetPartyAssignment then return GetPartyAssignment("MAINTANK", unit) and true or false end
-	if not GetRaidRosterInfo then return false end
-	local raidID = UnitInRaid(unit)
-	if not raidID then return false end
-	return select(10, GetRaidRosterInfo(raidID)) == "MAINTANK"
-end
-
-function GF.BuildSplitRolePlayerFirstNameList(kind, cfg)
-	if kind ~= "mt" or not (cfg and cfg.playerFirst == true) or cfg.hideSelf == true then return nil end
-	if not GF.IsUnitMainTank("player") then return nil end
-
-	local playerName
-	local others = {}
-	local seen = {}
-
-	local function getFullName(unit)
-		local name = GFH and GFH.GetUnitFullName and GFH.GetUnitFullName(unit)
-		if name then return name end
-		if not UnitName then return nil end
-		local rawName, realm = UnitName(unit)
-		if not rawName or rawName == "" then return nil end
-		if realm and realm ~= "" then return rawName .. "-" .. realm end
-		return rawName
-	end
-
-	local num = (GetNumGroupMembers and GetNumGroupMembers()) or 0
-	for i = 1, num do
-		local unit = "raid" .. i
-		if UnitExists and UnitExists(unit) and GF.IsUnitMainTank(unit) then
-			local name = getFullName(unit)
-			if name and not seen[name] then
-				seen[name] = true
-				if UnitIsUnit and UnitIsUnit(unit, "player") then
-					playerName = name
-				else
-					others[#others + 1] = name
-				end
-			end
-		end
-	end
-
-	if not playerName then
-		playerName = getFullName("player")
-		if not playerName or seen[playerName] then return nil end
-	end
-
-	table.sort(others)
-	local names = { playerName }
-	for i = 1, #others do
-		names[#names + 1] = others[i]
-	end
-	return table.concat(names, ",")
-end
-
 function GF.CountCsvTokens(value)
 	if type(value) ~= "string" or value == "" then return 0 end
 	local count = 0
@@ -1904,6 +1854,30 @@ local function getUnitRoleKey(unit)
 	end
 	local role = UnitGroupRolesAssigned and UnitGroupRolesAssigned(unit)
 	if role == "TANK" or role == "HEALER" or role == "DAMAGER" then return role end
+	return "NONE"
+end
+
+function GF.NormalizeViewerRoleFilter(value)
+	local token = tostring(value or "ALL"):upper()
+	if token == "TANK" or token == "HEALER" or token == "DAMAGER" then return token end
+	return "ALL"
+end
+
+function GF.GetPlayerEffectiveRoleKey()
+	local role = nil
+	if UnitGroupRolesAssigned then
+		role = UnitGroupRolesAssigned("player")
+		if issecretvalue and issecretvalue(role) then role = nil end
+	end
+	if role == "TANK" or role == "HEALER" or role == "DAMAGER" then return role end
+	if GetSpecializationRole and C_SpecializationInfo and C_SpecializationInfo.GetSpecialization then
+		local specIndex = C_SpecializationInfo.GetSpecialization()
+		if specIndex then
+			role = GetSpecializationRole(specIndex)
+			if issecretvalue and issecretvalue(role) then role = nil end
+			if role == "TANK" or role == "HEALER" or role == "DAMAGER" then return role end
+		end
+	end
 	return "NONE"
 end
 
@@ -3751,7 +3725,6 @@ local DEFAULTS = {
 		},
 		height = 100,
 		hideInClientScene = true,
-		hideSelf = true,
 		highlight = {
 			aggro = false,
 			color = {
@@ -4717,11 +4690,10 @@ do
 	mtDefaults.enabled = false
 	mtDefaults.sortMethod = "NAME"
 	mtDefaults.sortDir = "ASC"
-	mtDefaults.hideSelf = false
-	mtDefaults.playerFirst = false
 	mtDefaults.groupBy = nil
 	mtDefaults.groupingOrder = nil
 	mtDefaults.groupFilter = nil
+	mtDefaults.viewerRoleFilter = "ALL"
 	mtDefaults.unitsPerColumn = 2
 	mtDefaults.maxColumns = 1
 	mtDefaults.growth = "DOWN"
@@ -4739,6 +4711,7 @@ do
 	maDefaults.groupBy = nil
 	maDefaults.groupingOrder = nil
 	maDefaults.groupFilter = nil
+	maDefaults.viewerRoleFilter = "ALL"
 	maDefaults.unitsPerColumn = 2
 	maDefaults.maxColumns = 1
 	maDefaults.growth = "DOWN"
@@ -11755,6 +11728,7 @@ function GF:ApplyHeaderAttributes(kind, options)
 	local raidGroupSpecs
 	local useGroupHeaders = false
 	local useGroupedCustomSort = false
+	local splitRoleViewerAllowed = true
 	local sortMethod
 	local rawGroupBy
 	local db = DB or ensureDB()
@@ -11824,24 +11798,21 @@ function GF:ApplyHeaderAttributes(kind, options)
 			cfg.groupGrowth = (GFH.NormalizeGrowthDirection and GFH.NormalizeGrowthDirection(cfg.groupGrowth, nil)) or ((growth == "RIGHT" or growth == "LEFT") and "DOWN" or "RIGHT")
 		end
 	elseif isSplitRoleKind(kind) then
-		local splitRoleNameList = GF.BuildSplitRolePlayerFirstNameList(kind, cfg)
+		cfg.hideSelf = nil
+		cfg.playerFirst = nil
+		local viewerRoleFilter = GF.NormalizeViewerRoleFilter(cfg.viewerRoleFilter)
+		splitRoleViewerAllowed = isEditModeActive() or viewerRoleFilter == "ALL" or GF.GetPlayerEffectiveRoleKey() == viewerRoleFilter
 		setAttr("showParty", false)
-		setAttr("showRaid", true)
-		setAttr("showPlayer", not (kind == "mt" and cfg.hideSelf == true))
+		setAttr("showRaid", splitRoleViewerAllowed)
+		setAttr("showPlayer", true)
 		setAttr("showSolo", false)
 		setAttr("groupingOrder", nil)
-		setAttr("groupFilter", nil)
+		setAttr("groupFilter", splitRoleViewerAllowed and getSplitRoleFilter(kind) or nil)
 		setAttr("groupBy", nil)
-		setAttr("nameList", splitRoleNameList)
-		if splitRoleNameList then
-			setAttr("roleFilter", nil)
-			setAttr("strictFiltering", false)
-			setAttr("sortMethod", "NAMELIST")
-		else
-			setAttr("roleFilter", getSplitRoleFilter(kind))
-			setAttr("strictFiltering", true)
-			setAttr("sortMethod", "NAME")
-		end
+		setAttr("nameList", nil)
+		setAttr("roleFilter", nil)
+		setAttr("strictFiltering", false)
+		setAttr("sortMethod", "NAME")
 		setAttr("sortDir", "ASC")
 		raidUnitsPerColumn = clampNumber(tonumber(cfg.unitsPerColumn) or ((DEFAULTS[kind] and DEFAULTS[kind].unitsPerColumn) or 2), 1, 10, 2)
 		raidMaxColumns = clampNumber(tonumber(cfg.maxColumns) or ((DEFAULTS[kind] and DEFAULTS[kind].maxColumns) or 1), 1, 10, 1)
@@ -11854,7 +11825,7 @@ function GF:ApplyHeaderAttributes(kind, options)
 	if header._eqolForceShow then
 		setAttr("showParty", true)
 		setAttr("showRaid", true)
-		setAttr("showPlayer", not (kind == "mt" and cfg.hideSelf == true))
+		setAttr("showPlayer", true)
 		setAttr("showSolo", true)
 		if kind == "raid" and not hasLiveRaidUnits then raidVisibleCount = 1 end
 	end
@@ -12040,7 +12011,7 @@ function GF:ApplyHeaderAttributes(kind, options)
 	if kind == "raid" then
 		header._eqolSpecialHide = useGroupHeaders == true
 	elseif isSplitRoleKind(kind) then
-		header._eqolSpecialHide = raidFramesEnabled ~= true
+		header._eqolSpecialHide = raidFramesEnabled ~= true or splitRoleViewerAllowed ~= true
 	else
 		header._eqolSpecialHide = nil
 	end
@@ -12452,6 +12423,17 @@ function GF:RefreshChangedUnitButtons()
 	return updated
 end
 
+function GF:RefreshSplitRoleHeadersForViewerRoleChange()
+	if InCombatLockdown and InCombatLockdown() then
+		GF:MarkPendingHeaderRefresh("mt")
+		GF:MarkPendingHeaderRefresh("ma")
+		return
+	end
+	GF:ApplyHeaderAttributes("mt")
+	GF:ApplyHeaderAttributes("ma")
+	GF:RefreshChangedUnitButtons()
+end
+
 function GF.FullRefresh(kind)
 	if not isFeatureEnabled() then return 0 end
 	GF:EnsureHeaders()
@@ -12707,8 +12689,7 @@ GF._groupCopySectionRules = {
 		{ "customSort" },
 	},
 	raid = {
-		{ "hideSelf" },
-		{ "playerFirst" },
+		{ "viewerRoleFilter" },
 		{ "unitsPerColumn" },
 		{ "maxColumns" },
 		{ "columnSpacing" },
@@ -13825,6 +13806,7 @@ local function buildEditModeSettings(kind, editModeId)
 	local heightLabel = HUD_EDIT_MODE_SETTING_CHAT_FRAME_HEIGHT or "Height"
 	local raidLikeKind = isRaidLikeKind(kind)
 	local raidKind = kind == "raid"
+	local splitRoleKind = kind == "mt" or kind == "ma"
 	local specOptions = GFH.BuildSpecOptions()
 	local tooltipModeOptions = {
 		{ value = "OFF", label = L["Off"] or "Off" },
@@ -14009,6 +13991,13 @@ local function buildEditModeSettings(kind, editModeId)
 			if option.value == mode then return option.label end
 		end
 		return mode
+	end
+	local function getSplitRoleViewerRoleValue()
+		local cfg = getCfg(kind)
+		return GF.NormalizeViewerRoleFilter(cfg and cfg.viewerRoleFilter)
+	end
+	local function getSplitRoleViewerRoleLabel()
+		return GF.DropdownOptionLabel(GF.splitRoleViewerRoleOptions, getSplitRoleViewerRoleValue(), L["All"] or "All")
 	end
 	local function getGroupNumberEnabledValue()
 		local cfg = getCfg(kind)
@@ -23237,44 +23226,28 @@ local function buildEditModeSettings(kind, editModeId)
 			id = "raid",
 			defaultCollapsed = true,
 		}
-		settings[#settings + 1] = {
-			name = L["UFGroupHideSelf"] or "Hide myself",
-			kind = SettingType.Checkbox,
-			field = "hideSelf",
-			parentId = "raid",
-			default = (DEFAULTS.mt and DEFAULTS.mt.hideSelf) or false,
-			get = function()
-				local cfg = getCfg(kind)
-				return cfg and cfg.hideSelf == true
-			end,
-			set = function(_, value)
-				local cfg = getCfg(kind)
-				if not cfg then return end
-				cfg.hideSelf = value and true or false
-				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "hideSelf", cfg.hideSelf, nil, true) end
-				GF:ApplyHeaderAttributes(kind)
-			end,
-			isShown = function() return kind == "mt" end,
-		}
-		settings[#settings + 1] = {
-			name = L["UFGroupPlayerFirst"] or "Player first",
-			kind = SettingType.Checkbox,
-			field = "playerFirst",
-			parentId = "raid",
-			default = (DEFAULTS.mt and DEFAULTS.mt.playerFirst) or false,
-			get = function()
-				local cfg = getCfg(kind)
-				return cfg and cfg.playerFirst == true
-			end,
-			set = function(_, value)
-				local cfg = getCfg(kind)
-				if not cfg then return end
-				cfg.playerFirst = value and true or false
-				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "playerFirst", cfg.playerFirst, nil, true) end
-				GF:ApplyHeaderAttributes(kind)
-			end,
-			isShown = function() return kind == "mt" end,
-		}
+		if splitRoleKind then
+			settings[#settings + 1] = {
+				name = L["Show for role"] or "Show for role",
+				kind = SettingType.Dropdown,
+				field = "viewerRoleFilter",
+				parentId = "raid",
+				default = (DEFAULTS[kind] and DEFAULTS[kind].viewerRoleFilter) or "ALL",
+				customDefaultText = getSplitRoleViewerRoleLabel(),
+				get = function() return getSplitRoleViewerRoleValue() end,
+				set = function(_, value)
+					local cfg = getCfg(kind)
+					if not cfg then return end
+					cfg.viewerRoleFilter = GF.NormalizeViewerRoleFilter(value)
+					if EditMode and EditMode.SetValue then
+						EditMode:SetValue(editModeId, "viewerRoleFilter", cfg.viewerRoleFilter, nil, true)
+					end
+					GF:ApplyHeaderAttributes(kind)
+					if GF._previewActive and GF._previewActive[kind] then GF:UpdatePreviewLayout(kind) end
+				end,
+				generator = GF.DropdownRadioGenerator(GF.splitRoleViewerRoleOptions),
+			}
+		end
 		settings[#settings + 1] = {
 			name = L["Units per column"] or "Units per column",
 			kind = SettingType.Slider,
@@ -24877,8 +24850,9 @@ local function applyEditModeData(kind, data)
 			end
 		end
 	elseif isRaidLikeKind(kind) then
-		if kind == "mt" and data.hideSelf ~= nil then cfg.hideSelf = data.hideSelf and true or false end
-		if kind == "mt" and data.playerFirst ~= nil then cfg.playerFirst = data.playerFirst and true or false end
+		if (kind == "mt" or kind == "ma") and data.viewerRoleFilter ~= nil then
+			cfg.viewerRoleFilter = GF.NormalizeViewerRoleFilter(data.viewerRoleFilter)
+		end
 		if kind == "raid" then
 			local custom = GFH.EnsureCustomSortConfig(cfg)
 			local selectedRaidGroups
@@ -25122,8 +25096,7 @@ function GF:EnsureEditMode()
 				tooltipAuras = ac.buff.showTooltip == true and ac.debuff.showTooltip == true and ac.externals.showTooltip == true,
 				showPlayer = cfg.showPlayer == true,
 				showSolo = cfg.showSolo == true,
-				hideSelf = cfg.hideSelf == true,
-				playerFirst = cfg.playerFirst == true,
+				viewerRoleFilter = GF.NormalizeViewerRoleFilter(cfg.viewerRoleFilter or (DEFAULTS[kind] and DEFAULTS[kind].viewerRoleFilter)),
 				hideInClientScene = (cfg.hideInClientScene ~= nil and cfg.hideInClientScene == true) or ((cfg.hideInClientScene == nil) and (def.hideInClientScene ~= false)),
 				unitsPerColumn = cfg.unitsPerColumn or (DEFAULTS[kind] and DEFAULTS[kind].unitsPerColumn) or (DEFAULTS.raid and DEFAULTS.raid.unitsPerColumn) or 5,
 				maxColumns = cfg.maxColumns or (DEFAULTS[kind] and DEFAULTS[kind].maxColumns) or (DEFAULTS.raid and DEFAULTS.raid.maxColumns) or 8,
@@ -25830,13 +25803,9 @@ do
 				if InCombatLockdown and InCombatLockdown() then
 					GF:MarkPendingHeaderRefresh("party")
 					GF:MarkPendingHeaderRefresh("raid")
-					GF:MarkPendingHeaderRefresh("mt")
-					GF:MarkPendingHeaderRefresh("ma")
 				else
 					GF:ApplyHeaderAttributes("party")
 					GF:ApplyHeaderAttributes("raid")
-					GF:ApplyHeaderAttributes("mt")
-					GF:ApplyHeaderAttributes("ma")
 					updatedCount = updatedCount + (GF:RefreshChangedUnitButtons() or 0)
 				end
 			end
@@ -25848,19 +25817,12 @@ do
 			end
 			if custom and custom.separateMeleeRanged == true and sortMethod == "NAMELIST" and GFH and GFH.QueueInspectGroup then GFH.QueueInspectGroup() end
 		elseif event == "RAID_ROSTER_UPDATE" then
-			if InCombatLockdown and InCombatLockdown() then
-				GF:MarkPendingHeaderRefresh("mt")
-				GF:MarkPendingHeaderRefresh("ma")
-			else
-				GF:ApplyHeaderAttributes("mt")
-				GF:ApplyHeaderAttributes("ma")
-				GF:RefreshChangedUnitButtons()
-			end
 			GF:RefreshGroupIcons()
 			GF:RefreshStatusIcons()
 		elseif event == "PLAYER_ROLES_ASSIGNED" then
 			GF:RefreshRoleIcons()
 			GF:RefreshTargetHighlights()
+			GF:RefreshSplitRoleHeadersForViewerRoleChange()
 			GF:RefreshCustomSortNameList("raid")
 			GF:RefreshCustomSortNameList("party")
 			local cfg = getCfg("raid")
@@ -25873,6 +25835,7 @@ do
 			GF:RefreshGroupIndicators()
 		elseif event == "PLAYER_SPECIALIZATION_CHANGED" then
 			GF:RefreshPowerVisibility()
+			GF:RefreshSplitRoleHeadersForViewerRoleChange()
 			GF:RefreshCustomSortNameList("raid")
 			GF:RefreshCustomSortNameList("party")
 			local cfg = getCfg("raid")
