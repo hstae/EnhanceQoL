@@ -1710,22 +1710,12 @@ function Reminder:UnitHasAuraIcon(unit, iconId)
 end
 
 function Reminder:GetGroupBuffMissingCountBySpellIds(spellIds, includeAIFollowers)
-	if type(spellIds) ~= "table" then return 0, 0 end
-	local units = self:GetRosterUnits()
+	local cache = self:GetGroupBuffStateCache(spellIds, includeAIFollowers)
+	if not cache then return 0, 0 end
 
-	local total = 0
-	local missing = 0
-	for i = 1, #units do
-		local unit = units[i]
-		if isAIFollowerUnit(unit) and includeAIFollowers ~= true then
-			-- Skip AI followers for group-buff requirements.
-		elseif UnitExists(unit) and UnitIsConnected(unit) and not UnitIsDeadOrGhost(unit) then
-			total = total + 1
-			if not self:UnitHasAnyAuraSpellId(unit, spellIds) then missing = missing + 1 end
-		end
-	end
-
-	return missing, total
+	local state = self:GetGroupBuffState(cache)
+	if type(state) ~= "table" then return 0, 0 end
+	return tonumber(state.missing) or 0, tonumber(state.total) or 0
 end
 
 local function anyUnitHasAnyAuraSpellId(reminder, units, spellIds)
@@ -2488,6 +2478,7 @@ function Reminder:InvalidateProviderAvailabilityCache()
 	self.runtimeProviderValid = nil
 	self:InvalidateSelfProviderStatus()
 	self:InvalidateGroupMissingState()
+	self:InvalidateGroupBuffStateCaches()
 end
 
 function Reminder:GetGrowthDirection() return normalizeGrowthDirection(getValue(DB_GROWTH_DIRECTION, defaults.growthDirection)) end
@@ -2795,6 +2786,8 @@ end
 
 function Reminder:InvalidateGroupMissingState() self.groupMissingState = nil end
 
+function Reminder:InvalidateGroupBuffStateCaches() self.groupBuffStateCaches = nil end
+
 function Reminder:MarkAuraStatesDirty()
 	self:ClearPendingAuraUpdates()
 	self:InvalidatePlayerAuraPresenceSnapshot()
@@ -2804,6 +2797,7 @@ function Reminder:MarkAuraStatesDirty()
 		end
 	end
 	self:InvalidateGroupMissingState()
+	self:InvalidateGroupBuffStateCaches()
 end
 
 function Reminder:InvalidateAuraStates()
@@ -2811,6 +2805,7 @@ function Reminder:InvalidateAuraStates()
 	self:InvalidatePlayerAuraPresenceSnapshot()
 	self.unitAuraStates = {}
 	self:InvalidateGroupMissingState()
+	self:InvalidateGroupBuffStateCaches()
 end
 
 function Reminder:GetTrackableProviderAuraData(aura, provider)
@@ -3020,6 +3015,314 @@ function Reminder:GetGroupMissingState(provider)
 	local state = self.groupMissingState
 	if self:IsGroupMissingStateValid(provider, state) then return state end
 	return self:RebuildGroupMissingState(provider)
+end
+
+function Reminder:GetGroupBuffStateCache(spellIds, includeAIFollowers)
+	if type(spellIds) ~= "table" then return nil end
+
+	local meta = rawget(spellIds, "_eqolGroupBuffStateMeta")
+	if type(meta) ~= "table" then
+		meta = {
+			normalizedIds = {},
+			spellSet = {},
+			keyBase = "",
+		}
+		for i = 1, #spellIds do
+			local sid = normalizeSpellId(spellIds[i])
+			if sid and meta.spellSet[sid] ~= true then
+				meta.spellSet[sid] = true
+				meta.normalizedIds[#meta.normalizedIds + 1] = sid
+			end
+		end
+		if #meta.normalizedIds > 0 then
+			meta.keyBase = table.concat(meta.normalizedIds, ",")
+		end
+		spellIds._eqolGroupBuffStateMeta = meta
+	end
+
+	if #meta.normalizedIds <= 0 then return nil end
+
+	self.groupBuffStateCaches = self.groupBuffStateCaches or {}
+	local key = meta.keyBase .. "|ai:" .. (includeAIFollowers == true and "1" or "0")
+	local cache = self.groupBuffStateCaches[key]
+	if type(cache) ~= "table" then
+		cache = {
+			key = key,
+			spellIds = meta.normalizedIds,
+			spellSet = meta.spellSet,
+			includeAIFollowers = includeAIFollowers == true,
+			rosterVersion = nil,
+			total = 0,
+			missing = 0,
+			unitStatus = {},
+			unitStates = {},
+		}
+		self.groupBuffStateCaches[key] = cache
+	else
+		cache.includeAIFollowers = includeAIFollowers == true
+	end
+
+	return cache
+end
+
+function Reminder:GetGroupBuffUnitState(cache, unit)
+	if type(cache) ~= "table" or type(unit) ~= "string" or unit == "" then return nil end
+	cache.unitStates = cache.unitStates or {}
+	local state = cache.unitStates[unit]
+	if type(state) ~= "table" then
+		state = {
+			trackedByInstance = {},
+			trackedCount = 0,
+			hasBuff = false,
+			initialized = false,
+			unitIdentity = nil,
+		}
+		cache.unitStates[unit] = state
+	end
+	if type(state.trackedByInstance) ~= "table" then state.trackedByInstance = {} end
+	if type(state.trackedCount) ~= "number" then state.trackedCount = 0 end
+	return state
+end
+
+function Reminder:ClearGroupBuffUnitState(state)
+	if type(state) ~= "table" then return end
+	if type(state.trackedByInstance) == "table" then wipeTable(state.trackedByInstance) end
+	state.trackedCount = 0
+	state.hasBuff = false
+	state.initialized = false
+end
+
+function Reminder:ResetGroupBuffUnitState(state)
+	if type(state) ~= "table" then return end
+	self:ClearGroupBuffUnitState(state)
+	state.unitIdentity = nil
+end
+
+function Reminder:PrepareGroupBuffUnitState(cache, unit)
+	local state = self:GetGroupBuffUnitState(cache, unit)
+	if not state then return nil end
+
+	local unitIdentity = getUnitIdentity(unit)
+	if state.unitIdentity ~= unitIdentity then
+		self:ResetGroupBuffUnitState(state)
+		state.unitIdentity = unitIdentity
+	end
+
+	return state
+end
+
+function Reminder:GetTrackableGroupBuffAuraData(aura, cache)
+	if not aura or (issecretvalue and issecretvalue(aura)) then return nil end
+	if type(cache) ~= "table" or type(cache.spellSet) ~= "table" then return nil end
+
+	local isHelpful = aura.isHelpful
+	if issecretvalue and issecretvalue(isHelpful) then isHelpful = nil end
+	if isHelpful == false then return nil end
+
+	local auraId = normalizeAuraInstanceId(aura.auraInstanceID)
+	if not auraId then return nil end
+
+	local spellId = normalizeSpellId(aura.spellId)
+	if not spellId or cache.spellSet[spellId] ~= true then return nil end
+
+	return auraId, spellId
+end
+
+function Reminder:AddGroupBuffAuraToState(state, aura, cache)
+	if type(state) ~= "table" then return false end
+	local auraId, spellId = self:GetTrackableGroupBuffAuraData(aura, cache)
+	if not auraId then return false end
+
+	if state.trackedByInstance[auraId] == nil then
+		state.trackedByInstance[auraId] = spellId
+		state.trackedCount = (state.trackedCount or 0) + 1
+	else
+		state.trackedByInstance[auraId] = spellId
+	end
+	state.hasBuff = (state.trackedCount or 0) > 0
+	return true
+end
+
+function Reminder:RemoveGroupBuffAuraFromState(state, auraId)
+	if type(state) ~= "table" then return false end
+	auraId = normalizeAuraInstanceId(auraId)
+	if not auraId or state.trackedByInstance[auraId] == nil then return false end
+
+	state.trackedByInstance[auraId] = nil
+	state.trackedCount = (state.trackedCount or 0) - 1
+	if state.trackedCount < 0 then state.trackedCount = 0 end
+	state.hasBuff = state.trackedCount > 0
+	return true
+end
+
+function Reminder:FullRefreshGroupBuffUnitState(cache, unit)
+	local state = self:PrepareGroupBuffUnitState(cache, unit)
+	if not state then return nil end
+	self:ClearGroupBuffUnitState(state)
+
+	if isAIFollowerUnit(unit) then
+		state.initialized = true
+		return state
+	end
+	if not (unit and UnitExists and UnitExists(unit)) then
+		state.initialized = true
+		return state
+	end
+	if not (C_UnitAuras and C_UnitAuras.GetAuraSlots and C_UnitAuras.GetAuraDataBySlot) then
+		state.initialized = true
+		return state
+	end
+
+	local continuationToken
+	for _ = 1, AURA_SLOT_SCAN_GUARD do
+		local slots, slotCount, nextToken = getHelpfulAuraSlotBuffer(unit, continuationToken)
+		for i = 2, slotCount do
+			local slot = slots[i]
+			if not (issecretvalue and issecretvalue(slot)) then
+				local aura = C_UnitAuras.GetAuraDataBySlot(unit, slot)
+				if aura then self:AddGroupBuffAuraToState(state, aura, cache) end
+			end
+		end
+
+		if nextToken == nil then break end
+		continuationToken = nextToken
+	end
+
+	state.hasBuff = (state.trackedCount or 0) > 0
+	state.initialized = true
+	return state
+end
+
+function Reminder:ApplyDeltaToGroupBuffUnitState(cache, unit, updateInfo)
+	local state = self:PrepareGroupBuffUnitState(cache, unit)
+	if not state then return nil end
+
+	if isAIFollowerUnit(unit) then
+		self:ResetGroupBuffUnitState(state)
+		state.initialized = true
+		return state
+	end
+	if not UnitExists or not UnitExists(unit) then
+		self:ResetGroupBuffUnitState(state)
+		return state
+	end
+
+	if not updateInfo or (issecretvalue and issecretvalue(updateInfo)) then return self:FullRefreshGroupBuffUnitState(cache, unit) end
+	local isFullUpdate = updateInfo.isFullUpdate
+	if issecretvalue and issecretvalue(isFullUpdate) then isFullUpdate = true end
+	if isFullUpdate == true or state.initialized ~= true then return self:FullRefreshGroupBuffUnitState(cache, unit) end
+
+	local removed = updateInfo.removedAuraInstanceIDs
+	if type(removed) == "table" then
+		for i = 1, #removed do
+			self:RemoveGroupBuffAuraFromState(state, removed[i])
+		end
+	end
+
+	local added = updateInfo.addedAuras
+	if type(added) == "table" then
+		for i = 1, #added do
+			self:AddGroupBuffAuraToState(state, added[i], cache)
+		end
+	end
+
+	local updated = updateInfo.updatedAuraInstanceIDs
+	if type(updated) == "table" and C_UnitAuras and C_UnitAuras.GetAuraDataByAuraInstanceID then
+		for i = 1, #updated do
+			local auraId = normalizeAuraInstanceId(updated[i])
+			if auraId and state.trackedByInstance[auraId] ~= nil then
+				local aura = C_UnitAuras.GetAuraDataByAuraInstanceID(unit, auraId)
+				if aura then
+					local trackedAuraId = self:GetTrackableGroupBuffAuraData(aura, cache)
+					if trackedAuraId ~= auraId then self:RemoveGroupBuffAuraFromState(state, auraId) end
+				else
+					self:RemoveGroupBuffAuraFromState(state, auraId)
+				end
+			end
+		end
+	end
+
+	state.hasBuff = (state.trackedCount or 0) > 0
+	state.initialized = true
+	return state
+end
+
+function Reminder:IsGroupBuffStateCacheValid(cache)
+	if type(cache) ~= "table" then return false end
+	return cache.rosterVersion == (tonumber(self.rosterUnitsVersion) or 0)
+end
+
+function Reminder:GetGroupBuffUnitMissingStatus(cache, unit)
+	if type(cache) ~= "table" then return GROUP_UNIT_STATUS_INELIGIBLE end
+	if isAIFollowerUnit(unit) and cache.includeAIFollowers ~= true then return GROUP_UNIT_STATUS_INELIGIBLE end
+	if not (UnitExists and UnitExists(unit) and UnitIsConnected and UnitIsConnected(unit) and not UnitIsDeadOrGhost(unit)) then return GROUP_UNIT_STATUS_INELIGIBLE end
+
+	local state = self:PrepareGroupBuffUnitState(cache, unit)
+	if not state then return GROUP_UNIT_STATUS_INELIGIBLE end
+	if state.initialized ~= true then state = self:FullRefreshGroupBuffUnitState(cache, unit) end
+	if state and state.hasBuff == true then return GROUP_UNIT_STATUS_PRESENT end
+	return GROUP_UNIT_STATUS_MISSING
+end
+
+function Reminder:ApplyGroupBuffUnitMissingStatus(cache, unit, nextStatus)
+	if type(cache) ~= "table" or type(unit) ~= "string" or unit == "" then return end
+	cache.unitStatus = cache.unitStatus or {}
+	local previous = cache.unitStatus[unit]
+	if previous == nextStatus then return end
+
+	if previous == GROUP_UNIT_STATUS_PRESENT or previous == GROUP_UNIT_STATUS_MISSING then cache.total = math.max(0, (tonumber(cache.total) or 0) - 1) end
+	if previous == GROUP_UNIT_STATUS_MISSING then cache.missing = math.max(0, (tonumber(cache.missing) or 0) - 1) end
+
+	if nextStatus == GROUP_UNIT_STATUS_PRESENT or nextStatus == GROUP_UNIT_STATUS_MISSING then cache.total = (tonumber(cache.total) or 0) + 1 end
+	if nextStatus == GROUP_UNIT_STATUS_MISSING then cache.missing = (tonumber(cache.missing) or 0) + 1 end
+
+	cache.unitStatus[unit] = nextStatus
+end
+
+function Reminder:RebuildGroupBuffStateCache(cache)
+	if type(cache) ~= "table" then return nil end
+
+	cache.rosterVersion = tonumber(self.rosterUnitsVersion) or 0
+	cache.total = 0
+	cache.missing = 0
+	cache.unitStatus = cache.unitStatus or {}
+	wipeTable(cache.unitStatus)
+
+	local units = self:GetRosterUnits()
+	for i = 1, #units do
+		local unit = units[i]
+		self:ApplyGroupBuffUnitMissingStatus(cache, unit, self:GetGroupBuffUnitMissingStatus(cache, unit))
+	end
+
+	return cache
+end
+
+function Reminder:GetGroupBuffState(cache)
+	if self:IsGroupBuffStateCacheValid(cache) then return cache end
+	return self:RebuildGroupBuffStateCache(cache)
+end
+
+function Reminder:RefreshGroupBuffStateCacheUnit(cache, unit)
+	if type(cache) ~= "table" or type(unit) ~= "string" or unit == "" then return end
+	if self:IsGroupBuffStateCacheValid(cache) ~= true then return end
+	self:ApplyGroupBuffUnitMissingStatus(cache, unit, self:GetGroupBuffUnitMissingStatus(cache, unit))
+end
+
+function Reminder:ApplyDeltaToGroupBuffStateCaches(unit, updateInfo)
+	local caches = self.groupBuffStateCaches
+	if type(caches) ~= "table" or type(unit) ~= "string" or unit == "" then return end
+
+	local touchedUnits = self:CollectGroupStateUnitsForUnit(nil, unit)
+	if type(touchedUnits) ~= "table" then return end
+
+	for _, cache in pairs(caches) do
+		if type(cache) == "table" and self:IsGroupBuffStateCacheValid(cache) == true then
+			for rosterUnit in pairs(touchedUnits) do
+				self:ApplyDeltaToGroupBuffUnitState(cache, rosterUnit, updateInfo)
+				self:RefreshGroupBuffStateCacheUnit(cache, rosterUnit)
+			end
+		end
+	end
 end
 
 function Reminder:CollectGroupStateUnitsForUnit(target, unit)
@@ -3651,6 +3954,7 @@ function Reminder:InvalidateRosterCache()
 	self.rosterUnitsValid = nil
 	self.rosterUnitsVersion = (tonumber(self.rosterUnitsVersion) or 0) + 1
 	self:InvalidateGroupMissingState()
+	self:InvalidateGroupBuffStateCaches()
 end
 
 function Reminder:GetRosterUnits()
@@ -4176,7 +4480,9 @@ function Reminder:HandleEvent(event, unit, updateInfo)
 			return
 		end
 		if provider and provider.scope == PROVIDER_SCOPE_SELF then
+			if isPlayerUnit(unit) or provider.tracksExternalUnitAuras == true then self:ApplyDeltaToGroupBuffStateCaches(unit, updateInfo) end
 			if not isPlayerUnit(unit) and provider.tracksExternalUnitAuras == true then self:InvalidateSelfProviderStatus() end
+			if isPlayerUnit(unit) then self:InvalidateSelfProviderStatus() end
 			if isPlayerUnit(unit) or provider.tracksExternalUnitAuras == true then self:RequestUpdate(false) end
 			return
 		end
