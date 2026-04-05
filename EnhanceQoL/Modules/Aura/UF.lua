@@ -622,14 +622,27 @@ function UFProfileManager._ensureUFProfileEvents()
 	frame:RegisterEvent("ACTIVE_PLAYER_SPECIALIZATION_CHANGED")
 	frame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
 	frame:RegisterEvent("PLAYER_REGEN_ENABLED")
-	frame:SetScript("OnEvent", function(_, event)
+	if frame.RegisterUnitEvent then
+		frame:RegisterUnitEvent("PLAYER_SPECIALIZATION_CHANGED", "player")
+	else
+		frame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
+	end
+	frame:SetScript("OnEvent", function(_, event, unit)
 		if event == "PLAYER_REGEN_ENABLED" then
 			if UF._pendingProfileApply then UFProfileManager.ApplyCurrent("PLAYER_REGEN_ENABLED") end
 			return
 		end
+		if event == "PLAYER_SPECIALIZATION_CHANGED" and unit and unit ~= "player" then return end
 		local ok = UFProfileManager.Initialize()
 		if not ok then return end
-		if event == "PLAYER_LOGIN" or event == "ACTIVE_PLAYER_SPECIALIZATION_CHANGED" or event == "ACTIVE_TALENT_GROUP_CHANGED" then UFProfileManager.ApplySpecMapping(event) end
+		if
+			event == "PLAYER_LOGIN"
+			or event == "PLAYER_SPECIALIZATION_CHANGED"
+			or event == "ACTIVE_PLAYER_SPECIALIZATION_CHANGED"
+			or event == "ACTIVE_TALENT_GROUP_CHANGED"
+		then
+			UFProfileManager.ApplySpecMapping(event)
+		end
 	end)
 	UFProfileManager._eventFrame = frame
 end
@@ -9617,6 +9630,7 @@ onEvent = function(self, event, unit, ...)
 	then
 		return
 	end
+	if event == "PLAYER_SPECIALIZATION_CHANGED" and unit and unit ~= "player" then return end
 	if (unitEventsMap[event] or portraitEventsMap[event]) and unit and isBossUnit(unit) and not isBossFrameSettingEnabled() then return end
 	if event == "SPELL_RANGE_CHECK_UPDATE" then
 		local spellIdentifier = unit
@@ -9624,9 +9638,22 @@ onEvent = function(self, event, unit, ...)
 		if UFHelper and UFHelper.RangeFadeUpdateFromEvent then UFHelper.RangeFadeUpdateFromEvent(spellIdentifier, isInRange, checksRange) end
 		return
 	end
-	if event == "SPELLS_CHANGED" or event == "PLAYER_TALENT_UPDATE" or event == "ACTIVE_PLAYER_SPECIALIZATION_CHANGED" or event == "ACTIVE_TALENT_GROUP_CHANGED" or event == "TRAIT_CONFIG_UPDATED" then
+	if
+		event == "SPELLS_CHANGED"
+		or event == "PLAYER_SPECIALIZATION_CHANGED"
+		or event == "PLAYER_TALENT_UPDATE"
+		or event == "ACTIVE_PLAYER_SPECIALIZATION_CHANGED"
+		or event == "ACTIVE_TALENT_GROUP_CHANGED"
+		or event == "TRAIT_CONFIG_UPDATED"
+	then
 		refreshRangeFadeSpells(true)
-		if event == "PLAYER_TALENT_UPDATE" or event == "ACTIVE_PLAYER_SPECIALIZATION_CHANGED" or event == "ACTIVE_TALENT_GROUP_CHANGED" or event == "TRAIT_CONFIG_UPDATED" then
+		if
+			event == "PLAYER_SPECIALIZATION_CHANGED"
+			or event == "PLAYER_TALENT_UPDATE"
+			or event == "ACTIVE_PLAYER_SPECIALIZATION_CHANGED"
+			or event == "ACTIVE_TALENT_GROUP_CHANGED"
+			or event == "TRAIT_CONFIG_UPDATED"
+		then
 			reapplyPlayerFrameAfterSpecChange()
 			if After then After(0, reapplyPlayerFrameAfterSpecChange) end
 		end
@@ -10312,6 +10339,11 @@ local function ensureEventHandling()
 	if eventFrame.UnregisterAllEvents then eventFrame:UnregisterAllEvents() end
 	for _, evt in ipairs(generalEvents) do
 		eventFrame:RegisterEvent(evt)
+	end
+	if eventFrame.RegisterUnitEvent then
+		eventFrame:RegisterUnitEvent("PLAYER_SPECIALIZATION_CHANGED", "player")
+	else
+		eventFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
 	end
 	if ensureDB("boss").enabled then
 		eventFrame:RegisterEvent("INSTANCE_ENCOUNTER_ENGAGE_UNIT")

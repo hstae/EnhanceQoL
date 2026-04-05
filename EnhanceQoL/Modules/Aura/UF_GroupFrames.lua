@@ -1986,6 +1986,9 @@ local DEFAULTS = {
 			buff = {
 				anchorPoint = "BOTTOMRIGHT",
 				anchorOutside = false,
+				borderOffset = 0,
+				borderSize = nil,
+				borderTexture = "DEFAULT",
 				cooldownAnchor = "CENTER",
 				cooldownFont = "__EQOL_GLOBAL_FONT__",
 				cooldownFontOutline = "OUTLINE",
@@ -2023,6 +2026,9 @@ local DEFAULTS = {
 			debuff = {
 				anchorPoint = "TOPLEFT",
 				anchorOutside = false,
+				borderOffset = 0,
+				borderSize = nil,
+				borderTexture = "DEFAULT",
 				cooldownAnchor = "CENTER",
 				cooldownFont = "__EQOL_GLOBAL_FONT__",
 				cooldownFontOutline = "OUTLINE",
@@ -2061,6 +2067,9 @@ local DEFAULTS = {
 			externals = {
 				anchorPoint = "CENTER",
 				anchorOutside = false,
+				borderOffset = 0,
+				borderSize = nil,
+				borderTexture = "DEFAULT",
 				cooldownAnchor = "CENTER",
 				cooldownFont = "__EQOL_GLOBAL_FONT__",
 				cooldownFontOutline = "OUTLINE",
@@ -2756,6 +2765,9 @@ local DEFAULTS = {
 			buff = {
 				anchorPoint = "TOPLEFT",
 				anchorOutside = false,
+				borderOffset = 0,
+				borderSize = nil,
+				borderTexture = "DEFAULT",
 				cooldownAnchor = "CENTER",
 				cooldownFontOutline = "OUTLINE",
 				cooldownFontSize = 8,
@@ -2792,6 +2804,9 @@ local DEFAULTS = {
 			debuff = {
 				anchorPoint = "BOTTOMLEFT",
 				anchorOutside = false,
+				borderOffset = 0,
+				borderSize = nil,
+				borderTexture = "DEFAULT",
 				cooldownAnchor = "CENTER",
 				cooldownFontOutline = "OUTLINE",
 				cooldownFontSize = 8,
@@ -2828,6 +2843,9 @@ local DEFAULTS = {
 			externals = {
 				anchorPoint = "CENTER",
 				anchorOutside = false,
+				borderOffset = 0,
+				borderSize = nil,
+				borderTexture = "DEFAULT",
 				cooldownAnchor = "CENTER",
 				cooldownFontOutline = "OUTLINE",
 				cooldownFontSize = 12,
@@ -3496,6 +3514,9 @@ local DEFAULTS = {
 			buff = {
 				anchorPoint = "TOPLEFT",
 				anchorOutside = false,
+				borderOffset = 0,
+				borderSize = nil,
+				borderTexture = "DEFAULT",
 				cooldownAnchor = "CENTER",
 				cooldownFontOutline = "OUTLINE",
 				cooldownFontSize = 8,
@@ -3532,6 +3553,9 @@ local DEFAULTS = {
 			debuff = {
 				anchorPoint = "BOTTOMLEFT",
 				anchorOutside = false,
+				borderOffset = 0,
+				borderSize = nil,
+				borderTexture = "DEFAULT",
 				cooldownAnchor = "CENTER",
 				cooldownFontOutline = "OUTLINE",
 				cooldownFontSize = 8,
@@ -3568,6 +3592,9 @@ local DEFAULTS = {
 			externals = {
 				anchorPoint = "CENTER",
 				anchorOutside = false,
+				borderOffset = 0,
+				borderSize = nil,
+				borderTexture = "DEFAULT",
 				cooldownAnchor = "CENTER",
 				cooldownFontOutline = "OUTLINE",
 				cooldownFontSize = 12,
@@ -4110,6 +4137,9 @@ local DEFAULTS = {
 			buff = {
 				anchorPoint = "TOPLEFT",
 				anchorOutside = false,
+				borderOffset = 0,
+				borderSize = nil,
+				borderTexture = "DEFAULT",
 				cooldownAnchor = "CENTER",
 				cooldownFontOutline = "OUTLINE",
 				cooldownFontSize = 8,
@@ -4146,6 +4176,9 @@ local DEFAULTS = {
 			debuff = {
 				anchorPoint = "BOTTOMLEFT",
 				anchorOutside = false,
+				borderOffset = 0,
+				borderSize = nil,
+				borderTexture = "DEFAULT",
 				cooldownAnchor = "CENTER",
 				cooldownFontOutline = "OUTLINE",
 				cooldownFontSize = 8,
@@ -4182,6 +4215,9 @@ local DEFAULTS = {
 			externals = {
 				anchorPoint = "CENTER",
 				anchorOutside = false,
+				borderOffset = 0,
+				borderSize = nil,
+				borderTexture = "DEFAULT",
 				cooldownAnchor = "CENTER",
 				cooldownFontOutline = "OUTLINE",
 				cooldownFontSize = 12,
@@ -7875,6 +7911,9 @@ function GF:LayoutAuras(self)
 			style.tooltipAnchor = "ANCHOR_RIGHT"
 			style.showCooldown = typeCfg.showCooldown ~= false
 			style.blizzardDispelBorder = typeCfg.showDispelIcon == true
+			style.borderTexture = typeCfg.borderTexture
+			style.borderSize = GF.ScaleContentValue(self, typeCfg.borderSize, cfg, 1)
+			style.borderOffset = GF.ScaleContentValue(self, typeCfg.borderOffset, cfg, 0)
 			if typeCfg.showCooldownText ~= nil then style.showCooldownText = typeCfg.showCooldownText end
 			style.cooldownAnchor = typeCfg.cooldownAnchor
 			style.cooldownOffset = GF.ScaleOffset(typeCfg.cooldownOffset, contentScale)
@@ -13240,6 +13279,18 @@ function GF._copyUnitAuraIconsToGroup(sectionId, srcAuras, dest)
 			buff.showCooldownText = source.showCooldownText == true
 			copied = true
 		end
+		if source.borderTexture ~= nil then
+			buff.borderTexture = source.borderTexture
+			copied = true
+		end
+		if source.borderSize ~= nil then
+			buff.borderSize = source.borderSize
+			copied = true
+		end
+		if source.borderOffset ~= nil then
+			buff.borderOffset = source.borderOffset
+			copied = true
+		end
 		if source.countAnchor ~= nil then
 			buff.countAnchor = source.countAnchor
 			copied = true
@@ -13315,6 +13366,18 @@ function GF._copyUnitAuraIconsToGroup(sectionId, srcAuras, dest)
 		end
 		if source.showCooldownText ~= nil then
 			debuff.showCooldownText = source.showCooldownText == true
+			copied = true
+		end
+		if source.borderTexture ~= nil then
+			debuff.borderTexture = source.borderTexture
+			copied = true
+		end
+		if source.borderSize ~= nil then
+			debuff.borderSize = source.borderSize
+			copied = true
+		end
+		if source.borderOffset ~= nil then
+			debuff.borderOffset = source.borderOffset
 			copied = true
 		end
 		if source.blizzardDispelBorder ~= nil then
@@ -21264,6 +21327,99 @@ local function buildEditModeSettings(kind, editModeId)
 			parentId = "buffs",
 		},
 		{
+			name = L["Border texture"] or "Border texture",
+			kind = SettingType.Dropdown,
+			field = "buffBorderTexture",
+			parentId = "buffs",
+			height = 180,
+			get = function()
+				local cfg = getCfg(kind)
+				local ac = ensureAuraConfig(cfg)
+				local def = (DEFAULTS[kind] and DEFAULTS[kind].auras and DEFAULTS[kind].auras.buff) or {}
+				return ac.buff.borderTexture or def.borderTexture or "DEFAULT"
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				local ac = ensureAuraConfig(cfg)
+				ac.buff.borderTexture = value or "DEFAULT"
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "buffBorderTexture", ac.buff.borderTexture, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			generator = function(_, root)
+				for _, option in ipairs(borderOptions()) do
+					root:CreateRadio(option.label, function()
+						local cfg = getCfg(kind)
+						local ac = ensureAuraConfig(cfg)
+						local def = (DEFAULTS[kind] and DEFAULTS[kind].auras and DEFAULTS[kind].auras.buff) or {}
+						return (ac.buff.borderTexture or def.borderTexture or "DEFAULT") == option.value
+					end, function()
+						local cfg = getCfg(kind)
+						if not cfg then return end
+						local ac = ensureAuraConfig(cfg)
+						ac.buff.borderTexture = option.value
+						if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "buffBorderTexture", option.value, nil, true) end
+						GF:ApplyHeaderAttributes(kind)
+					end)
+				end
+			end,
+		},
+		{
+			name = L["Border size"] or "Border size",
+			kind = SettingType.Slider,
+			allowInput = true,
+			field = "buffBorderSize",
+			parentId = "buffs",
+			minValue = 1,
+			maxValue = 64,
+			valueStep = 1,
+			get = function()
+				local cfg = getCfg(kind)
+				local ac = ensureAuraConfig(cfg)
+				local def = (DEFAULTS[kind] and DEFAULTS[kind].auras and DEFAULTS[kind].auras.buff) or {}
+				return ac.buff.borderSize or def.borderSize or 2
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				local ac = ensureAuraConfig(cfg)
+				local def = (DEFAULTS[kind] and DEFAULTS[kind].auras and DEFAULTS[kind].auras.buff) or {}
+				ac.buff.borderSize = clampNumber(value, 1, 64, ac.buff.borderSize or def.borderSize or 2)
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "buffBorderSize", ac.buff.borderSize, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+		},
+		{
+			name = L["Border offset"] or "Border offset",
+			kind = SettingType.Slider,
+			allowInput = true,
+			field = "buffBorderOffset",
+			parentId = "buffs",
+			minValue = -64,
+			maxValue = 64,
+			valueStep = 1,
+			get = function()
+				local cfg = getCfg(kind)
+				local ac = ensureAuraConfig(cfg)
+				local def = (DEFAULTS[kind] and DEFAULTS[kind].auras and DEFAULTS[kind].auras.buff) or {}
+				return ac.buff.borderOffset or def.borderOffset or 0
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				local ac = ensureAuraConfig(cfg)
+				local def = (DEFAULTS[kind] and DEFAULTS[kind].auras and DEFAULTS[kind].auras.buff) or {}
+				ac.buff.borderOffset = clampNumber(value, -64, 64, ac.buff.borderOffset or def.borderOffset or 0)
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "buffBorderOffset", ac.buff.borderOffset, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+		},
+		{
+			name = "",
+			kind = SettingType.Divider,
+			parentId = "buffs",
+		},
+		{
 			name = L["Show cooldown text"] or "Show cooldown text",
 			kind = SettingType.Checkbox,
 			field = "buffCooldownTextEnabled",
@@ -21849,6 +22005,99 @@ local function buildEditModeSettings(kind, editModeId)
 				local ac = ensureAuraConfig(cfg)
 				ac.debuff.spacing = clampNumber(value, 0, 10, ac.debuff.spacing or 2)
 				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "debuffSpacing", ac.debuff.spacing, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+		},
+		{
+			name = "",
+			kind = SettingType.Divider,
+			parentId = "debuffs",
+		},
+		{
+			name = L["Border texture"] or "Border texture",
+			kind = SettingType.Dropdown,
+			field = "debuffBorderTexture",
+			parentId = "debuffs",
+			height = 180,
+			get = function()
+				local cfg = getCfg(kind)
+				local ac = ensureAuraConfig(cfg)
+				local def = (DEFAULTS[kind] and DEFAULTS[kind].auras and DEFAULTS[kind].auras.debuff) or {}
+				return ac.debuff.borderTexture or def.borderTexture or "DEFAULT"
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				local ac = ensureAuraConfig(cfg)
+				ac.debuff.borderTexture = value or "DEFAULT"
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "debuffBorderTexture", ac.debuff.borderTexture, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			generator = function(_, root)
+				for _, option in ipairs(borderOptions()) do
+					root:CreateRadio(option.label, function()
+						local cfg = getCfg(kind)
+						local ac = ensureAuraConfig(cfg)
+						local def = (DEFAULTS[kind] and DEFAULTS[kind].auras and DEFAULTS[kind].auras.debuff) or {}
+						return (ac.debuff.borderTexture or def.borderTexture or "DEFAULT") == option.value
+					end, function()
+						local cfg = getCfg(kind)
+						if not cfg then return end
+						local ac = ensureAuraConfig(cfg)
+						ac.debuff.borderTexture = option.value
+						if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "debuffBorderTexture", option.value, nil, true) end
+						GF:ApplyHeaderAttributes(kind)
+					end)
+				end
+			end,
+		},
+		{
+			name = L["Border size"] or "Border size",
+			kind = SettingType.Slider,
+			allowInput = true,
+			field = "debuffBorderSize",
+			parentId = "debuffs",
+			minValue = 1,
+			maxValue = 64,
+			valueStep = 1,
+			get = function()
+				local cfg = getCfg(kind)
+				local ac = ensureAuraConfig(cfg)
+				local def = (DEFAULTS[kind] and DEFAULTS[kind].auras and DEFAULTS[kind].auras.debuff) or {}
+				return ac.debuff.borderSize or def.borderSize or 2
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				local ac = ensureAuraConfig(cfg)
+				local def = (DEFAULTS[kind] and DEFAULTS[kind].auras and DEFAULTS[kind].auras.debuff) or {}
+				ac.debuff.borderSize = clampNumber(value, 1, 64, ac.debuff.borderSize or def.borderSize or 2)
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "debuffBorderSize", ac.debuff.borderSize, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+		},
+		{
+			name = L["Border offset"] or "Border offset",
+			kind = SettingType.Slider,
+			allowInput = true,
+			field = "debuffBorderOffset",
+			parentId = "debuffs",
+			minValue = -64,
+			maxValue = 64,
+			valueStep = 1,
+			get = function()
+				local cfg = getCfg(kind)
+				local ac = ensureAuraConfig(cfg)
+				local def = (DEFAULTS[kind] and DEFAULTS[kind].auras and DEFAULTS[kind].auras.debuff) or {}
+				return ac.debuff.borderOffset or def.borderOffset or 0
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				local ac = ensureAuraConfig(cfg)
+				local def = (DEFAULTS[kind] and DEFAULTS[kind].auras and DEFAULTS[kind].auras.debuff) or {}
+				ac.debuff.borderOffset = clampNumber(value, -64, 64, ac.debuff.borderOffset or def.borderOffset or 0)
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "debuffBorderOffset", ac.debuff.borderOffset, nil, true) end
 				GF:ApplyHeaderAttributes(kind)
 			end,
 		},
@@ -22463,6 +22712,99 @@ local function buildEditModeSettings(kind, editModeId)
 				local ac = ensureAuraConfig(cfg)
 				ac.externals.spacing = clampNumber(value, 0, 10, ac.externals.spacing or 2)
 				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "externalSpacing", ac.externals.spacing, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+		},
+		{
+			name = "",
+			kind = SettingType.Divider,
+			parentId = "externals",
+		},
+		{
+			name = L["Border texture"] or "Border texture",
+			kind = SettingType.Dropdown,
+			field = "externalBorderTexture",
+			parentId = "externals",
+			height = 180,
+			get = function()
+				local cfg = getCfg(kind)
+				local ac = ensureAuraConfig(cfg)
+				local def = (DEFAULTS[kind] and DEFAULTS[kind].auras and DEFAULTS[kind].auras.externals) or {}
+				return ac.externals.borderTexture or def.borderTexture or "DEFAULT"
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				local ac = ensureAuraConfig(cfg)
+				ac.externals.borderTexture = value or "DEFAULT"
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "externalBorderTexture", ac.externals.borderTexture, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			generator = function(_, root)
+				for _, option in ipairs(borderOptions()) do
+					root:CreateRadio(option.label, function()
+						local cfg = getCfg(kind)
+						local ac = ensureAuraConfig(cfg)
+						local def = (DEFAULTS[kind] and DEFAULTS[kind].auras and DEFAULTS[kind].auras.externals) or {}
+						return (ac.externals.borderTexture or def.borderTexture or "DEFAULT") == option.value
+					end, function()
+						local cfg = getCfg(kind)
+						if not cfg then return end
+						local ac = ensureAuraConfig(cfg)
+						ac.externals.borderTexture = option.value
+						if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "externalBorderTexture", option.value, nil, true) end
+						GF:ApplyHeaderAttributes(kind)
+					end)
+				end
+			end,
+		},
+		{
+			name = L["Border size"] or "Border size",
+			kind = SettingType.Slider,
+			allowInput = true,
+			field = "externalBorderSize",
+			parentId = "externals",
+			minValue = 1,
+			maxValue = 64,
+			valueStep = 1,
+			get = function()
+				local cfg = getCfg(kind)
+				local ac = ensureAuraConfig(cfg)
+				local def = (DEFAULTS[kind] and DEFAULTS[kind].auras and DEFAULTS[kind].auras.externals) or {}
+				return ac.externals.borderSize or def.borderSize or 2
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				local ac = ensureAuraConfig(cfg)
+				local def = (DEFAULTS[kind] and DEFAULTS[kind].auras and DEFAULTS[kind].auras.externals) or {}
+				ac.externals.borderSize = clampNumber(value, 1, 64, ac.externals.borderSize or def.borderSize or 2)
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "externalBorderSize", ac.externals.borderSize, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+		},
+		{
+			name = L["Border offset"] or "Border offset",
+			kind = SettingType.Slider,
+			allowInput = true,
+			field = "externalBorderOffset",
+			parentId = "externals",
+			minValue = -64,
+			maxValue = 64,
+			valueStep = 1,
+			get = function()
+				local cfg = getCfg(kind)
+				local ac = ensureAuraConfig(cfg)
+				local def = (DEFAULTS[kind] and DEFAULTS[kind].auras and DEFAULTS[kind].auras.externals) or {}
+				return ac.externals.borderOffset or def.borderOffset or 0
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				local ac = ensureAuraConfig(cfg)
+				local def = (DEFAULTS[kind] and DEFAULTS[kind].auras and DEFAULTS[kind].auras.externals) or {}
+				ac.externals.borderOffset = clampNumber(value, -64, 64, ac.externals.borderOffset or def.borderOffset or 0)
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "externalBorderOffset", ac.externals.borderOffset, nil, true) end
 				GF:ApplyHeaderAttributes(kind)
 			end,
 		},
@@ -25067,6 +25409,9 @@ local function applyEditModeData(kind, data)
 	if data.buffPerRow ~= nil then ac.buff.perRow = data.buffPerRow end
 	if data.buffMax ~= nil then ac.buff.max = GF.ClampAuraCount(data.buffMax, ac.buff.max or 6) or ac.buff.max or 6 end
 	if data.buffSpacing ~= nil then ac.buff.spacing = data.buffSpacing end
+	if data.buffBorderTexture ~= nil then ac.buff.borderTexture = data.buffBorderTexture end
+	if data.buffBorderSize ~= nil then ac.buff.borderSize = clampNumber(data.buffBorderSize, 1, 64, ac.buff.borderSize or 2) end
+	if data.buffBorderOffset ~= nil then ac.buff.borderOffset = clampNumber(data.buffBorderOffset, -64, 64, ac.buff.borderOffset or 0) end
 	if data.buffHelpfulFilterMode ~= nil then ac.buff.helpfulFilterMode = GF.NormalizeBuffHelpfulFilterMode(data.buffHelpfulFilterMode) end
 	if data.buffCooldownTextEnabled ~= nil then ac.buff.showCooldownText = data.buffCooldownTextEnabled and true or false end
 	if data.buffCooldownTextAnchor ~= nil then ac.buff.cooldownAnchor = data.buffCooldownTextAnchor end
@@ -25104,6 +25449,9 @@ local function applyEditModeData(kind, data)
 	if data.debuffPerRow ~= nil then ac.debuff.perRow = data.debuffPerRow end
 	if data.debuffMax ~= nil then ac.debuff.max = GF.ClampAuraCount(data.debuffMax, ac.debuff.max or 6) or ac.debuff.max or 6 end
 	if data.debuffSpacing ~= nil then ac.debuff.spacing = data.debuffSpacing end
+	if data.debuffBorderTexture ~= nil then ac.debuff.borderTexture = data.debuffBorderTexture end
+	if data.debuffBorderSize ~= nil then ac.debuff.borderSize = clampNumber(data.debuffBorderSize, 1, 64, ac.debuff.borderSize or 2) end
+	if data.debuffBorderOffset ~= nil then ac.debuff.borderOffset = clampNumber(data.debuffBorderOffset, -64, 64, ac.debuff.borderOffset or 0) end
 	if data.debuffShowDispelIcon ~= nil then ac.debuff.showDispelIcon = data.debuffShowDispelIcon and true or false end
 	if data.debuffCooldownTextEnabled ~= nil then ac.debuff.showCooldownText = data.debuffCooldownTextEnabled and true or false end
 	if data.debuffCooldownTextAnchor ~= nil then ac.debuff.cooldownAnchor = data.debuffCooldownTextAnchor end
@@ -25141,6 +25489,9 @@ local function applyEditModeData(kind, data)
 	if data.externalPerRow ~= nil then ac.externals.perRow = data.externalPerRow end
 	if data.externalMax ~= nil then ac.externals.max = GF.ClampAuraCount(data.externalMax, ac.externals.max or 4) or ac.externals.max or 4 end
 	if data.externalSpacing ~= nil then ac.externals.spacing = data.externalSpacing end
+	if data.externalBorderTexture ~= nil then ac.externals.borderTexture = data.externalBorderTexture end
+	if data.externalBorderSize ~= nil then ac.externals.borderSize = clampNumber(data.externalBorderSize, 1, 64, ac.externals.borderSize or 2) end
+	if data.externalBorderOffset ~= nil then ac.externals.borderOffset = clampNumber(data.externalBorderOffset, -64, 64, ac.externals.borderOffset or 0) end
 	if data.externalCooldownTextEnabled ~= nil then ac.externals.showCooldownText = data.externalCooldownTextEnabled and true or false end
 	if data.externalCooldownTextAnchor ~= nil then ac.externals.cooldownAnchor = data.externalCooldownTextAnchor end
 	if data.externalCooldownTextOffsetX ~= nil or data.externalCooldownTextOffsetY ~= nil then
@@ -25801,6 +26152,9 @@ function GF:EnsureEditMode()
 				buffPerRow = ac.buff.perRow or 6,
 				buffMax = GF.ClampAuraCount(ac.buff.max, 6) or 6,
 				buffSpacing = ac.buff.spacing or 2,
+				buffBorderTexture = ac.buff.borderTexture or defBuff.borderTexture or "DEFAULT",
+				buffBorderSize = ac.buff.borderSize or defBuff.borderSize or 2,
+				buffBorderOffset = ac.buff.borderOffset or defBuff.borderOffset or 0,
 				buffHelpfulFilterMode = GF.NormalizeBuffHelpfulFilterMode(ac.buff.helpfulFilterMode or defBuff.helpfulFilterMode),
 				buffCooldownTextEnabled = (ac.buff.showCooldownText ~= nil and ac.buff.showCooldownText ~= false) or (ac.buff.showCooldownText == nil and defBuff.showCooldownText ~= false),
 				buffCooldownTextAnchor = ac.buff.cooldownAnchor or defBuff.cooldownAnchor or "CENTER",
@@ -25826,6 +26180,9 @@ function GF:EnsureEditMode()
 				debuffPerRow = ac.debuff.perRow or 6,
 				debuffMax = GF.ClampAuraCount(ac.debuff.max, 6) or 6,
 				debuffSpacing = ac.debuff.spacing or 2,
+				debuffBorderTexture = ac.debuff.borderTexture or defDebuff.borderTexture or "DEFAULT",
+				debuffBorderSize = ac.debuff.borderSize or defDebuff.borderSize or 2,
+				debuffBorderOffset = ac.debuff.borderOffset or defDebuff.borderOffset or 0,
 				debuffShowDispelIcon = (ac.debuff.showDispelIcon ~= nil and ac.debuff.showDispelIcon ~= false) or (ac.debuff.showDispelIcon == nil and defDebuff.showDispelIcon ~= false),
 				debuffCooldownTextEnabled = (ac.debuff.showCooldownText ~= nil and ac.debuff.showCooldownText ~= false) or (ac.debuff.showCooldownText == nil and defDebuff.showCooldownText ~= false),
 				debuffCooldownTextAnchor = ac.debuff.cooldownAnchor or defDebuff.cooldownAnchor or "CENTER",
@@ -25851,6 +26208,9 @@ function GF:EnsureEditMode()
 				externalPerRow = ac.externals.perRow or 6,
 				externalMax = GF.ClampAuraCount(ac.externals.max, 4) or 4,
 				externalSpacing = ac.externals.spacing or 2,
+				externalBorderTexture = ac.externals.borderTexture or defExt.borderTexture or "DEFAULT",
+				externalBorderSize = ac.externals.borderSize or defExt.borderSize or 2,
+				externalBorderOffset = ac.externals.borderOffset or defExt.borderOffset or 0,
 				externalCooldownTextEnabled = (ac.externals.showCooldownText ~= nil and ac.externals.showCooldownText ~= false)
 					or (ac.externals.showCooldownText == nil and defExt.showCooldownText ~= false),
 				externalCooldownTextAnchor = ac.externals.cooldownAnchor or defExt.cooldownAnchor or "CENTER",
