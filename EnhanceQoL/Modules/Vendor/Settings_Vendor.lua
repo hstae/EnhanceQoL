@@ -447,7 +447,7 @@ local function buildSettings()
 			if not id then return end
 			addon.db.vendorIncludeSellList = addon.db.vendorIncludeSellList or {}
 			local label = addon.db.vendorIncludeSellList[id] or tostring(id)
-			showRemovePopup("EQOL_VENDOR_INCLUDE_REMOVE", L["vendorIncludeRemoveConfirm"], "vendorIncludeSellList", label, id)
+			showRemovePopup("EQOL_VENDOR_INCLUDE_REMOVE", L["Remove %s from the include list?"], "vendorIncludeSellList", label, id)
 			clearDropdownSelection("vendorIncludeRemove")
 		end,
 		parentSection = includeExcludeExpandable,

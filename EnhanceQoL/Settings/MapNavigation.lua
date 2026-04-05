@@ -46,22 +46,22 @@ local squareMinimapBorderTextureOrder = {}
 local squareMinimapBorderTextureCacheVersion = -1
 local squareMinimapStatsOutlineOrder = { "NONE", "OUTLINE", "THICKOUTLINE", "MONOCHROMEOUTLINE" }
 local squareMinimapStatsOutlineOptions = {
-	NONE = L["fontOutlineNone"] or NONE,
-	OUTLINE = L["fontOutlineThin"] or "Outline",
-	THICKOUTLINE = L["fontOutlineThick"] or "Thick Outline",
-	MONOCHROMEOUTLINE = L["fontOutlineMono"] or "Monochrome Outline",
+	NONE = NONE,
+	OUTLINE = L["Outline"] or "Outline",
+	THICKOUTLINE = L["Thick Outline"] or "Thick Outline",
+	MONOCHROMEOUTLINE = L["Monochrome Outline"] or "Monochrome Outline",
 }
 local squareMinimapStatsAnchorOrder = { "TOPLEFT", "TOP", "TOPRIGHT", "LEFT", "CENTER", "RIGHT", "BOTTOMLEFT", "BOTTOM", "BOTTOMRIGHT" }
 local squareMinimapStatsAnchorOptions = {
-	TOPLEFT = L["squareMinimapStatsAnchorTopLeft"] or "Top Left",
-	TOP = L["squareMinimapStatsAnchorTop"] or "Top",
-	TOPRIGHT = L["squareMinimapStatsAnchorTopRight"] or "Top Right",
-	LEFT = L["squareMinimapStatsAnchorLeft"] or "Left",
-	CENTER = L["squareMinimapStatsAnchorCenter"] or "Center",
-	RIGHT = L["squareMinimapStatsAnchorRight"] or "Right",
-	BOTTOMLEFT = L["squareMinimapStatsAnchorBottomLeft"] or "Bottom Left",
-	BOTTOM = L["squareMinimapStatsAnchorBottom"] or "Bottom",
-	BOTTOMRIGHT = L["squareMinimapStatsAnchorBottomRight"] or "Bottom Right",
+	TOPLEFT = L["Top Left"] or "Top Left",
+	TOP = L["Top"] or "Top",
+	TOPRIGHT = L["Top Right"] or "Top Right",
+	LEFT = L["Left"] or "Left",
+	CENTER = L["Center"] or "Center",
+	RIGHT = L["Right"] or "Right",
+	BOTTOMLEFT = L["Bottom Left"] or "Bottom Left",
+	BOTTOM = L["Bottom"] or "Bottom",
+	BOTTOMRIGHT = L["Bottom Right"] or "Bottom Right",
 }
 local squareMinimapStatsTimeLeftClickActionOrder = { "calendar", "clock" }
 local squareMinimapStatsTimeLeftClickActionOptions = {
@@ -519,7 +519,7 @@ data = {
 			},
 			{
 				var = "squareMinimapStatsTime",
-				text = L["squareMinimapStatsTime"] or "Time",
+				text = L["Time"] or "Time",
 				func = function(key)
 					addon.db["squareMinimapStatsTime"] = key and true or false
 					applySquareMinimapStatsNow(true)
@@ -533,11 +533,11 @@ data = {
 				children = {
 					{
 						var = "squareMinimapStatsTimeDisplayMode",
-						text = L["squareMinimapStatsTimeDisplayMode"] or "Display mode",
+						text = DISPLAY_MODE,
 						list = {
-							server = L["squareMinimapStatsTimeDisplayModeServer"] or "Server time",
-							localTime = L["squareMinimapStatsTimeDisplayModeLocal"] or "Local time",
-							both = L["squareMinimapStatsTimeDisplayModeBoth"] or "Server + Local",
+							server = L["Server time"] or "Server time",
+							localTime = L["Local time"] or "Local time",
+							both = L["Server + Local"] or "Server + Local",
 						},
 						get = function() return addon.db and addon.db.squareMinimapStatsTimeDisplayMode or "server" end,
 						set = function(value, maybeValue)
@@ -567,7 +567,7 @@ data = {
 					},
 					{
 						var = "squareMinimapStatsTimeShowSeconds",
-						text = L["squareMinimapStatsTimeShowSeconds"] or "Show seconds",
+						text = L["Show seconds"] or "Show seconds",
 						func = function(value)
 							addon.db["squareMinimapStatsTimeShowSeconds"] = value and true or false
 							applySquareMinimapStatsNow(true)
@@ -581,7 +581,7 @@ data = {
 					},
 					{
 						var = "squareMinimapStatsTimeLeftClickAction",
-						text = L["Time left-click action"] or "Left-click action",
+						text = L["Left-click action"] or "Left-click action",
 						list = squareMinimapStatsTimeLeftClickActionOptions,
 						order = squareMinimapStatsTimeLeftClickActionOrder,
 						get = function() return normalizeSquareMinimapTimeLeftClickAction(addon.db and addon.db.squareMinimapStatsTimeLeftClickAction, nil) end,
@@ -598,7 +598,7 @@ data = {
 					},
 					{
 						var = "squareMinimapStatsTimeAnchor",
-						text = L["squareMinimapStatsAnchor"] or "Anchor",
+						text = L["Anchor"] or "Anchor",
 						list = squareMinimapStatsAnchorOptions,
 						order = squareMinimapStatsAnchorOrder,
 						get = function() return addon.db and addon.db.squareMinimapStatsTimeAnchor or "BOTTOMLEFT" end,
@@ -614,7 +614,7 @@ data = {
 					},
 					{
 						var = "squareMinimapStatsTimeOffsetX",
-						text = L["squareMinimapStatsOffsetX"] or "Horizontal offset",
+						text = L["Horizontal offset"] or "Horizontal offset",
 						get = function() return addon.db and addon.db.squareMinimapStatsTimeOffsetX or 3 end,
 						set = function(value)
 							addon.db["squareMinimapStatsTimeOffsetX"] = value
@@ -631,7 +631,7 @@ data = {
 					},
 					{
 						var = "squareMinimapStatsTimeOffsetY",
-						text = L["squareMinimapStatsOffsetY"] or "Vertical offset",
+						text = L["Vertical offset"] or "Vertical offset",
 						get = function() return addon.db and addon.db.squareMinimapStatsTimeOffsetY or 17 end,
 						set = function(value)
 							addon.db["squareMinimapStatsTimeOffsetY"] = value
@@ -648,7 +648,7 @@ data = {
 					},
 					{
 						var = "squareMinimapStatsTimeFontSize",
-						text = L["squareMinimapStatsFontSize"] or "Font size",
+						text = FONT_SIZE,
 						get = function() return addon.db and addon.db.squareMinimapStatsTimeFontSize or 18 end,
 						set = function(value)
 							addon.db["squareMinimapStatsTimeFontSize"] = value
@@ -665,7 +665,7 @@ data = {
 					},
 					{
 						var = "squareMinimapStatsTimeUseClassColor",
-						text = L["squareMinimapStatsUseClassColor"] or "Use class color",
+						text = L["Use class color"] or "Use class color",
 						func = function(value)
 							addon.db["squareMinimapStatsTimeUseClassColor"] = value and true or false
 							applySquareMinimapStatsNow(true)
@@ -679,7 +679,7 @@ data = {
 					},
 					{
 						var = "squareMinimapStatsTimeColor",
-						text = L["squareMinimapStatsColor"] or "Text color",
+						text = L["Text color"] or "Text color",
 						parent = true,
 						default = false,
 						sType = "colorpicker",
@@ -789,7 +789,7 @@ data = {
 					},
 					{
 						var = "squareMinimapStatsFPSColorHigh",
-						text = L["squareMinimapStatsColorHigh"] or "High color",
+						text = L["High color"] or "High color",
 						parent = true,
 						default = false,
 						sType = "colorpicker",
@@ -799,7 +799,7 @@ data = {
 					},
 					{
 						var = "squareMinimapStatsFPSAnchor",
-						text = L["squareMinimapStatsAnchor"] or "Anchor",
+						text = L["Anchor"] or "Anchor",
 						list = squareMinimapStatsAnchorOptions,
 						order = squareMinimapStatsAnchorOrder,
 						get = function() return addon.db and addon.db.squareMinimapStatsFPSAnchor or "BOTTOMLEFT" end,
@@ -815,7 +815,7 @@ data = {
 					},
 					{
 						var = "squareMinimapStatsFPSOffsetX",
-						text = L["squareMinimapStatsOffsetX"] or "Horizontal offset",
+						text = L["Horizontal offset"] or "Horizontal offset",
 						get = function() return addon.db and addon.db.squareMinimapStatsFPSOffsetX or 3 end,
 						set = function(value)
 							addon.db["squareMinimapStatsFPSOffsetX"] = value
@@ -832,7 +832,7 @@ data = {
 					},
 					{
 						var = "squareMinimapStatsFPSOffsetY",
-						text = L["squareMinimapStatsOffsetY"] or "Vertical offset",
+						text = L["Vertical offset"] or "Vertical offset",
 						get = function() return addon.db and addon.db.squareMinimapStatsFPSOffsetY or 3 end,
 						set = function(value)
 							addon.db["squareMinimapStatsFPSOffsetY"] = value
@@ -849,7 +849,7 @@ data = {
 					},
 					{
 						var = "squareMinimapStatsFPSFontSize",
-						text = L["squareMinimapStatsFontSize"] or "Font size",
+						text = FONT_SIZE,
 						get = function() return addon.db and addon.db.squareMinimapStatsFPSFontSize or 12 end,
 						set = function(value)
 							addon.db["squareMinimapStatsFPSFontSize"] = value
@@ -866,7 +866,7 @@ data = {
 					},
 					{
 						var = "squareMinimapStatsFPSUseClassColor",
-						text = L["squareMinimapStatsUseClassColor"] or "Use class color",
+						text = L["Use class color"] or "Use class color",
 						func = function(value)
 							addon.db["squareMinimapStatsFPSUseClassColor"] = value and true or false
 							applySquareMinimapStatsNow(true)
@@ -880,7 +880,7 @@ data = {
 					},
 					{
 						var = "squareMinimapStatsFPSColor",
-						text = L["squareMinimapStatsColor"] or "Text color",
+						text = L["Text color"] or "Text color",
 						parent = true,
 						default = false,
 						sType = "colorpicker",
@@ -897,7 +897,7 @@ data = {
 			},
 			{
 				var = "squareMinimapStatsLatency",
-				text = L["squareMinimapStatsLatency"] or "Latency",
+				text = L["Latency"] or "Latency",
 				func = function(key)
 					addon.db["squareMinimapStatsLatency"] = key and true or false
 					applySquareMinimapStatsNow(true)
@@ -913,11 +913,11 @@ data = {
 						var = "squareMinimapStatsLatencyMode",
 						text = L["squareMinimapStatsLatencyMode"] or "Display mode",
 						list = {
-							max = L["squareMinimapStatsLatencyModeMax"] or "Max(home, world)",
+							max = L["Max(home, world)"] or "Max(home, world)",
 							home = L["squareMinimapStatsLatencyModeHome"] or "Home",
-							world = L["squareMinimapStatsLatencyModeWorld"] or "World",
-							split = L["squareMinimapStatsLatencyModeSplit"] or "Home + World",
-							split_vertical = L["squareMinimapStatsLatencyModeSplitVertical"] or "Home + World (vertical)",
+							world = L["World"] or "World",
+							split = L["Home + World"] or "Home + World",
+							split_vertical = L["Home + World (vertical)"] or "Home + World (vertical)",
 						},
 						get = function() return addon.db and addon.db.squareMinimapStatsLatencyMode or "max" end,
 						set = function(value, maybeValue)
@@ -950,7 +950,7 @@ data = {
 					},
 					{
 						var = "squareMinimapStatsLatencyThresholdLow",
-						text = L["squareMinimapStatsLatencyThresholdLow"] or "Low threshold (ms)",
+						text = L["Low threshold (ms)"] or "Low threshold (ms)",
 						get = function() return addon.db and addon.db.squareMinimapStatsLatencyThresholdLow or 50 end,
 						set = function(value)
 							local low = math.floor((tonumber(value) or 50) + 0.5)
@@ -1012,7 +1012,7 @@ data = {
 					},
 					{
 						var = "squareMinimapStatsLatencyColorHigh",
-						text = L["squareMinimapStatsColorHigh"] or "High color",
+						text = L["High color"] or "High color",
 						parent = true,
 						default = false,
 						sType = "colorpicker",
@@ -1022,7 +1022,7 @@ data = {
 					},
 					{
 						var = "squareMinimapStatsLatencyAnchor",
-						text = L["squareMinimapStatsAnchor"] or "Anchor",
+						text = L["Anchor"] or "Anchor",
 						list = squareMinimapStatsAnchorOptions,
 						order = squareMinimapStatsAnchorOrder,
 						get = function() return addon.db and addon.db.squareMinimapStatsLatencyAnchor or "BOTTOMRIGHT" end,
@@ -1038,7 +1038,7 @@ data = {
 					},
 					{
 						var = "squareMinimapStatsLatencyOffsetX",
-						text = L["squareMinimapStatsOffsetX"] or "Horizontal offset",
+						text = L["Horizontal offset"] or "Horizontal offset",
 						get = function() return addon.db and addon.db.squareMinimapStatsLatencyOffsetX or -3 end,
 						set = function(value)
 							addon.db["squareMinimapStatsLatencyOffsetX"] = value
@@ -1055,7 +1055,7 @@ data = {
 					},
 					{
 						var = "squareMinimapStatsLatencyOffsetY",
-						text = L["squareMinimapStatsOffsetY"] or "Vertical offset",
+						text = L["Vertical offset"] or "Vertical offset",
 						get = function() return addon.db and addon.db.squareMinimapStatsLatencyOffsetY or 3 end,
 						set = function(value)
 							addon.db["squareMinimapStatsLatencyOffsetY"] = value
@@ -1072,7 +1072,7 @@ data = {
 					},
 					{
 						var = "squareMinimapStatsLatencyFontSize",
-						text = L["squareMinimapStatsFontSize"] or "Font size",
+						text = FONT_SIZE,
 						get = function() return addon.db and addon.db.squareMinimapStatsLatencyFontSize or 12 end,
 						set = function(value)
 							addon.db["squareMinimapStatsLatencyFontSize"] = value
@@ -1089,7 +1089,7 @@ data = {
 					},
 					{
 						var = "squareMinimapStatsLatencyUseClassColor",
-						text = L["squareMinimapStatsUseClassColor"] or "Use class color",
+						text = L["Use class color"] or "Use class color",
 						func = function(value)
 							addon.db["squareMinimapStatsLatencyUseClassColor"] = value and true or false
 							applySquareMinimapStatsNow(true)
@@ -1103,7 +1103,7 @@ data = {
 					},
 					{
 						var = "squareMinimapStatsLatencyColor",
-						text = L["squareMinimapStatsColor"] or "Text color",
+						text = L["Text color"] or "Text color",
 						parent = true,
 						default = false,
 						sType = "colorpicker",
@@ -1120,7 +1120,7 @@ data = {
 			},
 			{
 				var = "squareMinimapStatsLocation",
-				text = L["squareMinimapStatsLocation"] or "Location",
+				text = L["Location"] or "Location",
 				func = function(key)
 					addon.db["squareMinimapStatsLocation"] = key and true or false
 					applySquareMinimapStatsNow(true)
@@ -1148,7 +1148,7 @@ data = {
 					},
 					{
 						var = "squareMinimapStatsLocationShowSubzone",
-						text = L["squareMinimapStatsLocationShowSubzone"] or "Show subzone",
+						text = L["Show subzone"] or "Show subzone",
 						func = function(value)
 							addon.db["squareMinimapStatsLocationShowSubzone"] = value and true or false
 							applySquareMinimapStatsNow(true)
@@ -1181,7 +1181,7 @@ data = {
 					},
 					{
 						var = "squareMinimapStatsLocationUseZoneColor",
-						text = L["squareMinimapStatsLocationUseZoneColor"] or "Use zone color",
+						text = L["Use zone color"] or "Use zone color",
 						func = function(value)
 							addon.db["squareMinimapStatsLocationUseZoneColor"] = value and true or false
 							if value then addon.db["squareMinimapStatsLocationUseClassColor"] = false end
@@ -1196,7 +1196,7 @@ data = {
 					},
 					{
 						var = "squareMinimapStatsLocationAnchor",
-						text = L["squareMinimapStatsAnchor"] or "Anchor",
+						text = L["Anchor"] or "Anchor",
 						list = squareMinimapStatsAnchorOptions,
 						order = squareMinimapStatsAnchorOrder,
 						get = function() return addon.db and addon.db.squareMinimapStatsLocationAnchor or "TOP" end,
@@ -1212,7 +1212,7 @@ data = {
 					},
 					{
 						var = "squareMinimapStatsLocationOffsetX",
-						text = L["squareMinimapStatsOffsetX"] or "Horizontal offset",
+						text = L["Horizontal offset"] or "Horizontal offset",
 						get = function() return addon.db and addon.db.squareMinimapStatsLocationOffsetX or 0 end,
 						set = function(value)
 							addon.db["squareMinimapStatsLocationOffsetX"] = value
@@ -1229,7 +1229,7 @@ data = {
 					},
 					{
 						var = "squareMinimapStatsLocationOffsetY",
-						text = L["squareMinimapStatsOffsetY"] or "Vertical offset",
+						text = L["Vertical offset"] or "Vertical offset",
 						get = function() return addon.db and addon.db.squareMinimapStatsLocationOffsetY or -3 end,
 						set = function(value)
 							addon.db["squareMinimapStatsLocationOffsetY"] = value
@@ -1246,7 +1246,7 @@ data = {
 					},
 					{
 						var = "squareMinimapStatsLocationFontSize",
-						text = L["squareMinimapStatsFontSize"] or "Font size",
+						text = FONT_SIZE,
 						get = function() return addon.db and addon.db.squareMinimapStatsLocationFontSize or 12 end,
 						set = function(value)
 							addon.db["squareMinimapStatsLocationFontSize"] = value
@@ -1263,7 +1263,7 @@ data = {
 					},
 					{
 						var = "squareMinimapStatsLocationUseClassColor",
-						text = L["squareMinimapStatsUseClassColor"] or "Use class color",
+						text = L["Use class color"] or "Use class color",
 						func = function(value)
 							addon.db["squareMinimapStatsLocationUseClassColor"] = value and true or false
 							if value then addon.db["squareMinimapStatsLocationUseZoneColor"] = false end
@@ -1278,7 +1278,7 @@ data = {
 					},
 					{
 						var = "squareMinimapStatsLocationColor",
-						text = L["squareMinimapStatsColor"] or "Text color",
+						text = L["Text color"] or "Text color",
 						parent = true,
 						default = false,
 						sType = "colorpicker",
@@ -1300,7 +1300,7 @@ data = {
 			},
 			{
 				var = "squareMinimapStatsCoordinates",
-				text = L["squareMinimapStatsCoordinates"] or "Coordinates",
+				text = L["Coordinates"] or "Coordinates",
 				func = function(key)
 					addon.db["squareMinimapStatsCoordinates"] = key and true or false
 					applySquareMinimapStatsNow(true)
@@ -1362,7 +1362,7 @@ data = {
 					},
 					{
 						var = "squareMinimapStatsCoordinatesAnchor",
-						text = L["squareMinimapStatsAnchor"] or "Anchor",
+						text = L["Anchor"] or "Anchor",
 						list = squareMinimapStatsAnchorOptions,
 						order = squareMinimapStatsAnchorOrder,
 						get = function() return addon.db and addon.db.squareMinimapStatsCoordinatesAnchor or "TOP" end,
@@ -1378,7 +1378,7 @@ data = {
 					},
 					{
 						var = "squareMinimapStatsCoordinatesOffsetX",
-						text = L["squareMinimapStatsOffsetX"] or "Horizontal offset",
+						text = L["Horizontal offset"] or "Horizontal offset",
 						get = function() return addon.db and addon.db.squareMinimapStatsCoordinatesOffsetX or 0 end,
 						set = function(value)
 							addon.db["squareMinimapStatsCoordinatesOffsetX"] = value
@@ -1395,7 +1395,7 @@ data = {
 					},
 					{
 						var = "squareMinimapStatsCoordinatesOffsetY",
-						text = L["squareMinimapStatsOffsetY"] or "Vertical offset",
+						text = L["Vertical offset"] or "Vertical offset",
 						get = function() return addon.db and addon.db.squareMinimapStatsCoordinatesOffsetY or -17 end,
 						set = function(value)
 							addon.db["squareMinimapStatsCoordinatesOffsetY"] = value
@@ -1412,7 +1412,7 @@ data = {
 					},
 					{
 						var = "squareMinimapStatsCoordinatesFontSize",
-						text = L["squareMinimapStatsFontSize"] or "Font size",
+						text = FONT_SIZE,
 						get = function() return addon.db and addon.db.squareMinimapStatsCoordinatesFontSize or 12 end,
 						set = function(value)
 							addon.db["squareMinimapStatsCoordinatesFontSize"] = value
@@ -1429,7 +1429,7 @@ data = {
 					},
 					{
 						var = "squareMinimapStatsCoordinatesUseClassColor",
-						text = L["squareMinimapStatsUseClassColor"] or "Use class color",
+						text = L["Use class color"] or "Use class color",
 						func = function(value)
 							addon.db["squareMinimapStatsCoordinatesUseClassColor"] = value and true or false
 							applySquareMinimapStatsNow(true)
@@ -1443,7 +1443,7 @@ data = {
 					},
 					{
 						var = "squareMinimapStatsCoordinatesColor",
-						text = L["squareMinimapStatsColor"] or "Text color",
+						text = L["Text color"] or "Text color",
 						parent = true,
 						default = false,
 						sType = "colorpicker",
@@ -1479,7 +1479,7 @@ data = {
 				children = {
 					{
 						var = "squareMinimapStatsTrackingButtonAnchor",
-						text = L["squareMinimapStatsAnchor"] or "Anchor",
+						text = L["Anchor"] or "Anchor",
 						list = squareMinimapStatsAnchorOptions,
 						order = squareMinimapStatsAnchorOrder,
 						get = function() return addon.db and addon.db.squareMinimapStatsTrackingButtonAnchor or "TOPLEFT" end,
@@ -1495,7 +1495,7 @@ data = {
 					},
 					{
 						var = "squareMinimapStatsTrackingButtonOffsetX",
-						text = L["squareMinimapStatsOffsetX"] or "Horizontal offset",
+						text = L["Horizontal offset"] or "Horizontal offset",
 						get = function() return addon.db and addon.db.squareMinimapStatsTrackingButtonOffsetX or 3 end,
 						set = function(value)
 							addon.db["squareMinimapStatsTrackingButtonOffsetX"] = value
@@ -1512,7 +1512,7 @@ data = {
 					},
 					{
 						var = "squareMinimapStatsTrackingButtonOffsetY",
-						text = L["squareMinimapStatsOffsetY"] or "Vertical offset",
+						text = L["Vertical offset"] or "Vertical offset",
 						get = function() return addon.db and addon.db.squareMinimapStatsTrackingButtonOffsetY or -3 end,
 						set = function(value)
 							addon.db["squareMinimapStatsTrackingButtonOffsetY"] = value
@@ -1636,7 +1636,7 @@ data = {
 	},
 	{
 		var = "hideMinimapButton",
-		text = L["hideMinimapButton"],
+		text = L["Hide Minimap Button"],
 		func = function(v)
 			addon.db["hideMinimapButton"] = v
 			addon.functions.toggleMinimapButton(addon.db["hideMinimapButton"])
@@ -1657,7 +1657,7 @@ addon.functions.SettingsCreateMultiDropdown(cMapNav, {
 		{ value = "Tracking", text = L["minimapHideElements_Tracking"] },
 		{ value = "ZoneInfo", text = L["minimapHideElements_ZoneInfo"] },
 		{ value = "Clock", text = L["minimapHideElements_Clock"] },
-		{ value = "Calendar", text = L["minimapHideElements_Calendar"] },
+		{ value = "Calendar", text = L["Calendar"] },
 		{ value = "Mail", text = L["minimapHideElements_Mail"] },
 		{ value = "AddonCompartment", text = L["minimapHideElements_AddonCompartment"] },
 	},
@@ -1802,7 +1802,7 @@ data = {
 			},
 			{
 				var = "instanceDifficultyOffsetX",
-				text = L["instanceDifficultyOffsetX"],
+				text = L["Horizontal offset"],
 				parentCheck = function()
 					return addon.SettingsLayout.elements["showInstanceDifficulty"]
 						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting
@@ -1823,7 +1823,7 @@ data = {
 			},
 			{
 				var = "instanceDifficultyOffsetY",
-				text = L["instanceDifficultyOffsetY"],
+				text = L["Vertical offset"],
 				parentCheck = function()
 					return addon.SettingsLayout.elements["showInstanceDifficulty"]
 						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting
@@ -2112,15 +2112,15 @@ data = {
 				text = L["minimapButtonBinAnchor"],
 				desc = L["minimapButtonBinAnchorDesc"],
 				list = {
-					AUTO = L["minimapButtonBinAnchor_Auto"],
-					TOP = L["minimapButtonBinAnchor_Top"],
-					TOPLEFT = L["minimapButtonBinAnchor_TopLeft"],
-					TOPRIGHT = L["minimapButtonBinAnchor_TopRight"],
-					LEFT = L["minimapButtonBinAnchor_Left"],
-					RIGHT = L["minimapButtonBinAnchor_Right"],
-					BOTTOMLEFT = L["minimapButtonBinAnchor_BottomLeft"],
-					BOTTOMRIGHT = L["minimapButtonBinAnchor_BottomRight"],
-					BOTTOM = L["minimapButtonBinAnchor_Bottom"],
+					AUTO = L["Auto"],
+					TOP = L["Top"],
+					TOPLEFT = L["Top left"],
+					TOPRIGHT = L["Top right"],
+					LEFT = L["Left"],
+					RIGHT = L["Right"],
+					BOTTOMLEFT = L["Bottom left"],
+					BOTTOMRIGHT = L["Bottom right"],
+					BOTTOM = L["Bottom"],
 				},
 				order = {
 					"AUTO",
@@ -2207,7 +2207,7 @@ data = {
 			},
 			{
 				var = "minimapButtonBinHideBorder",
-				text = L["minimapButtonBinHideBorder"],
+				text = L["Hide border"],
 				desc = L["minimapButtonBinHideBorderDesc"],
 				func = function(key)
 					addon.db["minimapButtonBinHideBorder"] = key
@@ -2299,7 +2299,7 @@ end
 
 addon.functions.SettingsCreateMultiDropdown(cMapNav, {
 	var = "ignoreMinimapSinkHole",
-	text = L["minimapButtonBinIgnore"] or IGNORE,
+	text = L["Exclude"] or IGNORE,
 	parent = true,
 	element = addon.SettingsLayout.elements["enableMinimapButtonBin"] and addon.SettingsLayout.elements["enableMinimapButtonBin"].element,
 	parentCheck = isMinimapButtonBinEnabled,

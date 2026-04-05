@@ -123,7 +123,7 @@ local function createAceWindow()
 	frame:AddChild(textColor)
 
 	local showIcon = AceGUI:Create("CheckBox")
-	showIcon:SetLabel(L["petTrackerShowIcon"] or "Show icon")
+	showIcon:SetLabel(L["Show icon"] or "Show icon")
 	showIcon:SetValue(db.showIcon and true or false)
 	frame:AddChild(showIcon)
 

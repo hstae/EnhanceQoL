@@ -710,7 +710,7 @@ local function ensureEditModeRegistration()
 
 	editMode:RegisterFrame(EDITMODE_FRAME_ID, {
 		frame = state.castBar,
-		title = L["UFStandaloneCastbar"] or L["CastBar"] or "Castbar",
+		title = L["Castbar"] or L["Castbar"] or "Castbar",
 		enableOverlayToggle = true,
 		allowDrag = function()
 			local cfg, defs = ensureCastConfig()

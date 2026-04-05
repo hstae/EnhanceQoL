@@ -533,7 +533,7 @@ function CombatText:RegisterEditMode()
 				end,
 			},
 			{
-				name = L["combatTextFontSize"] or "Font size",
+				name = FONT_SIZE,
 				kind = SettingType.Slider,
 				field = "fontSize",
 				default = defaults.fontSize,
@@ -545,7 +545,7 @@ function CombatText:RegisterEditMode()
 				formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
 			},
 			{
-				name = L["combatTextFont"] or "Font",
+				name = L["Font"] or "Font",
 				kind = SettingType.Dropdown,
 				field = "fontFace",
 				height = 200,

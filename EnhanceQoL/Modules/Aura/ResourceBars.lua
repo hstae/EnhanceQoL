@@ -1606,15 +1606,15 @@ local function exportErrorMessage(reason)
 end
 
 local function importErrorMessage(reason, extra)
-	if reason == "NO_INPUT" then return L["ImportProfileEmpty"] or "Please enter a code to import." end
-	if reason == "DECODE" or reason == "DECOMPRESS" or reason == "DESERIALIZE" or reason == "WRONG_KIND" then return L["ImportProfileInvalid"] or "The code could not be read." end
+	if reason == "NO_INPUT" then return L["Please enter a code to import."] or "Please enter a code to import." end
+	if reason == "DECODE" or reason == "DECOMPRESS" or reason == "DESERIALIZE" or reason == "WRONG_KIND" then return L["The code could not be read."] or "The code could not be read." end
 	if reason == "WRONG_CLASS" then
 		local className = extra or UNKNOWN or "Unknown class"
 		return (L["ImportProfileWrongClass"] or "This profile belongs to %s."):format(className)
 	end
 	if reason == "NO_SPECS" then return L["ImportProfileNoSpecs"] or "The code does not contain any Resource Bars settings." end
 	if reason == "SPEC_MISMATCH" or reason == "NO_SPEC" then return L["ImportProfileMissingSpec"] or "The code does not contain settings for that specialization." end
-	if reason == "SPEC_EMPTY" then return L["ImportProfileInvalid"] or "The code could not be read." end
+	if reason == "SPEC_EMPTY" then return L["The code could not be read."] or "The code could not be read." end
 	return L["ImportProfileFailed"] or "Could not import the Resource Bars profile."
 end
 

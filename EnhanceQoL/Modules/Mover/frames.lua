@@ -28,7 +28,7 @@ local groups = {
 		expanded = true,
 	},
 	character = {
-		label = L["Character"] or "Character",
+		label = CHARACTER,
 	},
 	housing = {
 		label = AUCTION_CATEGORY_HOUSING or "Housing",
@@ -186,7 +186,7 @@ local frames = {
 	},
 	{
 		id = "CharacterFrame",
-		label = L["Character"] or "Character",
+		label = CHARACTER,
 		group = "character",
 		names = { "CharacterFrame" },
 		defaultEnabled = true,
@@ -434,7 +434,7 @@ local frames = {
 	},
 	{
 		id = "MerchantFrame",
-		label = L["Merchant"] or "Merchant",
+		label = MERCHANT or "Merchant",
 		group = "vendors",
 		names = { "MerchantFrame" },
 		defaultEnabled = true,

@@ -300,7 +300,7 @@ function CooldownPanels:GetCDMAuraAlwaysShowOptions()
 		},
 		{
 			value = values.SHOW or "SHOW",
-			label = L["CooldownPanelCDMAuraAlwaysShowModeShow"] or (L["CooldownPanelAlwaysShow"] or "Always show"),
+			label = L["Always show"] or (L["Always show"] or "Always show"),
 		},
 		{
 			value = values.DESATURATE or "DESATURATE",
@@ -1711,7 +1711,7 @@ local function getSoundLabel(value)
 	return soundName
 end
 
-local function getSoundButtonText(value) return (L["CooldownPanelSound"] or "Sound") .. ": " .. getSoundLabel(value) end
+local function getSoundButtonText(value) return (SOUND) .. ": " .. getSoundLabel(value) end
 
 local function getSoundOptions()
 	local list = {}
@@ -6657,7 +6657,7 @@ local function createPanelFrame(panelId, panel)
 	editPanelHandle.panelId = panelId
 	editPanelHandle.label = editPanelHandle:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 	editPanelHandle.label:SetPoint("CENTER")
-	editPanelHandle.label:SetText(L["CooldownPanelPanelHandle"] or "Panel")
+	editPanelHandle.label:SetText(L["Panel"] or "Panel")
 	editPanelHandle.label:SetTextColor(1, 0.86, 0.24, 1)
 	editPanelHandle:SetScript("OnMouseDown", function(self, btn)
 		if btn ~= "LeftButton" then return end
@@ -8799,7 +8799,7 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 			defaultCollapsed = false,
 		},
 		{
-			name = (initialEffectiveType == "STANCE" and (L["CooldownPanelShowWhenMissing"] or "Show when missing")) or (L["CooldownPanelAlwaysShow"] or "Always show"),
+			name = (initialEffectiveType == "STANCE" and (L["CooldownPanelShowWhenMissing"] or "Show when missing")) or (L["Always show"] or "Always show"),
 			kind = SettingType.Checkbox,
 			parentId = "cooldownPanelStandaloneDisplay",
 			isShown = function()
@@ -8941,7 +8941,7 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 			set = function(_, value) setEntryBoolean("showWhenNoCooldown", value) end,
 		},
 		{
-			name = L["CooldownPanelHideIcon"] or "Hide icon",
+			name = L["Hide icon"] or "Hide icon",
 			kind = SettingType.Checkbox,
 			parentId = "cooldownPanelStandaloneDisplay",
 			get = function()
@@ -8994,7 +8994,7 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 			set = function(_, value) setIconSizeOverrideEnabled(value) end,
 		},
 		{
-			name = L["CooldownPanelIconSize"] or "Icon size",
+			name = L["Icon size"] or "Icon size",
 			kind = SettingType.Slider,
 			parentId = "cooldownPanelStandaloneDisplay",
 			minValue = 12,
@@ -9017,7 +9017,7 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 			formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
 		},
 		{
-			name = L["CooldownPanelIconOffsetX"] or "Icon X",
+			name = L["Icon X"] or "Icon X",
 			kind = SettingType.Slider,
 			parentId = "cooldownPanelStandaloneDisplay",
 			minValue = -Helper.OFFSET_RANGE,
@@ -9032,7 +9032,7 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 			formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
 		},
 		{
-			name = L["CooldownPanelIconOffsetY"] or "Icon Y",
+			name = L["Icon Y"] or "Icon Y",
 			kind = SettingType.Slider,
 			parentId = "cooldownPanelStandaloneDisplay",
 			minValue = -Helper.OFFSET_RANGE,
@@ -9242,7 +9242,7 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 			formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
 		},
 		{
-			name = L["CooldownPanelChargesHeader"] or "Charges",
+			name = L["Charges"] or "Charges",
 			kind = SettingType.Collapsible,
 			id = "cooldownPanelStandaloneCharges",
 			defaultCollapsed = true,
@@ -9252,7 +9252,7 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 			end,
 		},
 		{
-			name = L["CooldownPanelShowCharges"] or "Show charges",
+			name = L["Show charges"] or "Show charges",
 			kind = SettingType.Checkbox,
 			parentId = "cooldownPanelStandaloneCharges",
 			isShown = function() return getEffectiveType() == "SPELL" end,
@@ -9435,7 +9435,7 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 			formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
 		},
 		{
-			name = L["CooldownPanelCooldownHeader"] or "Cooldown",
+			name = L["Cooldown"] or "Cooldown",
 			kind = SettingType.Collapsible,
 			id = "cooldownPanelStandaloneCooldownVisuals",
 			defaultCollapsed = true,
@@ -9611,7 +9611,7 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 			end,
 		},
 		{
-			name = L["CooldownPanelCheckPower"] or "Check power",
+			name = L["Check power"] or "Check power",
 			kind = SettingType.Checkbox,
 			parentId = "cooldownPanelStandaloneOverlays",
 			isShown = function() return getEffectiveType() == "SPELL" end,
@@ -9646,14 +9646,14 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 			set = function(_, value) setEntryBoolean("hideWhenNoResource", value) end,
 		},
 		{
-			name = L["CooldownPanelCooldownText"] or "Cooldown text",
+			name = L["Cooldown text"] or "Cooldown text",
 			kind = SettingType.Collapsible,
 			id = "cooldownPanelStandaloneCooldownText",
 			defaultCollapsed = true,
 			isShown = function() return getEffectiveType() ~= "STANCE" end,
 		},
 		{
-			name = L["CooldownPanelShowCooldownText"] or "Show cooldown text",
+			name = L["Show cooldown text"] or "Show cooldown text",
 			kind = SettingType.Checkbox,
 			parentId = "cooldownPanelStandaloneCooldownText",
 			isShown = function() return getEffectiveType() ~= "STANCE" end,
@@ -9693,7 +9693,7 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 			end,
 		},
 		{
-			name = L["CooldownPanelCooldownTextStyle"] or "Cooldown text outline",
+			name = L["Cooldown text outline"] or "Cooldown text outline",
 			kind = SettingType.Dropdown,
 			parentId = "cooldownPanelStandaloneCooldownText",
 			height = 120,
@@ -9711,7 +9711,7 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 			end,
 		},
 		{
-			name = L["CooldownPanelCooldownTextColor"] or "Cooldown text color",
+			name = L["Cooldown text color"] or "Cooldown text color",
 			kind = SettingType.Color,
 			parentId = "cooldownPanelStandaloneCooldownText",
 			hasOpacity = true,
@@ -9747,7 +9747,7 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 			formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
 		},
 		{
-			name = L["CooldownPanelCooldownTextOffsetX"] or "Cooldown text offset X",
+			name = L["Cooldown text offset X"] or "Cooldown text offset X",
 			kind = SettingType.Slider,
 			parentId = "cooldownPanelStandaloneCooldownText",
 			minValue = -Helper.OFFSET_RANGE,
@@ -9767,7 +9767,7 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 			formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
 		},
 		{
-			name = L["CooldownPanelCooldownTextOffsetY"] or "Cooldown text offset Y",
+			name = L["Cooldown text offset Y"] or "Cooldown text offset Y",
 			kind = SettingType.Slider,
 			parentId = "cooldownPanelStandaloneCooldownText",
 			minValue = -Helper.OFFSET_RANGE,
@@ -10260,7 +10260,7 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 			formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
 		},
 		{
-			name = L["CooldownPanelGlowStyle"] or "Glow style",
+			name = L["Glow style"] or "Glow style",
 			kind = SettingType.Dropdown,
 			parentId = "cooldownPanelStandaloneGlow",
 			height = 180,
@@ -10298,7 +10298,7 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 			end,
 		},
 		{
-			name = L["CooldownPanelGlowInset"] or "Glow inset",
+			name = L["Glow inset"] or "Glow inset",
 			kind = SettingType.Slider,
 			parentId = "cooldownPanelStandaloneGlow",
 			minValue = -(Helper.GLOW_INSET_RANGE or 20),
@@ -10332,7 +10332,7 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 			formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
 		},
 		{
-			name = L["CooldownPanelGlowColorGeneric"] or "Glow color",
+			name = L["Glow color"] or "Glow color",
 			kind = SettingType.Color,
 			parentId = "cooldownPanelStandaloneGlow",
 			hasOpacity = true,
@@ -10375,7 +10375,7 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 			end,
 		},
 		{
-			name = L["CooldownPanelSound"] or "Sound",
+			name = SOUND,
 			kind = SettingType.Collapsible,
 			id = "cooldownPanelStandaloneSound",
 			defaultCollapsed = true,
@@ -10398,7 +10398,7 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 			end,
 		},
 		{
-			name = L["CooldownPanelSound"] or "Sound",
+			name = SOUND,
 			kind = SettingType.Dropdown,
 			parentId = "cooldownPanelStandaloneSound",
 			height = 260,
@@ -10708,7 +10708,7 @@ function CooldownPanels:BuildLayoutFixedGroupStandaloneSettings(panelId, groupId
 
 	return {
 		{
-			name = L["CooldownPanelFixedGroupHeader"] or "Group",
+			name = L["Group"] or "Group",
 			kind = SettingType.Collapsible,
 			id = "cooldownPanelStandaloneFixedGroupGeneral",
 			defaultCollapsed = false,
@@ -10731,7 +10731,7 @@ function CooldownPanels:BuildLayoutFixedGroupStandaloneSettings(panelId, groupId
 			maxChars = 32,
 		},
 		{
-			name = L["CooldownPanelMode"] or "Mode",
+			name = L["Mode"] or "Mode",
 			kind = SettingType.Dropdown,
 			parentId = "cooldownPanelStandaloneFixedGroupGeneral",
 			height = 80,
@@ -10778,7 +10778,7 @@ function CooldownPanels:BuildLayoutFixedGroupStandaloneSettings(panelId, groupId
 			end,
 		},
 		{
-			name = L["CooldownPanelGrowthDirection"] or "Growth direction",
+			name = L["Growth direction"] or "Growth direction",
 			kind = SettingType.Dropdown,
 			parentId = "cooldownPanelStandaloneFixedGroupGeneral",
 			height = 90,
@@ -10806,7 +10806,7 @@ function CooldownPanels:BuildLayoutFixedGroupStandaloneSettings(panelId, groupId
 			end,
 		},
 		{
-			name = L["CooldownPanelIconOffsetX"] or "Icon X",
+			name = L["Icon X"] or "Icon X",
 			kind = SettingType.Slider,
 			parentId = "cooldownPanelStandaloneFixedGroupGeneral",
 			minValue = -(Helper.OFFSET_RANGE or 200),
@@ -10821,7 +10821,7 @@ function CooldownPanels:BuildLayoutFixedGroupStandaloneSettings(panelId, groupId
 			formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
 		},
 		{
-			name = L["CooldownPanelIconOffsetY"] or "Icon Y",
+			name = L["Icon Y"] or "Icon Y",
 			kind = SettingType.Slider,
 			parentId = "cooldownPanelStandaloneFixedGroupGeneral",
 			minValue = -(Helper.OFFSET_RANGE or 200),
@@ -10854,7 +10854,7 @@ function CooldownPanels:BuildLayoutFixedGroupStandaloneSettings(panelId, groupId
 			end,
 		},
 		{
-			name = L["CooldownPanelIconSize"] or "Icon size",
+			name = L["Icon size"] or "Icon size",
 			kind = SettingType.Slider,
 			parentId = "cooldownPanelStandaloneFixedGroupGeneral",
 			minValue = 12,
@@ -10876,7 +10876,7 @@ function CooldownPanels:BuildLayoutFixedGroupStandaloneSettings(panelId, groupId
 			formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
 		},
 		{
-			name = L["CooldownPanelSpacing"] or "Spacing",
+			name = L["Spacing"] or "Spacing",
 			kind = SettingType.Slider,
 			parentId = "cooldownPanelStandaloneFixedGroupGeneral",
 			minValue = 0,
@@ -10962,7 +10962,7 @@ function CooldownPanels:BuildLayoutFixedGroupStandaloneSettings(panelId, groupId
 			set = function(_, value) setOverride("readyGlowCheckPower", value) end,
 		},
 		{
-			name = L["CooldownPanelGlowStyle"] or "Glow style",
+			name = L["Glow style"] or "Glow style",
 			kind = SettingType.Dropdown,
 			parentId = "cooldownPanelStandaloneFixedGroupGlow",
 			height = 180,
@@ -10982,7 +10982,7 @@ function CooldownPanels:BuildLayoutFixedGroupStandaloneSettings(panelId, groupId
 			end,
 		},
 		{
-			name = L["CooldownPanelGlowInset"] or "Glow inset",
+			name = L["Glow inset"] or "Glow inset",
 			kind = SettingType.Slider,
 			parentId = "cooldownPanelStandaloneFixedGroupGlow",
 			minValue = -(Helper.GLOW_INSET_RANGE or 20),
@@ -11402,7 +11402,7 @@ local function ensureEditor()
 	applyInsetBorder(left, -4)
 	frame.left = left
 
-	local panelTitle = Helper.CreateLabel(left, L["CooldownPanelPanels"] or "Panels", 12, "OUTLINE")
+	local panelTitle = Helper.CreateLabel(left, L["Panels"] or "Panels", 12, "OUTLINE")
 	panelTitle:SetPoint("TOPLEFT", left, "TOPLEFT", 12, -12)
 
 	if addon.db and addon.db.cooldownPanelsFilterClass == nil then addon.db.cooldownPanelsFilterClass = false end
@@ -11432,7 +11432,7 @@ local function ensureEditor()
 	local addGroup = Helper.CreateButton(left, L["CooldownPanelAddGroup"] or "Add Group", 96, 22)
 	addGroup:SetPoint("BOTTOMLEFT", left, "BOTTOMLEFT", 12, 40)
 
-	local addPanel = Helper.CreateButton(left, L["CooldownPanelAddPanel"] or "Add Panel", 96, 22)
+	local addPanel = Helper.CreateButton(left, L["Add Panel"] or "Add Panel", 96, 22)
 	addPanel:SetPoint("BOTTOMLEFT", left, "BOTTOMLEFT", 12, 12)
 
 	local deletePanel = Helper.CreateButton(left, L["CooldownPanelDeletePanel"] or "Delete Panel", 96, 22)
@@ -11458,7 +11458,7 @@ local function ensureEditor()
 	rightContent:SetWidth(rightScroll:GetWidth() or 1)
 	rightScroll:SetScript("OnSizeChanged", function(self) rightContent:SetWidth(self:GetWidth() or 1) end)
 
-	local panelHeader = Helper.CreateLabel(rightContent, L["CooldownPanelPanels"] or "Panels", 12, "OUTLINE")
+	local panelHeader = Helper.CreateLabel(rightContent, L["Panels"] or "Panels", 12, "OUTLINE")
 	panelHeader:SetPoint("TOPLEFT", rightContent, "TOPLEFT", 2, -2)
 	panelHeader:SetTextColor(0.9, 0.9, 0.9, 1)
 
@@ -11469,7 +11469,7 @@ local function ensureEditor()
 	local panelNameBox = Helper.CreateEditBox(rightContent, 200, 20)
 	panelNameBox:SetPoint("TOPLEFT", panelNameLabel, "BOTTOMLEFT", 0, -4)
 
-	local panelEnabled = Helper.CreateCheck(rightContent, L["CooldownPanelEnabled"] or "Enabled")
+	local panelEnabled = Helper.CreateCheck(rightContent, L["Enabled"] or "Enabled")
 	panelEnabled:SetPoint("TOPLEFT", panelNameBox, "BOTTOMLEFT", -2, -6)
 
 	local panelSpecLabel = Helper.CreateLabel(rightContent, L["CooldownPanelSpecFilter"] or "Show only for spec", 11, "OUTLINE")
@@ -11512,13 +11512,13 @@ local function ensureEditor()
 	entryIdBox:SetPoint("TOPLEFT", entryIcon, "BOTTOMLEFT", 0, -8)
 	entryIdBox:SetNumeric(true)
 
-	local cbCooldownText = Helper.CreateCheck(rightContent, L["CooldownPanelShowCooldownText"] or "Show cooldown text")
+	local cbCooldownText = Helper.CreateCheck(rightContent, L["Show cooldown text"] or "Show cooldown text")
 	cbCooldownText:SetPoint("TOPLEFT", entryIdBox, "BOTTOMLEFT", -2, -6)
 
-	local cbAlwaysShow = Helper.CreateCheck(rightContent, L["CooldownPanelAlwaysShow"] or "Always show")
+	local cbAlwaysShow = Helper.CreateCheck(rightContent, L["Always show"] or "Always show")
 	cbAlwaysShow:SetPoint("TOPLEFT", cbCooldownText, "BOTTOMLEFT", 0, -4)
 
-	local cbCharges = Helper.CreateCheck(rightContent, L["CooldownPanelShowCharges"] or "Show charges")
+	local cbCharges = Helper.CreateCheck(rightContent, L["Show charges"] or "Show charges")
 	cbCharges:SetPoint("TOPLEFT", cbCooldownText, "BOTTOMLEFT", 0, -4)
 
 	local cbStacks = Helper.CreateCheck(rightContent, L["CooldownPanelShowStacks"] or "Show stack count")
@@ -12352,7 +12352,7 @@ function CooldownPanels:ShowFixedGroupMenu(owner, panelId, groupId)
 	Api.MenuUtil.CreateContextMenu(owner, function(_, rootDescription)
 		rootDescription:CreateTitle(CooldownPanels.GetFixedGroupDisplayLabel(group))
 		rootDescription:CreateDivider()
-		local modeMenu = rootDescription:CreateButton(L["CooldownPanelMode"] or "Mode")
+		local modeMenu = rootDescription:CreateButton(L["Mode"] or "Mode")
 		modeMenu:CreateRadio(L["CooldownPanelDynamic"] or "Dynamic", function() return not CooldownPanels.IsFixedGroupStatic(group) end, function()
 			if CooldownPanels:SetFixedGroupMode(panelId, groupId, "DYNAMIC") then
 				CooldownPanels:RefreshPanel(panelId)
@@ -12368,7 +12368,7 @@ function CooldownPanels:ShowFixedGroupMenu(owner, panelId, groupId)
 				showErrorMessage(L["CooldownPanelFixedGroupFull"] or "Fixed group is full.")
 			end
 		end)
-		local sizeMenu = rootDescription:CreateButton(L["CooldownPanelIconSize"] or "Icon size")
+		local sizeMenu = rootDescription:CreateButton(L["Icon size"] or "Icon size")
 		sizeMenu:CreateRadio(L["CooldownPanelUsePanelSize"] or "Use panel size", function() return Helper.NormalizeFixedGroupIconSize(group.iconSize) == nil end, function()
 			if CooldownPanels:SetFixedGroupIconSize(panelId, groupId, nil) then
 				CooldownPanels:RefreshPanel(panelId)
@@ -12384,7 +12384,7 @@ function CooldownPanels:ShowFixedGroupMenu(owner, panelId, groupId)
 				end
 			end)
 		end
-		sizeMenu:CreateButton(L["CooldownPanelCustom"] or "Custom", function() CooldownPanels:ShowFixedGroupIconSizePopup(panelId, groupId) end)
+		sizeMenu:CreateButton(CUSTOM or "Custom", function() CooldownPanels:ShowFixedGroupIconSizePopup(panelId, groupId) end)
 		rootDescription:CreateDivider()
 		rootDescription:CreateButton(L["CooldownPanelRename"] or "Rename", function() CooldownPanels:ShowFixedGroupRenamePopup(panelId, groupId) end)
 		rootDescription:CreateButton(DELETE or "Delete", function()
@@ -13693,7 +13693,7 @@ local function refreshInspector(editor, panel, entry)
 			if effectiveType == "STANCE" then
 				inspector.cbAlwaysShow.Text:SetText(L["CooldownPanelShowWhenMissing"] or "Show when missing")
 			else
-				inspector.cbAlwaysShow.Text:SetText(L["CooldownPanelAlwaysShow"] or "Always show")
+				inspector.cbAlwaysShow.Text:SetText(L["Always show"] or "Always show")
 			end
 		end
 		if inspector.cbGlow and inspector.cbGlow.Text then
@@ -13756,7 +13756,7 @@ local function refreshInspector(editor, panel, entry)
 			if inspector.entryId.SetNumeric then inspector.entryId:SetNumeric(true) end
 			inspector.entryId:Hide()
 		end
-		if inspector.cbAlwaysShow and inspector.cbAlwaysShow.Text then inspector.cbAlwaysShow.Text:SetText(L["CooldownPanelAlwaysShow"] or "Always show") end
+		if inspector.cbAlwaysShow and inspector.cbAlwaysShow.Text then inspector.cbAlwaysShow.Text:SetText(L["Always show"] or "Always show") end
 		if inspector.cbGlow and inspector.cbGlow.Text then inspector.cbGlow.Text:SetText(L["CooldownPanelGlowReady"] or "Glow when ready") end
 		if inspector.cbPandemicGlow and inspector.cbPandemicGlow.Text then inspector.cbPandemicGlow.Text:SetText(L["CooldownPanelGlowPandemic"] or "Pandemic glow") end
 		if inspector.cbSound and inspector.cbSound.Text then inspector.cbSound.Text:SetText(L["CooldownPanelSoundReady"] or "Sound when ready") end
@@ -16628,13 +16628,13 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 	if SettingType then
 		settings = {
 			{
-				name = L["CooldownPanelCopySettingsHeader"] or "Copy Settings",
+				name = L["Copy Settings"] or "Copy Settings",
 				kind = SettingType.Collapsible,
 				id = "cooldownPanelCopySettings",
 				defaultCollapsed = true,
 			},
 			{
-				name = L["CooldownPanelCopySettings"] or "Copy Settings",
+				name = L["Copy Settings"] or "Copy Settings",
 				kind = SettingType.Dropdown,
 				field = "copySettingsFrom",
 				parentId = "cooldownPanelCopySettings",
@@ -16821,7 +16821,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				default = 0,
 			},
 			{
-				name = L["CooldownPanelLayoutHeader"] or "Layout",
+				name = L["Layout"] or "Layout",
 				kind = SettingType.Collapsible,
 				id = "cooldownPanelLayout",
 				defaultCollapsed = false,
@@ -17145,7 +17145,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				isShown = function() return shouldShowRowSize(6) end,
 			},
 			{
-				name = L["CooldownPanelDisplayHeader"] or "Display",
+				name = L["Display"] or "Display",
 				kind = SettingType.Collapsible,
 				id = "cooldownPanelDisplay",
 				defaultCollapsed = true,
@@ -17308,7 +17308,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				isEnabled = function() return visibilityRuleOptions and #visibilityRuleOptions > 0 end,
 			},
 			{
-				name = L["CooldownPanelHideInVehicle"] or "Hide in vehicles",
+				name = L["Hide in vehicles"] or "Hide in vehicles",
 				kind = SettingType.Checkbox,
 				field = "hideInVehicle",
 				parentId = "cooldownPanelDisplay",
@@ -17317,7 +17317,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				set = function(_, value) applyEditLayout(panelId, "hideInVehicle", value) end,
 			},
 			{
-				name = L["CooldownPanelHideInPetBattle"] or "Hide in pet battles",
+				name = L["Hide in pet battles"] or "Hide in pet battles",
 				kind = SettingType.Checkbox,
 				field = "hideInPetBattle",
 				parentId = "cooldownPanelDisplay",
@@ -17326,7 +17326,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				set = function(_, value) applyEditLayout(panelId, "hideInPetBattle", value) end,
 			},
 			{
-				name = L["CooldownPanelHideInClientScene"] or "Hide in client scenes",
+				name = L["Hide in client scenes"] or "Hide in client scenes",
 				kind = SettingType.Checkbox,
 				field = "hideInClientScene",
 				parentId = "cooldownPanelDisplay",
@@ -17369,13 +17369,13 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				end,
 			},
 			{
-				name = L["CooldownPanelCooldownTextHeader"] or "Cooldown text",
+				name = L["Cooldown text"] or "Cooldown text",
 				kind = SettingType.Collapsible,
 				id = "cooldownPanelCooldownText",
 				defaultCollapsed = true,
 			},
 			{
-				name = L["CooldownPanelCooldownTextFont"] or "Cooldown text font",
+				name = L["Cooldown text font"] or "Cooldown text font",
 				kind = SettingType.Dropdown,
 				field = "cooldownTextFont",
 				parentId = "cooldownPanelCooldownText",
@@ -17394,7 +17394,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				end,
 			},
 			{
-				name = L["CooldownPanelCooldownTextSize"] or "Cooldown text size",
+				name = L["Cooldown text size"] or "Cooldown text size",
 				kind = SettingType.Slider,
 				field = "cooldownTextSize",
 				parentId = "cooldownPanelCooldownText",
@@ -17408,7 +17408,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
 			},
 			{
-				name = L["CooldownPanelCooldownTextStyle"] or "Cooldown text outline",
+				name = L["Cooldown text outline"] or "Cooldown text outline",
 				kind = SettingType.Dropdown,
 				field = "cooldownTextStyle",
 				parentId = "cooldownPanelCooldownText",
@@ -17427,7 +17427,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				end,
 			},
 			{
-				name = L["CooldownPanelCooldownTextColor"] or "Cooldown text color",
+				name = L["Cooldown text color"] or "Cooldown text color",
 				kind = SettingType.Color,
 				parentId = "cooldownPanelCooldownText",
 				hasOpacity = true,
@@ -17439,7 +17439,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				set = function(_, value) applyEditLayout(panelId, "cooldownTextColor", value) end,
 			},
 			{
-				name = L["CooldownPanelCooldownTextOffsetX"] or "Cooldown text offset X",
+				name = L["Cooldown text offset X"] or "Cooldown text offset X",
 				kind = SettingType.Slider,
 				field = "cooldownTextX",
 				parentId = "cooldownPanelCooldownText",
@@ -17452,7 +17452,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				set = function(_, value) applyEditLayout(panelId, "cooldownTextX", value) end,
 			},
 			{
-				name = L["CooldownPanelCooldownTextOffsetY"] or "Cooldown text offset Y",
+				name = L["Cooldown text offset Y"] or "Cooldown text offset Y",
 				kind = SettingType.Slider,
 				field = "cooldownTextY",
 				parentId = "cooldownPanelCooldownText",
@@ -17668,7 +17668,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				set = function(_, value) applyEditLayout(panelId, "noDesaturation", value) end,
 			},
 			{
-				name = L["CooldownPanelPowerTint"] or "Check power",
+				name = L["Check power"] or "Check power",
 				kind = SettingType.CheckboxColor,
 				parentId = "cooldownPanelOverlays",
 				default = layout.checkPower == true,
@@ -17749,7 +17749,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				set = function(_, value) applyEditLayout(panelId, "readyGlowCheckPower", value) end,
 			},
 			{
-				name = L["CooldownPanelGlowStyle"] or "Glow style",
+				name = L["Glow style"] or "Glow style",
 				kind = SettingType.Dropdown,
 				parentId = "cooldownPanelGlow",
 				height = 180,
@@ -17787,7 +17787,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				end,
 			},
 			{
-				name = L["CooldownPanelGlowInset"] or "Glow inset",
+				name = L["Glow inset"] or "Glow inset",
 				kind = SettingType.Slider,
 				parentId = "cooldownPanelGlow",
 				minValue = -(Helper.GLOW_INSET_RANGE or 20),
@@ -17946,7 +17946,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				set = function(_, value) applyEditLayout(panelId, "stackColor", value) end,
 			},
 			{
-				name = L["CooldownPanelChargesHeader"] or "Charges",
+				name = L["Charges"] or "Charges",
 				kind = SettingType.Collapsible,
 				id = "cooldownPanelCharges",
 				defaultCollapsed = true,
@@ -18184,7 +18184,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
 			},
 			{
-				name = L["CooldownPanelCooldownHeader"] or "Cooldown",
+				name = L["Cooldown"] or "Cooldown",
 				kind = SettingType.Collapsible,
 				id = "cooldownPanelCooldown",
 				defaultCollapsed = true,

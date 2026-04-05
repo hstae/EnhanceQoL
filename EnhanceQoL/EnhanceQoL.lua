@@ -342,14 +342,14 @@ end
 local visibilityRuleMetadata = {
 	MOUSEOVER = {
 		key = "MOUSEOVER",
-		label = L["visibilityRule_mouseover"] or (L["ActionBarVisibilityMouseover"] or "Mouseover"),
+		label = L["Mouseover"] or (L["Mouseover"] or "Mouseover"),
 		description = L["visibilityRule_mouseover_desc"],
 		appliesTo = { actionbar = true, frame = true },
 		order = 10,
 	},
 	ALWAYS_IN_COMBAT = {
 		key = "ALWAYS_IN_COMBAT",
-		label = L["visibilityRule_inCombat"] or (L["ActionBarVisibilityInCombat"] or "Always in combat"),
+		label = L["Always in combat"] or (L["Always in combat"] or "Always in combat"),
 		description = L["visibilityRule_inCombat_desc"],
 		appliesTo = { actionbar = true, frame = true },
 		contextKey = "inCombat",
@@ -357,7 +357,7 @@ local visibilityRuleMetadata = {
 	},
 	ALWAYS_OUT_OF_COMBAT = {
 		key = "ALWAYS_OUT_OF_COMBAT",
-		label = L["visibilityRule_outCombat"] or (L["ActionBarVisibilityOutOfCombat"] or "Always out of combat"),
+		label = L["Always out of combat"] or (L["Always out of combat"] or "Always out of combat"),
 		description = L["visibilityRule_outCombat_desc"],
 		appliesTo = { actionbar = true, frame = true },
 		contextKey = "outOfCombat",
@@ -365,7 +365,7 @@ local visibilityRuleMetadata = {
 	},
 	PLAYER_CASTING = {
 		key = "PLAYER_CASTING",
-		label = L["visibilityRule_playerCasting"] or "Player is casting",
+		label = L["Player is casting"] or "Player is casting",
 		description = L["visibilityRule_playerCasting_desc"],
 		appliesTo = { actionbar = true, frame = true },
 		unitRequirement = "player",
@@ -373,7 +373,7 @@ local visibilityRuleMetadata = {
 	},
 	PLAYER_MOUNTED = {
 		key = "PLAYER_MOUNTED",
-		label = L["visibilityRule_playerMounted"] or "Mounted",
+		label = L["Mounted"] or "Mounted",
 		description = L["visibilityRule_playerMounted_desc"],
 		appliesTo = { actionbar = true, frame = true },
 		unitRequirement = "player",
@@ -381,7 +381,7 @@ local visibilityRuleMetadata = {
 	},
 	PLAYER_NOT_MOUNTED = {
 		key = "PLAYER_NOT_MOUNTED",
-		label = L["visibilityRule_playerNotMounted"] or "Not mounted",
+		label = L["Not mounted"] or "Not mounted",
 		description = L["visibilityRule_playerNotMounted_desc"],
 		appliesTo = { actionbar = true, frame = true },
 		unitRequirement = "player",
@@ -389,7 +389,7 @@ local visibilityRuleMetadata = {
 	},
 	PLAYER_HAS_TARGET = {
 		key = "PLAYER_HAS_TARGET",
-		label = L["visibilityRule_playerHasTarget"] or "When I have a target",
+		label = L["When I have a target"] or "When I have a target",
 		description = L["visibilityRule_playerHasTarget_desc"],
 		appliesTo = { actionbar = true, frame = true },
 		unitRequirement = "player",
@@ -397,7 +397,7 @@ local visibilityRuleMetadata = {
 	},
 	PLAYER_IN_GROUP = {
 		key = "PLAYER_IN_GROUP",
-		label = L["visibilityRule_inGroup"] or "In party/raid",
+		label = L["In party/raid"] or "In party/raid",
 		description = L["visibilityRule_inGroup_desc"],
 		appliesTo = { actionbar = true, frame = true },
 		unitRequirement = "player",
@@ -405,7 +405,7 @@ local visibilityRuleMetadata = {
 	},
 	PLAYER_IN_PARTY = {
 		key = "PLAYER_IN_PARTY",
-		label = L["visibilityRule_inParty"] or (L["VisibilityCondInParty"] or "In party"),
+		label = L["In party"] or (L["In party"] or "In party"),
 		description = L["visibilityRule_inParty_desc"],
 		appliesTo = { frame = true },
 		unitRequirement = "player",
@@ -413,7 +413,7 @@ local visibilityRuleMetadata = {
 	},
 	PLAYER_IN_RAID = {
 		key = "PLAYER_IN_RAID",
-		label = L["visibilityRule_inRaid"] or (L["VisibilityCondInRaid"] or "In raid"),
+		label = L["In raid"] or (L["In raid"] or "In raid"),
 		description = L["visibilityRule_inRaid_desc"],
 		appliesTo = { frame = true },
 		unitRequirement = "player",
@@ -448,7 +448,7 @@ local visibilityRuleMetadata = {
 	},
 	SKYRIDING_ACTIVE = {
 		key = "SKYRIDING_ACTIVE",
-		label = L["visibilityRule_skyriding"] or "While skyriding",
+		label = L["While skyriding"] or "While skyriding",
 		description = L["visibilityRule_skyriding_desc"],
 		appliesTo = { actionbar = true, frame = true },
 		unitRequirement = "player",
@@ -456,7 +456,7 @@ local visibilityRuleMetadata = {
 	},
 	SKYRIDING_INACTIVE = {
 		key = "SKYRIDING_INACTIVE",
-		label = L["visibilityRule_hideSkyriding"] or "Hide while skyriding",
+		label = L["Hide while skyriding"] or "Hide while skyriding",
 		description = L["visibilityRule_hideSkyriding_desc"],
 		appliesTo = { actionbar = true, frame = true },
 		unitRequirement = "player",

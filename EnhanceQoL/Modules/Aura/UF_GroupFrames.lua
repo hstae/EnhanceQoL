@@ -12608,7 +12608,7 @@ GF._groupCopySectionLabels = {
 	debuffs = "Debuffs",
 	externals = "Externals",
 	healerBuffPlacement = "Healer buff placement",
-	privateAuras = L["UFPrivateAuras"] or "Private Auras",
+	privateAuras = L["Private Auras"] or "Private Auras",
 	party = PARTY or "Party",
 	raid = RAID or "Raid",
 }
@@ -13937,7 +13937,7 @@ local function buildEditModeSettings(kind, editModeId)
 	local sortMethodOptions = {
 		{ value = "INDEX", label = L["Index"] or "Index" },
 		{ value = "NAME", label = L["Name"] or "Name" },
-		{ value = "CUSTOM", label = L["Custom"] or "Custom" },
+		{ value = "CUSTOM", label = CUSTOM or "Custom" },
 	}
 	local sortDirOptions = {
 		{ value = "ASC", label = L["Ascending"] or "Ascending" },
@@ -14473,7 +14473,7 @@ local function buildEditModeSettings(kind, editModeId)
 			end,
 		},
 		{
-			name = L["UFHideInClientScene"] or "Hide in client scenes",
+			name = L["Hide in client scenes"] or "Hide in client scenes",
 			kind = SettingType.Checkbox,
 			field = "hideInClientScene",
 			parentId = "frame",
@@ -15145,7 +15145,7 @@ local function buildEditModeSettings(kind, editModeId)
 			end,
 		},
 		{
-			name = L["Color"] or "Color",
+			name = COLOR,
 			kind = SettingType.Color,
 			field = "hoverHighlightColor",
 			parentId = "hoverHighlight",
@@ -15273,7 +15273,7 @@ local function buildEditModeSettings(kind, editModeId)
 			end,
 		},
 		{
-			name = L["Color"] or "Color",
+			name = COLOR,
 			kind = SettingType.Color,
 			field = "aggroHighlightColor",
 			parentId = "aggroHighlight",
@@ -15304,7 +15304,7 @@ local function buildEditModeSettings(kind, editModeId)
 				local hcfg, def = getHighlightCfg("highlightAggro")
 				local mode = GF.NormalizeAggroHighlightMode(hcfg.mode or def.mode or "ALL")
 				if mode == "NON_TANKS" then return L["UFAggroHighlightModeNonTanks"] or "Only non-tanks" end
-				return L["UFAggroHighlightModeAll"] or "All"
+				return L["All"] or "All"
 			end)(),
 			get = function()
 				local hcfg, def = getHighlightCfg("highlightAggro")
@@ -15319,7 +15319,7 @@ local function buildEditModeSettings(kind, editModeId)
 				GF:ApplyHeaderAttributes(kind)
 			end,
 			generator = function(_, root)
-				root:CreateRadio(L["UFAggroHighlightModeAll"] or "All", function()
+				root:CreateRadio(L["All"] or "All", function()
 					local hcfg, def = getHighlightCfg("highlightAggro")
 					return GF.NormalizeAggroHighlightMode(hcfg.mode or def.mode or "ALL") == "ALL"
 				end, function()
@@ -15505,7 +15505,7 @@ local function buildEditModeSettings(kind, editModeId)
 			end,
 		},
 		{
-			name = L["Color"] or "Color",
+			name = COLOR,
 			kind = SettingType.Color,
 			field = "targetHighlightColor",
 			parentId = "targetHighlight",
@@ -16228,7 +16228,7 @@ local function buildEditModeSettings(kind, editModeId)
 			end,
 		},
 		{
-			name = string.format("%s (%s)", L["UFStrata"] or "Frame strata", NAME or "Name"),
+			name = string.format("%s (%s)", L["Frame strata"] or "Frame strata", NAME or "Name"),
 			kind = SettingType.Dropdown,
 			field = "nameStrata",
 			parentId = "text",
@@ -17883,7 +17883,7 @@ local function buildEditModeSettings(kind, editModeId)
 			end,
 		},
 		{
-			name = string.format("%s (%s)", L["UFStrata"] or "Frame strata", LEVEL or "Level"),
+			name = string.format("%s (%s)", L["Frame strata"] or "Frame strata", LEVEL or "Level"),
 			kind = SettingType.Dropdown,
 			field = "levelStrata",
 			parentId = "level",
@@ -18143,7 +18143,7 @@ local function buildEditModeSettings(kind, editModeId)
 			end,
 		},
 		{
-			name = L["Color"] or "Color",
+			name = COLOR,
 			kind = SettingType.Color,
 			field = "statusTextColor",
 			parentId = "statustext",
@@ -18467,7 +18467,7 @@ local function buildEditModeSettings(kind, editModeId)
 			isShown = function() return kind == "raid" end,
 		},
 		{
-			name = L["Color"] or "Color",
+			name = COLOR,
 			kind = SettingType.Color,
 			field = "groupNumberColor",
 			parentId = "statustext",
@@ -23024,7 +23024,7 @@ local function buildEditModeSettings(kind, editModeId)
 			isEnabled = isPrivateAurasEnabled,
 		},
 		{
-			name = L["UFPrivateAurasTextScale"] or "Text scale",
+			name = L["Text scale"] or "Text scale",
 			kind = SettingType.Slider,
 			allowInput = true,
 			field = "privateAurasTextScale",
@@ -23721,7 +23721,7 @@ local function buildEditModeSettings(kind, editModeId)
 			isShown = function() return isGroupIndicatorShown() end,
 		}
 		settings[#settings + 1] = {
-			name = L["Color"] or "Color",
+			name = COLOR,
 			kind = SettingType.Color,
 			field = "groupIndicatorColor",
 			parentId = "raid",

@@ -411,7 +411,7 @@ function PrivateAuras:RegisterEditMode()
 			formatter = formatSliderValue,
 		},
 		{
-			name = L["UFPrivateAurasOffset"] or "Icon spacing",
+			name = L["Icon spacing"] or "Icon spacing",
 			kind = SettingType.Slider,
 			field = "spacing",
 			default = self:GetEditModeValue("spacing"),
@@ -423,7 +423,7 @@ function PrivateAuras:RegisterEditMode()
 			formatter = formatSliderValue,
 		},
 		{
-			name = L["UFPrivateAurasPoint"] or "Icon direction",
+			name = L["Icon direction"] or "Icon direction",
 			kind = SettingType.Dropdown,
 			field = "direction",
 			height = 120,
@@ -476,7 +476,7 @@ function PrivateAuras:RegisterEditMode()
 			end,
 		},
 		{
-			name = L["UFPrivateAurasCountdownFrame"] or "Show countdown frame",
+			name = L["Show countdown frame"] or "Show countdown frame",
 			kind = SettingType.Checkbox,
 			field = "countdownFrame",
 			default = self:GetEditModeValue("countdownFrame"),
@@ -484,7 +484,7 @@ function PrivateAuras:RegisterEditMode()
 			set = function(_, value) self:SetLayoutField("countdownFrame", value) end,
 		},
 		{
-			name = L["UFPrivateAurasCountdownNumbers"] or "Show countdown numbers",
+			name = L["Show countdown numbers"] or "Show countdown numbers",
 			kind = SettingType.Checkbox,
 			field = "countdownNumbers",
 			default = self:GetEditModeValue("countdownNumbers"),
@@ -493,7 +493,7 @@ function PrivateAuras:RegisterEditMode()
 			isEnabled = function() return self:GetEditModeValue("countdownFrame") == true end,
 		},
 		{
-			name = L["UFPrivateAurasShowDispelType"] or "Show dispel type",
+			name = L["Show dispel type"] or "Show dispel type",
 			kind = SettingType.Checkbox,
 			field = "showDispelType",
 			default = self:GetEditModeValue("showDispelType"),
@@ -501,7 +501,7 @@ function PrivateAuras:RegisterEditMode()
 			set = function(_, value) self:SetLayoutField("showDispelType", value) end,
 		},
 		{
-			name = L["UFPrivateAurasDurationEnable"] or "Show duration",
+			name = L["Show duration"] or "Show duration",
 			kind = SettingType.Checkbox,
 			field = "durationEnabled",
 			default = self:GetEditModeValue("durationEnabled"),
@@ -509,7 +509,7 @@ function PrivateAuras:RegisterEditMode()
 			set = function(_, value) self:SetLayoutField("durationEnabled", value) end,
 		},
 		{
-			name = L["UFPrivateAurasDurationPoint"] or "Duration anchor",
+			name = L["Duration anchor"] or "Duration anchor",
 			kind = SettingType.Dropdown,
 			field = "durationPoint",
 			height = 180,
@@ -524,7 +524,7 @@ function PrivateAuras:RegisterEditMode()
 			end,
 		},
 		{
-			name = L["UFPrivateAurasDurationOffsetX"] or "Duration offset X",
+			name = L["Duration offset X"] or "Duration offset X",
 			kind = SettingType.Slider,
 			field = "durationOffsetX",
 			default = self:GetEditModeValue("durationOffsetX"),
@@ -537,7 +537,7 @@ function PrivateAuras:RegisterEditMode()
 			isEnabled = function() return self:GetEditModeValue("durationEnabled") == true end,
 		},
 		{
-			name = L["UFPrivateAurasDurationOffsetY"] or "Duration offset Y",
+			name = L["Duration offset Y"] or "Duration offset Y",
 			kind = SettingType.Slider,
 			field = "durationOffsetY",
 			default = self:GetEditModeValue("durationOffsetY"),

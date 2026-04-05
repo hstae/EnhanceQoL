@@ -100,7 +100,7 @@ local function syncEditModeSelectionStrata(frame)
 end
 
 local textOptions = {
-	{ value = "PERCENT", label = L["PERCENT"] or "Percent" },
+	{ value = "PERCENT", label = L["Percent"] or "Percent" },
 	{ value = "CURMAX", label = L["Current/Max"] or "Current/Max" },
 	{ value = "CURRENT", label = L["Current"] or "Current" },
 	{ value = "MAX", label = L["Max"] or "Max" },
@@ -114,7 +114,7 @@ local textOptions = {
 	{ value = "LEVELPERCENTMAX", label = L["Level / Percent / Max"] or "Level / Percent / Max" },
 	{ value = "LEVELPERCENTCUR", label = L["Level / Percent / Current"] or "Level / Percent / Current" },
 	{ value = "LEVELPERCENTCURMAX", label = L["Level / Percent / Current / Max"] or "Level / Percent / Current / Max" },
-	{ value = "NONE", label = NONE or "None" },
+	{ value = "NONE", label = NONE },
 }
 
 local delimiterOptions = {
@@ -778,7 +778,7 @@ local function appendUnitAuraSettings(list, unit, def, refreshSelf)
 		list[#list].isEnabled = isSectionEnabled
 
 		list[#list + 1] = slider(
-			(isDebuff and (L["UFMaxDebuffs"] or "Debuff max")) or (L["UFMaxBuffs"] or "Buff max"),
+			(isDebuff and (L["Debuff max"] or "Debuff max")) or (L["Buff max"] or "Buff max"),
 			1,
 			40,
 			1,
@@ -1263,7 +1263,7 @@ local copySectionLabels = {
 	layout = L["Layout"] or "Layout",
 	border = BORDER_LABEL,
 	highlight = L["Highlight"] or "Highlight",
-	portrait = L["UFPortrait"] or "Portrait",
+	portrait = L["Portrait"] or "Portrait",
 	rangeFade = L["UFRangeFade"] or "Range fade",
 	name = NAME or "Name",
 	health = L["Health"] or HEALTH or "Health",
@@ -1279,9 +1279,9 @@ local copySectionLabels = {
 	debuffs = L["Debuffs"] or "Debuffs",
 	classResource = L["ClassResource"] or "Class Resource",
 	totemFrame = L["Totem Frame"] or "Totem Frame",
-	cast = L["CastBar"] or "Cast Bar",
+	cast = L["Castbar"] or "Cast Bar",
 	combatFeedback = L["UFCombatFeedback"] or "Combat feedback",
-	privateAuras = L["UFPrivateAuras"] or "Private Auras",
+	privateAuras = L["Private Auras"] or "Private Auras",
 }
 
 local function getCopySectionSetForUnit(unit)
@@ -1678,7 +1678,7 @@ local function appendBossLayoutSettings(list, unit, def, refreshSelf)
 		{ value = "DOWN", label = DIRECTION_DOWN_LABEL },
 		{ value = "UP", label = DIRECTION_UP_LABEL },
 	}
-	list[#list + 1] = radioDropdown(L["UFBossGrowth"] or "Growth direction", growthOpts, function() return (getValue(unit, { "growth" }, def.growth or "DOWN") or "DOWN"):upper() end, function(val)
+	list[#list + 1] = radioDropdown(L["Growth direction"] or "Growth direction", growthOpts, function() return (getValue(unit, { "growth" }, def.growth or "DOWN") or "DOWN"):upper() end, function(val)
 		setValue(unit, { "growth" }, (val or "DOWN"):upper())
 		refreshSelf()
 	end, (def.growth or "DOWN"):upper(), "layout")
@@ -1805,10 +1805,10 @@ end
 
 local function getRangeFadeSpellDisplay(unit, specId, kind)
 	local mode, spellId = getRangeFadeSpecSpellState(unit, specId, kind)
-	if mode == "none" then return NONE or "None" end
+	if mode == "none" then return NONE end
 	if spellId and UFHelper and UFHelper.RangeFadeGetSpellLabel then return UFHelper.RangeFadeGetSpellLabel(spellId, false) or tostring(spellId) end
 	if mode == "default" then return L["UFRangeFadeDefaultNone"] or "Default (none)" end
-	return NONE or "None"
+	return NONE
 end
 
 local function createRangeFadeSpellPickerSetting(unit, isRangeFadeEnabled, refreshSelf, refreshRangeFadeRuntime)
@@ -1824,7 +1824,7 @@ local function createRangeFadeSpellPickerSetting(unit, isRangeFadeEnabled, refre
 			local enemyLabel = L["UFRangeFadeEnemySpell"] or "Enemy spell"
 			local defaultLabel = L["Default"] or "Default"
 			local defaultNoneLabel = L["UFRangeFadeDefaultNone"] or "Default (none)"
-			local noneLabel = NONE or "None"
+			local noneLabel = NONE
 			if #specOptions == 0 then
 				root:CreateButton(noneLabel)
 				return
@@ -2101,7 +2101,7 @@ local function appendSecondaryPowerSettings(list, unit, def, textureOpts, addDiv
 	list[#list + 1] = secondaryWidthSetting
 
 	local secondaryGrowFromCenterSetting = checkbox(
-		L["UFPowerDetachedGrowFromCenter"] or "Grow from center",
+		L["Grow from center"] or "Grow from center",
 		function() return getValue(unit, { "secondaryPower", "detachedGrowFromCenter" }, secondaryDef.detachedGrowFromCenter == true) == true end,
 		function(val)
 			setValue(unit, { "secondaryPower", "detachedGrowFromCenter" }, val and true or false)
@@ -2175,7 +2175,7 @@ local function appendSecondaryPowerSettings(list, unit, def, textureOpts, addDiv
 	addDivider("secondaryPower", isSecondaryPowerDetachedEnabled)
 
 	local detachedSecondaryBorderToggle = checkbox(
-		L["UFDetachedPowerBorder"] or "Show border",
+		L["Show border"] or "Show border",
 		function() return getValue(unit, { "border", "detachedSecondaryPower" }, def.border and def.border.detachedSecondaryPower == true) == true end,
 		function(val)
 			local border = getValue(unit, { "border" }, def.border or {})
@@ -2191,7 +2191,7 @@ local function appendSecondaryPowerSettings(list, unit, def, textureOpts, addDiv
 	detachedSecondaryBorderToggle.isShown = isSecondaryPowerDetachedEnabled
 	list[#list + 1] = detachedSecondaryBorderToggle
 
-	local detachedSecondaryBorderTexture = checkboxDropdown(L["UFDetachedPowerBorderTexture"] or "Border texture", borderOptions, function()
+	local detachedSecondaryBorderTexture = checkboxDropdown(L["Border texture"] or "Border texture", borderOptions, function()
 		local border = getValue(unit, { "border" }, def.border or {})
 		return border.detachedSecondaryPowerTexture or border.texture or (def.border and def.border.texture) or "DEFAULT"
 	end, function(val)
@@ -2204,7 +2204,7 @@ local function appendSecondaryPowerSettings(list, unit, def, textureOpts, addDiv
 	detachedSecondaryBorderTexture.isShown = isSecondaryPowerDetachedEnabled
 	list[#list + 1] = detachedSecondaryBorderTexture
 
-	local detachedSecondaryBorderSize = slider(L["UFDetachedPowerBorderSize"] or "Border size", 1, 64, 1, function()
+	local detachedSecondaryBorderSize = slider(L["Border size"] or "Border size", 1, 64, 1, function()
 		local border = getValue(unit, { "border" }, def.border or {})
 		return border.detachedSecondaryPowerSize or border.edgeSize or 1
 	end, function(val)
@@ -2219,7 +2219,7 @@ local function appendSecondaryPowerSettings(list, unit, def, textureOpts, addDiv
 	detachedSecondaryBorderSize.isShown = isSecondaryPowerDetachedEnabled
 	list[#list + 1] = detachedSecondaryBorderSize
 
-	local detachedSecondaryBorderOffset = slider(L["UFDetachedPowerBorderOffset"] or "Border offset", 0, 64, 1, function()
+	local detachedSecondaryBorderOffset = slider(L["Border offset"] or "Border offset", 0, 64, 1, function()
 		local border = getValue(unit, { "border" }, def.border or {})
 		if border.detachedSecondaryPowerOffset == nil then
 			if border.offset ~= nil then return border.offset end
@@ -2245,7 +2245,7 @@ local function appendSecondaryPowerSettings(list, unit, def, textureOpts, addDiv
 	end, secondaryDef.reverseFill == true, "secondaryPower", isSecondaryPowerEnabled)
 
 	local secondaryPowerHeightSetting = slider(
-		L["UFPowerHeight"] or "Power height",
+		L["Power height"] or "Power height",
 		6,
 		60,
 		1,
@@ -2265,7 +2265,7 @@ local function appendSecondaryPowerSettings(list, unit, def, textureOpts, addDiv
 	addDivider("secondaryPower")
 
 	local secondaryTextLeft = radioDropdown(
-		L["TextLeft"] or "Left text",
+		L["Left text"] or "Left text",
 		textOptions,
 		function() return normalizeTextMode(getValue(unit, { "secondaryPower", "textLeft" }, secondaryDef.textLeft or "PERCENT")) end,
 		function(val)
@@ -2280,7 +2280,7 @@ local function appendSecondaryPowerSettings(list, unit, def, textureOpts, addDiv
 	list[#list + 1] = secondaryTextLeft
 
 	local secondaryTextCenter = radioDropdown(
-		L["TextCenter"] or "Center text",
+		L["Center text"] or "Center text",
 		textOptions,
 		function() return normalizeTextMode(getValue(unit, { "secondaryPower", "textCenter" }, secondaryDef.textCenter or "NONE")) end,
 		function(val)
@@ -2295,7 +2295,7 @@ local function appendSecondaryPowerSettings(list, unit, def, textureOpts, addDiv
 	list[#list + 1] = secondaryTextCenter
 
 	local secondaryTextRight = radioDropdown(
-		L["TextRight"] or "Right text",
+		L["Right text"] or "Right text",
 		textOptions,
 		function() return normalizeTextMode(getValue(unit, { "secondaryPower", "textRight" }, secondaryDef.textRight or "CURMAX")) end,
 		function(val)
@@ -2569,7 +2569,7 @@ local function appendSecondaryPowerSettings(list, unit, def, textureOpts, addDiv
 	list[#list + 1] = secondaryTexture
 
 	list[#list + 1] = checkboxColor({
-		name = L["UFBarBackdrop"] or "Show bar backdrop",
+		name = L["Show bar backdrop"] or "Show bar backdrop",
 		parentId = "secondaryPower",
 		defaultChecked = (secondaryDef.backdrop and secondaryDef.backdrop.enabled) ~= false,
 		isChecked = function() return getValue(unit, { "secondaryPower", "backdrop", "enabled" }, (secondaryDef.backdrop and secondaryDef.backdrop.enabled) ~= false) ~= false end,
@@ -2967,9 +2967,9 @@ local function buildUnitSettings(unit)
 		"frame",
 		isTooltipEnabled
 	)
-	list[#list + 1] = checkbox(L["UFHideInVehicle"] or "Hide in vehicles", isHideInVehicleEnabled, setHideInVehicleEnabled, def.hideInVehicle == true, "frame")
-	if not isPlayer then list[#list + 1] = checkbox(L["UFHideInPetBattle"] or "Hide in pet battles", isHideInPetBattleEnabled, setHideInPetBattleEnabled, def.hideInPetBattle == true, "frame") end
-	list[#list + 1] = checkbox(L["UFHideInClientScene"] or "Hide in client scenes", isHideInClientSceneEnabled, setHideInClientSceneEnabled, hideInClientSceneDefault(), "frame")
+	list[#list + 1] = checkbox(L["Hide in vehicles"] or "Hide in vehicles", isHideInVehicleEnabled, setHideInVehicleEnabled, def.hideInVehicle == true, "frame")
+	if not isPlayer then list[#list + 1] = checkbox(L["Hide in pet battles"] or "Hide in pet battles", isHideInPetBattleEnabled, setHideInPetBattleEnabled, def.hideInPetBattle == true, "frame") end
+	list[#list + 1] = checkbox(L["Hide in client scenes"] or "Hide in client scenes", isHideInClientSceneEnabled, setHideInClientSceneEnabled, hideInClientSceneDefault(), "frame")
 
 	if #visibilityOptions > 0 then
 		list[#list + 1] = {
@@ -3046,7 +3046,7 @@ local function buildUnitSettings(unit)
 	if isBoss then UF.ui.appendBossLayoutSettings(list, unit, def, refreshSelf) end
 	addDivider("frame")
 
-	list[#list + 1] = radioDropdown(L["UFStrata"] or "Frame strata", strataOptions, function() return getValue(unit, { "strata" }, def.strata or defaultStrata or "") end, function(val)
+	list[#list + 1] = radioDropdown(L["Frame strata"] or "Frame strata", strataOptions, function() return getValue(unit, { "strata" }, def.strata or defaultStrata or "") end, function(val)
 		setValue(unit, { "strata" }, val ~= "" and val or nil)
 		refreshSelf()
 	end, def.strata or defaultStrata or "", "frame")
@@ -3067,7 +3067,7 @@ local function buildUnitSettings(unit)
 	list[#list + 1] = { name = BORDER_LABEL, kind = UF.ui.settingType.Collapsible, id = "border", defaultCollapsed = true }
 
 	list[#list + 1] = checkboxColor({
-		name = L["UFShowBorder"] or "Show border",
+		name = L["Show border"] or "Show border",
 		parentId = "border",
 		defaultChecked = (def.border and def.border.enabled) ~= false,
 		isChecked = function()
@@ -3113,7 +3113,7 @@ local function buildUnitSettings(unit)
 	borderTexture.isEnabled = isBorderEnabled
 	list[#list + 1] = borderTexture
 
-	local borderSizeSetting = slider(L["UFBorderSize"] or "Border size", 1, 64, 1, function()
+	local borderSizeSetting = slider(L["Border size"] or "Border size", 1, 64, 1, function()
 		local border = getValue(unit, { "border" }, def.border or {})
 		return border.edgeSize or 1
 	end, function(val)
@@ -3264,10 +3264,10 @@ local function buildUnitSettings(unit)
 	addDivider("highlight")
 
 	local portraitDef = def.portrait or {}
-	list[#list + 1] = { name = L["UFPortrait"] or "Portrait", kind = UF.ui.settingType.Collapsible, id = "portrait", defaultCollapsed = true }
+	list[#list + 1] = { name = L["Portrait"] or "Portrait", kind = UF.ui.settingType.Collapsible, id = "portrait", defaultCollapsed = true }
 	local function isPortraitEnabled() return getValue(unit, { "portrait", "enabled" }, portraitDef.enabled == true) == true end
 
-	list[#list + 1] = checkbox(L["UFPortraitEnable"] or "Enable portrait", isPortraitEnabled, function(val)
+	list[#list + 1] = checkbox(L["Enable portrait"] or "Enable portrait", isPortraitEnabled, function(val)
 		setValue(unit, { "portrait", "enabled" }, val and true or false)
 		refreshSelf()
 		refreshSettingsUI()
@@ -3278,7 +3278,7 @@ local function buildUnitSettings(unit)
 		{ value = "RIGHT", label = HUD_EDIT_MODE_SETTING_AURA_FRAME_ICON_DIRECTION_RIGHT or "Right" },
 	}
 	local portraitSide = radioDropdown(
-		L["UFPortraitSide"] or "Portrait side",
+		L["Portrait side"] or "Portrait side",
 		portraitSideOptions,
 		function() return (getValue(unit, { "portrait", "side" }, portraitDef.side or "LEFT") or "LEFT"):upper() end,
 		function(val)
@@ -3292,7 +3292,7 @@ local function buildUnitSettings(unit)
 	list[#list + 1] = portraitSide
 
 	local portraitSquareBackground = checkbox(
-		L["UFPortraitSquareBackground"] or "Force square background",
+		L["Force square background"] or "Force square background",
 		function() return getValue(unit, { "portrait", "squareBackground" }, portraitDef.squareBackground == true) == true end,
 		function(val)
 			setValue(unit, { "portrait", "squareBackground" }, val and true or false)
@@ -3317,7 +3317,7 @@ local function buildUnitSettings(unit)
 	end, portraitSeparatorDef.enabled ~= false, "portrait")
 	list[#list].isEnabled = isPortraitEnabled
 
-	local portraitSeparatorSize = slider(L["UFPortraitSeparatorSize"] or "Separator size", 1, 64, 1, function()
+	local portraitSeparatorSize = slider(L["Separator size"] or "Separator size", 1, 64, 1, function()
 		local size = getValue(unit, { "portrait", "separator", "size" }, portraitSeparatorDef.size)
 		if not size or size <= 0 then
 			local border = getValue(unit, { "border" }, def.border or {})
@@ -3346,7 +3346,7 @@ local function buildUnitSettings(unit)
 	list[#list + 1] = portraitSeparatorTexture
 
 	local portraitSeparatorColor = checkboxColor({
-		name = L["UFPortraitSeparatorColor"] or "Separator color",
+		name = L["Separator color"] or "Separator color",
 		parentId = "portrait",
 		defaultChecked = portraitSeparatorDef.useCustomColor == true,
 		isChecked = function() return getValue(unit, { "portrait", "separator", "useCustomColor" }, portraitSeparatorDef.useCustomColor == true) == true end,
@@ -3429,7 +3429,7 @@ local function buildUnitSettings(unit)
 
 	if not isBoss then
 		list[#list + 1] = checkbox(
-			L["UFUseClassColor"] or "Use class color (players)",
+			L["Use class color (players)"] or "Use class color (players)",
 			function() return getValue(unit, { "health", "useClassColor" }, healthDef.useClassColor == true) == true end,
 			function(val)
 				setValue(unit, { "health", "useClassColor" }, val and true or false)
@@ -3444,7 +3444,7 @@ local function buildUnitSettings(unit)
 	end
 
 	list[#list + 1] = checkboxColor({
-		name = L["UFHealthColor"] or "Custom health color",
+		name = L["Custom health color"] or "Custom health color",
 		parentId = "health",
 		defaultChecked = healthDef.useCustomColor == true,
 		isChecked = function() return getValue(unit, { "health", "useCustomColor" }, healthDef.useCustomColor == true) == true end,
@@ -3601,7 +3601,7 @@ local function buildUnitSettings(unit)
 	list[#list + 1] = healthCurvePointCount
 
 	for i = 1, MAX_HEALTH_GRADIENT_POINTS do
-		local pointColorName = string.format(L["UFHealthGradientPointColor"] or "Point %d color", i)
+		local pointColorName = string.format(L["Point %d color"] or "Point %d color", i)
 		local pointPercentName = string.format(L["UFHealthGradientPointPercent"] or "Point %d percent", i)
 
 		local pointPercent = slider(pointPercentName, 0, 99, 1, function()
@@ -3673,7 +3673,7 @@ local function buildUnitSettings(unit)
 	addDivider("health")
 
 	list[#list + 1] = radioDropdown(
-		L["TextLeft"] or "Left text",
+		L["Left text"] or "Left text",
 		textOptions,
 		function() return normalizeTextMode(getValue(unit, { "health", "textLeft" }, healthDef.textLeft or "PERCENT")) end,
 		function(val)
@@ -3686,7 +3686,7 @@ local function buildUnitSettings(unit)
 	)
 
 	list[#list + 1] = radioDropdown(
-		L["TextCenter"] or "Center text",
+		L["Center text"] or "Center text",
 		textOptions,
 		function() return normalizeTextMode(getValue(unit, { "health", "textCenter" }, healthDef.textCenter or "NONE")) end,
 		function(val)
@@ -3699,7 +3699,7 @@ local function buildUnitSettings(unit)
 	)
 
 	list[#list + 1] = radioDropdown(
-		L["TextRight"] or "Right text",
+		L["Right text"] or "Right text",
 		textOptions,
 		function() return normalizeTextMode(getValue(unit, { "health", "textRight" }, healthDef.textRight or "CURMAX")) end,
 		function(val)
@@ -3939,7 +3939,7 @@ local function buildUnitSettings(unit)
 	addDivider("health")
 
 	list[#list + 1] = checkboxColor({
-		name = L["UFBarBackdrop"] or "Show bar backdrop",
+		name = L["Show bar backdrop"] or "Show bar backdrop",
 		parentId = "health",
 		defaultChecked = (healthDef.backdrop and healthDef.backdrop.enabled) ~= false,
 		isChecked = function() return getValue(unit, { "health", "backdrop", "enabled" }, (healthDef.backdrop and healthDef.backdrop.enabled) ~= false) ~= false end,
@@ -3983,7 +3983,7 @@ local function buildUnitSettings(unit)
 		return isBackdropEnabled
 	end
 	list[#list + 1] = checkbox(
-		L["UFHealthBackdropClampToFill"] or "Clamp backdrop to missing health",
+		L["Clamp backdrop to missing health"] or "Clamp backdrop to missing health",
 		function()
 			local value = getValue(unit, { "health", "backdrop", "clampToFill" }, healthDef.backdrop and healthDef.backdrop.clampToFill)
 			if value == nil then value = false end
@@ -4302,7 +4302,7 @@ local function buildUnitSettings(unit)
 	list[#list + 1] = powerWidthSetting
 
 	local powerGrowFromCenterSetting = checkbox(
-		L["UFPowerDetachedGrowFromCenter"] or "Grow from center",
+		L["Grow from center"] or "Grow from center",
 		function() return getValue(unit, { "power", "detachedGrowFromCenter" }, powerDef.detachedGrowFromCenter == true) == true end,
 		function(val)
 			setValue(unit, { "power", "detachedGrowFromCenter" }, val and true or false)
@@ -4376,7 +4376,7 @@ local function buildUnitSettings(unit)
 	addDivider("power", isPowerDetachedEnabled)
 
 	local detachedBorderToggle = checkbox(
-		L["UFDetachedPowerBorder"] or "Show border",
+		L["Show border"] or "Show border",
 		function() return getValue(unit, { "border", "detachedPower" }, def.border and def.border.detachedPower == true) == true end,
 		function(val)
 			local border = getValue(unit, { "border" }, def.border or {})
@@ -4392,7 +4392,7 @@ local function buildUnitSettings(unit)
 	detachedBorderToggle.isShown = isPowerDetachedEnabled
 	list[#list + 1] = detachedBorderToggle
 
-	local detachedBorderTexture = checkboxDropdown(L["UFDetachedPowerBorderTexture"] or "Border texture", borderOptions, function()
+	local detachedBorderTexture = checkboxDropdown(L["Border texture"] or "Border texture", borderOptions, function()
 		local border = getValue(unit, { "border" }, def.border or {})
 		return border.detachedPowerTexture or border.texture or (def.border and def.border.texture) or "DEFAULT"
 	end, function(val)
@@ -4405,7 +4405,7 @@ local function buildUnitSettings(unit)
 	detachedBorderTexture.isShown = isPowerDetachedEnabled
 	list[#list + 1] = detachedBorderTexture
 
-	local detachedBorderSize = slider(L["UFDetachedPowerBorderSize"] or "Border size", 1, 64, 1, function()
+	local detachedBorderSize = slider(L["Border size"] or "Border size", 1, 64, 1, function()
 		local border = getValue(unit, { "border" }, def.border or {})
 		return border.detachedPowerSize or border.edgeSize or 1
 	end, function(val)
@@ -4420,7 +4420,7 @@ local function buildUnitSettings(unit)
 	detachedBorderSize.isShown = isPowerDetachedEnabled
 	list[#list + 1] = detachedBorderSize
 
-	local detachedBorderOffset = slider(L["UFDetachedPowerBorderOffset"] or "Border offset", 0, 64, 1, function()
+	local detachedBorderOffset = slider(L["Border offset"] or "Border offset", 0, 64, 1, function()
 		local border = getValue(unit, { "border" }, def.border or {})
 		if border.detachedPowerOffset == nil then
 			if border.offset ~= nil then return border.offset end
@@ -4445,7 +4445,7 @@ local function buildUnitSettings(unit)
 		refresh()
 	end, powerDef.reverseFill == true, "power", isPowerEnabled)
 
-	local powerHeightSetting = slider(L["UFPowerHeight"] or "Power height", 6, 60, 1, function() return getValue(unit, { "powerHeight" }, def.powerHeight or 16) end, function(val)
+	local powerHeightSetting = slider(L["Power height"] or "Power height", 6, 60, 1, function() return getValue(unit, { "powerHeight" }, def.powerHeight or 16) end, function(val)
 		debounced(unit .. "_powerHeight", function()
 			setValue(unit, { "powerHeight" }, val or def.powerHeight or 16)
 			refresh()
@@ -4456,7 +4456,7 @@ local function buildUnitSettings(unit)
 	addDivider("power")
 
 	local powerTextLeft = radioDropdown(
-		L["TextLeft"] or "Left text",
+		L["Left text"] or "Left text",
 		textOptions,
 		function() return normalizeTextMode(getValue(unit, { "power", "textLeft" }, powerDef.textLeft or "PERCENT")) end,
 		function(val)
@@ -4471,7 +4471,7 @@ local function buildUnitSettings(unit)
 	list[#list + 1] = powerTextLeft
 
 	local powerTextCenter = radioDropdown(
-		L["TextCenter"] or "Center text",
+		L["Center text"] or "Center text",
 		textOptions,
 		function() return normalizeTextMode(getValue(unit, { "power", "textCenter" }, powerDef.textCenter or "NONE")) end,
 		function(val)
@@ -4486,7 +4486,7 @@ local function buildUnitSettings(unit)
 	list[#list + 1] = powerTextCenter
 
 	local powerTextRight = radioDropdown(
-		L["TextRight"] or "Right text",
+		L["Right text"] or "Right text",
 		textOptions,
 		function() return normalizeTextMode(getValue(unit, { "power", "textRight" }, powerDef.textRight or "CURMAX")) end,
 		function(val)
@@ -4732,7 +4732,7 @@ local function buildUnitSettings(unit)
 	list[#list + 1] = powerTexture
 
 	list[#list + 1] = checkboxColor({
-		name = L["UFBarBackdrop"] or "Show bar backdrop",
+		name = L["Show bar backdrop"] or "Show bar backdrop",
 		parentId = "power",
 		defaultChecked = (powerDef.backdrop and powerDef.backdrop.enabled) ~= false,
 		isChecked = function() return getValue(unit, { "power", "backdrop", "enabled" }, (powerDef.backdrop and powerDef.backdrop.enabled) ~= false) ~= false end,
@@ -5273,7 +5273,7 @@ local function buildUnitSettings(unit)
 
 	if unit == "player" or unit == "target" or unit == "focus" or isBoss then
 		local castDef = def.cast or {}
-		list[#list + 1] = { name = L["CastBar"] or "Cast Bar", kind = UF.ui.settingType.Collapsible, id = "cast", defaultCollapsed = true }
+		list[#list + 1] = { name = L["Castbar"] or "Cast Bar", kind = UF.ui.settingType.Collapsible, id = "cast", defaultCollapsed = true }
 		local function isCastEnabled() return getValue(unit, { "cast", "enabled" }, castDef.enabled ~= false) ~= false end
 		local function isCastIconEnabled() return isCastEnabled() and getValue(unit, { "cast", "showIcon" }, castDef.showIcon ~= false) ~= false end
 		local function isCastNameEnabled() return isCastEnabled() and getValue(unit, { "cast", "showName" }, castDef.showName ~= false) ~= false end
@@ -5698,7 +5698,7 @@ local function buildUnitSettings(unit)
 		list[#list + 1] = { name = "", kind = UF.ui.settingType.Divider, parentId = "cast" }
 
 		local castBackdrop = checkboxColor({
-			name = L["UFBarBackdrop"] or "Show bar backdrop",
+			name = L["Show bar backdrop"] or "Show bar backdrop",
 			parentId = "cast",
 			defaultChecked = (castDef.backdrop and castDef.backdrop.enabled) ~= false,
 			isChecked = function() return getValue(unit, { "cast", "backdrop", "enabled" }, (castDef.backdrop and castDef.backdrop.enabled) ~= false) ~= false end,
@@ -6020,7 +6020,7 @@ local function buildUnitSettings(unit)
 	local nameScopeLabel = NAME or L["Name"] or "Name"
 	local levelScopeLabel = LEVEL or L["Level"] or "Level"
 
-	local showNameToggle = checkbox(L["Show name"] or L["UFStatusEnable"] or "Show name", isNameEnabled, function(val)
+	local showNameToggle = checkbox(L["Show name"] or L["Show name"] or "Show name", isNameEnabled, function(val)
 		setValue(unit, { "status", "enabled" }, val and true or false)
 		refresh()
 		refreshSettingsUI()
@@ -6028,7 +6028,7 @@ local function buildUnitSettings(unit)
 	list[#list + 1] = showNameToggle
 
 	local nameColorSetting = checkboxColor({
-		name = L["UFNameColor"] or "Custom name color",
+		name = L["Name color"] or "Name color",
 		parentId = "name",
 		defaultChecked = (statusDef.nameColorMode or "CLASS") ~= "CLASS",
 		isChecked = function() return getValue(unit, { "status", "nameColorMode" }, statusDef.nameColorMode or "CLASS") ~= "CLASS" end,
@@ -6069,7 +6069,7 @@ local function buildUnitSettings(unit)
 	end
 
 	local nameAnchorSetting = radioDropdown(
-		L["UFNameAnchor"] or "Name anchor",
+		L["Name anchor"] or "Name anchor",
 		anchorOptions,
 		function() return getValue(unit, { "status", "nameAnchor" }, statusDef.nameAnchor or "LEFT") end,
 		function(val)
@@ -6082,7 +6082,7 @@ local function buildUnitSettings(unit)
 	nameAnchorSetting.isEnabled = isNameEnabled
 	list[#list + 1] = nameAnchorSetting
 
-	addStatusStrataSetting(makeScopedLabel(L["UFStrata"] or "Frame strata", nameScopeLabel), { "status", "nameStrata" }, statusDef.nameStrata or "", "name", isNameEnabled)
+	addStatusStrataSetting(makeScopedLabel(L["Frame strata"] or "Frame strata", nameScopeLabel), { "status", "nameStrata" }, statusDef.nameStrata or "", "name", isNameEnabled)
 
 	local nameFrameLevelOffsetSetting = slider(
 		makeScopedLabel(L["UFFrameLevel"] or "Frame level", nameScopeLabel),
@@ -6111,7 +6111,7 @@ local function buildUnitSettings(unit)
 	list[#list + 1] = nameFontSizeSetting
 
 	local nameMaxCharsSetting = slider(
-		L["UFNameMaxChars"] or "Name max width",
+		L["Name max width"] or "Name max width",
 		0,
 		100,
 		1,
@@ -6164,7 +6164,7 @@ local function buildUnitSettings(unit)
 
 	list[#list + 1] = { name = LEVEL or "Level", kind = UF.ui.settingType.Collapsible, id = "level", defaultCollapsed = true }
 
-	local showLevelToggle = checkbox(L["UFShowLevel"] or "Show level", function() return getValue(unit, { "status", "levelEnabled" }, statusDef.levelEnabled ~= false) end, function(val)
+	local showLevelToggle = checkbox(L["Show level"] or "Show level", function() return getValue(unit, { "status", "levelEnabled" }, statusDef.levelEnabled ~= false) end, function(val)
 		setValue(unit, { "status", "levelEnabled" }, val and true or false)
 		refresh()
 		refreshSettingsUI()
@@ -6185,7 +6185,7 @@ local function buildUnitSettings(unit)
 	list[#list + 1] = hideLevelAtMaxToggle
 
 	local levelColorSetting = checkboxColor({
-		name = L["UFLevelColor"] or "Custom level color",
+		name = L["Level color"] or "Custom level color",
 		parentId = "level",
 		defaultChecked = (statusDef.levelColorMode or "CLASS") ~= "CLASS",
 		isChecked = function() return getValue(unit, { "status", "levelColorMode" }, statusDef.levelColorMode or "CLASS") ~= "CLASS" end,
@@ -6210,7 +6210,7 @@ local function buildUnitSettings(unit)
 	list[#list + 1] = levelColorSetting
 
 	local levelAnchorSetting = radioDropdown(
-		L["UFLevelAnchor"] or "Level anchor",
+		L["Level anchor"] or "Level anchor",
 		anchorOptions,
 		function() return getValue(unit, { "status", "levelAnchor" }, statusDef.levelAnchor or "RIGHT") end,
 		function(val)
@@ -6223,7 +6223,7 @@ local function buildUnitSettings(unit)
 	levelAnchorSetting.isEnabled = isLevelEnabled
 	list[#list + 1] = levelAnchorSetting
 
-	addStatusStrataSetting(makeScopedLabel(L["UFStrata"] or "Frame strata", levelScopeLabel), { "status", "levelStrata" }, statusDef.levelStrata or "", "level", isLevelEnabled)
+	addStatusStrataSetting(makeScopedLabel(L["Frame strata"] or "Frame strata", levelScopeLabel), { "status", "levelStrata" }, statusDef.levelStrata or "", "level", isLevelEnabled)
 
 	local levelFrameLevelOffsetSetting = slider(
 		makeScopedLabel(L["UFFrameLevel"] or "Frame level", levelScopeLabel),
@@ -7209,7 +7209,7 @@ local function buildUnitSettings(unit)
 	}
 
 	list[#list + 1] = multiDropdown(
-		L["UFCombatFeedbackEvents"] or "Combat feedback events",
+		L["Events"] or "Combat feedback events",
 		combatFeedbackEventOptions,
 		isCombatEventSelected,
 		setCombatEventSelected,
@@ -7220,7 +7220,7 @@ local function buildUnitSettings(unit)
 
 	if #fontOptions() > 0 then
 		local combatFontSetting = checkboxDropdown(
-			L["UFCombatFeedbackFont"] or "Combat feedback font",
+			L["Font"] or "Combat feedback font",
 			fontOptions,
 			function() return getValue(unit, { "combatFeedback", "font" }, combatDef.font or globalFontConfigKey()) end,
 			function(val)
@@ -7235,7 +7235,7 @@ local function buildUnitSettings(unit)
 	end
 
 	local combatFontSizeSetting = slider(
-		L["UFCombatFeedbackSize"] or "Combat feedback size",
+		L["Size"] or "Combat feedback size",
 		8,
 		64,
 		1,
@@ -7254,7 +7254,7 @@ local function buildUnitSettings(unit)
 	list[#list + 1] = combatFontSizeSetting
 
 	local combatLocationSetting = radioDropdown(
-		L["UFCombatFeedbackLocation"] or "Combat feedback location",
+		L["Location"] or "Combat feedback location",
 		combatFeedbackLocationOptions,
 		function() return getValue(unit, { "combatFeedback", "location" }, combatDef.location or "STATUS") end,
 		function(val)
@@ -7268,7 +7268,7 @@ local function buildUnitSettings(unit)
 	list[#list + 1] = combatLocationSetting
 
 	local combatAnchorSetting = radioDropdown(
-		L["UFCombatFeedbackAnchor"] or "Combat feedback anchor",
+		L["Anchor"] or "Combat feedback anchor",
 		combatFeedbackAnchorOptions,
 		function() return getValue(unit, { "combatFeedback", "anchor" }, combatDef.anchor or "CENTER") end,
 		function(val)
@@ -7282,7 +7282,7 @@ local function buildUnitSettings(unit)
 	list[#list + 1] = combatAnchorSetting
 
 	local combatOffsetX = slider(
-		L["UFCombatFeedbackOffsetX"] or "Combat feedback offset X",
+		L["Offset X"] or "Combat feedback offset X",
 		-OFFSET_RANGE,
 		OFFSET_RANGE,
 		1,
@@ -7301,7 +7301,7 @@ local function buildUnitSettings(unit)
 	list[#list + 1] = combatOffsetX
 
 	local combatOffsetY = slider(
-		L["UFCombatFeedbackOffsetY"] or "Combat feedback offset Y",
+		L["Offset Y"] or "Combat feedback offset Y",
 		-OFFSET_RANGE,
 		OFFSET_RANGE,
 		1,
@@ -7322,7 +7322,7 @@ local function buildUnitSettings(unit)
 
 	local function isCombatFeedbackSampleEnabled() return isCombatFeedbackEnabled() and getValue(unit, { "combatFeedback", "sample" }, combatDef.sample == true) == true end
 
-	list[#list + 1] = checkbox(L["UFCombatFeedbackSample"] or "Show sample", function() return getValue(unit, { "combatFeedback", "sample" }, combatDef.sample == true) == true end, function(val)
+	list[#list + 1] = checkbox(L["Show sample"] or "Show sample", function() return getValue(unit, { "combatFeedback", "sample" }, combatDef.sample == true) == true end, function(val)
 		setValue(unit, { "combatFeedback", "sample" }, val and true or false)
 		refreshSelf()
 	end, combatDef.sample == true, "combatFeedback")
@@ -7364,7 +7364,7 @@ local function buildUnitSettings(unit)
 	appendUnitAuraSettings(list, unit, def, refreshSelf)
 
 	if unit ~= "target" then
-		list[#list + 1] = { name = L["UFPrivateAuras"] or "Private Auras", kind = UF.ui.settingType.Collapsible, id = "privateAuras", defaultCollapsed = true }
+		list[#list + 1] = { name = L["Private Auras"] or "Private Auras", kind = UF.ui.settingType.Collapsible, id = "privateAuras", defaultCollapsed = true }
 		local paDef = def.privateAuras
 			or {
 				enabled = false,
@@ -7381,7 +7381,7 @@ local function buildUnitSettings(unit)
 			return isPrivateAurasEnabled() and (getValue(unit, { "privateAuras", "duration", "enable" }, (paDef.duration and paDef.duration.enable) == true) == true)
 		end
 
-		list[#list + 1] = checkbox(L["UFPrivateAurasEnable"] or "Enable private auras", isPrivateAurasEnabled, function(val)
+		list[#list + 1] = checkbox(L["Enable private auras"] or "Enable private auras", isPrivateAurasEnabled, function(val)
 			setValue(unit, { "privateAuras", "enabled" }, val and true or false)
 			refresh()
 		end, paDef.enabled == true, "privateAuras")
@@ -7418,7 +7418,7 @@ local function buildUnitSettings(unit)
 		)
 		list[#list].isEnabled = isPrivateAurasEnabled
 
-		list[#list + 1] = radioDropdown(L["UFPrivateAurasPoint"] or "Icon direction", {
+		list[#list + 1] = radioDropdown(L["Icon direction"] or "Icon direction", {
 			{ value = "LEFT", label = DIRECTION_LEFT_LABEL },
 			{ value = "RIGHT", label = DIRECTION_RIGHT_LABEL },
 			{ value = "TOP", label = DIRECTION_TOP_LABEL },
@@ -7430,7 +7430,7 @@ local function buildUnitSettings(unit)
 		list[#list].isEnabled = isPrivateAurasEnabled
 
 		list[#list + 1] = slider(
-			L["UFPrivateAurasOffset"] or "Icon spacing",
+			L["Icon spacing"] or "Icon spacing",
 			0,
 			20,
 			1,
@@ -7446,7 +7446,7 @@ local function buildUnitSettings(unit)
 		list[#list].isEnabled = isPrivateAurasEnabled
 
 		list[#list + 1] = radioDropdown(
-			L["UFPrivateAurasParentPoint"] or "Anchor point",
+			L["Anchor point"] or "Anchor point",
 			anchorOptions9,
 			function() return getValue(unit, { "privateAuras", "parent", "point" }, (paDef.parent and paDef.parent.point) or "BOTTOM") end,
 			function(val)
@@ -7459,7 +7459,7 @@ local function buildUnitSettings(unit)
 		list[#list].isEnabled = isPrivateAurasEnabled
 
 		list[#list + 1] = slider(
-			L["UFPrivateAurasParentOffsetX"] or "Anchor offset X",
+			L["Anchor offset X"] or "Anchor offset X",
 			-OFFSET_RANGE,
 			OFFSET_RANGE,
 			1,
@@ -7475,7 +7475,7 @@ local function buildUnitSettings(unit)
 		list[#list].isEnabled = isPrivateAurasEnabled
 
 		list[#list + 1] = slider(
-			L["UFPrivateAurasParentOffsetY"] or "Anchor offset Y",
+			L["Anchor offset Y"] or "Anchor offset Y",
 			-OFFSET_RANGE,
 			OFFSET_RANGE,
 			1,
@@ -7491,7 +7491,7 @@ local function buildUnitSettings(unit)
 		list[#list].isEnabled = isPrivateAurasEnabled
 
 		list[#list + 1] = checkbox(
-			L["UFPrivateAurasCountdownFrame"] or "Show countdown frame",
+			L["Show countdown frame"] or "Show countdown frame",
 			function() return getValue(unit, { "privateAuras", "countdownFrame" }, paDef.countdownFrame ~= false) ~= false end,
 			function(val)
 				setValue(unit, { "privateAuras", "countdownFrame" }, val and true or false)
@@ -7503,7 +7503,7 @@ local function buildUnitSettings(unit)
 		list[#list].isEnabled = isPrivateAurasEnabled
 
 		list[#list + 1] = checkbox(
-			L["UFPrivateAurasCountdownNumbers"] or "Show countdown numbers",
+			L["Show countdown numbers"] or "Show countdown numbers",
 			function() return getValue(unit, { "privateAuras", "countdownNumbers" }, paDef.countdownNumbers ~= false) ~= false end,
 			function(val)
 				setValue(unit, { "privateAuras", "countdownNumbers" }, val and true or false)
@@ -7515,7 +7515,7 @@ local function buildUnitSettings(unit)
 		list[#list].isEnabled = isPrivateCountdownEnabled
 
 		list[#list + 1] = checkbox(
-			L["UFPrivateAurasShowDispelType"] or "Show dispel type",
+			L["Show dispel type"] or "Show dispel type",
 			function() return getValue(unit, { "privateAuras", "showDispelType" }, paDef.showDispelType == true) == true end,
 			function(val)
 				setValue(unit, { "privateAuras", "showDispelType" }, val and true or false)
@@ -7527,7 +7527,7 @@ local function buildUnitSettings(unit)
 		list[#list].isEnabled = isPrivateAurasEnabled
 
 		list[#list + 1] = checkbox(
-			L["UFPrivateAurasDurationEnable"] or "Show duration",
+			L["Show duration"] or "Show duration",
 			function() return getValue(unit, { "privateAuras", "duration", "enable" }, (paDef.duration and paDef.duration.enable) == true) == true end,
 			function(val)
 				setValue(unit, { "privateAuras", "duration", "enable" }, val and true or false)
@@ -7539,7 +7539,7 @@ local function buildUnitSettings(unit)
 		list[#list].isEnabled = isPrivateAurasEnabled
 
 		list[#list + 1] = radioDropdown(
-			L["UFPrivateAurasDurationPoint"] or "Duration anchor",
+			L["Duration anchor"] or "Duration anchor",
 			anchorOptions9,
 			function() return getValue(unit, { "privateAuras", "duration", "point" }, (paDef.duration and paDef.duration.point) or "BOTTOM") end,
 			function(val)
@@ -7552,7 +7552,7 @@ local function buildUnitSettings(unit)
 		list[#list].isEnabled = isPrivateDurationEnabled
 
 		list[#list + 1] = slider(
-			L["UFPrivateAurasDurationOffsetX"] or "Duration offset X",
+			L["Duration offset X"] or "Duration offset X",
 			-OFFSET_RANGE,
 			OFFSET_RANGE,
 			1,
@@ -7568,7 +7568,7 @@ local function buildUnitSettings(unit)
 		list[#list].isEnabled = isPrivateDurationEnabled
 
 		list[#list + 1] = slider(
-			L["UFPrivateAurasDurationOffsetY"] or "Duration offset Y",
+			L["Duration offset Y"] or "Duration offset Y",
 			-OFFSET_RANGE,
 			OFFSET_RANGE,
 			1,
@@ -8150,7 +8150,7 @@ local function registerSettingsUI()
 		end
 	end
 
-	addon.functions.SettingsCreateHeadline(cUF, L["ufClassColorsHeader"] or "Class colors", { parentSection = expandable })
+	addon.functions.SettingsCreateHeadline(cUF, L["Class colors"] or "Class colors", { parentSection = expandable })
 
 	addon.functions.SettingsCreateCheckbox(cUF, {
 		var = "ufUseCustomClassColors",
@@ -8172,7 +8172,7 @@ local function registerSettingsUI()
 	local classColorParent = addon.SettingsLayout.elements["ufUseCustomClassColors"] and addon.SettingsLayout.elements["ufUseCustomClassColors"].element
 	addon.functions.SettingsCreateColorOverrides(cUF, {
 		var = "ufClassColors",
-		text = L["ufClassColorsLabel"] or "Class colors",
+		text = L["Class colors"] or "Class colors",
 		entries = classEntries,
 		getColor = function(key)
 			local overrides = addon.db and addon.db.ufClassColors
@@ -8281,7 +8281,7 @@ local function registerSettingsUI()
 
 		local cProfiles = addon.SettingsLayout.rootPROFILES
 		local profileOrderActive, profileOrderGlobal, profileOrderCopy, profileOrderDelete = {}, {}, {}, {}
-		local noOverrideLabel = L["UFProfileNoOverride"] or "No override"
+		local noOverrideLabel = L["No override"] or "No override"
 
 		local function clearOrder(order)
 			for i = #order, 1, -1 do
@@ -8337,7 +8337,7 @@ local function registerSettingsUI()
 
 		addon.functions.SettingsCreateDropdown(cProfiles, {
 			var = "ufProfileActive",
-			text = L["UFProfileActive"] or (L["ProfileActive"] or "Active profile"),
+			text = L["Active profile"] or (L["Active profile"] or "Active profile"),
 			listFunc = function() return buildProfileList(profileOrderActive) end,
 			order = profileOrderActive,
 			get = function() return getActiveUFProfile() or "Default" end,
@@ -8358,7 +8358,7 @@ local function registerSettingsUI()
 
 		addon.functions.SettingsCreateDropdown(cProfiles, {
 			var = "ufProfileGlobal",
-			text = L["UFProfileGlobal"] or (L["ProfileUseGlobal"] or "Global profile"),
+			text = L["Global profile"] or (L["Global profile"] or "Global profile"),
 			listFunc = function() return buildProfileList(profileOrderGlobal) end,
 			order = profileOrderGlobal,
 			get = function() return getGlobalUFProfile() or "Default" end,
@@ -8369,7 +8369,7 @@ local function registerSettingsUI()
 				end
 				if not ok then
 					local msg = L["UFProfileSetGlobalFailed"] or "Could not set the global Unit Frames profile."
-					if reason == "NOT_FOUND" then msg = L["UFProfileSetGlobalMissing"] or "That Unit Frames profile does not exist." end
+					if reason == "NOT_FOUND" then msg = L["UFProfileSetActiveMissing"] or "That Unit Frames profile does not exist." end
 					print("|cff00ff98Enhance QoL|r: " .. tostring(msg))
 				end
 			end,
@@ -8379,7 +8379,7 @@ local function registerSettingsUI()
 
 		addon.functions.SettingsCreateDropdown(cProfiles, {
 			var = "ufProfileCopy",
-			text = L["UFProfileCopy"] or (L["ProfileCopy"] or "Copy settings from profile"),
+			text = L["Copy settings from profile"] or (L["Copy settings from profile"] or "Copy settings from profile"),
 			listFunc = function()
 				local active = getActiveUFProfile()
 				return buildProfileList(profileOrderCopy, function(name) return name == active end, true)
@@ -8420,7 +8420,7 @@ local function registerSettingsUI()
 
 		addon.functions.SettingsCreateDropdown(cProfiles, {
 			var = "ufProfileDelete",
-			text = L["UFProfileDelete"] or (L["ProfileDelete"] or "Delete profile"),
+			text = L["Delete profile"] or (L["Delete profile"] or "Delete profile"),
 			listFunc = function()
 				local active = getActiveUFProfile()
 				local globalProfile = getGlobalUFProfile()
@@ -8551,7 +8551,7 @@ local function registerSettingsUI()
 			end
 		end
 
-		addon.functions.SettingsCreateHeadline(cProfiles, L["UFProfileExportImportHeader"] or "Export / Import", { parentSection = expandableProfile })
+		addon.functions.SettingsCreateHeadline(cProfiles, L["Export / Import"] or "Export / Import", { parentSection = expandableProfile })
 
 		addon.functions.SettingsCreateDropdown(cProfiles, {
 			var = "ufProfileScope",

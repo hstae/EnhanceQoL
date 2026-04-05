@@ -99,10 +99,10 @@ end
 local ilvlFontOrder = {}
 local ilvlOutlineOrder = { "NONE", "OUTLINE", "THICKOUTLINE", "MONOCHROMEOUTLINE" }
 local ilvlOutlineOptions = {
-	NONE = L["fontOutlineNone"] or NONE,
-	OUTLINE = L["fontOutlineThin"] or "Outline",
-	THICKOUTLINE = L["fontOutlineThick"] or "Thick Outline",
-	MONOCHROMEOUTLINE = L["fontOutlineMono"] or "Monochrome Outline",
+	NONE = NONE,
+	OUTLINE = L["Outline"] or "Outline",
+	THICKOUTLINE = L["Thick Outline"] or "Thick Outline",
+	MONOCHROMEOUTLINE = L["Monochrome Outline"] or "Monochrome Outline",
 }
 local ENCHANT_DISPLAY_MODE_FULL = "FULL"
 local ENCHANT_DISPLAY_MODE_FULL_ICON = "FULL_ICON"
@@ -235,7 +235,7 @@ addon.functions.SettingsCreateDropdown(cGearUpgrade, {
 		BOTTOM = DIRECTION_BOTTOM_LABEL,
 		OUTSIDE = L["outsideNearGems"] or "Outside (next to gems)",
 	},
-	text = L["charTrackPosition"] or "Upgrade track position",
+	text = L["Upgrade track position"] or "Upgrade track position",
 	get = function() return addon.db["charTrackPosition"] or "LEFT" end,
 	set = function(key)
 		addon.db["charTrackPosition"] = key
@@ -251,18 +251,18 @@ addon.functions.SettingsCreateDropdown(cGearUpgrade, {
 
 addon.functions.SettingsCreateDropdown(cGearUpgrade, {
 	list = {
-		TOPLEFT = L["topLeft"],
+		TOPLEFT = L["Top Left"],
 		TOP = DIRECTION_TOP_LABEL,
-		TOPRIGHT = L["topRight"],
+		TOPRIGHT = L["Top Right"],
 		LEFT = DIRECTION_LEFT_LABEL,
 		CENTER = L["center"],
 		RIGHT = DIRECTION_RIGHT_LABEL,
-		BOTTOMLEFT = L["bottomLeft"],
+		BOTTOMLEFT = L["Bottom Left"],
 		BOTTOM = DIRECTION_BOTTOM_LABEL,
-		BOTTOMRIGHT = L["bottomRight"],
+		BOTTOMRIGHT = L["Bottom Right"],
 		OUTSIDE = L["outsideNearGems"] or "Outside (next to gems)",
 	},
-	text = L["charIlvlPosition"],
+	text = L["Item level position"],
 	get = function() return addon.db["charIlvlPosition"] or "TOPRIGHT" end,
 	set = function(key)
 		addon.db["charIlvlPosition"] = key
@@ -278,15 +278,15 @@ addon.functions.SettingsCreateDropdown(cGearUpgrade, {
 
 addon.functions.SettingsCreateDropdown(cGearUpgrade, {
 	list = {
-		TOPLEFT = L["topLeft"],
+		TOPLEFT = L["Top Left"],
 		TOP = DIRECTION_TOP_LABEL,
-		TOPRIGHT = L["topRight"],
+		TOPRIGHT = L["Top Right"],
 		LEFT = DIRECTION_LEFT_LABEL,
 		CENTER = L["center"],
 		RIGHT = DIRECTION_RIGHT_LABEL,
-		BOTTOMLEFT = L["bottomLeft"],
+		BOTTOMLEFT = L["Bottom Left"],
 		BOTTOM = DIRECTION_BOTTOM_LABEL,
-		BOTTOMRIGHT = L["bottomRight"],
+		BOTTOMRIGHT = L["Bottom Right"],
 	},
 	text = L["flyoutIlvlPosition"] or "Equipment flyout item level position",
 	get = function() return addon.db["flyoutIlvlPosition"] or "TOPRIGHT" end,

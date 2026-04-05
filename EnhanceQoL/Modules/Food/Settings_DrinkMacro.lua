@@ -281,7 +281,7 @@ local function buildDrinkMacroSettings()
 	})
 
 	local priorityLabels = {
-		spell = L["CategoryCustomSpells"] or (L["Custom Spells"] or "Custom Spells"),
+		spell = L["Custom Spells"] or (L["Custom Spells"] or "Custom Spells"),
 		stone = L["CategoryHealthstones"] or (L["Prefer Healthstone first"] or "Healthstones"),
 		potion = L["CategoryPotions"] or "Potions",
 		combatpotion = L["CategoryCombatPotions"] or (L["Use Combat potions for health macro"] or "Combat potions"),
@@ -493,7 +493,7 @@ local function buildDrinkMacroSettings()
 		}
 	)
 
-	addon.functions.SettingsCreateText(cDrink, string.format(L["healthMacroPlaceOnBar"], "EnhanceQoLHealthMacro"), { parentSection = convenienceSection })
+	addon.functions.SettingsCreateText(cDrink, string.format(L["%s - place on your bar (updates outside combat)"], "EnhanceQoLHealthMacro"), { parentSection = convenienceSection })
 	if addon.variables and addon.variables.unitClass == "WARLOCK" then addon.functions.SettingsCreateText(cDrink, L["healthMacroTipReset"], { parentSection = convenienceSection }) end
 
 	addon.functions.SettingsCreateHeadline(cDrink, L["Flask Macro"] or "Flask Macro", { parentSection = convenienceSection })
@@ -642,7 +642,7 @@ local function buildDrinkMacroSettings()
 
 	addon.functions.SettingsCreateText(
 		cDrink,
-		string.format(L["flaskMacroPlaceOnBar"] or "%s - place on your bar (updates outside combat)", "EnhanceQoLFlaskMacro"),
+		string.format(L["%s - place on your bar (updates outside combat)"] or "%s - place on your bar (updates outside combat)", "EnhanceQoLFlaskMacro"),
 		{ parentSection = convenienceSection }
 	)
 
@@ -820,7 +820,7 @@ local function buildDrinkMacroSettings()
 
 	addon.functions.SettingsCreateText(
 		cDrink,
-		string.format(L["buffFoodMacroPlaceOnBar"] or "%s - place on your bar (updates outside combat)", "EnhanceQoLBuffFoodMacro"),
+		string.format(L["%s - place on your bar (updates outside combat)"] or "%s - place on your bar (updates outside combat)", "EnhanceQoLBuffFoodMacro"),
 		{ parentSection = convenienceSection }
 	)
 end

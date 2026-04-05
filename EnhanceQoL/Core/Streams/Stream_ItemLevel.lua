@@ -157,7 +157,7 @@ end
 local provider = {
 	id = "itemlevel",
 	version = 2,
-	title = L["Item Level"] or "Item Level",
+	title = ITEM_UPGRADE_STAT_AVERAGE_ITEM_LEVEL,
 	update = updateItemLevel,
 	events = {
 		PLAYER_AVG_ITEM_LEVEL_UPDATE = function(s) addon.DataHub:RequestUpdate(s) end,
@@ -188,7 +188,7 @@ local provider = {
 		local pvpText = format("%.2f", lastPvp or 0)
 
 		local r, g, b = getItemLevelColor()
-		tip:AddDoubleLine(STAT_AVERAGE_ITEM_LEVEL or (L["Item Level"] or "Item Level"), avgText, 1, 1, 1, r, g, b)
+		tip:AddDoubleLine(ITEM_UPGRADE_STAT_AVERAGE_ITEM_LEVEL, avgText, 1, 1, 1, r, g, b)
 		if lastEquipped then
 			local cr, cg, cb = diffColor(lastEquipped - lastAvg)
 			tip:AddDoubleLine(EQUIPPED or "Equipped", eqText, 1, 1, 1, cr, cg, cb)

@@ -704,10 +704,10 @@ local function ensureBRAnchor()
 			end
 
 			local function outlineOptionLabel(value)
-				if value == "NONE" then return L["fontOutlineNone"] or NONE end
-				if value == "OUTLINE" then return L["fontOutlineThin"] or "Outline" end
-				if value == "THICKOUTLINE" then return L["fontOutlineThick"] or "Thick Outline" end
-				if value == "MONOCHROMEOUTLINE" then return L["fontOutlineMono"] or "Monochrome Outline" end
+				if value == "NONE" then return NONE end
+				if value == "OUTLINE" then return L["Outline"] or "Outline" end
+				if value == "THICKOUTLINE" then return L["Thick Outline"] or "Thick Outline" end
+				if value == "MONOCHROMEOUTLINE" then return L["Monochrome Outline"] or "Monochrome Outline" end
 				return value
 			end
 
@@ -720,7 +720,7 @@ local function ensureBRAnchor()
 				},
 				{
 					field = "size",
-					name = L["mythicPlusBRButtonSizeHeadline"] or "Button Size",
+					name = L["Button Size"] or "Button Size",
 					kind = settingType.Slider,
 					parentId = "mythicPlusBRTrackerLayout",
 					minValue = BR_MIN_SIZE,
@@ -736,7 +736,7 @@ local function ensureBRAnchor()
 					end,
 				},
 				{
-					name = L["mythicPlusBRTrackerIconZoom"] or "Icon zoom",
+					name = L["Icon zoom"] or "Icon zoom",
 					kind = settingType.Slider,
 					parentId = "mythicPlusBRTrackerLayout",
 					minValue = TRACKER_ICON_ZOOM_MIN,
@@ -756,7 +756,7 @@ local function ensureBRAnchor()
 					defaultCollapsed = true,
 				},
 				{
-					name = L["mythicPlusBRTrackerBorderEnabled"] or "Use border",
+					name = L["Use border"] or "Use border",
 					kind = settingType.Checkbox,
 					parentId = "mythicPlusBRTrackerBorder",
 					get = function() return addon.db and addon.db["mythicPlusBRTrackerBorderEnabled"] ~= false end,
@@ -766,7 +766,7 @@ local function ensureBRAnchor()
 					end,
 				},
 				{
-					name = L["mythicPlusBRTrackerBorderTexture"] or "Border texture",
+					name = L["Border texture"] or "Border texture",
 					kind = settingType.Dropdown,
 					parentId = "mythicPlusBRTrackerBorder",
 					height = 220,
@@ -792,7 +792,7 @@ local function ensureBRAnchor()
 					isEnabled = function() return addon.db and addon.db["mythicPlusBRTrackerBorderEnabled"] ~= false end,
 				},
 				{
-					name = L["mythicPlusBRTrackerBorderSize"] or "Border size",
+					name = L["Border size"] or "Border size",
 					kind = settingType.Slider,
 					parentId = "mythicPlusBRTrackerBorder",
 					minValue = BR_BORDER_SIZE_MIN,
@@ -807,7 +807,7 @@ local function ensureBRAnchor()
 					isEnabled = function() return addon.db and addon.db["mythicPlusBRTrackerBorderEnabled"] ~= false end,
 				},
 				{
-					name = L["mythicPlusBRTrackerBorderOffset"] or "Border offset",
+					name = L["Border offset"] or "Border offset",
 					kind = settingType.Slider,
 					parentId = "mythicPlusBRTrackerBorder",
 					minValue = BR_BORDER_OFFSET_MIN,
@@ -822,7 +822,7 @@ local function ensureBRAnchor()
 					isEnabled = function() return addon.db and addon.db["mythicPlusBRTrackerBorderEnabled"] ~= false end,
 				},
 				{
-					name = L["mythicPlusBRTrackerBorderColor"] or "Border color",
+					name = EMBLEM_BORDER_COLOR,
 					kind = settingType.Color,
 					parentId = "mythicPlusBRTrackerBorder",
 					get = function()
@@ -852,7 +852,7 @@ local function ensureBRAnchor()
 					defaultCollapsed = false,
 				},
 				{
-					name = L["mythicPlusBRTrackerCooldownTextEnabled"] or "Show cooldown text",
+					name = L["Show cooldown text"] or "Show cooldown text",
 					kind = settingType.Checkbox,
 					parentId = "mythicPlusBRTrackerCooldown",
 					get = function() return addon.db and addon.db["mythicPlusBRTrackerCooldownTextEnabled"] ~= false end,
@@ -862,7 +862,7 @@ local function ensureBRAnchor()
 					end,
 				},
 				{
-					name = L["mythicPlusBRTrackerCooldownDrawSwipe"] or "Draw cooldown swipe",
+					name = L["Draw cooldown swipe"] or "Draw cooldown swipe",
 					kind = settingType.Checkbox,
 					parentId = "mythicPlusBRTrackerCooldown",
 					get = function() return addon.db and addon.db["mythicPlusBRTrackerCooldownDrawSwipe"] ~= false end,
@@ -872,7 +872,7 @@ local function ensureBRAnchor()
 					end,
 				},
 				{
-					name = L["mythicPlusBRTrackerCooldownDrawEdge"] or "Draw cooldown edge",
+					name = L["Draw cooldown edge"] or "Draw cooldown edge",
 					kind = settingType.Checkbox,
 					parentId = "mythicPlusBRTrackerCooldown",
 					get = function() return addon.db and addon.db["mythicPlusBRTrackerCooldownDrawEdge"] == true end,
@@ -882,7 +882,7 @@ local function ensureBRAnchor()
 					end,
 				},
 				{
-					name = L["mythicPlusBRTrackerCooldownDrawBling"] or "Draw cooldown bling",
+					name = L["Draw cooldown bling"] or "Draw cooldown bling",
 					kind = settingType.Checkbox,
 					parentId = "mythicPlusBRTrackerCooldown",
 					get = function() return addon.db and addon.db["mythicPlusBRTrackerCooldownDrawBling"] == true end,
@@ -892,7 +892,7 @@ local function ensureBRAnchor()
 					end,
 				},
 				{
-					name = L["mythicPlusBRTrackerCooldownFont"] or "Cooldown font",
+					name = L["Cooldown font"] or "Cooldown font",
 					kind = settingType.Dropdown,
 					parentId = "mythicPlusBRTrackerCooldown",
 					height = 280,
@@ -920,7 +920,7 @@ local function ensureBRAnchor()
 					isEnabled = function() return addon.db and addon.db["mythicPlusBRTrackerCooldownTextEnabled"] ~= false end,
 				},
 				{
-					name = L["mythicPlusBRTrackerCooldownTextSize"] or "Cooldown text size",
+					name = L["Cooldown text size"] or "Cooldown text size",
 					kind = settingType.Slider,
 					parentId = "mythicPlusBRTrackerCooldown",
 					minValue = BR_TEXT_SIZE_MIN,
@@ -935,7 +935,7 @@ local function ensureBRAnchor()
 					isEnabled = function() return addon.db and addon.db["mythicPlusBRTrackerCooldownTextEnabled"] ~= false end,
 				},
 				{
-					name = L["mythicPlusBRTrackerCooldownTextOutline"] or "Cooldown text outline",
+					name = L["Cooldown text outline"] or "Cooldown text outline",
 					kind = settingType.Dropdown,
 					parentId = "mythicPlusBRTrackerCooldown",
 					get = function() return normalizeBRTextOutline(addon.db and addon.db["mythicPlusBRTrackerCooldownTextOutline"]) end,
@@ -959,7 +959,7 @@ local function ensureBRAnchor()
 					isEnabled = function() return addon.db and addon.db["mythicPlusBRTrackerCooldownTextEnabled"] ~= false end,
 				},
 				{
-					name = L["mythicPlusBRTrackerCooldownTextColor"] or "Cooldown text color",
+					name = L["Cooldown text color"] or "Cooldown text color",
 					kind = settingType.Color,
 					parentId = "mythicPlusBRTrackerCooldown",
 					get = function()
@@ -983,7 +983,7 @@ local function ensureBRAnchor()
 					isEnabled = function() return addon.db and addon.db["mythicPlusBRTrackerCooldownTextEnabled"] ~= false end,
 				},
 				{
-					name = L["mythicPlusBRTrackerCooldownTextPoint"] or "Cooldown text anchor",
+					name = L["Cooldown text anchor"] or "Cooldown text anchor",
 					kind = settingType.Dropdown,
 					parentId = "mythicPlusBRTrackerCooldown",
 					height = 220,
@@ -1008,7 +1008,7 @@ local function ensureBRAnchor()
 					isEnabled = function() return addon.db and addon.db["mythicPlusBRTrackerCooldownTextEnabled"] ~= false end,
 				},
 				{
-					name = L["mythicPlusBRTrackerCooldownTextOffsetX"] or "Cooldown text X offset",
+					name = L["Cooldown text X offset"] or "Cooldown text X offset",
 					kind = settingType.Slider,
 					parentId = "mythicPlusBRTrackerCooldown",
 					minValue = BR_TEXT_OFFSET_MIN,
@@ -1023,7 +1023,7 @@ local function ensureBRAnchor()
 					isEnabled = function() return addon.db and addon.db["mythicPlusBRTrackerCooldownTextEnabled"] ~= false end,
 				},
 				{
-					name = L["mythicPlusBRTrackerCooldownTextOffsetY"] or "Cooldown text Y offset",
+					name = L["Cooldown text Y offset"] or "Cooldown text Y offset",
 					kind = settingType.Slider,
 					parentId = "mythicPlusBRTrackerCooldown",
 					minValue = BR_TEXT_OFFSET_MIN,
@@ -1044,7 +1044,7 @@ local function ensureBRAnchor()
 					defaultCollapsed = false,
 				},
 				{
-					name = L["mythicPlusBRTrackerChargesEnabled"] or "Show charges",
+					name = L["Show charges"] or "Show charges",
 					kind = settingType.Checkbox,
 					parentId = "mythicPlusBRTrackerCharges",
 					get = function() return addon.db and addon.db["mythicPlusBRTrackerChargesEnabled"] ~= false end,
@@ -1773,17 +1773,17 @@ local function ensureBloodlustAnchor()
 			end
 
 			local function outlineOptionLabel(value)
-				if value == "NONE" then return L["fontOutlineNone"] or NONE end
-				if value == "OUTLINE" then return L["fontOutlineThin"] or "Outline" end
-				if value == "THICKOUTLINE" then return L["fontOutlineThick"] or "Thick Outline" end
-				if value == "MONOCHROMEOUTLINE" then return L["fontOutlineMono"] or "Monochrome Outline" end
+				if value == "NONE" then return NONE end
+				if value == "OUTLINE" then return L["Outline"] or "Outline" end
+				if value == "THICKOUTLINE" then return L["Thick Outline"] or "Thick Outline" end
+				if value == "MONOCHROMEOUTLINE" then return L["Monochrome Outline"] or "Monochrome Outline" end
 				return value
 			end
 
 			settings = {
 				{
 					field = "size",
-					name = L["mythicPlusBloodlustButtonSizeHeadline"] or (L["mythicPlusBRButtonSizeHeadline"] or "Button Size"),
+					name = L["Button Size"] or (L["Button Size"] or "Button Size"),
 					kind = settingType.Slider,
 					minValue = BLOODLUST_MIN_SIZE,
 					maxValue = BLOODLUST_MAX_SIZE,
@@ -1798,7 +1798,7 @@ local function ensureBloodlustAnchor()
 					end,
 				},
 				{
-					name = L["mythicPlusBloodlustTrackerIcon"] or "Tracker icon",
+					name = L["Tracker icon"] or "Tracker icon",
 					kind = settingType.Dropdown,
 					get = function() return normalizeBloodlustIcon(addon.db and addon.db["mythicPlusBloodlustTrackerIcon"]) end,
 					set = function(_, value)
@@ -1821,7 +1821,7 @@ local function ensureBloodlustAnchor()
 						end,
 					},
 				{
-					name = L["mythicPlusBloodlustTrackerIconZoom"] or "Icon zoom",
+					name = L["Icon zoom"] or "Icon zoom",
 					kind = settingType.Slider,
 					minValue = TRACKER_ICON_ZOOM_MIN,
 					maxValue = TRACKER_ICON_ZOOM_MAX,
@@ -1839,7 +1839,7 @@ local function ensureBloodlustAnchor()
 					kind = settingType.Divider,
 				},
 				{
-					name = L["mythicPlusBloodlustTrackerBorderEnabled"] or "Use border",
+					name = L["Use border"] or "Use border",
 					kind = settingType.Checkbox,
 					get = function() return addon.db and addon.db["mythicPlusBloodlustTrackerBorderEnabled"] ~= false end,
 					set = function(_, value)
@@ -1848,7 +1848,7 @@ local function ensureBloodlustAnchor()
 					end,
 				},
 				{
-					name = L["mythicPlusBloodlustTrackerBorderTexture"] or "Border texture",
+					name = L["Border texture"] or "Border texture",
 					kind = settingType.Dropdown,
 					height = 220,
 					get = function() return normalizeBloodlustBorderTexture(addon.db and addon.db["mythicPlusBloodlustTrackerBorderTexture"]) end,
@@ -1873,7 +1873,7 @@ local function ensureBloodlustAnchor()
 					isEnabled = function() return addon.db and addon.db["mythicPlusBloodlustTrackerBorderEnabled"] ~= false end,
 				},
 				{
-					name = L["mythicPlusBloodlustTrackerBorderSize"] or "Border size",
+					name = L["Border size"] or "Border size",
 					kind = settingType.Slider,
 					minValue = BLOODLUST_BORDER_SIZE_MIN,
 					maxValue = BLOODLUST_BORDER_SIZE_MAX,
@@ -1887,7 +1887,7 @@ local function ensureBloodlustAnchor()
 					isEnabled = function() return addon.db and addon.db["mythicPlusBloodlustTrackerBorderEnabled"] ~= false end,
 				},
 				{
-					name = L["mythicPlusBloodlustTrackerBorderOffset"] or "Border offset",
+					name = L["Border offset"] or "Border offset",
 					kind = settingType.Slider,
 					minValue = BLOODLUST_BORDER_OFFSET_MIN,
 					maxValue = BLOODLUST_BORDER_OFFSET_MAX,
@@ -1901,7 +1901,7 @@ local function ensureBloodlustAnchor()
 					isEnabled = function() return addon.db and addon.db["mythicPlusBloodlustTrackerBorderEnabled"] ~= false end,
 				},
 				{
-					name = L["mythicPlusBloodlustTrackerBorderColor"] or "Border color",
+					name = EMBLEM_BORDER_COLOR,
 					kind = settingType.Color,
 					get = function()
 						local c = normalizeBloodlustBorderColor(addon.db and addon.db["mythicPlusBloodlustTrackerBorderColor"])
@@ -1928,7 +1928,7 @@ local function ensureBloodlustAnchor()
 					kind = settingType.Divider,
 				},
 				{
-					name = L["mythicPlusBloodlustTrackerCooldownDrawSwipe"] or "Draw cooldown swipe",
+					name = L["Draw cooldown swipe"] or "Draw cooldown swipe",
 					kind = settingType.Checkbox,
 					get = function() return addon.db and addon.db["mythicPlusBloodlustTrackerCooldownDrawSwipe"] ~= false end,
 					set = function(_, value)
@@ -1937,7 +1937,7 @@ local function ensureBloodlustAnchor()
 					end,
 				},
 				{
-					name = L["mythicPlusBloodlustTrackerCooldownDrawEdge"] or "Draw cooldown edge",
+					name = L["Draw cooldown edge"] or "Draw cooldown edge",
 					kind = settingType.Checkbox,
 					get = function() return addon.db and addon.db["mythicPlusBloodlustTrackerCooldownDrawEdge"] == true end,
 					set = function(_, value)
@@ -1946,7 +1946,7 @@ local function ensureBloodlustAnchor()
 					end,
 				},
 				{
-					name = L["mythicPlusBloodlustTrackerCooldownDrawBling"] or "Draw cooldown bling",
+					name = L["Draw cooldown bling"] or "Draw cooldown bling",
 					kind = settingType.Checkbox,
 					get = function() return addon.db and addon.db["mythicPlusBloodlustTrackerCooldownDrawBling"] == true end,
 					set = function(_, value)
@@ -1959,7 +1959,7 @@ local function ensureBloodlustAnchor()
 					kind = settingType.Divider,
 				},
 				{
-					name = L["mythicPlusBloodlustTrackerCooldownFont"] or "Cooldown font",
+					name = L["Cooldown font"] or "Cooldown font",
 					kind = settingType.Dropdown,
 					height = 280,
 					get = function()
@@ -1977,7 +1977,7 @@ local function ensureBloodlustAnchor()
 					end,
 				},
 				{
-					name = L["mythicPlusBloodlustTrackerCooldownTextSize"] or "Cooldown text size",
+					name = L["Cooldown text size"] or "Cooldown text size",
 					kind = settingType.Slider,
 					minValue = BLOODLUST_COOLDOWN_TEXT_SIZE_MIN,
 					maxValue = BLOODLUST_COOLDOWN_TEXT_SIZE_MAX,
@@ -1990,7 +1990,7 @@ local function ensureBloodlustAnchor()
 					end,
 				},
 				{
-					name = L["mythicPlusBloodlustTrackerCooldownTextOutline"] or "Cooldown text outline",
+					name = L["Cooldown text outline"] or "Cooldown text outline",
 					kind = settingType.Dropdown,
 					get = function() return normalizeBloodlustCooldownOutline(addon.db and addon.db["mythicPlusBloodlustTrackerCooldownTextOutline"]) end,
 					set = function(_, value)
@@ -2012,7 +2012,7 @@ local function ensureBloodlustAnchor()
 					end,
 				},
 				{
-					name = L["mythicPlusBloodlustTrackerCooldownTextColor"] or "Cooldown text color",
+					name = L["Cooldown text color"] or "Cooldown text color",
 					kind = settingType.Color,
 					get = function()
 						local c = normalizeBloodlustCooldownColor(addon.db and addon.db["mythicPlusBloodlustTrackerCooldownTextColor"])
@@ -2034,7 +2034,7 @@ local function ensureBloodlustAnchor()
 					hasOpacity = true,
 				},
 				{
-					name = L["mythicPlusBloodlustTrackerCooldownTextOffsetX"] or "Cooldown text X offset",
+					name = L["Cooldown text X offset"] or "Cooldown text X offset",
 					kind = settingType.Slider,
 					minValue = BLOODLUST_COOLDOWN_TEXT_OFFSET_MIN,
 					maxValue = BLOODLUST_COOLDOWN_TEXT_OFFSET_MAX,
@@ -2047,7 +2047,7 @@ local function ensureBloodlustAnchor()
 					end,
 				},
 				{
-					name = L["mythicPlusBloodlustTrackerCooldownTextOffsetY"] or "Cooldown text Y offset",
+					name = L["Cooldown text Y offset"] or "Cooldown text Y offset",
 					kind = settingType.Slider,
 					minValue = BLOODLUST_COOLDOWN_TEXT_OFFSET_MIN,
 					maxValue = BLOODLUST_COOLDOWN_TEXT_OFFSET_MAX,
@@ -2687,7 +2687,7 @@ local function eventHandler(self, event, arg1, arg2, arg3, arg4)
 		if InCombatLockdown() then return end
 		if addon.db["enableKeystoneHelper"] then checkKeyStone() end
 	elseif event == "READY_CHECK_FINISHED" and ChallengesKeystoneFrame and addon.MythicPlus.Buttons["ReadyCheck"] then
-		addon.MythicPlus.Buttons["ReadyCheck"]:SetText(L["ReadyCheck"])
+		addon.MythicPlus.Buttons["ReadyCheck"]:SetText(L["Ready Check"])
 	elseif event == "SPELL_UPDATE_CHARGES" then
 		if shouldShowBRTracker() then
 			if not brButton or not brButton.cooldownFrame then createBRFrame() end

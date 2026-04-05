@@ -621,9 +621,9 @@ end
 Reminder.GLOW_INSET_RANGE = Reminder.GLOW_INSET_RANGE or 100
 Reminder.GLOW_STYLE_OPTIONS = Reminder.GLOW_STYLE_OPTIONS
 	or {
-		{ value = "BLIZZARD", labelKey = "ClassBuffReminderGlowStyleBlizzard", fallback = "Blizzard" },
-		{ value = "MARCHING_ANTS", labelKey = "ClassBuffReminderGlowStyleMarchingAnts", fallback = "Marching ants" },
-		{ value = "FLASH", labelKey = "ClassBuffReminderGlowStyleFlash", fallback = "Flash" },
+		{ value = "BLIZZARD", labelKey = "Blizzard", fallback = "Blizzard" },
+		{ value = "MARCHING_ANTS", labelKey = "Marching ants", fallback = "Marching ants" },
+		{ value = "FLASH", labelKey = "Flash", fallback = "Flash" },
 	}
 
 local function normalizeGlowStyle(value)
@@ -4719,7 +4719,7 @@ function editModeSettingsBuilders.buildClassBuffs()
 			set = function(_, value) editModeSetBool(DB_GLOW, value) end,
 		},
 		{
-			name = L["ClassBuffReminderGlowStyle"] or "Glow style",
+			name = L["Glow style"] or "Glow style",
 			kind = SettingType.Dropdown,
 			parentId = "classBuffs",
 			height = 180,
@@ -4735,7 +4735,7 @@ function editModeSettingsBuilders.buildClassBuffs()
 			isEnabled = function() return getValue(DB_GLOW, defaults.glow) == true end,
 		},
 		{
-			name = L["ClassBuffReminderGlowInset"] or "Glow inset",
+			name = L["Glow inset"] or "Glow inset",
 			kind = SettingType.Slider,
 			parentId = "classBuffs",
 			default = defaults.glowInset,
@@ -4748,7 +4748,7 @@ function editModeSettingsBuilders.buildClassBuffs()
 			isEnabled = function() return getValue(DB_GLOW, defaults.glow) == true end,
 		},
 		{
-			name = L["ClassBuffReminderGlowColor"] or "Glow color",
+			name = L["Glow color"] or "Glow color",
 			kind = SettingType.Color,
 			parentId = "classBuffs",
 			default = defaults.glowColor,
@@ -4878,7 +4878,7 @@ function editModeSettingsBuilders.buildConsumables()
 			set = function(_, value) editModeSetTrackFlasks(value) end,
 		},
 		{
-			name = L["ClassBuffReminderTrackFlasksInstanceOnly"] or "Only in dungeons/raids",
+			name = L["Only in dungeons/raids"] or "Only in dungeons/raids",
 			kind = SettingType.Checkbox,
 			parentId = "flasks",
 			default = defaults.trackFlasksInstanceOnly == true,
@@ -4901,7 +4901,7 @@ function editModeSettingsBuilders.buildConsumables()
 			set = function(_, value) editModeSetTrackFood(value) end,
 		},
 		{
-			name = L["ClassBuffReminderTrackFoodInstanceOnly"] or "Only in dungeons/raids",
+			name = L["Only in dungeons/raids"] or "Only in dungeons/raids",
 			kind = SettingType.Checkbox,
 			parentId = "food",
 			default = defaults.trackFoodInstanceOnly == true,
@@ -4932,7 +4932,7 @@ function editModeSettingsBuilders.buildConsumables()
 			end,
 		},
 		{
-			name = L["ClassBuffReminderTrackWeaponBuffsInstanceOnly"] or "Only in dungeons/raids",
+			name = L["Only in dungeons/raids"] or "Only in dungeons/raids",
 			kind = SettingType.Checkbox,
 			parentId = "weaponBuffs",
 			default = defaults.trackWeaponBuffsInstanceOnly == true,
@@ -4950,7 +4950,7 @@ end
 function editModeSettingsBuilders.buildSound()
 	return {
 		{
-			name = L["ClassBuffReminderSectionSound"] or "Sound",
+			name = SOUND,
 			kind = SettingType.Collapsible,
 			id = "sound",
 			defaultCollapsed = true,
@@ -4997,7 +4997,7 @@ function editModeSettingsBuilders.buildLayout()
 			defaultCollapsed = true,
 		},
 		{
-			name = L["ClassBuffReminderDisplayMode"] or "Display mode",
+			name = DISPLAY_MODE,
 			kind = SettingType.Dropdown,
 			parentId = "anchorSize",
 			height = 80,
@@ -5017,7 +5017,7 @@ function editModeSettingsBuilders.buildLayout()
 			end,
 		},
 		{
-			name = L["ClassBuffReminderGrowthDirection"] or "Growth direction",
+			name = L["Growth direction"] or "Growth direction",
 			kind = SettingType.Dropdown,
 			parentId = "anchorSize",
 			height = 120,
@@ -5025,29 +5025,29 @@ function editModeSettingsBuilders.buildLayout()
 			set = function(_, value) editModeSetGrowthDirection(value) end,
 			generator = function(_, root)
 				root:CreateRadio(
-					L["ClassBuffReminderGrowthRight"] or "Right",
+					L["Right"] or "Right",
 					function() return normalizeGrowthDirection(getValue(DB_GROWTH_DIRECTION, defaults.growthDirection)) == GROWTH_RIGHT end,
 					function() editModeSetGrowthDirection(GROWTH_RIGHT) end
 				)
 				root:CreateRadio(
-					L["ClassBuffReminderGrowthLeft"] or "Left",
+					L["Left"] or "Left",
 					function() return normalizeGrowthDirection(getValue(DB_GROWTH_DIRECTION, defaults.growthDirection)) == GROWTH_LEFT end,
 					function() editModeSetGrowthDirection(GROWTH_LEFT) end
 				)
 				root:CreateRadio(
-					L["ClassBuffReminderGrowthUp"] or "Up",
+					L["Up"] or "Up",
 					function() return normalizeGrowthDirection(getValue(DB_GROWTH_DIRECTION, defaults.growthDirection)) == GROWTH_UP end,
 					function() editModeSetGrowthDirection(GROWTH_UP) end
 				)
 				root:CreateRadio(
-					L["ClassBuffReminderGrowthDown"] or "Down",
+					L["Down"] or "Down",
 					function() return normalizeGrowthDirection(getValue(DB_GROWTH_DIRECTION, defaults.growthDirection)) == GROWTH_DOWN end,
 					function() editModeSetGrowthDirection(GROWTH_DOWN) end
 				)
 			end,
 		},
 		{
-			name = L["ClassBuffReminderGrowthFromCenter"] or L["UFPowerDetachedGrowFromCenter"] or "Grow from center",
+			name = L["Grow from center"] or L["Grow from center"] or "Grow from center",
 			kind = SettingType.Checkbox,
 			parentId = "anchorSize",
 			default = defaults.growthFromCenter == true,
@@ -5055,7 +5055,7 @@ function editModeSettingsBuilders.buildLayout()
 			set = function(_, value) editModeSetGrowthFromCenter(value) end,
 		},
 		{
-			name = L["ClassBuffReminderScale"] or "Scale",
+			name = L["Scale"] or "Scale",
 			kind = SettingType.Slider,
 			parentId = "anchorSize",
 			default = defaults.scale,
@@ -5067,7 +5067,7 @@ function editModeSettingsBuilders.buildLayout()
 			formatter = function(value) return string.format("%.2f", tonumber(value) or defaults.scale) end,
 		},
 		{
-			name = L["ClassBuffReminderIconSize"] or "Icon size",
+			name = L["Icon size"] or "Icon size",
 			kind = SettingType.Slider,
 			parentId = "anchorSize",
 			default = defaults.iconSize,
@@ -5079,7 +5079,7 @@ function editModeSettingsBuilders.buildLayout()
 			formatter = function(value) return tostring(math.floor((tonumber(value) or defaults.iconSize) + 0.5)) end,
 		},
 		{
-			name = L["ClassBuffReminderIconGap"] or "Icon gap",
+			name = L["Icon gap"] or "Icon gap",
 			kind = SettingType.Slider,
 			parentId = "anchorSize",
 			default = defaults.iconGap,
@@ -5091,7 +5091,7 @@ function editModeSettingsBuilders.buildLayout()
 			formatter = function(value) return tostring(math.floor((tonumber(value) or defaults.iconGap) + 0.5)) end,
 		},
 		{
-			name = L["ClassBuffReminderFontSize"] or "Font size",
+			name = FONT_SIZE,
 			kind = SettingType.Slider,
 			parentId = "anchorSize",
 			default = defaults.fontSize,
@@ -5129,7 +5129,7 @@ function editModeSettingsBuilders.buildLayout()
 			end,
 			generator = function(_, root)
 				root:CreateRadio(
-					L["ClassBuffReminderTextOutlineNone"] or "None",
+					NONE,
 					function() return normalizeTextOutline(getValue(DB_XY_TEXT_OUTLINE, defaults.xyTextOutline)) == TEXT_OUTLINE_NONE end,
 					function()
 						if addon.db then addon.db[DB_XY_TEXT_OUTLINE] = normalizeTextOutline(TEXT_OUTLINE_NONE) end
@@ -5138,7 +5138,7 @@ function editModeSettingsBuilders.buildLayout()
 					end
 				)
 				root:CreateRadio(
-					L["ClassBuffReminderTextOutlineNormal"] or "Outline",
+					L["Outline"] or "Outline",
 					function() return normalizeTextOutline(getValue(DB_XY_TEXT_OUTLINE, defaults.xyTextOutline)) == TEXT_OUTLINE_OUTLINE end,
 					function()
 						if addon.db then addon.db[DB_XY_TEXT_OUTLINE] = normalizeTextOutline(TEXT_OUTLINE_OUTLINE) end
@@ -5147,7 +5147,7 @@ function editModeSettingsBuilders.buildLayout()
 					end
 				)
 				root:CreateRadio(
-					L["ClassBuffReminderTextOutlineThick"] or "Thick outline",
+					L["Thick outline"] or "Thick outline",
 					function() return normalizeTextOutline(getValue(DB_XY_TEXT_OUTLINE, defaults.xyTextOutline)) == TEXT_OUTLINE_THICK end,
 					function()
 						if addon.db then addon.db[DB_XY_TEXT_OUTLINE] = normalizeTextOutline(TEXT_OUTLINE_THICK) end
@@ -5156,7 +5156,7 @@ function editModeSettingsBuilders.buildLayout()
 					end
 				)
 				root:CreateRadio(
-					L["ClassBuffReminderTextOutlineMono"] or "Monochrome outline",
+					L["Monochrome outline"] or "Monochrome outline",
 					function() return normalizeTextOutline(getValue(DB_XY_TEXT_OUTLINE, defaults.xyTextOutline)) == TEXT_OUTLINE_MONO end,
 					function()
 						if addon.db then addon.db[DB_XY_TEXT_OUTLINE] = normalizeTextOutline(TEXT_OUTLINE_MONO) end

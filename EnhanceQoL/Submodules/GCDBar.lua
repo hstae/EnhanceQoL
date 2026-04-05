@@ -1101,8 +1101,8 @@ function GCDBar:RegisterEditMode()
 				entries[#entries + 1] = { key = key, label = label or key }
 			end
 
-			add(ANCHOR_TARGET_UI, L["gcdBarAnchorScreen"] or "Screen (UIParent)", true)
-			add(ANCHOR_TARGET_PLAYER_CASTBAR, L["gcdBarAnchorPlayerCastbar"] or "Player Castbar", true)
+			add(ANCHOR_TARGET_UI, L["Screen (UIParent)"] or "Screen (UIParent)", true)
+			add(ANCHOR_TARGET_PLAYER_CASTBAR, L["Player Castbar"] or "Player Castbar", true)
 
 			add("PlayerFrame", _G.HUD_EDIT_MODE_PLAYER_FRAME_LABEL or PLAYER or "Player Frame")
 			add("TargetFrame", _G.HUD_EDIT_MODE_TARGET_FRAME_LABEL or TARGET or "Target Frame")
@@ -1152,7 +1152,7 @@ function GCDBar:RegisterEditMode()
 
 		settings = {
 			{
-				name = L["gcdBarAnchor"] or "Anchor to",
+				name = L["Anchor to"] or "Anchor to",
 				kind = SettingType.Dropdown,
 				field = "anchorRelativeFrame",
 				height = 180,
@@ -1165,7 +1165,7 @@ function GCDBar:RegisterEditMode()
 				end,
 			},
 			{
-				name = L["gcdBarAnchorPoint"] or "Anchor point",
+				name = L["Anchor point"] or "Anchor point",
 				kind = SettingType.Dropdown,
 				field = "anchorPoint",
 				height = 180,
@@ -1178,7 +1178,7 @@ function GCDBar:RegisterEditMode()
 				end,
 			},
 			{
-				name = L["gcdBarAnchorRelativePoint"] or "Relative point",
+				name = L["Relative point"] or "Relative point",
 				kind = SettingType.Dropdown,
 				field = "anchorRelativePoint",
 				height = 180,
@@ -1191,7 +1191,7 @@ function GCDBar:RegisterEditMode()
 				end,
 			},
 			{
-				name = L["gcdBarAnchorOffsetX"] or "X Offset",
+				name = L["X Offset"] or "X Offset",
 				kind = SettingType.Slider,
 				field = "anchorOffsetX",
 				minValue = -1000,
@@ -1202,7 +1202,7 @@ function GCDBar:RegisterEditMode()
 				set = function(_, value) applySetting("anchorOffsetX", value) end,
 			},
 			{
-				name = L["gcdBarAnchorOffsetY"] or "Y Offset",
+				name = L["Y Offset"] or "Y Offset",
 				kind = SettingType.Slider,
 				field = "anchorOffsetY",
 				minValue = -1000,
@@ -1213,7 +1213,7 @@ function GCDBar:RegisterEditMode()
 				set = function(_, value) applySetting("anchorOffsetY", value) end,
 			},
 			{
-				name = L["gcdBarAnchorMatchWidth"] or "Match relative frame width",
+				name = L["Match relative frame width"] or "Match relative frame width",
 				kind = SettingType.Checkbox,
 				field = "anchorMatchWidth",
 				default = defaults.anchorMatchRelativeWidth == true,
@@ -1222,7 +1222,7 @@ function GCDBar:RegisterEditMode()
 				isEnabled = function() return not GCDBar:AnchorUsesUIParent() end,
 			},
 			{
-				name = L["gcdBarHideInPetBattle"] or "Hide in pet battles",
+				name = L["Hide in pet battles"] or "Hide in pet battles",
 				kind = SettingType.Checkbox,
 				field = "hideInPetBattle",
 				default = defaults.hideInPetBattle == true,
@@ -1230,7 +1230,7 @@ function GCDBar:RegisterEditMode()
 				set = function(_, value) applySetting("hideInPetBattle", value) end,
 			},
 			{
-				name = L["gcdBarStrata"] or "Frame strata",
+				name = L["Frame strata"] or "Frame strata",
 				kind = SettingType.Dropdown,
 				field = "strata",
 				height = 180,
@@ -1244,7 +1244,7 @@ function GCDBar:RegisterEditMode()
 				end,
 			},
 			{
-				name = L["gcdBarWidth"] or "Bar width",
+				name = L["Bar width"] or "Bar width",
 				kind = SettingType.Slider,
 				field = "width",
 				default = defaults.width,
@@ -1258,7 +1258,7 @@ function GCDBar:RegisterEditMode()
 				isEnabled = function() return not GCDBar:AnchorUsesMatchedWidth() end,
 			},
 			{
-				name = L["gcdBarHeight"] or "Bar height",
+				name = L["Bar height"] or "Bar height",
 				kind = SettingType.Slider,
 				field = "height",
 				default = defaults.height,
@@ -1271,7 +1271,7 @@ function GCDBar:RegisterEditMode()
 				formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
 			},
 			{
-				name = L["gcdBarTexture"] or "Bar texture",
+				name = L["Bar texture"] or "Bar texture",
 				kind = SettingType.Dropdown,
 				field = "texture",
 				height = 180,
@@ -1284,7 +1284,7 @@ function GCDBar:RegisterEditMode()
 				end,
 			},
 			{
-				name = L["gcdBarColor"] or "Bar color",
+				name = L["Bar color"] or "Bar color",
 				kind = SettingType.Color,
 				field = "color",
 				default = defaults.color,
@@ -1304,7 +1304,7 @@ function GCDBar:RegisterEditMode()
 				set = function(_, value) applySetting("sparkEnabled", value) end,
 			},
 			{
-				name = L["gcdBarBackgroundEnabled"] or "Use background",
+				name = L["Use background"] or "Use background",
 				kind = SettingType.Checkbox,
 				field = "bgEnabled",
 				default = defaults.bgEnabled == true,
@@ -1312,7 +1312,7 @@ function GCDBar:RegisterEditMode()
 				set = function(_, value) applySetting("bgEnabled", value) end,
 			},
 			{
-				name = L["gcdBarBackgroundTexture"] or "Background texture",
+				name = L["Background texture"] or "Background texture",
 				kind = SettingType.Dropdown,
 				field = "bgTexture",
 				height = 180,
@@ -1326,7 +1326,7 @@ function GCDBar:RegisterEditMode()
 				isEnabled = function() return GCDBar:GetBackgroundEnabled() end,
 			},
 			{
-				name = L["gcdBarBackgroundColor"] or "Background color",
+				name = L["Background color"] or "Background color",
 				kind = SettingType.Color,
 				field = "bgColor",
 				default = defaults.bgColor,
@@ -1339,7 +1339,7 @@ function GCDBar:RegisterEditMode()
 				isEnabled = function() return GCDBar:GetBackgroundEnabled() end,
 			},
 			{
-				name = L["gcdBarBorderEnabled"] or "Use border",
+				name = L["Use border"] or "Use border",
 				kind = SettingType.Checkbox,
 				field = "borderEnabled",
 				default = defaults.borderEnabled == true,
@@ -1347,7 +1347,7 @@ function GCDBar:RegisterEditMode()
 				set = function(_, value) applySetting("borderEnabled", value) end,
 			},
 			{
-				name = L["gcdBarBorderTexture"] or "Border texture",
+				name = L["Border texture"] or "Border texture",
 				kind = SettingType.Dropdown,
 				field = "borderTexture",
 				height = 180,
@@ -1361,7 +1361,7 @@ function GCDBar:RegisterEditMode()
 				isEnabled = function() return GCDBar:GetBorderEnabled() end,
 			},
 			{
-				name = L["gcdBarBorderSize"] or "Border size",
+				name = L["Border size"] or "Border size",
 				kind = SettingType.Slider,
 				field = "borderSize",
 				default = defaults.borderSize,
@@ -1374,7 +1374,7 @@ function GCDBar:RegisterEditMode()
 				isEnabled = function() return GCDBar:GetBorderEnabled() end,
 			},
 			{
-				name = L["gcdBarBorderOffset"] or "Border offset",
+				name = L["Border offset"] or "Border offset",
 				kind = SettingType.Slider,
 				field = "borderOffset",
 				default = defaults.borderOffset,
@@ -1387,7 +1387,7 @@ function GCDBar:RegisterEditMode()
 				isEnabled = function() return GCDBar:GetBorderEnabled() end,
 			},
 			{
-				name = L["gcdBarBorderColor"] or "Border color",
+				name = EMBLEM_BORDER_COLOR,
 				kind = SettingType.Color,
 				field = "borderColor",
 				default = defaults.borderColor,
@@ -1408,8 +1408,8 @@ function GCDBar:RegisterEditMode()
 				set = function(_, value) applySetting("progressMode", value) end,
 				generator = function(_, root)
 					local opts = {
-						{ value = "REMAINING", label = L["gcdBarProgressDeplete"] or "Deplete (remaining time)" },
-						{ value = "ELAPSED", label = L["gcdBarProgressFill"] or "Fill (elapsed time)" },
+						{ value = "REMAINING", label = L["Deplete (remaining time)"] or "Deplete (remaining time)" },
+						{ value = "ELAPSED", label = L["Fill (elapsed time)"] or "Fill (elapsed time)" },
 					}
 					for _, option in ipairs(opts) do
 						root:CreateRadio(option.label, function() return GCDBar:GetProgressMode() == option.value end, function() applySetting("progressMode", option.value) end)
@@ -1417,7 +1417,7 @@ function GCDBar:RegisterEditMode()
 				end,
 			},
 			{
-				name = L["gcdBarFillDirection"] or "Fill direction",
+				name = L["Fill direction"] or "Fill direction",
 				kind = SettingType.Dropdown,
 				field = "fillDirection",
 				height = 140,
@@ -1425,10 +1425,10 @@ function GCDBar:RegisterEditMode()
 				set = function(_, value) applySetting("fillDirection", value) end,
 				generator = function(_, root)
 					local opts = {
-						{ value = "LEFT", label = L["gcdBarFillLeft"] or "Left to right" },
-						{ value = "RIGHT", label = L["gcdBarFillRight"] or "Right to left" },
-						{ value = "UP", label = L["gcdBarFillUp"] or "Bottom to top" },
-						{ value = "DOWN", label = L["gcdBarFillDown"] or "Top to bottom" },
+						{ value = "LEFT", label = L["Left to right"] or "Left to right" },
+						{ value = "RIGHT", label = L["Right to left"] or "Right to left" },
+						{ value = "UP", label = L["Bottom to top"] or "Bottom to top" },
+						{ value = "DOWN", label = L["Top to bottom"] or "Top to bottom" },
 					}
 					for _, option in ipairs(opts) do
 						root:CreateRadio(option.label, function() return GCDBar:GetFillDirection() == option.value end, function() applySetting("fillDirection", option.value) end)

@@ -541,10 +541,10 @@ function ActionTracker:RegisterEditMode()
 	if editModeRegistered or not EditMode or not EditMode.RegisterFrame then return end
 
 	local directionOptions = {
-		{ value = "RIGHT", label = L["actionTrackerDirectionRight"] or "Right" },
-		{ value = "LEFT", label = L["actionTrackerDirectionLeft"] or "Left" },
-		{ value = "UP", label = L["actionTrackerDirectionUp"] or "Up" },
-		{ value = "DOWN", label = L["actionTrackerDirectionDown"] or "Down" },
+		{ value = "RIGHT", label = L["Right"] or "Right" },
+		{ value = "LEFT", label = L["Left"] or "Left" },
+		{ value = "UP", label = L["Up"] or "Up" },
+		{ value = "DOWN", label = L["Down"] or "Down" },
 	}
 
 	local settings
@@ -563,7 +563,7 @@ function ActionTracker:RegisterEditMode()
 				formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
 			},
 			{
-				name = L["actionTrackerIconSize"] or "Icon size",
+				name = L["Icon size"] or "Icon size",
 				kind = SettingType.Slider,
 				field = "size",
 				default = defaults.iconSize,
@@ -575,7 +575,7 @@ function ActionTracker:RegisterEditMode()
 				formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
 			},
 			{
-				name = L["actionTrackerSpacing"] or "Icon spacing",
+				name = L["Icon spacing"] or "Icon spacing",
 				kind = SettingType.Slider,
 				field = "spacing",
 				default = defaults.spacing,
@@ -587,7 +587,7 @@ function ActionTracker:RegisterEditMode()
 				formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
 			},
 			{
-				name = L["actionTrackerDirection"] or "Icon direction",
+				name = L["Icon direction"] or "Icon direction",
 				kind = SettingType.Dropdown,
 				field = "direction",
 				height = 120,

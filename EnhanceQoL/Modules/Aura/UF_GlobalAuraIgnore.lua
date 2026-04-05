@@ -131,7 +131,7 @@ local function getClassLabel(classToken)
 		if LOCALIZED_CLASS_NAMES_FEMALE[classToken] then return LOCALIZED_CLASS_NAMES_FEMALE[classToken] end
 		return tostring(classToken)
 	end
-	return tr("UFGroupHealerBuffEditorClassOther", "Other")
+	return tr("Other", "Other")
 end
 
 local function getUnitContextLabel(context)
@@ -687,7 +687,7 @@ local function buildEditor()
 
 	local contextLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	contextLabel:SetPoint("TOPLEFT", enabledCheck, "BOTTOMLEFT", 4, -12)
-	contextLabel:SetText(tr("UFGlobalAuraIgnoreEditorContext", "Frame"))
+	contextLabel:SetText(tr("Frame", "Frame"))
 	frame.ContextLabel = contextLabel
 
 	frame.ContextButtons = {}

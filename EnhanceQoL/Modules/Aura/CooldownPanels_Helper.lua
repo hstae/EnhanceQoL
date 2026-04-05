@@ -320,9 +320,9 @@ Helper.RADIAL_ARC_DEGREES_MIN = 15
 Helper.RADIAL_ARC_DEGREES_MAX = 360
 Helper.EXAMPLE_COOLDOWN_PERCENT = 0.55
 Helper.GLOW_STYLE_OPTIONS = {
-	{ value = "MARCHING_ANTS", labelKey = "CooldownPanelGlowStyleMarchingAnts", fallback = "Marching ants" },
-	{ value = "FLASH", labelKey = "CooldownPanelGlowStyleFlash", fallback = "Flash" },
-	{ value = "BLIZZARD", labelKey = "CooldownPanelGlowStyleBlizzard", fallback = "Blizzard" },
+	{ value = "MARCHING_ANTS", labelKey = "Marching ants", fallback = "Marching ants" },
+	{ value = "FLASH", labelKey = "Flash", fallback = "Flash" },
+	{ value = "BLIZZARD", labelKey = "Blizzard", fallback = "Blizzard" },
 }
 Helper.VALID_DIRECTIONS = {
 	RIGHT = true,

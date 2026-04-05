@@ -125,16 +125,16 @@ local function tr(key, fallback)
 end
 
 HB.STYLE_OPTIONS = {
-	{ value = STYLE_ICON, label = tr("UFGroupHealerBuffStyleIcon", "Icon") },
-	{ value = STYLE_SQUARE, label = tr("UFGroupHealerBuffStyleSquare", "Square") },
-	{ value = STYLE_BAR, label = tr("UFGroupHealerBuffStyleBar", "Bar") },
-	{ value = STYLE_BORDER, label = tr("UFGroupHealerBuffStyleBorder", "Border") },
+	{ value = STYLE_ICON, label = tr("Icon", "Icon") },
+	{ value = STYLE_SQUARE, label = tr("Square", "Square") },
+	{ value = STYLE_BAR, label = tr("Bar", "Bar") },
+	{ value = STYLE_BORDER, label = tr("Border", "Border") },
 	{ value = STYLE_TINT, label = tr("UFGroupHealerBuffStyleTint", "Tint") },
 }
 
 HB.ORIENTATION_OPTIONS = {
-	{ value = ORIENT_HORIZONTAL, label = tr("UFGroupHealerBuffOrientationHorizontal", "Horizontal") },
-	{ value = ORIENT_VERTICAL, label = tr("UFGroupHealerBuffOrientationVertical", "Vertical") },
+	{ value = ORIENT_HORIZONTAL, label = tr("Horizontal", "Horizontal") },
+	{ value = ORIENT_VERTICAL, label = tr("Vertical", "Vertical") },
 }
 
 HB.RULE_MATCH_OPTIONS = {
@@ -149,15 +149,15 @@ HB.ICON_MODE_OPTIONS = {
 
 HB.ANCHOR_OPTIONS = GFH and GFH.anchorOptions9
 	or {
-		{ value = "TOPLEFT", label = tr("UFGroupHealerBuffAnchorTopLeft", "Top Left") },
-		{ value = "TOP", label = tr("UFGroupHealerBuffAnchorTop", "Top") },
-		{ value = "TOPRIGHT", label = tr("UFGroupHealerBuffAnchorTopRight", "Top Right") },
-		{ value = "LEFT", label = tr("UFGroupHealerBuffAnchorLeft", "Left") },
-		{ value = "CENTER", label = tr("UFGroupHealerBuffAnchorCenter", "Center") },
-		{ value = "RIGHT", label = tr("UFGroupHealerBuffAnchorRight", "Right") },
-		{ value = "BOTTOMLEFT", label = tr("UFGroupHealerBuffAnchorBottomLeft", "Bottom Left") },
-		{ value = "BOTTOM", label = tr("UFGroupHealerBuffAnchorBottom", "Bottom") },
-		{ value = "BOTTOMRIGHT", label = tr("UFGroupHealerBuffAnchorBottomRight", "Bottom Right") },
+		{ value = "TOPLEFT", label = tr("Top Left", "Top Left") },
+		{ value = "TOP", label = tr("Top", "Top") },
+		{ value = "TOPRIGHT", label = tr("Top Right", "Top Right") },
+		{ value = "LEFT", label = tr("Left", "Left") },
+		{ value = "CENTER", label = tr("Center", "Center") },
+		{ value = "RIGHT", label = tr("Right", "Right") },
+		{ value = "BOTTOMLEFT", label = tr("Bottom Left", "Bottom Left") },
+		{ value = "BOTTOM", label = tr("Bottom", "Bottom") },
+		{ value = "BOTTOMRIGHT", label = tr("Bottom Right", "Bottom Right") },
 	}
 
 HB.GROWTH_OPTIONS = GFH and GFH.auraGrowthOptions

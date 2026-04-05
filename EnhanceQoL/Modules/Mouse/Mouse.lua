@@ -217,18 +217,18 @@ local crosshairVisibilityAllowedRules = {
 }
 
 local crosshairVisibilityFallbackOptions = {
-	{ value = CROSSHAIR_RULE_ALWAYS_IN_COMBAT, label = L["visibilityRule_inCombat"] or "Always in combat", order = 20 },
-	{ value = CROSSHAIR_RULE_ALWAYS_OUT_OF_COMBAT, label = L["visibilityRule_outCombat"] or "Always out of combat", order = 30 },
-	{ value = CROSSHAIR_RULE_PLAYER_CASTING, label = L["visibilityRule_playerCasting"] or "Player is casting", order = 35 },
-	{ value = CROSSHAIR_RULE_PLAYER_MOUNTED, label = L["visibilityRule_playerMounted"] or "Mounted", order = 36 },
-	{ value = CROSSHAIR_RULE_PLAYER_NOT_MOUNTED, label = L["visibilityRule_playerNotMounted"] or "Not mounted", order = 37 },
-	{ value = CROSSHAIR_RULE_PLAYER_HAS_TARGET, label = L["visibilityRule_playerHasTarget"] or "When I have a target", order = 45 },
-	{ value = CROSSHAIR_RULE_PLAYER_IN_GROUP, label = L["visibilityRule_inGroup"] or "In party/raid", order = 46 },
+	{ value = CROSSHAIR_RULE_ALWAYS_IN_COMBAT, label = L["Always in combat"] or "Always in combat", order = 20 },
+	{ value = CROSSHAIR_RULE_ALWAYS_OUT_OF_COMBAT, label = L["Always out of combat"] or "Always out of combat", order = 30 },
+	{ value = CROSSHAIR_RULE_PLAYER_CASTING, label = L["Player is casting"] or "Player is casting", order = 35 },
+	{ value = CROSSHAIR_RULE_PLAYER_MOUNTED, label = L["Mounted"] or "Mounted", order = 36 },
+	{ value = CROSSHAIR_RULE_PLAYER_NOT_MOUNTED, label = L["Not mounted"] or "Not mounted", order = 37 },
+	{ value = CROSSHAIR_RULE_PLAYER_HAS_TARGET, label = L["When I have a target"] or "When I have a target", order = 45 },
+	{ value = CROSSHAIR_RULE_PLAYER_IN_GROUP, label = L["In party/raid"] or "In party/raid", order = 46 },
 }
 
 local crosshairVisibilityCustomOptions = {
-	{ value = CROSSHAIR_RULE_PLAYER_IN_PARTY, label = L["mouseCrosshairRuleInParty"] or "In party", order = 47 },
-	{ value = CROSSHAIR_RULE_PLAYER_IN_RAID, label = L["mouseCrosshairRuleInRaid"] or "In raid", order = 48 },
+	{ value = CROSSHAIR_RULE_PLAYER_IN_PARTY, label = L["In party"] or "In party", order = 47 },
+	{ value = CROSSHAIR_RULE_PLAYER_IN_RAID, label = L["In raid"] or "In raid", order = 48 },
 	{ value = CROSSHAIR_RULE_PLAYER_IN_INSTANCE, label = L["mouseCrosshairRuleInAnyInstance"] or "In any instance", order = 49 },
 	{ value = CROSSHAIR_RULE_PLAYER_IN_PARTY_INSTANCE, label = L["mouseCrosshairRuleInPartyInstance"] or "In party instances (5-man)", order = 50 },
 	{ value = CROSSHAIR_RULE_PLAYER_IN_RAID_INSTANCE, label = L["mouseCrosshairRuleInRaidInstance"] or "In raid instances", order = 51 },
@@ -1148,7 +1148,7 @@ local function registerCrosshairWithEditMode(frame)
 				defaultCollapsed = false,
 			},
 			{
-				name = L["mouseCrosshairShowWhen"] or "Show when",
+				name = L["Show when"] or "Show when",
 				kind = SettingType.MultiDropdown,
 				field = "showWhen",
 				parentId = "crosshairFrame",
@@ -1168,7 +1168,7 @@ local function registerCrosshairWithEditMode(frame)
 				isEnabled = function() return visibilityRuleOptions and #visibilityRuleOptions > 0 end,
 			},
 			{
-				name = L["mouseCrosshairAnchorPoint"] or "Anchor point",
+				name = L["Anchor point"] or "Anchor point",
 				kind = SettingType.Dropdown,
 				field = "point",
 				parentId = "crosshairFrame",
@@ -1177,7 +1177,7 @@ local function registerCrosshairWithEditMode(frame)
 				default = "CENTER",
 			},
 			{
-				name = L["mouseCrosshairRelativePoint"] or "Relative point",
+				name = L["Relative point"] or "Relative point",
 				kind = SettingType.Dropdown,
 				field = "relativePoint",
 				parentId = "crosshairFrame",
@@ -1186,7 +1186,7 @@ local function registerCrosshairWithEditMode(frame)
 				default = "CENTER",
 			},
 			{
-				name = L["mouseCrosshairOffsetX"] or "Offset X",
+				name = L["Offset X"] or "Offset X",
 				kind = SettingType.Slider,
 				field = "x",
 				parentId = "crosshairFrame",
@@ -1198,7 +1198,7 @@ local function registerCrosshairWithEditMode(frame)
 				formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
 			},
 			{
-				name = L["mouseCrosshairOffsetY"] or "Offset Y",
+				name = L["Offset Y"] or "Offset Y",
 				kind = SettingType.Slider,
 				field = "y",
 				parentId = "crosshairFrame",

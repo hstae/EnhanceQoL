@@ -458,8 +458,8 @@ local data = {
 					},
 					{
 						list = {
-							REMAINING = L["mouseRingProgressModeRemaining"],
-							ELAPSED = L["mouseRingProgressModeElapsed"],
+							REMAINING = L["Deplete (remaining time)"],
+							ELAPSED = L["Fill (elapsed time)"],
 						},
 						order = { "REMAINING", "ELAPSED" },
 						text = L["mouseRingGCDProgressMode"],

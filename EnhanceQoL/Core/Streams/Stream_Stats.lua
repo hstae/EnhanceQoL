@@ -274,7 +274,7 @@ local function addStatOptions(frame, key, label, supportsMode, supportsSecondary
 
 	if supportsMode ~= false then
 		local mode = AceGUI:Create("Dropdown")
-		mode:SetLabel(L["StatDisplayMode"] or "Display mode")
+		mode:SetLabel(DISPLAY_MODE)
 		mode:SetList(DISPLAY_MODE_LABELS, DISPLAY_MODE_ORDER)
 		mode:SetValue(db[key].mode or "percent")
 		mode:SetCallback("OnValueChanged", function(_, _, val)

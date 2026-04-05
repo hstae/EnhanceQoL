@@ -836,7 +836,7 @@ local function buildFamilyOptionsForEditor(classTokenFilter)
 end
 
 local function getClassDisplayName(classToken)
-	if classToken == nil then return tr("UFGroupHealerBuffEditorClassOther", "Other") end
+	if classToken == nil then return tr("Other", "Other") end
 	local token = tostring(classToken)
 	return tostring(LOCALIZED_CLASS_NAMES_MALE[token] or LOCALIZED_CLASS_NAMES_FEMALE[token] or token)
 end
@@ -1149,11 +1149,11 @@ function Editor:EnsureFrame()
 	setDangerButtonStyle(addGroup)
 	groupPanel.AddButton = addGroup
 
-	local groupUp = createButton(groupPanel, tr("UFGroupHealerBuffEditorUp", "Up"), 45, 20)
+	local groupUp = createButton(groupPanel, tr("Up", "Up"), 45, 20)
 	groupUp:SetPoint("TOPRIGHT", addGroup, "TOPLEFT", -6, 0)
 	groupPanel.UpButton = groupUp
 
-	local groupDown = createButton(groupPanel, tr("UFGroupHealerBuffEditorDown", "Down"), 45, 20)
+	local groupDown = createButton(groupPanel, tr("Down", "Down"), 45, 20)
 	groupDown:SetPoint("TOPRIGHT", groupUp, "TOPLEFT", -6, 0)
 	groupPanel.DownButton = groupDown
 
@@ -1229,11 +1229,11 @@ function Editor:EnsureFrame()
 	setDangerButtonStyle(addRule)
 	rulePanel.AddButton = addRule
 
-	local ruleUp = createButton(rulePanel, tr("UFGroupHealerBuffEditorUp", "Up"), 45, 20)
+	local ruleUp = createButton(rulePanel, tr("Up", "Up"), 45, 20)
 	ruleUp:SetPoint("TOPRIGHT", addRule, "TOPLEFT", -6, 0)
 	rulePanel.UpButton = ruleUp
 
-	local ruleDown = createButton(rulePanel, tr("UFGroupHealerBuffEditorDown", "Down"), 45, 20)
+	local ruleDown = createButton(rulePanel, tr("Down", "Down"), 45, 20)
 	ruleDown:SetPoint("TOPRIGHT", ruleUp, "TOPLEFT", -6, 0)
 	rulePanel.DownButton = ruleDown
 
@@ -1456,7 +1456,7 @@ function Editor:EnsureFrame()
 
 	controls.GroupNameLabel = groupControlParent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	controls.GroupNameLabel:SetPoint("TOPLEFT", groupControlParent, "TOPLEFT", 0, 0)
-	controls.GroupNameLabel:SetText(tr("UFGroupHealerBuffEditorName", "Name"))
+	controls.GroupNameLabel:SetText(tr("Name", "Name"))
 	controls.GroupName = createEditBox(groupControlParent, 220)
 	controls.GroupName:SetPoint("TOPLEFT", controls.GroupNameLabel, "TOPRIGHT", 12, 0)
 
@@ -1471,13 +1471,13 @@ function Editor:EnsureFrame()
 
 	controls.GroupAnchorLabel = groupControlParent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	controls.GroupAnchorLabel:SetPoint("TOPLEFT", controls.GroupStyleLabel, "BOTTOMLEFT", 0, -18)
-	controls.GroupAnchorLabel:SetText(tr("UFGroupHealerBuffEditorAnchor", "Anchor"))
+	controls.GroupAnchorLabel:SetText(tr("Anchor", "Anchor"))
 	controls.GroupAnchor = createDropdown(groupControlParent, 160)
 	controls.GroupAnchor:SetPoint("TOPLEFT", controls.GroupAnchorLabel, "TOPRIGHT", 0, 12)
 
 	controls.GroupGrowthLabel = groupControlParent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	controls.GroupGrowthLabel:SetPoint("TOPLEFT", controls.GroupAnchorLabel, "BOTTOMLEFT", 0, -18)
-	controls.GroupGrowthLabel:SetText(tr("UFGroupHealerBuffEditorGrowth", "Growth"))
+	controls.GroupGrowthLabel:SetText(tr("Growth", "Growth"))
 	controls.GroupGrowth = createDropdown(groupControlParent, 160)
 	controls.GroupGrowth:SetPoint("TOPLEFT", controls.GroupGrowthLabel, "TOPRIGHT", 0, 12)
 
@@ -1500,18 +1500,18 @@ function Editor:EnsureFrame()
 	end
 
 	controls.PerRowLabel, controls.PerRow, controls.PerRowValue = createSettingSlider(controls.GroupBarOrientationLabel, tr("UFGroupHealerBuffEditorPerRow", "Per Row"), 1, 20, 1)
-	controls.MaxLabel, controls.MaxCount, controls.MaxValue = createSettingSlider(controls.PerRowLabel, tr("UFGroupHealerBuffEditorMax", "Max"), 0, 40, 1)
-	controls.SpacingLabel, controls.Spacing, controls.SpacingValue = createSettingSlider(controls.MaxLabel, tr("UFGroupHealerBuffEditorSpacing", "Spacing"), 0, 20, 1)
+	controls.MaxLabel, controls.MaxCount, controls.MaxValue = createSettingSlider(controls.PerRowLabel, tr("Max", "Max"), 0, 40, 1)
+	controls.SpacingLabel, controls.Spacing, controls.SpacingValue = createSettingSlider(controls.MaxLabel, tr("Spacing", "Spacing"), 0, 20, 1)
 	controls.SizeLabel, controls.Size, controls.SizeValue = createSettingSlider(controls.SpacingLabel, tr("UFGroupHealerBuffEditorIconSize", "Icon Size"), 4, 64, 1)
 	controls.CooldownTextSizeLabel, controls.CooldownTextSize, controls.CooldownTextSizeValue =
 		createSettingSlider(controls.SizeLabel, tr("UFGroupHealerBuffEditorCooldownTextSize", "Cooldown Size"), 6, 64, 1)
 	controls.ChargeTextSizeLabel, controls.ChargeTextSize, controls.ChargeTextSizeValue =
 		createSettingSlider(controls.CooldownTextSizeLabel, tr("UFGroupHealerBuffEditorChargeTextSize", "Charge Size"), 6, 64, 1)
-	controls.XLabel, controls.XOffset, controls.XValue = createSettingSlider(controls.ChargeTextSizeLabel, tr("UFGroupHealerBuffEditorXOffset", "X Offset"), -200, 200, 1)
-	controls.YLabel, controls.YOffset, controls.YValue = createSettingSlider(controls.XLabel, tr("UFGroupHealerBuffEditorYOffset", "Y Offset"), -200, 200, 1)
+	controls.XLabel, controls.XOffset, controls.XValue = createSettingSlider(controls.ChargeTextSizeLabel, tr("X Offset", "X Offset"), -200, 200, 1)
+	controls.YLabel, controls.YOffset, controls.YValue = createSettingSlider(controls.XLabel, tr("Y Offset", "Y Offset"), -200, 200, 1)
 	controls.ThicknessLabel, controls.Thickness, controls.ThicknessValue = createSettingSlider(controls.YLabel, tr("UFGroupHealerBuffEditorBarThickness", "Bar Thickness"), 1, 64, 1)
 	controls.InsetLabel, controls.Inset, controls.InsetValue = createSettingSlider(controls.ThicknessLabel, tr("UFGroupHealerBuffEditorInset", "Inset"), 0, 40, 1)
-	controls.BorderSizeLabel, controls.BorderSize, controls.BorderSizeValue = createSettingSlider(controls.InsetLabel, tr("UFGroupHealerBuffEditorBorderSize", "Border Size"), 1, 16, 1)
+	controls.BorderSizeLabel, controls.BorderSize, controls.BorderSizeValue = createSettingSlider(controls.InsetLabel, tr("Border Size", "Border Size"), 1, 16, 1)
 	controls.IndicatorBorder = createCheck(groupControlParent, tr("UFGroupHealerBuffEditorIndicatorBorderEnabled", "Indicator Border"))
 	controls.IndicatorBorder:SetPoint("TOPLEFT", controls.BorderSizeLabel, "BOTTOMLEFT", -4, -8)
 	controls.IndicatorBorderTextureLabel = groupControlParent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -1520,7 +1520,7 @@ function Editor:EnsureFrame()
 	controls.IndicatorBorderTexture = createDropdown(groupControlParent, 180)
 	controls.IndicatorBorderTexture:SetPoint("TOPLEFT", controls.IndicatorBorderTextureLabel, "TOPRIGHT", 0, 12)
 	controls.IndicatorBorderSizeLabel, controls.IndicatorBorderSize, controls.IndicatorBorderSizeValue =
-		createSettingSlider(controls.IndicatorBorderTextureLabel, tr("UFGroupHealerBuffEditorIndicatorBorderSize", "Border Size"), 1, 24, 1)
+		createSettingSlider(controls.IndicatorBorderTextureLabel, tr("Border Size", "Border Size"), 1, 24, 1)
 	controls.IndicatorBorderOffsetLabel, controls.IndicatorBorderOffset, controls.IndicatorBorderOffsetValue =
 		createSettingSlider(controls.IndicatorBorderSizeLabel, tr("UFGroupHealerBuffEditorIndicatorBorderOffset", "Border Offset"), -12, 12, 1)
 	controls.IndicatorBorderColorLabel = groupControlParent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -1531,7 +1531,7 @@ function Editor:EnsureFrame()
 
 	controls.ColorLabel = groupControlParent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	controls.ColorLabel:SetPoint("TOPLEFT", controls.IndicatorBorderColorLabel, "BOTTOMLEFT", 0, -22)
-	controls.ColorLabel:SetText(tr("UFGroupHealerBuffEditorColor", "Color"))
+	controls.ColorLabel:SetText(COLOR)
 	controls.ColorButton = createColorSwatchButton(groupControlParent, 26)
 	controls.ColorButton:SetPoint("LEFT", controls.ColorLabel, "RIGHT", 10, 0)
 	controls.ColorSwatch = controls.ColorButton.ColorSwatch
@@ -1705,10 +1705,10 @@ function Editor:EnsureFrame()
 	controls.RuleMissingDesaturate:SetPoint("TOPLEFT", controls.RuleNot, "BOTTOMLEFT", 16, -6)
 	controls.RuleMissingDesaturate:Hide()
 
-	controls.RuleAppliesParty = createCheck(settingsPanel, tr("UFGroupHealerBuffEditorParty", "Party"))
+	controls.RuleAppliesParty = createCheck(settingsPanel, tr("Party", "Party"))
 	controls.RuleAppliesParty:SetPoint("TOPLEFT", controls.RuleMissingDesaturate, "BOTTOMLEFT", -16, -6)
 
-	controls.RuleAppliesRaid = createCheck(settingsPanel, tr("UFGroupHealerBuffEditorRaid", "Raid"))
+	controls.RuleAppliesRaid = createCheck(settingsPanel, tr("Raid", "Raid"))
 	controls.RuleAppliesRaid:SetPoint("TOPLEFT", controls.RuleAppliesParty, "BOTTOMLEFT", 0, -6)
 
 	controls.RuleIconModeLabel = settingsPanel:CreateFontString(nil, "OVERLAY", "GameFontNormal")

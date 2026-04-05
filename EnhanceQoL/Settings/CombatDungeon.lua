@@ -879,7 +879,7 @@ function addon.functions.initDungeonFrame()
 		})
 	end
 
-	createCombatLogToggle("combatLogPvp", L["combatLogPvp"] or "PvP", L["combatLogPvpDesc"] or "Automatically toggle combat logging in PvP instances.")
+	createCombatLogToggle("combatLogPvp", L["PvP"] or "PvP", L["combatLogPvpDesc"] or "Automatically toggle combat logging in PvP instances.")
 	createCombatLogToggle("combatLogScenario", L["combatLogScenario"] or "Scenarios", L["combatLogScenarioDesc"] or "Automatically toggle combat logging in scenarios.")
 	createCombatLogToggle("combatLogDelve", L["combatLogDelve"] or "Delves", L["combatLogDelveDesc"] or "Automatically toggle combat logging in delves.")
 
@@ -1144,7 +1144,7 @@ if cChar and sectionDungeon then
 	})
 	addon.functions.SettingsCreateDropdown(cChar, {
 		var = "PullTimerType",
-		text = L["PullTimer"],
+		text = L["Pull Timer"],
 		type = Settings.VarType.Number,
 		default = 2,
 		list = listPull,
@@ -1169,7 +1169,7 @@ if cChar and sectionDungeon then
 
 	addon.functions.SettingsCreateSlider(cChar, {
 		var = "pullTimerLongTime",
-		text = L["sliderLongTime"],
+		text = L["Pull Timer"],
 		min = 0,
 		max = 60,
 		step = 1,
@@ -1213,7 +1213,7 @@ if cChar and sectionDungeon then
 	local listObj, orderObj = addon.functions.prepareListForDropdown({ [1] = L["HideTracker"], [2] = L["collapse"] })
 	addon.functions.SettingsCreateDropdown(cChar, {
 		var = "mythicPlusObjectiveTrackerSetting",
-		text = L["mythicPlusObjectiveTrackerSetting"],
+		text = L["Behavior"],
 		type = Settings.VarType.Number,
 		default = (addon.db and addon.db["mythicPlusObjectiveTrackerSetting"]) or 1,
 		list = listObj,
@@ -1278,7 +1278,7 @@ addon.functions.SettingsCreateCheckboxes(cChar, data)
 local sectionGroupFinder = addon.SettingsLayout.gameplayGroupFinderSection
 if not sectionGroupFinder then
 	sectionGroupFinder = addon.functions.SettingsCreateExpandableSection(cChar, {
-		name = L["GroupFinder"],
+		name = L["Group Finder"],
 		expanded = false,
 		colorizeTitle = false,
 	})

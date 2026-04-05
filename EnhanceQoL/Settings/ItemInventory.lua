@@ -2173,18 +2173,18 @@ local bagDisplayDropdown = addon.functions.SettingsCreateMultiDropdown(cInventor
 
 addon.functions.SettingsCreateDropdown(cInventory, {
 	list = {
-		TOPLEFT = L["topLeft"],
+		TOPLEFT = L["Top Left"],
 		TOP = DIRECTION_TOP_LABEL,
-		TOPRIGHT = L["topRight"],
+		TOPRIGHT = L["Top Right"],
 		LEFT = DIRECTION_LEFT_LABEL,
 		CENTER = L["center"],
 		RIGHT = DIRECTION_RIGHT_LABEL,
-		BOTTOMLEFT = L["bottomLeft"],
+		BOTTOMLEFT = L["Bottom Left"],
 		BOTTOM = DIRECTION_BOTTOM_LABEL,
-		BOTTOMRIGHT = L["bottomRight"],
-		OUTSIDE = L["outside"] or "Outside",
+		BOTTOMRIGHT = L["Bottom Right"],
+		OUTSIDE = L["Outside"] or "Outside",
 	},
-	text = L["bagIlvlPosition"],
+	text = L["Item level position"],
 	get = function() return addon.db["bagIlvlPosition"] or "TOPLEFT" end,
 	set = function(key)
 		addon.db["bagIlvlPosition"] = key
@@ -2204,9 +2204,9 @@ addon.functions.SettingsCreateDropdown(cInventory, {
 		TOP = DIRECTION_TOP_LABEL,
 		RIGHT = DIRECTION_RIGHT_LABEL,
 		BOTTOM = DIRECTION_BOTTOM_LABEL,
-		OUTSIDE = L["outside"] or "Outside",
+		OUTSIDE = L["Outside"] or "Outside",
 	},
-	text = L["bagTrackPosition"] or "Upgrade track position",
+	text = L["Upgrade track position"] or "Upgrade track position",
 	get = function() return addon.db["bagTrackPosition"] or "OUTSIDE" end,
 	set = function(key)
 		addon.db["bagTrackPosition"] = key
@@ -2222,10 +2222,10 @@ addon.functions.SettingsCreateDropdown(cInventory, {
 
 addon.functions.SettingsCreateDropdown(cInventory, {
 	list = {
-		TOPLEFT = L["topLeft"],
-		TOPRIGHT = L["topRight"],
-		BOTTOMLEFT = L["bottomLeft"],
-		BOTTOMRIGHT = L["bottomRight"],
+		TOPLEFT = L["Top Left"],
+		TOPRIGHT = L["Top Right"],
+		BOTTOMLEFT = L["Bottom Left"],
+		BOTTOMRIGHT = L["Bottom Right"],
 	},
 	text = L["bagUpgradeIconPosition"],
 	get = function() return addon.db["bagUpgradeIconPosition"] or "TOPLEFT" end,
@@ -2281,8 +2281,8 @@ addon.functions.SettingsCreateMultiDropdown(cInventory, {
 	var = "bagItemLevelTargets",
 	text = L["bagItemLevelTargets"] or "Item level targets",
 	options = {
-		{ value = "bank", text = L["showIlvlOnBankFrame"], tooltip = L["showIlvlOnBankFrameDesc"] },
-		{ value = "merchant", text = L["showIlvlOnMerchantframe"], tooltip = L["showIlvlOnMerchantframeDesc"] },
+		{ value = "bank", text = BANK, tooltip = L["showIlvlOnBankFrameDesc"] },
+		{ value = "merchant", text = MERCHANT, tooltip = L["showIlvlOnMerchantframeDesc"] },
 	},
 	isSelectedFunc = function(key) return isBagItemLevelTargetSelected(key) end,
 	setSelectedFunc = function(key, selected) setBagItemLevelTarget(key, selected) end,

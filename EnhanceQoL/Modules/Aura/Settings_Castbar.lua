@@ -690,7 +690,7 @@ function CastbarSettings.BuildStandaloneCastbarSettings(ctx)
 	list[#list + 1] = { name = L["Border & backdrop"] or "Border & Backdrop", kind = settingType.Collapsible, id = section.frameAppearance, defaultCollapsed = true }
 
 	local castBackdrop = checkboxColor({
-		name = L["UFBarBackdrop"] or "Show bar backdrop",
+		name = L["Show bar backdrop"] or "Show bar backdrop",
 		parentId = section.frameAppearance,
 		defaultChecked = (castDef.backdrop and castDef.backdrop.enabled) ~= false,
 		isChecked = function() return getCast({ "cast", "backdrop", "enabled" }, (castDef.backdrop and castDef.backdrop.enabled) ~= false) ~= false end,

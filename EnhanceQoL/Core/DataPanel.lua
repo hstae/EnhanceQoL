@@ -72,9 +72,9 @@ for _, anchor in ipairs(CONTENT_ANCHOR_ORDER) do
 	VALID_CONTENT_ANCHOR[anchor] = true
 end
 local CONTENT_ANCHOR_OPTIONS = {
-	{ value = "LEFT", label = L["LEFT"] or "Left" },
-	{ value = "CENTER", label = L["CENTER"] or "Center" },
-	{ value = "RIGHT", label = L["RIGHT"] or "Right" },
+	{ value = "LEFT", label = L["Left"] or "Left" },
+	{ value = "CENTER", label = L["Center"] or "Center" },
+	{ value = "RIGHT", label = L["Right"] or "Right" },
 }
 
 local function normalizePercent(value, fallback)
@@ -891,7 +891,7 @@ local function registerEditModePanel(panel)
 				valueStep = 1,
 			},
 			{
-				name = L["DataPanelBackgroundTexture"] or "Background texture",
+				name = L["Background texture"] or "Background texture",
 				kind = SettingType.Dropdown,
 				field = "backgroundTexture",
 				default = defaults.backgroundTexture,
@@ -917,7 +917,7 @@ local function registerEditModePanel(panel)
 				end,
 			},
 			{
-				name = L["DataPanelBackgroundColor"] or "Background color",
+				name = L["Background color"] or "Background color",
 				kind = SettingType.Color,
 				field = "backgroundColor",
 				default = defaults.backgroundColor,
@@ -936,13 +936,13 @@ local function registerEditModePanel(panel)
 				end,
 			},
 			{
-				name = L["DataPanelHideBorder"],
+				name = L["Hide border"],
 				kind = SettingType.Checkbox,
 				field = "hideBorder",
 				default = defaults.hideBorder,
 			},
 			{
-				name = L["DataPanelBorderTexture"] or "Border texture",
+				name = L["Border texture"] or "Border texture",
 				kind = SettingType.Dropdown,
 				field = "borderTexture",
 				default = defaults.borderTexture,
@@ -969,7 +969,7 @@ local function registerEditModePanel(panel)
 				isEnabled = isBorderVisible,
 			},
 			{
-				name = L["DataPanelBorderSize"] or "Border size",
+				name = L["Border size"] or "Border size",
 				kind = SettingType.Slider,
 				field = "borderSize",
 				default = defaults.borderSize,
@@ -980,7 +980,7 @@ local function registerEditModePanel(panel)
 				isEnabled = isBorderVisible,
 			},
 			{
-				name = L["DataPanelBorderOffset"] or "Border offset",
+				name = L["Border offset"] or "Border offset",
 				kind = SettingType.Slider,
 				field = "borderOffset",
 				default = defaults.borderOffset,
@@ -991,7 +991,7 @@ local function registerEditModePanel(panel)
 				isEnabled = isBorderVisible,
 			},
 			{
-				name = L["DataPanelBorderColor"] or "Border color",
+				name = EMBLEM_BORDER_COLOR,
 				kind = SettingType.Color,
 				field = "borderColor",
 				default = defaults.borderColor,
@@ -1011,7 +1011,7 @@ local function registerEditModePanel(panel)
 				isEnabled = isBorderVisible,
 			},
 			{
-				name = L["DataPanelClickThrough"] or "Click-through",
+				name = L["Click-through"] or "Click-through",
 				kind = SettingType.Checkbox,
 				field = "clickThrough",
 				default = defaults.clickThrough,
@@ -1024,7 +1024,7 @@ local function registerEditModePanel(panel)
 				isEnabled = function(layoutName) return not isClickThrough(layoutName) end,
 			},
 			{
-				name = L["DataPanelStrata"],
+				name = L["Frame strata"],
 				kind = SettingType.Dropdown,
 				field = "strata",
 				default = defaults.strata,
@@ -1090,7 +1090,7 @@ local function registerEditModePanel(panel)
 				end,
 			},
 			{
-				name = L["DataPanelFontFace"] or "Font",
+				name = L["Font"] or "Font",
 				kind = SettingType.Dropdown,
 				field = "fontFace",
 				default = defaults.fontFace,
@@ -1116,7 +1116,7 @@ local function registerEditModePanel(panel)
 				end,
 			},
 			{
-				name = L["DataPanelTextOutline"] or "Text outline",
+				name = L["Text outline"] or "Text outline",
 				kind = SettingType.Checkbox,
 				field = "fontOutline",
 				default = defaults.fontOutline,
@@ -1128,7 +1128,7 @@ local function registerEditModePanel(panel)
 				default = defaults.fontShadow,
 			},
 			{
-				name = L["DataPanelTextScale"] or "Text scale",
+				name = L["Text scale"] or "Text scale",
 				kind = SettingType.Slider,
 				field = "streamFontScale",
 				default = defaults.streamFontScale,

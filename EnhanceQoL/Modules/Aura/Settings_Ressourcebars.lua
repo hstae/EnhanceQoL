@@ -70,7 +70,7 @@ local function customBorderOptions()
 	return nil
 end
 local AUTO_ENABLE_OPTIONS = {
-	HEALTH = L["AutoEnableHealth"] or "Health",
+	HEALTH = L["Health"] or "Health",
 	MAIN = L["AutoEnableMain"] or "Main resource",
 	SECONDARY = L["AutoEnableSecondary"] or "Secondary resources",
 }
@@ -3001,7 +3001,7 @@ local function registerEditModeBars()
 
 			if barType == "STAGGER" then
 				settingsList[#settingsList + 1] = {
-					name = L["Stagger colors"] or "Stagger colors",
+					name = L["Colors"] or "Stagger colors",
 					kind = settingType.Collapsible,
 					id = "staggercolors",
 					defaultCollapsed = true,
@@ -3097,7 +3097,7 @@ local function registerEditModeBars()
 				}
 
 				settingsList[#settingsList + 1] = {
-					name = L["Stagger high color"] or "Stagger high color",
+					name = L["High color"] or "Stagger high color",
 					kind = settingType.Color,
 					parentId = "staggercolors",
 					get = function()
@@ -3464,7 +3464,7 @@ local function registerEditModeBars()
 					}
 
 					settingsList[#settingsList + 1] = {
-						name = string.format(L["Threshold point %d color"] or "Point %d color", i),
+						name = string.format(L["Point %d color"] or "Point %d color", i),
 						kind = settingType.Color,
 						parentId = "absolutethresholdcolors",
 						default = { r = defaultColor[1] or 1, g = defaultColor[2] or 1, b = defaultColor[3] or 1, a = defaultColor[4] or 1 },
