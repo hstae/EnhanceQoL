@@ -12585,7 +12585,7 @@ GF._groupCopySectionOrder = {
 GF._groupCopySectionLabels = {
 	frame = L["Frame"] or "Frame",
 	layout = L["Layout"] or "Layout",
-	border = L["Border"] or "Border",
+	border = EMBLEM_BORDER,
 	hoverHighlight = L["Hover highlight"] or "Hover highlight",
 	aggroHighlight = L["Aggro highlight"] or "Aggro highlight",
 	targetHighlight = L["Target highlight"] or "Target highlight",
@@ -13876,9 +13876,9 @@ local function buildEditModeSettings(kind, editModeId)
 		{ value = "MODIFIER", label = L["Only with modifier"] or "Only with modifier" },
 	}
 	local tooltipModifierOptions = {
-		{ value = "ALT", label = L["Alt"] or "Alt" },
-		{ value = "SHIFT", label = L["Shift"] or "Shift" },
-		{ value = "CTRL", label = L["Ctrl"] or "Ctrl" },
+		{ value = "ALT", label = ALT_KEY_TEXT },
+		{ value = "SHIFT", label = SHIFT_KEY_TEXT },
+		{ value = "CTRL", label = CTRL_KEY_TEXT },
 	}
 	local targetHighlightLayerOptions = {
 		{ value = "ABOVE_BORDER", label = L["UFTargetHighlightLayerAboveBorder"] or "Above border" },
@@ -14646,10 +14646,10 @@ local function buildEditModeSettings(kind, editModeId)
 			end,
 			generator = function(_, root)
 				local options = {
-					{ value = "DOWN", label = L["Down"] or "Down" },
-					{ value = "RIGHT", label = L["Right"] or "Right" },
-					{ value = "UP", label = L["Up"] or "Up" },
-					{ value = "LEFT", label = L["Left"] or "Left" },
+					{ value = "DOWN", label = HUD_EDIT_MODE_SETTING_BAGS_DIRECTION_DOWN },
+					{ value = "RIGHT", label = HUD_EDIT_MODE_SETTING_ENCOUNTER_EVENTS_ICON_DIRECTION_RIGHT },
+					{ value = "UP", label = HUD_EDIT_MODE_SETTING_BAGS_DIRECTION_UP },
+					{ value = "LEFT", label = HUD_EDIT_MODE_SETTING_ENCOUNTER_EVENTS_ICON_DIRECTION_LEFT },
 				}
 				if GF.SupportsCenterGrowth(kind) then
 					options[#options + 1] = { value = "CENTER_VERTICAL", label = L["Center vertical"] or "Center vertical" }
@@ -14733,10 +14733,10 @@ local function buildEditModeSettings(kind, editModeId)
 					end
 				end
 				local function toGrowthLabel(value)
-					if value == "UP" then return L["Up"] or "Up" end
-					if value == "DOWN" then return L["Down"] or "Down" end
-					if value == "LEFT" then return L["Left"] or "Left" end
-					if value == "RIGHT" then return L["Right"] or "Right" end
+					if value == "UP" then return HUD_EDIT_MODE_SETTING_BAGS_DIRECTION_UP end
+					if value == "DOWN" then return HUD_EDIT_MODE_SETTING_BAGS_DIRECTION_DOWN end
+					if value == "LEFT" then return HUD_EDIT_MODE_SETTING_ENCOUNTER_EVENTS_ICON_DIRECTION_LEFT end
+					if value == "RIGHT" then return HUD_EDIT_MODE_SETTING_ENCOUNTER_EVENTS_ICON_DIRECTION_RIGHT end
 					return value
 				end
 				local options = {
@@ -14821,7 +14821,7 @@ local function buildEditModeSettings(kind, editModeId)
 			end,
 		},
 		{
-			name = L["Border"] or "Border",
+			name = EMBLEM_BORDER,
 			kind = SettingType.Collapsible,
 			id = "border",
 			defaultCollapsed = true,
@@ -14847,7 +14847,7 @@ local function buildEditModeSettings(kind, editModeId)
 			end,
 		},
 		{
-			name = L["Border color"] or "Border color",
+			name = EMBLEM_BORDER_COLOR,
 			kind = SettingType.Color,
 			field = "borderColor",
 			parentId = "border",
@@ -15295,7 +15295,7 @@ local function buildEditModeSettings(kind, editModeId)
 			isEnabled = function() return isHighlightEnabled("highlightAggro") end,
 		},
 		{
-			name = L["Mode"] or "Mode",
+			name = MODE,
 			kind = SettingType.Dropdown,
 			field = "aggroHighlightMode",
 			parentId = "aggroHighlight",
@@ -16544,7 +16544,7 @@ local function buildEditModeSettings(kind, editModeId)
 			end,
 		},
 		{
-			name = L["Font size"] or "Font size",
+			name = FONT_SIZE,
 			kind = SettingType.Slider,
 			allowInput = true,
 			field = "healthFontSize",
@@ -18174,7 +18174,7 @@ local function buildEditModeSettings(kind, editModeId)
 			end,
 		},
 		{
-			name = L["Font size"] or "Font size",
+			name = FONT_SIZE,
 			kind = SettingType.Slider,
 			allowInput = true,
 			field = "statusTextFontSize",
@@ -18493,7 +18493,7 @@ local function buildEditModeSettings(kind, editModeId)
 			isShown = function() return kind == "raid" end,
 		},
 		{
-			name = L["Font size"] or "Font size",
+			name = FONT_SIZE,
 			kind = SettingType.Slider,
 			allowInput = true,
 			field = "groupNumberFontSize",
@@ -20338,7 +20338,7 @@ local function buildEditModeSettings(kind, editModeId)
 			end,
 		},
 		{
-			name = L["Font size"] or "Font size",
+			name = FONT_SIZE,
 			kind = SettingType.Slider,
 			allowInput = true,
 			field = "powerFontSize",
@@ -23746,7 +23746,7 @@ local function buildEditModeSettings(kind, editModeId)
 			isShown = function() return isGroupIndicatorShown() end,
 		}
 		settings[#settings + 1] = {
-			name = L["Font size"] or "Font size",
+			name = FONT_SIZE,
 			kind = SettingType.Slider,
 			allowInput = true,
 			field = "groupIndicatorFontSize",

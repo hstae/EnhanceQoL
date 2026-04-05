@@ -3839,11 +3839,11 @@ end
 Bars.GetBarTextAnchorOptions = function()
 	return {
 		{ value = Bars.TEXT_ANCHOR.AUTO, label = L["Auto"] or "Auto" },
-		{ value = Bars.TEXT_ANCHOR.LEFT, label = L["Left"] or "Left" },
-		{ value = Bars.TEXT_ANCHOR.RIGHT, label = L["Right"] or "Right" },
+		{ value = Bars.TEXT_ANCHOR.LEFT, label = HUD_EDIT_MODE_SETTING_ENCOUNTER_EVENTS_ICON_DIRECTION_LEFT },
+		{ value = Bars.TEXT_ANCHOR.RIGHT, label = HUD_EDIT_MODE_SETTING_ENCOUNTER_EVENTS_ICON_DIRECTION_RIGHT },
 		{ value = Bars.TEXT_ANCHOR.CENTER, label = L["Center"] or "Center" },
-		{ value = Bars.TEXT_ANCHOR.TOP, label = L["Top"] or "Top" },
-		{ value = Bars.TEXT_ANCHOR.BOTTOM, label = L["Bottom"] or "Bottom" },
+		{ value = Bars.TEXT_ANCHOR.TOP, label = HUD_EDIT_MODE_SETTING_ENCOUNTER_EVENTS_ICON_DIRECTION_TOP },
+		{ value = Bars.TEXT_ANCHOR.BOTTOM, label = HUD_EDIT_MODE_SETTING_ENCOUNTER_EVENTS_ICON_DIRECTION_BOTTOM },
 	}
 end
 
@@ -4034,10 +4034,10 @@ local function appendBarStandaloneTextSettings(settings, ctx)
 		set = function(_, value) setEntryBarField(panelId, entryId, "barIconPosition", normalizeBarIconPosition(value, Bars.DEFAULTS.barIconPosition)) end,
 		generator = function(_, root)
 			for _, option in ipairs({
-				{ value = BAR_ICON_POSITION_LEFT, label = L["Left"] or "Left" },
-				{ value = BAR_ICON_POSITION_RIGHT, label = L["Right"] or "Right" },
-				{ value = BAR_ICON_POSITION_TOP, label = L["CooldownPanelBarIconPositionTop"] or "Top" },
-				{ value = BAR_ICON_POSITION_BOTTOM, label = L["CooldownPanelBarIconPositionBottom"] or "Bottom" },
+				{ value = BAR_ICON_POSITION_LEFT, label = HUD_EDIT_MODE_SETTING_ENCOUNTER_EVENTS_ICON_DIRECTION_LEFT },
+				{ value = BAR_ICON_POSITION_RIGHT, label = HUD_EDIT_MODE_SETTING_ENCOUNTER_EVENTS_ICON_DIRECTION_RIGHT },
+				{ value = BAR_ICON_POSITION_TOP, label = HUD_EDIT_MODE_SETTING_ENCOUNTER_EVENTS_ICON_DIRECTION_TOP },
+				{ value = BAR_ICON_POSITION_BOTTOM, label = HUD_EDIT_MODE_SETTING_ENCOUNTER_EVENTS_ICON_DIRECTION_BOTTOM },
 			}) do
 				root:CreateRadio(option.label, function()
 					local currentEntry = getStandaloneBarContextEntry(ctx)

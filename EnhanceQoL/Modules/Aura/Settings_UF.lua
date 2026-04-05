@@ -42,6 +42,14 @@ local STAGGER_EXTRA_COLORS = (AuraResourceBars and AuraResourceBars.STAGGER_EXTR
 	high = { r = 0.62, g = 0.2, b = 1.0, a = 1 },
 	extreme = { r = 1.0, g = 0.2, b = 0.8, a = 1 },
 }
+local BORDER_LABEL = EMBLEM_BORDER
+local DIRECTION_LEFT_LABEL = HUD_EDIT_MODE_SETTING_ENCOUNTER_EVENTS_ICON_DIRECTION_LEFT
+local DIRECTION_RIGHT_LABEL = HUD_EDIT_MODE_SETTING_ENCOUNTER_EVENTS_ICON_DIRECTION_RIGHT
+local DIRECTION_TOP_LABEL = HUD_EDIT_MODE_SETTING_ENCOUNTER_EVENTS_ICON_DIRECTION_TOP
+local DIRECTION_BOTTOM_LABEL = HUD_EDIT_MODE_SETTING_ENCOUNTER_EVENTS_ICON_DIRECTION_BOTTOM
+local DIRECTION_UP_LABEL = HUD_EDIT_MODE_SETTING_BAGS_DIRECTION_UP
+local DIRECTION_DOWN_LABEL = HUD_EDIT_MODE_SETTING_BAGS_DIRECTION_DOWN
+local FONT_SIZE_LABEL = FONT_SIZE
 local fontOptions
 
 local strataOptions = {
@@ -592,17 +600,17 @@ local function appendUnitAuraSettings(list, unit, def, refreshSelf)
 		{ value = "CENTER", label = L["Center"] or "Center" },
 	}
 
-	local leftLabel = HUD_EDIT_MODE_SETTING_BAGS_DIRECTION_LEFT or L["Left"] or "Left"
-	local rightLabel = HUD_EDIT_MODE_SETTING_BAGS_DIRECTION_RIGHT or L["Right"] or "Right"
+	local leftLabel = DIRECTION_LEFT_LABEL
+	local rightLabel = DIRECTION_RIGHT_LABEL
 	local anchorOpts = {
-		{ value = "TOP", label = L["Top"] or "Top" },
-		{ value = "BOTTOM", label = L["Bottom"] or "Bottom" },
+		{ value = "TOP", label = DIRECTION_TOP_LABEL },
+		{ value = "BOTTOM", label = DIRECTION_BOTTOM_LABEL },
 		{ value = "LEFT", label = leftLabel },
 		{ value = "RIGHT", label = rightLabel },
 	}
 
-	local upLabel = HUD_EDIT_MODE_SETTING_BAGS_DIRECTION_UP or L["Up"] or "Up"
-	local downLabel = HUD_EDIT_MODE_SETTING_BAGS_DIRECTION_DOWN or L["Down"] or "Down"
+	local upLabel = DIRECTION_UP_LABEL
+	local downLabel = DIRECTION_DOWN_LABEL
 	local function growthLabel(first, second) return ("%s %s"):format(first, second) end
 	local growthOptions = {
 		{ value = "UPRIGHT", label = growthLabel(upLabel, rightLabel) },
@@ -1253,7 +1261,7 @@ local copySectionOrder = {
 local copySectionLabels = {
 	frame = L["Frame"] or "Frame",
 	layout = L["Layout"] or "Layout",
-	border = L["Border"] or "Border",
+	border = BORDER_LABEL,
 	highlight = L["Highlight"] or "Highlight",
 	portrait = L["UFPortrait"] or "Portrait",
 	rangeFade = L["UFRangeFade"] or "Range fade",
@@ -1667,8 +1675,8 @@ local function appendBossLayoutSettings(list, unit, def, refreshSelf)
 	end, def.spacing or 4, "layout", true)
 
 	local growthOpts = {
-		{ value = "DOWN", label = L["Down"] or "Down" },
-		{ value = "UP", label = L["Up"] or "Up" },
+		{ value = "DOWN", label = DIRECTION_DOWN_LABEL },
+		{ value = "UP", label = DIRECTION_UP_LABEL },
 	}
 	list[#list + 1] = radioDropdown(L["UFBossGrowth"] or "Growth direction", growthOpts, function() return (getValue(unit, { "growth" }, def.growth or "DOWN") or "DOWN"):upper() end, function(val)
 		setValue(unit, { "growth" }, (val or "DOWN"):upper())
@@ -2369,7 +2377,7 @@ local function appendSecondaryPowerSettings(list, unit, def, textureOpts, addDiv
 		isSecondaryPowerEnabled
 	)
 
-	local secondaryFontSize = slider(L["FontSize"] or "Font size", 8, 30, 1, function() return getValue(unit, { "secondaryPower", "fontSize" }, secondaryDef.fontSize or 14) end, function(val)
+	local secondaryFontSize = slider(FONT_SIZE_LABEL, 8, 30, 1, function() return getValue(unit, { "secondaryPower", "fontSize" }, secondaryDef.fontSize or 14) end, function(val)
 		debounced(unit .. "_secondaryPowerFontSize", function()
 			setValue(unit, { "secondaryPower", "fontSize" }, val or secondaryDef.fontSize or 14)
 			refreshSelf()
@@ -3056,7 +3064,7 @@ local function buildUnitSettings(unit)
 	end, def.smoothFill == true, "frame")
 	addDivider("frame")
 
-	list[#list + 1] = { name = L["Border"] or "Border", kind = UF.ui.settingType.Collapsible, id = "border", defaultCollapsed = true }
+	list[#list + 1] = { name = BORDER_LABEL, kind = UF.ui.settingType.Collapsible, id = "border", defaultCollapsed = true }
 
 	list[#list + 1] = checkboxColor({
 		name = L["UFShowBorder"] or "Show border",
@@ -3767,7 +3775,7 @@ local function buildUnitSettings(unit)
 	)
 	addDivider("health")
 
-	list[#list + 1] = slider(L["FontSize"] or "Font size", 8, 30, 1, function() return getValue(unit, { "health", "fontSize" }, healthDef.fontSize or 14) end, function(val)
+	list[#list + 1] = slider(FONT_SIZE_LABEL, 8, 30, 1, function() return getValue(unit, { "health", "fontSize" }, healthDef.fontSize or 14) end, function(val)
 		debounced(unit .. "_healthFontSize", function()
 			setValue(unit, { "health", "fontSize" }, val or healthDef.fontSize or 14)
 			refresh()
@@ -4553,7 +4561,7 @@ local function buildUnitSettings(unit)
 		isPowerEnabled
 	)
 
-	local powerFontSize = slider(L["FontSize"] or "Font size", 8, 30, 1, function() return getValue(unit, { "power", "fontSize" }, powerDef.fontSize or 14) end, function(val)
+	local powerFontSize = slider(FONT_SIZE_LABEL, 8, 30, 1, function() return getValue(unit, { "power", "fontSize" }, powerDef.fontSize or 14) end, function(val)
 		debounced(unit .. "_powerFontSize", function()
 			setValue(unit, { "power", "fontSize" }, val or powerDef.fontSize or 14)
 			refreshSelf()
@@ -4977,8 +4985,8 @@ local function buildUnitSettings(unit)
 		list[#list + 1] = classResourceSelector
 
 		local classAnchorOpts = {
-			{ value = "TOP", label = L["Top"] or "Top" },
-			{ value = "BOTTOM", label = L["Bottom"] or "Bottom" },
+			{ value = "TOP", label = DIRECTION_TOP_LABEL },
+			{ value = "BOTTOM", label = DIRECTION_BOTTOM_LABEL },
 		}
 		local classAnchor = radioDropdown(L["Anchor"] or "Anchor", classAnchorOpts, function() return getSelectedClassResourceValue({ "anchor" }, crDef.anchor or "TOP") end, function(val)
 			setSelectedClassResourceValue({ "anchor" }, val or "TOP")
@@ -5114,13 +5122,13 @@ local function buildUnitSettings(unit)
 
 		local totemAnchorOptions = {
 			{ value = "TOPLEFT", label = L["Top left"] or "Top left" },
-			{ value = "TOP", label = L["Top"] or "Top" },
+			{ value = "TOP", label = DIRECTION_TOP_LABEL },
 			{ value = "TOPRIGHT", label = L["Top right"] or "Top right" },
-			{ value = "LEFT", label = L["Left"] or "Left" },
+			{ value = "LEFT", label = DIRECTION_LEFT_LABEL },
 			{ value = "CENTER", label = L["Center"] or "Center" },
-			{ value = "RIGHT", label = L["Right"] or "Right" },
+			{ value = "RIGHT", label = DIRECTION_RIGHT_LABEL },
 			{ value = "BOTTOMLEFT", label = L["Bottom left"] or "Bottom left" },
-			{ value = "BOTTOM", label = L["Bottom"] or "Bottom" },
+			{ value = "BOTTOM", label = DIRECTION_BOTTOM_LABEL },
 			{ value = "BOTTOMRIGHT", label = L["Bottom right"] or "Bottom right" },
 		}
 		local totemAnchor = radioDropdown(L["Anchor"] or "Anchor", totemAnchorOptions, function()
@@ -5317,8 +5325,8 @@ local function buildUnitSettings(unit)
 		list[#list + 1] = castFrameLevelOffset
 
 		local anchorOpts = {
-			{ value = "TOP", label = L["Top"] or "Top" },
-			{ value = "BOTTOM", label = L["Bottom"] or "Bottom" },
+			{ value = "TOP", label = DIRECTION_TOP_LABEL },
+			{ value = "BOTTOM", label = DIRECTION_BOTTOM_LABEL },
 		}
 		local castAnchor = radioDropdown(L["Anchor"] or "Anchor", anchorOpts, function() return getValue(unit, { "cast", "anchor" }, castDef.anchor or "BOTTOM") end, function(val)
 			setValue(unit, { "cast", "anchor" }, val or "BOTTOM")
@@ -5586,7 +5594,7 @@ local function buildUnitSettings(unit)
 		castNameFontOutline.isEnabled = isCastNameEnabled
 		list[#list + 1] = castNameFontOutline
 
-		local castNameFontSize = slider(L["FontSize"] or "Font size", 8, 30, 1, function() return getValue(unit, { "cast", "fontSize" }, castDef.fontSize or 12) end, function(val)
+		local castNameFontSize = slider(FONT_SIZE_LABEL, 8, 30, 1, function() return getValue(unit, { "cast", "fontSize" }, castDef.fontSize or 12) end, function(val)
 			setValue(unit, { "cast", "fontSize" }, val or 12)
 			refresh()
 		end, castDef.fontSize or 12, "cast", true)
@@ -6814,7 +6822,7 @@ local function buildUnitSettings(unit)
 	list[#list + 1] = { name = "", kind = UF.ui.settingType.Divider, parentId = "statusText" }
 
 	local unitStatusFontSizeSetting = slider(
-		L["FontSize"] or "Font size",
+		FONT_SIZE_LABEL,
 		8,
 		30,
 		1,
@@ -7167,13 +7175,13 @@ local function buildUnitSettings(unit)
 
 	local combatFeedbackAnchorOptions = {
 		{ value = "TOPLEFT", label = L["Top left"] or "Top left" },
-		{ value = "TOP", label = L["Top"] or "Top" },
+		{ value = "TOP", label = DIRECTION_TOP_LABEL },
 		{ value = "TOPRIGHT", label = L["Top right"] or "Top right" },
-		{ value = "LEFT", label = L["Left"] or "Left" },
+		{ value = "LEFT", label = DIRECTION_LEFT_LABEL },
 		{ value = "CENTER", label = L["Center"] or "Center" },
-		{ value = "RIGHT", label = L["Right"] or "Right" },
+		{ value = "RIGHT", label = DIRECTION_RIGHT_LABEL },
 		{ value = "BOTTOMLEFT", label = L["Bottom left"] or "Bottom left" },
-		{ value = "BOTTOM", label = L["Bottom"] or "Bottom" },
+		{ value = "BOTTOM", label = DIRECTION_BOTTOM_LABEL },
 		{ value = "BOTTOMRIGHT", label = L["Bottom right"] or "Bottom right" },
 	}
 
@@ -7411,10 +7419,10 @@ local function buildUnitSettings(unit)
 		list[#list].isEnabled = isPrivateAurasEnabled
 
 		list[#list + 1] = radioDropdown(L["UFPrivateAurasPoint"] or "Icon direction", {
-			{ value = "LEFT", label = L["Left"] or "Left" },
-			{ value = "RIGHT", label = L["Right"] or "Right" },
-			{ value = "TOP", label = L["Top"] or "Top" },
-			{ value = "BOTTOM", label = L["Bottom"] or "Bottom" },
+			{ value = "LEFT", label = DIRECTION_LEFT_LABEL },
+			{ value = "RIGHT", label = DIRECTION_RIGHT_LABEL },
+			{ value = "TOP", label = DIRECTION_TOP_LABEL },
+			{ value = "BOTTOM", label = DIRECTION_BOTTOM_LABEL },
 		}, function() return getValue(unit, { "privateAuras", "icon", "point" }, (paDef.icon and paDef.icon.point) or "LEFT") end, function(val)
 			setValue(unit, { "privateAuras", "icon", "point" }, val or "LEFT")
 			refresh()

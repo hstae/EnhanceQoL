@@ -2,6 +2,10 @@ local addonName, addon = ...
 
 local L = LibStub("AceLocale-3.0"):GetLocale(addonName)
 local wipe = wipe
+local DIRECTION_TOP_LABEL = HUD_EDIT_MODE_SETTING_ENCOUNTER_EVENTS_ICON_DIRECTION_TOP
+local DIRECTION_LEFT_LABEL = HUD_EDIT_MODE_SETTING_ENCOUNTER_EVENTS_ICON_DIRECTION_LEFT
+local DIRECTION_RIGHT_LABEL = HUD_EDIT_MODE_SETTING_ENCOUNTER_EVENTS_ICON_DIRECTION_RIGHT
+local DIRECTION_BOTTOM_LABEL = HUD_EDIT_MODE_SETTING_ENCOUNTER_EVENTS_ICON_DIRECTION_BOTTOM
 
 local cGearUpgrade = addon.SettingsLayout.rootGENERAL
 local expandable = addon.functions.SettingsCreateExpandableSection(cGearUpgrade, {
@@ -225,10 +229,10 @@ addon.functions.SettingsCreateColorPicker(cGearUpgrade, {
 
 addon.functions.SettingsCreateDropdown(cGearUpgrade, {
 	list = {
-		LEFT = L["left"],
-		TOP = L["top"],
-		RIGHT = L["right"],
-		BOTTOM = L["bottom"],
+		LEFT = DIRECTION_LEFT_LABEL,
+		TOP = DIRECTION_TOP_LABEL,
+		RIGHT = DIRECTION_RIGHT_LABEL,
+		BOTTOM = DIRECTION_BOTTOM_LABEL,
 		OUTSIDE = L["outsideNearGems"] or "Outside (next to gems)",
 	},
 	text = L["charTrackPosition"] or "Upgrade track position",
@@ -248,13 +252,13 @@ addon.functions.SettingsCreateDropdown(cGearUpgrade, {
 addon.functions.SettingsCreateDropdown(cGearUpgrade, {
 	list = {
 		TOPLEFT = L["topLeft"],
-		TOP = L["top"],
+		TOP = DIRECTION_TOP_LABEL,
 		TOPRIGHT = L["topRight"],
-		LEFT = L["left"],
+		LEFT = DIRECTION_LEFT_LABEL,
 		CENTER = L["center"],
-		RIGHT = L["right"],
+		RIGHT = DIRECTION_RIGHT_LABEL,
 		BOTTOMLEFT = L["bottomLeft"],
-		BOTTOM = L["bottom"],
+		BOTTOM = DIRECTION_BOTTOM_LABEL,
 		BOTTOMRIGHT = L["bottomRight"],
 		OUTSIDE = L["outsideNearGems"] or "Outside (next to gems)",
 	},
@@ -275,13 +279,13 @@ addon.functions.SettingsCreateDropdown(cGearUpgrade, {
 addon.functions.SettingsCreateDropdown(cGearUpgrade, {
 	list = {
 		TOPLEFT = L["topLeft"],
-		TOP = L["top"],
+		TOP = DIRECTION_TOP_LABEL,
 		TOPRIGHT = L["topRight"],
-		LEFT = L["left"],
+		LEFT = DIRECTION_LEFT_LABEL,
 		CENTER = L["center"],
-		RIGHT = L["right"],
+		RIGHT = DIRECTION_RIGHT_LABEL,
 		BOTTOMLEFT = L["bottomLeft"],
-		BOTTOM = L["bottom"],
+		BOTTOM = DIRECTION_BOTTOM_LABEL,
 		BOTTOMRIGHT = L["bottomRight"],
 	},
 	text = L["flyoutIlvlPosition"] or "Equipment flyout item level position",

@@ -291,10 +291,10 @@ local questingData = {
 				desc = L["questAutomationModifierDesc"],
 				listFunc = function()
 					return {
-						NONE = L["modifierNone"] or "None",
-						SHIFT = L["modifierShift"] or "Shift",
-						CTRL = L["modifierCtrl"] or "Ctrl",
-						ALT = L["modifierAlt"] or "Alt",
+						NONE = NONE,
+						SHIFT = SHIFT_KEY_TEXT,
+						CTRL = CTRL_KEY_TEXT,
+						ALT = ALT_KEY_TEXT,
 					}
 				end,
 				get = function() return addon.db and addon.db.autoChooseQuestModifier or "NONE" end,

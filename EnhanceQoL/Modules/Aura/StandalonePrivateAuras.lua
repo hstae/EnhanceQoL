@@ -15,6 +15,10 @@ local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL")
 local EditMode = addon.EditMode
 local SettingType = EditMode and EditMode.lib and EditMode.lib.SettingType
 local UFHelper = addon.Aura and addon.Aura.UFHelper
+local DIRECTION_LEFT_LABEL = HUD_EDIT_MODE_SETTING_ENCOUNTER_EVENTS_ICON_DIRECTION_LEFT
+local DIRECTION_RIGHT_LABEL = HUD_EDIT_MODE_SETTING_ENCOUNTER_EVENTS_ICON_DIRECTION_RIGHT
+local DIRECTION_UP_LABEL = HUD_EDIT_MODE_SETTING_BAGS_DIRECTION_UP
+local DIRECTION_DOWN_LABEL = HUD_EDIT_MODE_SETTING_BAGS_DIRECTION_DOWN
 
 local DB_KEY = "standalonePrivateAuras"
 local EDITMODE_ID = "standalonePrivateAuras"
@@ -23,10 +27,10 @@ local MIN_SIZE = 10
 local MAX_SIZE = 256
 local MAX_SPACING = 64
 local directionLabels = {
-	LEFT = L["Left"] or "Left",
-	RIGHT = L["Right"] or "Right",
-	UP = L["Up"] or "Up",
-	DOWN = L["Down"] or "Down",
+	LEFT = DIRECTION_LEFT_LABEL,
+	RIGHT = DIRECTION_RIGHT_LABEL,
+	UP = DIRECTION_UP_LABEL,
+	DOWN = DIRECTION_DOWN_LABEL,
 }
 
 local directionOptions = {

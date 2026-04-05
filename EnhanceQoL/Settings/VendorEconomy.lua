@@ -131,7 +131,7 @@ table.sort(data, function(a, b) return a.text < b.text end)
 addon.functions.SettingsCreateCheckboxes(cVendorEconomy, data)
 
 local bankExpandable = addon.functions.SettingsCreateExpandableSection(cVendorEconomy, {
-	name = _G.BANK or BANK or "Bank",
+	name = BANK,
 	newTagID = "Bank",
 	expanded = false,
 	colorizeTitle = false,

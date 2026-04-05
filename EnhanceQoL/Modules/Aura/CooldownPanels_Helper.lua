@@ -14,6 +14,10 @@ CooldownPanels.helper = CooldownPanels.helper or {}
 local Helper = CooldownPanels.helper
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL")
 local LSM = LibStub("LibSharedMedia-3.0", true)
+local DIRECTION_LEFT_LABEL = HUD_EDIT_MODE_SETTING_ENCOUNTER_EVENTS_ICON_DIRECTION_LEFT
+local DIRECTION_RIGHT_LABEL = HUD_EDIT_MODE_SETTING_ENCOUNTER_EVENTS_ICON_DIRECTION_RIGHT
+local DIRECTION_TOP_LABEL = HUD_EDIT_MODE_SETTING_ENCOUNTER_EVENTS_ICON_DIRECTION_TOP
+local DIRECTION_BOTTOM_LABEL = HUD_EDIT_MODE_SETTING_ENCOUNTER_EVENTS_ICON_DIRECTION_BOTTOM
 
 Helper.Api = Helper.Api or {}
 local Api = Helper.Api
@@ -86,26 +90,26 @@ Helper.LayoutModeOptions = {
 }
 Helper.AnchorOptions = {
 	{ value = "TOPLEFT", label = L["Top Left"] or "Top Left" },
-	{ value = "TOP", label = L["Top"] or "Top" },
+	{ value = "TOP", label = DIRECTION_TOP_LABEL },
 	{ value = "TOPRIGHT", label = L["Top Right"] or "Top Right" },
-	{ value = "LEFT", label = L["Left"] or "Left" },
+	{ value = "LEFT", label = DIRECTION_LEFT_LABEL },
 	{ value = "CENTER", label = L["Center"] or "Center" },
-	{ value = "RIGHT", label = L["Right"] or "Right" },
+	{ value = "RIGHT", label = DIRECTION_RIGHT_LABEL },
 	{ value = "BOTTOMLEFT", label = L["Bottom Left"] or "Bottom Left" },
-	{ value = "BOTTOM", label = L["Bottom"] or "Bottom" },
+	{ value = "BOTTOM", label = DIRECTION_BOTTOM_LABEL },
 	{ value = "BOTTOMRIGHT", label = L["Bottom Right"] or "Bottom Right" },
 }
 Helper.GrowthPointOptions = {
-	{ value = "TOPLEFT", label = L["Left"] or "Left" },
+	{ value = "TOPLEFT", label = DIRECTION_LEFT_LABEL },
 	{ value = "TOP", label = L["Center"] or "Center" },
-	{ value = "TOPRIGHT", label = L["Right"] or "Right" },
+	{ value = "TOPRIGHT", label = DIRECTION_RIGHT_LABEL },
 }
 Helper.FixedGroupStartPointOptions = {
 	{ value = "TOPLEFT", label = L["Top Left"] or "Top Left" },
-	{ value = "TOP", label = L["Top"] or "Top" },
+	{ value = "TOP", label = DIRECTION_TOP_LABEL },
 	{ value = "TOPRIGHT", label = L["Top Right"] or "Top Right" },
 	{ value = "BOTTOMLEFT", label = L["Bottom Left"] or "Bottom Left" },
-	{ value = "BOTTOM", label = L["Bottom"] or "Bottom" },
+	{ value = "BOTTOM", label = DIRECTION_BOTTOM_LABEL },
 	{ value = "BOTTOMRIGHT", label = L["Bottom Right"] or "Bottom Right" },
 }
 Helper.FontStyleOptions = {

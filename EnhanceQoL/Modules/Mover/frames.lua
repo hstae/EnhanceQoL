@@ -24,7 +24,7 @@ local groupOrder = {
 
 local groups = {
 	system = {
-		label = L["System"] or "System",
+		label = SETTING_GROUP_SYSTEM,
 		expanded = true,
 	},
 	character = {
@@ -601,7 +601,7 @@ local frames = {
 	},
 	{
 		id = "FriendsFriendsFrame",
-		label = L["Friends List"] or "Friends List",
+		label = FRIENDS_LIST,
 		group = "activities",
 		names = { "FriendsFriendsFrame" },
 		defaultEnabled = true,
@@ -630,7 +630,7 @@ local frames = {
 	},
 	{
 		id = "BankFrame",
-		label = L["Bank"] or "Bank",
+		label = BANK,
 		group = "bags",
 		names = { "BankFrame" },
 		defaultEnabled = true,

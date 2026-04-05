@@ -15,6 +15,10 @@ local IsInGroup = IsInGroup
 local math = math
 local TooltipUtil = _G.TooltipUtil
 local GetTime = GetTime
+local DIRECTION_TOP_LABEL = HUD_EDIT_MODE_SETTING_ENCOUNTER_EVENTS_ICON_DIRECTION_TOP
+local DIRECTION_LEFT_LABEL = HUD_EDIT_MODE_SETTING_ENCOUNTER_EVENTS_ICON_DIRECTION_LEFT
+local DIRECTION_RIGHT_LABEL = HUD_EDIT_MODE_SETTING_ENCOUNTER_EVENTS_ICON_DIRECTION_RIGHT
+local DIRECTION_BOTTOM_LABEL = HUD_EDIT_MODE_SETTING_ENCOUNTER_EVENTS_ICON_DIRECTION_BOTTOM
 
 ---- REGION Functions
 
@@ -2170,13 +2174,13 @@ local bagDisplayDropdown = addon.functions.SettingsCreateMultiDropdown(cInventor
 addon.functions.SettingsCreateDropdown(cInventory, {
 	list = {
 		TOPLEFT = L["topLeft"],
-		TOP = L["top"],
+		TOP = DIRECTION_TOP_LABEL,
 		TOPRIGHT = L["topRight"],
-		LEFT = L["left"],
+		LEFT = DIRECTION_LEFT_LABEL,
 		CENTER = L["center"],
-		RIGHT = L["right"],
+		RIGHT = DIRECTION_RIGHT_LABEL,
 		BOTTOMLEFT = L["bottomLeft"],
-		BOTTOM = L["bottom"],
+		BOTTOM = DIRECTION_BOTTOM_LABEL,
 		BOTTOMRIGHT = L["bottomRight"],
 		OUTSIDE = L["outside"] or "Outside",
 	},
@@ -2196,10 +2200,10 @@ addon.functions.SettingsCreateDropdown(cInventory, {
 
 addon.functions.SettingsCreateDropdown(cInventory, {
 	list = {
-		LEFT = L["left"],
-		TOP = L["top"],
-		RIGHT = L["right"],
-		BOTTOM = L["bottom"],
+		LEFT = DIRECTION_LEFT_LABEL,
+		TOP = DIRECTION_TOP_LABEL,
+		RIGHT = DIRECTION_RIGHT_LABEL,
+		BOTTOM = DIRECTION_BOTTOM_LABEL,
 		OUTSIDE = L["outside"] or "Outside",
 	},
 	text = L["bagTrackPosition"] or "Upgrade track position",

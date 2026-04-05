@@ -9219,7 +9219,7 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 			set = function(_, value) setEntryField("stackColor", Helper.NormalizeColor(value, Helper.PANEL_LAYOUT_DEFAULTS.stackColor or { 1, 1, 1, 1 })) end,
 		},
 		{
-			name = L["FontSize"] or "Font size",
+			name = FONT_SIZE,
 			kind = SettingType.Slider,
 			parentId = "cooldownPanelStandaloneStacks",
 			minValue = 6,
@@ -9412,7 +9412,7 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 			set = function(_, value) setEntryField("chargesColor", Helper.NormalizeColor(value, Helper.PANEL_LAYOUT_DEFAULTS.chargesColor or { 1, 1, 1, 1 })) end,
 		},
 		{
-			name = L["FontSize"] or "Font size",
+			name = FONT_SIZE,
 			kind = SettingType.Slider,
 			parentId = "cooldownPanelStandaloneCharges",
 			minValue = 6,
@@ -9727,7 +9727,7 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 			set = function(_, value) setEntryField("cooldownTextColor", Helper.NormalizeColor(value, Helper.PANEL_LAYOUT_DEFAULTS.cooldownTextColor)) end,
 		},
 		{
-			name = L["FontSize"] or "Font size",
+			name = FONT_SIZE,
 			kind = SettingType.Slider,
 			parentId = "cooldownPanelStandaloneCooldownText",
 			minValue = 6,
@@ -9882,7 +9882,7 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 			set = function(_, value) setEntryField("staticTextColor", Helper.NormalizeColor(value, Helper.PANEL_LAYOUT_DEFAULTS.staticTextColor or { 1, 1, 1, 1 })) end,
 		},
 		{
-			name = L["FontSize"] or "Font size",
+			name = FONT_SIZE,
 			kind = SettingType.Slider,
 			parentId = "cooldownPanelStandaloneStaticText",
 			minValue = 6,
@@ -17551,7 +17551,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				end,
 			},
 			{
-				name = L["FontSize"] or "Font size",
+				name = FONT_SIZE,
 				kind = SettingType.Slider,
 				parentId = "cooldownPanelStaticText",
 				minValue = 6,
@@ -17920,7 +17920,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				end,
 			},
 			{
-				name = L["FontSize"] or "Font size",
+				name = FONT_SIZE,
 				kind = SettingType.Slider,
 				field = "stackFontSize",
 				parentId = "cooldownPanelStacks",
@@ -18032,7 +18032,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				end,
 			},
 			{
-				name = L["FontSize"] or "Font size",
+				name = FONT_SIZE,
 				kind = SettingType.Slider,
 				field = "chargesFontSize",
 				parentId = "cooldownPanelCharges",
@@ -18171,7 +18171,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				end,
 			},
 			{
-				name = L["FontSize"] or "Font size",
+				name = FONT_SIZE,
 				kind = SettingType.Slider,
 				field = "keybindFontSize",
 				parentId = "cooldownPanelKeybinds",

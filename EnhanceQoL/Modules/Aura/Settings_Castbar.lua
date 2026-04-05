@@ -588,7 +588,7 @@ function CastbarSettings.BuildStandaloneCastbarSettings(ctx)
 	castNameFontOutline.isEnabled = isCastNameEnabled
 	list[#list + 1] = castNameFontOutline
 
-	local castNameFontSize = slider(L["FontSize"] or "Font size", 8, 30, 1, function() return getCast({ "cast", "fontSize" }, castDef.fontSize or 12) end, function(val)
+	local castNameFontSize = slider(FONT_SIZE, 8, 30, 1, function() return getCast({ "cast", "fontSize" }, castDef.fontSize or 12) end, function(val)
 		setCast({ "cast", "fontSize" }, val or 12)
 		refreshCastbar()
 	end, castDef.fontSize or 12, section.spellName, true)

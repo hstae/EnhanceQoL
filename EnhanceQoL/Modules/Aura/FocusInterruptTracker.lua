@@ -1240,7 +1240,7 @@ function Tracker:RegisterEditMode()
 				isShown = function() return Tracker:GetConfig().displayMode == "ICON" end,
 			},
 			{
-				name = L["Border color"] or "Border color",
+				name = EMBLEM_BORDER_COLOR,
 				kind = SettingType.Color,
 				field = "borderColor",
 				parentId = "focusInterruptTrackerBorder",

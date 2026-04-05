@@ -5212,7 +5212,7 @@ end
 function editModeSettingsBuilders.buildBorder()
 	return {
 		{
-			name = L["Border"] or "Border",
+			name = EMBLEM_BORDER,
 			kind = SettingType.Collapsible,
 			id = "border",
 			defaultCollapsed = true,
@@ -5288,7 +5288,7 @@ function editModeSettingsBuilders.buildBorder()
 			isEnabled = function() return Reminder:IsBorderEnabled() end,
 		},
 		{
-			name = L["Border color"] or "Border color",
+			name = EMBLEM_BORDER_COLOR,
 			kind = SettingType.Color,
 			parentId = "border",
 			default = defaults.borderColor,

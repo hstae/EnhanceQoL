@@ -15,6 +15,8 @@ local L = LibStub("AceLocale-3.0"):GetLocale(parentAddonName)
 local EditMode = addon.EditMode
 local SettingType = EditMode and EditMode.lib and EditMode.lib.SettingType
 local LSM = LibStub("LibSharedMedia-3.0", true)
+local BORDER_LABEL = EMBLEM_BORDER
+local TEXT_LABEL = LOCALE_TEXT_LABEL
 
 local EDITMODE_ID = "xpBar"
 local ANCHOR_TARGET_UI = "UIParent"
@@ -2132,7 +2134,7 @@ function ExperienceBar:RegisterEditMode(frame)
 				isEnabled = function() return ExperienceBar:GetBackgroundEnabled() end,
 			},
 			{
-				name = L["Border"] or "Border",
+				name = BORDER_LABEL,
 				kind = SettingType.Collapsible,
 				id = "xpBarBorder",
 				defaultCollapsed = true,
@@ -2204,7 +2206,7 @@ function ExperienceBar:RegisterEditMode(frame)
 				isEnabled = function() return ExperienceBar:GetBorderEnabled() end,
 			},
 			{
-				name = L["Text"] or "Text",
+				name = TEXT_LABEL,
 				kind = SettingType.Collapsible,
 				id = "xpBarText",
 				defaultCollapsed = true,

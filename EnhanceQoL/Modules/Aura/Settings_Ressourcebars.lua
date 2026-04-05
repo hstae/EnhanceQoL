@@ -1798,7 +1798,7 @@ local function registerEditModeBars()
 			end
 
 			settingsList[#settingsList + 1] = {
-				name = LOCALE_TEXT_LABEL or L["Text"] or STATUS_TEXT,
+				name = LOCALE_TEXT_LABEL,
 				kind = settingType.Collapsible,
 				id = "textsettings",
 				defaultCollapsed = true,
@@ -1981,7 +1981,7 @@ local function registerEditModeBars()
 					{ key = "NONE", label = NONE },
 				}
 				settingsList[#settingsList + 1] = {
-					name = L["Text"] or STATUS_TEXT,
+					name = LOCALE_TEXT_LABEL,
 					kind = settingType.Dropdown,
 					height = 220,
 					field = "textStyle",

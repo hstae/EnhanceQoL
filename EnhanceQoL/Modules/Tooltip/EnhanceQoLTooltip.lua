@@ -1055,7 +1055,7 @@ local function checkItem(tooltip, id, name, guid)
 						tooltip:AddLine(" ")
 						first = false
 					end
-					tooltip:AddDoubleLine(L["Bank"], bankCount)
+					tooltip:AddDoubleLine(BANK, bankCount)
 				end
 				if accountCount > 0 then
 					if first then
