@@ -392,6 +392,42 @@ function GCDBar:ResolveAnchorFrame()
 	return UIParent
 end
 
+local function cancelAnchorRefreshTicker()
+	if GCDBar._anchorRefreshTicker then GCDBar._anchorRefreshTicker:Cancel() end
+	GCDBar._anchorRefreshTicker = nil
+	GCDBar._anchorRefreshTarget = nil
+	GCDBar._anchorRefreshPasses = nil
+end
+
+local function onAnchorRefreshTick()
+	local desired = GCDBar._anchorRefreshTarget
+	if not desired then
+		cancelAnchorRefreshTicker()
+		return
+	end
+
+	GCDBar._anchorRefreshPasses = (GCDBar._anchorRefreshPasses or 0) + 1
+	if GCDBar:GetAnchorRelativeFrame() ~= desired then
+		cancelAnchorRefreshTicker()
+		return
+	end
+
+	if desired == ANCHOR_TARGET_PLAYER_CASTBAR then
+		local frame, usingCustom, wantsCustom = resolvePlayerCastbarFrame()
+		if frame and (not wantsCustom or usingCustom) then
+			cancelAnchorRefreshTicker()
+			GCDBar:RefreshAnchor()
+			return
+		end
+	elseif _G and _G[desired] then
+		cancelAnchorRefreshTicker()
+		GCDBar:RefreshAnchor()
+		return
+	end
+
+	if (GCDBar._anchorRefreshPasses or 0) >= 25 then cancelAnchorRefreshTicker() end
+end
+
 function GCDBar:ScheduleAnchorRefresh(target)
 	if not (C_Timer and C_Timer.NewTicker) then return end
 	local desired = normalizeAnchorRelativeFrame(target or self:GetAnchorRelativeFrame())
@@ -399,54 +435,18 @@ function GCDBar:ScheduleAnchorRefresh(target)
 
 	if self._anchorRefreshTicker then
 		if self._anchorRefreshTarget == desired then return end
-		self._anchorRefreshTicker:Cancel()
-		self._anchorRefreshTicker = nil
+		cancelAnchorRefreshTicker()
 	end
 
 	self._anchorRefreshTarget = desired
-	local tries = 0
-	self._anchorRefreshTicker = C_Timer.NewTicker(0.2, function()
-		tries = tries + 1
-		if self:GetAnchorRelativeFrame() ~= desired then
-			if self._anchorRefreshTicker then self._anchorRefreshTicker:Cancel() end
-			self._anchorRefreshTicker = nil
-			self._anchorRefreshTarget = nil
-			return
-		end
-
-		if desired == ANCHOR_TARGET_PLAYER_CASTBAR then
-			local frame, usingCustom, wantsCustom = resolvePlayerCastbarFrame()
-			if frame and (not wantsCustom or usingCustom) then
-				if self._anchorRefreshTicker then self._anchorRefreshTicker:Cancel() end
-				self._anchorRefreshTicker = nil
-				self._anchorRefreshTarget = nil
-				self:RefreshAnchor()
-				return
-			end
-		elseif _G and _G[desired] then
-			if self._anchorRefreshTicker then self._anchorRefreshTicker:Cancel() end
-			self._anchorRefreshTicker = nil
-			self._anchorRefreshTarget = nil
-			self:RefreshAnchor()
-			return
-		end
-
-		if tries >= 25 then
-			if self._anchorRefreshTicker then self._anchorRefreshTicker:Cancel() end
-			self._anchorRefreshTicker = nil
-			self._anchorRefreshTarget = nil
-		end
-	end)
+	self._anchorRefreshPasses = 0
+	self._anchorRefreshTicker = C_Timer.NewTicker(0.2, onAnchorRefreshTick)
 end
 
 function GCDBar:RefreshAnchor()
 	if self._refreshingAnchor then return end
 	local target = self:GetAnchorRelativeFrame()
-	if self._anchorRefreshTicker and (target == ANCHOR_TARGET_UI or self._anchorRefreshTarget ~= target) then
-		self._anchorRefreshTicker:Cancel()
-		self._anchorRefreshTicker = nil
-		self._anchorRefreshTarget = nil
-	end
+	if self._anchorRefreshTicker and (target == ANCHOR_TARGET_UI or self._anchorRefreshTarget ~= target) then cancelAnchorRefreshTicker() end
 	self._refreshingAnchor = true
 	if EditMode and EditMode.RefreshFrame then EditMode:RefreshFrame(EDITMODE_ID) end
 	self._refreshingAnchor = nil
@@ -476,7 +476,32 @@ end
 
 local widthMatchHookedFrames = {}
 local pendingWidthHookRetries = {}
+local widthHookRetryTimer
 local widthSyncQueued = false
+
+local function runDelayedMatchedWidthSync()
+	widthSyncQueued = false
+	if not (addon and addon.db and addon.db[DB_ENABLED] == true) then return end
+	GCDBar:ApplySize()
+	if EditMode and EditMode.RefreshFrame then EditMode:RefreshFrame(EDITMODE_ID) end
+end
+
+local function processPendingWidthHookRetries()
+	widthHookRetryTimer = nil
+	local pending = pendingWidthHookRetries
+	pendingWidthHookRetries = {}
+	for frameName in pairs(pending) do
+		if GCDBar and GCDBar.EnsureWidthSyncHook then GCDBar:EnsureWidthSyncHook(frameName) end
+	end
+end
+
+local function onWidthMatchGeometryChanged()
+	if GCDBar and GCDBar.AnchorUsesMatchedWidth and GCDBar:AnchorUsesMatchedWidth() then GCDBar:ScheduleMatchedWidthSync() end
+end
+
+local function onGCDBarEvent(_, event, ...)
+	GCDBar:OnEvent(event, ...)
+end
 
 function GCDBar:ScheduleMatchedWidthSync()
 	if widthSyncQueued then return end
@@ -485,12 +510,7 @@ function GCDBar:ScheduleMatchedWidthSync()
 		return
 	end
 	widthSyncQueued = true
-	C_Timer.After(0, function()
-		widthSyncQueued = false
-		if not (addon and addon.db and addon.db[DB_ENABLED] == true) then return end
-		GCDBar:ApplySize()
-		if EditMode and EditMode.RefreshFrame then EditMode:RefreshFrame(EDITMODE_ID) end
-	end)
+	C_Timer.After(0, runDelayedMatchedWidthSync)
 end
 
 function GCDBar:EnsureWidthSyncHook(frameName)
@@ -500,20 +520,14 @@ function GCDBar:EnsureWidthSyncHook(frameName)
 	if not frame then
 		if C_Timer and C_Timer.After and not pendingWidthHookRetries[frameName] then
 			pendingWidthHookRetries[frameName] = true
-			C_Timer.After(1, function()
-				pendingWidthHookRetries[frameName] = nil
-				if GCDBar and GCDBar.EnsureWidthSyncHook then GCDBar:EnsureWidthSyncHook(frameName) end
-			end)
+			if not widthHookRetryTimer then widthHookRetryTimer = C_Timer.NewTimer(1, processPendingWidthHookRetries) end
 		end
 		return
 	end
 	if frame.HookScript then
-		local function onGeometryChanged()
-			if GCDBar and GCDBar.AnchorUsesMatchedWidth and GCDBar:AnchorUsesMatchedWidth() then GCDBar:ScheduleMatchedWidthSync() end
-		end
-		local okSize = pcall(frame.HookScript, frame, "OnSizeChanged", onGeometryChanged)
-		local okShow = pcall(frame.HookScript, frame, "OnShow", onGeometryChanged)
-		local okHide = pcall(frame.HookScript, frame, "OnHide", onGeometryChanged)
+		local okSize = pcall(frame.HookScript, frame, "OnSizeChanged", onWidthMatchGeometryChanged)
+		local okShow = pcall(frame.HookScript, frame, "OnShow", onWidthMatchGeometryChanged)
+		local okHide = pcall(frame.HookScript, frame, "OnHide", onWidthMatchGeometryChanged)
 		if okSize or okShow or okHide then widthMatchHookedFrames[frameName] = true end
 	end
 end
@@ -839,7 +853,7 @@ function GCDBar:UpdateGCD()
 	self._gcdStart = start
 	self._gcdDuration = duration
 	self._gcdRate = modRate or 1
-	if self.frame.SetScript then self.frame:SetScript("OnUpdate", function() GCDBar:UpdateTimer() end) end
+	if self.frame.SetScript then self.frame:SetScript("OnUpdate", GCDBar.UpdateTimer) end
 	self:UpdateTimer()
 end
 
@@ -854,7 +868,7 @@ function GCDBar:RegisterEvents()
 	frame:RegisterEvent("SPELL_UPDATE_COOLDOWN")
 	frame:RegisterEvent("PET_BATTLE_OPENING_START")
 	frame:RegisterEvent("PET_BATTLE_CLOSE")
-	frame:SetScript("OnEvent", function(_, event, ...) GCDBar:OnEvent(event, ...) end)
+	frame:SetScript("OnEvent", onGCDBarEvent)
 	self.eventsRegistered = true
 end
 
@@ -1534,10 +1548,7 @@ function GCDBar:OnSettingChanged(enabled)
 		self:UnregisterEvents()
 		self:StopTimer()
 		if self.frame then self.frame:Hide() end
-		if self._anchorRefreshTicker then
-			self._anchorRefreshTicker:Cancel()
-			self._anchorRefreshTicker = nil
-		end
+		cancelAnchorRefreshTicker()
 	end
 
 	if EditMode and EditMode.RefreshFrame then EditMode:RefreshFrame(EDITMODE_ID) end

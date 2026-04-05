@@ -5284,6 +5284,8 @@ local function stopCast(unit)
 	st.castIconTexture = nil
 	st.castTarget = nil
 	st.castInfo = nil
+	st.castBarDuration = nil
+	st.castDurationFormat = nil
 	if castOnUpdateHandlers[unit] then
 		st.castBar:SetScript("OnUpdate", nil)
 		castOnUpdateHandlers[unit] = nil
@@ -5639,6 +5641,56 @@ local function updateCastBar(unit)
 	end
 end
 
+function UF.OnCastBarUpdate(self)
+	local unit = self and self._eqolUFUnit
+	if not unit then
+		self:SetScript("OnUpdate", nil)
+		return
+	end
+	updateCastBar(unit)
+end
+
+function UF.OnCastDurationTimerUpdate(self, elapsed)
+	local unit = self and self._eqolUFUnit
+	if not unit then
+		self:SetScript("OnUpdate", nil)
+		return
+	end
+	local st = states[unit]
+	local timerObj = st and st.castBarDuration
+	if not st or not timerObj then
+		self:SetScript("OnUpdate", nil)
+		castOnUpdateHandlers[unit] = nil
+		return
+	end
+
+	self._eqolCastDurationElapsed = (self._eqolCastDurationElapsed or 0) + (elapsed or 0)
+	if self._eqolCastDurationElapsed < 0.1 then return end
+	self._eqolCastDurationElapsed = 0
+
+	local totalDuration = timerObj:GetTotalDuration()
+	if type(totalDuration) ~= "number" then totalDuration = 0 end
+	if not st.castDuration then return end
+
+	local durationFormat = st.castDurationFormat or "REMAINING"
+	if durationFormat == "ELAPSED_TOTAL" then
+		st.castDuration:SetText(("%.1f / %.1f"):format(timerObj:GetElapsedDuration(), totalDuration))
+	elseif durationFormat == "REMAINING_TOTAL" then
+		st.castDuration:SetText(("%.1f / %.1f"):format(timerObj:GetRemainingDuration(), totalDuration))
+	else
+		st.castDuration:SetText(("%.1f"):format(timerObj:GetRemainingDuration()))
+	end
+end
+
+function UF.OnCastInterruptAnimFinished(self)
+	local unit = self and self._eqolUFUnit
+	local token = self and self._eqolCastInterruptToken
+	local st = unit and states[unit]
+	if not st or st.castInterruptToken ~= token then return end
+	stopCast(unit)
+	if UF.ShouldShowSampleCast(unit) then UF.SetSampleCast(unit) end
+end
+
 function UF.ShouldShowSampleCast(unit) return addon.EditModeLib and addon.EditModeLib:IsInEditMode() end
 
 function UF.SetSampleCast(unit)
@@ -5669,7 +5721,8 @@ function UF.SetSampleCast(unit)
 	applyCastLayout(cfg, unit)
 	configureCastStatic(unit, resolvedCfg, defc)
 	if not castOnUpdateHandlers[unit] then
-		st.castBar:SetScript("OnUpdate", function() updateCastBar(unit) end)
+		st.castBar._eqolUFUnit = unit
+		st.castBar:SetScript("OnUpdate", UF.OnCastBarUpdate)
 		castOnUpdateHandlers[unit] = true
 	end
 	updateCastBar(unit)
@@ -5860,12 +5913,9 @@ function UF.ShowCastInterrupt(unit, event)
 	st.castBar:SetAlpha(1)
 	st.castBar:Show()
 	st.castInterruptAnim:Stop()
-	st.castInterruptAnim:SetScript("OnFinished", function()
-		local st2 = states[unit]
-		if not st2 or st2.castInterruptToken ~= token then return end
-		stopCast(unit)
-		if UF.ShouldShowSampleCast(unit) then UF.SetSampleCast(unit) end
-	end)
+	st.castInterruptAnim._eqolUFUnit = unit
+	st.castInterruptAnim._eqolCastInterruptToken = token
+	st.castInterruptAnim:SetScript("OnFinished", UF.OnCastInterruptAnimFinished)
 	st.castInterruptAnim:Play()
 end
 
@@ -6002,35 +6052,10 @@ local function setCastInfoFromUnit(unit)
 						st.castDuration:Hide()
 					end
 				end
+				st.castDurationFormat = ccfg.durationFormat or defc.durationFormat or "REMAINING"
 				st.castBar._eqolCastDurationElapsed = 0
-				st.castBar:SetScript("OnUpdate", function(self, elapsed)
-					local timerObj = st.castBarDuration
-					if not timerObj then
-						self:SetScript("OnUpdate", nil)
-						castOnUpdateHandlers[unit] = nil
-						return
-					end
-
-					self._eqolCastDurationElapsed = (self._eqolCastDurationElapsed or 0) + (elapsed or 0)
-					if self._eqolCastDurationElapsed < 0.1 then return end
-					self._eqolCastDurationElapsed = 0
-
-					local totalDuration = timerObj:GetTotalDuration()
-					if type(totalDuration) ~= "number" then totalDuration = 0 end
-
-					if not showDuration or not st.castDuration then return end
-					local durationFormat = ccfg.durationFormat or defc.durationFormat or "REMAINING"
-					if durationFormat == "ELAPSED_TOTAL" then
-						st.castDuration:SetText(("%.1f / %.1f"):format(timerObj:GetElapsedDuration(), totalDuration))
-						return
-					elseif durationFormat == "REMAINING_TOTAL" then
-						st.castDuration:SetText(("%.1f / %.1f"):format(timerObj:GetRemainingDuration(), totalDuration))
-						return
-					else
-						st.castDuration:SetText(("%.1f"):format(timerObj:GetRemainingDuration()))
-						return
-					end
-				end)
+				st.castBar._eqolUFUnit = unit
+				st.castBar:SetScript("OnUpdate", UF.OnCastDurationTimerUpdate)
 				castOnUpdateHandlers[unit] = true
 			end
 		else
@@ -6065,7 +6090,8 @@ local function setCastInfoFromUnit(unit)
 		UFHelper.clearEmpowerStages(st)
 	end
 	if not castOnUpdateHandlers[unit] then
-		st.castBar:SetScript("OnUpdate", function() updateCastBar(unit) end)
+		st.castBar._eqolUFUnit = unit
+		st.castBar:SetScript("OnUpdate", UF.OnCastBarUpdate)
 		castOnUpdateHandlers[unit] = true
 	end
 	updateCastBar(unit)

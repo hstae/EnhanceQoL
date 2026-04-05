@@ -475,6 +475,32 @@ local function resolveFrameByName(name)
 	return obj
 end
 
+local function runPendingVisibilityUpdate()
+	local state = Visibility.runtime
+	if not state then return end
+	state.pendingUpdate = nil
+	Visibility:ApplyAll()
+end
+
+local function visibilityMouseoverOnUpdate(self, elapsed)
+	local state = Visibility.runtime
+	if not state or not state.mouseoverActive then return end
+	self.elapsed = (self.elapsed or 0) + (elapsed or 0)
+	if self.elapsed < 0.05 then return end
+	self.elapsed = 0
+	local changed = false
+	for _, entry in ipairs(state.mouseoverStates or {}) do
+		local frame = entry and entry.frame
+		local over = false
+		if frame and frame.IsShown and frame:IsShown() then over = MouseIsOver and MouseIsOver(frame) or false end
+		if over ~= entry.isMouseOver then
+			entry.isMouseOver = over
+			changed = true
+		end
+	end
+	if changed then Visibility:RequestUpdate() end
+end
+
 function Visibility:AddFrame(configId, name)
 	local root = ensureRoot()
 	if not root then return false, "missing" end
@@ -496,36 +522,14 @@ function Visibility:RequestUpdate()
 	local runtime = self.runtime
 	if runtime.pendingUpdate then return end
 	runtime.pendingUpdate = true
-	C_Timer.After(0, function()
-		local state = Visibility.runtime
-		if not state then return end
-		state.pendingUpdate = nil
-		Visibility:ApplyAll()
-	end)
+	C_Timer.After(0, runPendingVisibilityUpdate)
 end
 
 local function ensureMouseoverWatcher(runtime)
 	if runtime.mouseoverWatcher then return end
 	local watcher = CreateFrame("Frame")
 	watcher.elapsed = 0
-	watcher:SetScript("OnUpdate", function(self, elapsed)
-		local state = Visibility.runtime
-		if not state or not state.mouseoverActive then return end
-		self.elapsed = (self.elapsed or 0) + (elapsed or 0)
-		if self.elapsed < 0.05 then return end
-		self.elapsed = 0
-		local changed = false
-		for _, entry in ipairs(state.mouseoverStates or {}) do
-			local frame = entry and entry.frame
-			local over = false
-			if frame and frame.IsShown and frame:IsShown() then over = MouseIsOver and MouseIsOver(frame) or false end
-			if over ~= entry.isMouseOver then
-				entry.isMouseOver = over
-				changed = true
-			end
-		end
-		if changed then Visibility:RequestUpdate() end
-	end)
+	watcher:SetScript("OnUpdate", visibilityMouseoverOnUpdate)
 	runtime.mouseoverWatcher = watcher
 end
 

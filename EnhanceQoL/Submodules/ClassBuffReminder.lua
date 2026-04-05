@@ -2450,6 +2450,29 @@ function Reminder:GetProviderIcon(provider)
 	return provider.cachedIcon or ICON_MISSING
 end
 
+function Reminder.RunPendingUpdateTimer()
+	Reminder.updateTimer = nil
+	Reminder.updatePending = false
+	Reminder:UpdateDisplay()
+end
+
+function Reminder.RunInitialSoundSyncTimer()
+	Reminder.initialSoundSyncTimer = nil
+	Reminder.initialSoundSyncPending = false
+	if not Reminder:ShouldRegisterRuntimeEvents() then return end
+
+	Reminder.initialSoundSyncDone = true
+	Reminder:NormalizeMissingSoundSelection()
+end
+
+function Reminder.RunDeferredAuraResyncTimer()
+	Reminder.deferredAuraResyncTimer = nil
+	if not Reminder:ShouldRegisterRuntimeEvents() then return end
+
+	Reminder:MarkAuraStatesDirty()
+	Reminder:RequestUpdate(false)
+end
+
 function Reminder:RequestProviderPresentationRefresh(provider)
 	if type(provider) ~= "table" then return end
 	if provider.cachedIcon and provider.cachedIcon ~= "" and provider.cachedIcon ~= ICON_MISSING then
@@ -2571,28 +2594,14 @@ function Reminder:ScheduleInitialSoundSync()
 	if not (C_Timer and C_Timer.After) then return end
 
 	self.initialSoundSyncPending = true
-	C_Timer.After(1, function()
-		Reminder.initialSoundSyncPending = false
-		if not Reminder:ShouldRegisterRuntimeEvents() then return end
-
-		Reminder.initialSoundSyncDone = true
-		Reminder:NormalizeMissingSoundSelection()
-	end)
+	self.initialSoundSyncTimer = C_Timer.NewTimer(1, Reminder.RunInitialSoundSyncTimer)
 end
 
 function Reminder:ScheduleDeferredAuraResync(delay)
 	if not (C_Timer and C_Timer.After) then return end
 
-	local token = (tonumber(self.deferredAuraResyncToken) or 0) + 1
-	self.deferredAuraResyncToken = token
-	C_Timer.After(tonumber(delay) or 0.35, function()
-		if Reminder.deferredAuraResyncToken ~= token then return end
-		Reminder.deferredAuraResyncToken = nil
-		if not Reminder:ShouldRegisterRuntimeEvents() then return end
-
-		Reminder:MarkAuraStatesDirty()
-		Reminder:RequestUpdate(false)
-	end)
+	if self.deferredAuraResyncTimer then self.deferredAuraResyncTimer:Cancel() end
+	self.deferredAuraResyncTimer = C_Timer.NewTimer(tonumber(delay) or 0.35, Reminder.RunDeferredAuraResyncTimer)
 end
 
 function Reminder:GetMissingSoundValue()
@@ -4333,16 +4342,18 @@ end
 
 function Reminder:RequestUpdate(immediate)
 	if immediate or not (C_Timer and C_Timer.After) then
+		if self.updateTimer then
+			self.updateTimer:Cancel()
+			self.updateTimer = nil
+		end
+		self.updatePending = false
 		self:UpdateDisplay()
 		return
 	end
 
 	if self.updatePending then return end
 	self.updatePending = true
-	C_Timer.After(0.08, function()
-		Reminder.updatePending = false
-		Reminder:UpdateDisplay()
-	end)
+	self.updateTimer = C_Timer.NewTimer(0.08, Reminder.RunPendingUpdateTimer)
 end
 
 function Reminder:HandleEvent(event, unit, updateInfo)
