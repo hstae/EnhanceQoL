@@ -1752,7 +1752,10 @@ local function applyNativeSuppression(icon)
 		icon.texture:SetShown(false)
 		icon.texture:SetAlpha(0)
 	end
-	if icon.cooldown then icon.cooldown:Hide() end
+	if icon.cooldown then
+		if icon.cooldown.SetAlpha then icon.cooldown:SetAlpha(0) end
+		if icon.cooldown.Show then icon.cooldown:Show() end
+	end
 	if icon.count then icon.count:Hide() end
 	if icon.charges then icon.charges:Hide() end
 	if icon.keybind then icon.keybind:Hide() end
@@ -2284,6 +2287,9 @@ buildBarState = function(panelId, entryId, entry, icon, preview, runtimeDataOver
 	local mode = normalizeBarMode(entry.barMode, Bars.DEFAULTS.barMode)
 	if not supportsBarMode(entry, mode) then return nil end
 
+	local panel = panelId and CooldownPanels.GetPanel and CooldownPanels:GetPanel(panelId) or nil
+	local panelLayout = panel and panel.layout or nil
+	local hideOnCooldown, showOnCooldown = CooldownPanels.ResolveEntryCooldownVisibility and CooldownPanels:ResolveEntryCooldownVisibility(panelLayout, entry) or false, false
 	local resolvedType, macro = getEntryResolvedType(entry)
 	local runtimeReuseUtil = Bars._eqolRuntimeReuseUtil
 	local reusableRuntimeData = runtimeReuseUtil.GetBarRuntimeData(icon, runtimeDataOverride, resolvedType, preview)
@@ -2295,6 +2301,7 @@ buildBarState = function(panelId, entryId, entry, icon, preview, runtimeDataOver
 	local valueText = nil
 	local animate = false
 	local cooldownValueVisible = false
+	local cooldownVisibilityActive = false
 	local runtimeData = nil
 	local entryKey = Helper.GetEntryKey(panelId, entryId)
 	local barsRuntime = getRuntimeState()
@@ -2367,6 +2374,9 @@ buildBarState = function(panelId, entryId, entry, icon, preview, runtimeDataOver
 		valueStyle = normalizeBarFontStyle(entry.barValueStyle, Bars.DEFAULTS.barValueStyle),
 		valueColor = Helper.NormalizeColor(entry.barValueColor, Bars.DEFAULTS.barValueColor),
 		spellId = resolvedSpellId,
+		hideOnCooldown = hideOnCooldown == true,
+		showOnCooldown = showOnCooldown == true,
+		visible = true,
 	}
 
 	if preview then
@@ -2413,6 +2423,7 @@ buildBarState = function(panelId, entryId, entry, icon, preview, runtimeDataOver
 					valueText = Bars.GetCooldownValueText(icon, durationObject, startTime, duration, rate)
 					animate = progress < 1 or durationObject ~= nil
 					cooldownValueVisible = valueText ~= nil or durationObject ~= nil
+					cooldownVisibilityActive = true
 					state.startTime = safeNumber(startTime)
 					state.duration = safeNumber(duration)
 					state.rate = safeNumber(rate) or 1
@@ -2433,6 +2444,7 @@ buildBarState = function(panelId, entryId, entry, icon, preview, runtimeDataOver
 					valueText = durationToText(max(0, (safeNumber(duration) or 0) - (((Api.GetTime and Api.GetTime()) or GetTime()) - (safeNumber(startTime) or 0))))
 					animate = progress < 1
 					cooldownValueVisible = true
+					cooldownVisibilityActive = true
 					state.startTime = safeNumber(startTime)
 					state.duration = safeNumber(duration)
 					state.rate = 1
@@ -2459,6 +2471,7 @@ buildBarState = function(panelId, entryId, entry, icon, preview, runtimeDataOver
 				valueText = durationToText(getDurationObjectRemaining(durationObject))
 				animate = true
 				cooldownValueVisible = true
+				cooldownVisibilityActive = true
 				state.fillDurationObject = durationObject
 				state.timerDirection = Enum and Enum.StatusBarTimerDirection and Enum.StatusBarTimerDirection.RemainingTime or 1
 				state.startTime = safeNumber(runtimeData.cooldownStart)
@@ -2475,6 +2488,7 @@ buildBarState = function(panelId, entryId, entry, icon, preview, runtimeDataOver
 				valueText = fallbackProgress and durationToText(fallbackRemaining) or nil
 				animate = fallbackProgress ~= nil and fallbackProgress < 1 or false
 				cooldownValueVisible = valueText ~= nil
+				cooldownVisibilityActive = true
 				state.timerDirection = Enum and Enum.StatusBarTimerDirection and Enum.StatusBarTimerDirection.RemainingTime or 1
 				state.startTime = safeNumber(runtimeData.cooldownStart)
 				state.duration = safeNumber(runtimeData.cooldownDuration)
@@ -2496,6 +2510,7 @@ buildBarState = function(panelId, entryId, entry, icon, preview, runtimeDataOver
 			progress = getChargeBarProgress(state)
 			valueText = getChargeBarValueText(icon, state.currentCharges, state.maxCharges)
 			animate = state.animate == true
+			cooldownVisibilityActive = state.lastNonGCDCooldownActive == true
 		end
 	else
 		if resolvedType == "CDM_AURA" then
@@ -2536,6 +2551,14 @@ buildBarState = function(panelId, entryId, entry, icon, preview, runtimeDataOver
 	end
 
 	state.progress = progress or 0
+	state.cooldownVisibilityActive = cooldownVisibilityActive == true
+	if state.showOnCooldown then
+		state.visible = state.cooldownVisibilityActive == true
+	elseif state.hideOnCooldown then
+		state.visible = state.cooldownVisibilityActive ~= true
+	else
+		state.visible = true
+	end
 	if mode == Bars.BAR_MODE.COOLDOWN then
 		state.valueText = cooldownValueVisible and (valueText or getCooldownText(icon) or nil) or nil
 	elseif mode == Bars.BAR_MODE.STACKS then
@@ -3337,8 +3360,12 @@ local function applyBarsToPanel(panelId, preview)
 			local span = entryId and effectiveSpanByEntryId and effectiveSpanByEntryId[entryId] or 1
 			if state then
 				applyNativeSuppression(icon)
-				layoutBarFrame(barFrame, icon, span, panel.layout, state)
-				stopBarAnimation(barFrame)
+				if state.visible == true then
+					layoutBarFrame(barFrame, icon, span, panel.layout, state)
+					stopBarAnimation(barFrame)
+				else
+					hideBarPresentation(icon)
+				end
 			else
 				hideBarPresentation(icon)
 			end

@@ -1,5 +1,5 @@
 local parentAddonName = "EnhanceQoL"
-local addonName, addon = ...
+local addon = select(2, ...)
 
 if _G[parentAddonName] then
 	addon = _G[parentAddonName]
@@ -18,7 +18,6 @@ local SettingType = EditMode and EditMode.lib and EditMode.lib.SettingType
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_Aura")
 local LSM = LibStub("LibSharedMedia-3.0", true)
 local Glow = addon.Glow
-local GetVisibilityRuleMetadata = addon.functions and addon.functions.GetVisibilityRuleMetadata
 local Masque
 
 CooldownPanels.ENTRY_TYPE = {
@@ -653,7 +652,8 @@ local PanelVisibility = (function()
 	local function getRuleMap()
 		if ruleMapCache then return ruleMapCache end
 		local allowed = {}
-		local metadata = GetVisibilityRuleMetadata and GetVisibilityRuleMetadata() or nil
+		local getVisibilityRuleMetadata = addon.functions and addon.functions.GetVisibilityRuleMetadata
+		local metadata = getVisibilityRuleMetadata and getVisibilityRuleMetadata() or nil
 		if type(metadata) == "table" then
 			for key, data in pairs(metadata) do
 				local applies = data and data.appliesTo
@@ -686,7 +686,8 @@ local PanelVisibility = (function()
 		if optionCache then return optionCache end
 		local options = {}
 		local seen = {}
-		local metadata = GetVisibilityRuleMetadata and GetVisibilityRuleMetadata() or nil
+		local getVisibilityRuleMetadata = addon.functions and addon.functions.GetVisibilityRuleMetadata
+		local metadata = getVisibilityRuleMetadata and getVisibilityRuleMetadata() or nil
 		if type(metadata) == "table" then
 			for key, data in pairs(metadata) do
 				local applies = data and data.appliesTo
@@ -15260,6 +15261,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			icon.cooldown._eqolGlowReady = data.glowReady
 			icon.cooldown._eqolGlowDuration = data.glowDuration
 			if icon.cooldown.Resume then icon.cooldown:Resume() end
+			if icon.cooldown.SetAlpha then icon.cooldown:SetAlpha(1) end
 			CooldownPanels.HidePreviewGlowBorder(icon)
 			if icon.previewBling then icon.previewBling:Hide() end
 			if icon.previewSoundBorder then icon.previewSoundBorder:Hide() end
