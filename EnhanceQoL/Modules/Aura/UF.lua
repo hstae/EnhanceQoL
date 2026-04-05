@@ -1542,6 +1542,83 @@ function AuraUtil.normalizeEnemyDebuffFilterMode(value)
 	return ENEMY_DEBUFF_FILTER_MODE_PLAYER
 end
 
+function AuraUtil.buildSingleAuraRuntimeConfig(ac, defAc)
+	local resolved = {
+		buff = AuraUtil.resolveSingleAuraSection(ac, defAc, "buff"),
+		debuff = AuraUtil.resolveSingleAuraSection(ac, defAc, "debuff"),
+		combineLayout = AuraUtil.resolveSingleAuraCombineLayout(ac, defAc),
+	}
+	if resolved.buff.enabled == nil then resolved.buff.enabled = true end
+	if resolved.debuff.enabled == nil then resolved.debuff.enabled = true end
+	resolved.enabled = (resolved.buff.enabled ~= false) or (resolved.debuff.enabled ~= false)
+
+	local buff = AuraUtil.prepareSingleAuraSectionStyle(resolved.buff)
+	local debuff = AuraUtil.prepareSingleAuraSectionStyle(resolved.debuff)
+	local showBuffs = buff.enabled ~= false
+	local showDebuffs = debuff.enabled ~= false
+	local relayoutThreshold
+	local helpfulLimit
+	local harmfulLimit
+
+	if resolved.combineLayout == true then
+		local combinedMax = math.max(buff.max or 0, debuff.max or 0)
+		if showBuffs and not showDebuffs then
+			combinedMax = buff.max or 0
+		elseif showDebuffs and not showBuffs then
+			combinedMax = debuff.max or 0
+		end
+		relayoutThreshold = (combinedMax or 0) + 1
+		local cap = AuraUtil.normalizeAuraQueryLimit((combinedMax or 0) + 1)
+		helpfulLimit = showBuffs and cap or nil
+		harmfulLimit = showDebuffs and cap or nil
+	else
+		relayoutThreshold = (buff.max or 0) + (debuff.max or 0) + 1
+		helpfulLimit = showBuffs and AuraUtil.normalizeAuraQueryLimit((buff.max or 0) + 1) or nil
+		harmfulLimit = showDebuffs and AuraUtil.normalizeAuraQueryLimit((debuff.max or 0) + 1) or nil
+	end
+
+	local enemyHarmfulFilter = AURA_FILTER_HARMFUL
+	if AuraUtil.normalizeEnemyDebuffFilterMode(debuff.enemyDebuffFilterMode) == ENEMY_DEBUFF_FILTER_MODE_ALL then
+		enemyHarmfulFilter = AURA_FILTER_HARMFUL_ALL
+	end
+
+	return {
+		ac = ac,
+		defAc = defAc,
+		resolved = resolved,
+		buff = buff,
+		debuff = debuff,
+		enabled = resolved.enabled == true,
+		showBuffs = showBuffs,
+		showDebuffs = showDebuffs,
+		relayoutThreshold = relayoutThreshold,
+		helpfulLimit = helpfulLimit,
+		harmfulLimit = harmfulLimit,
+		enemyHarmfulFilter = enemyHarmfulFilter,
+	}
+end
+
+function AuraUtil.getUnitSingleAuraRuntimeConfig(unit, ac, defAc)
+	local st = unit and states[unit]
+	local cached = st and st._singleAuraRuntimeConfig
+	if cached and cached.ac == ac and cached.defAc == defAc then return cached end
+
+	local runtime = AuraUtil.buildSingleAuraRuntimeConfig(ac, defAc)
+	if st then st._singleAuraRuntimeConfig = runtime end
+	return runtime
+end
+
+function AuraUtil.invalidateUnitSingleAuraRuntimeConfig(unit)
+	local st = unit and states[unit]
+	if st then st._singleAuraRuntimeConfig = nil end
+end
+
+function AuraUtil.getUnitAuraFilters(unit, auraRuntime)
+	if unit == UNIT.PLAYER or unit == "player" then return AURA_FILTER_HELPFUL, AURA_FILTER_HARMFUL_ALL end
+	if UnitIsFriend and unit and UnitIsFriend("player", unit) then return AURA_FILTER_HELPFUL, AURA_FILTER_HARMFUL_ALL end
+	return AURA_FILTER_HELPFUL, auraRuntime and auraRuntime.enemyHarmfulFilter or AURA_FILTER_HARMFUL
+end
+
 function AuraUtil.getAuraFilters(unit, ac, defAc)
 	if unit == UNIT.PLAYER or unit == "player" then return AURA_FILTER_HELPFUL, AURA_FILTER_HARMFUL_ALL end
 	if UnitIsFriend and unit and UnitIsFriend("player", unit) then return AURA_FILTER_HELPFUL, AURA_FILTER_HARMFUL_ALL end
@@ -3831,16 +3908,17 @@ function AuraUtil.updateTargetAuraIcons(startIndex, unit)
 	local cfg = st.cfg or ensureDB(unit)
 	local def = defaultsFor(unit)
 	local ac = cfg.auraIcons or (def and def.auraIcons) or defaults.target.auraIcons or { size = 24, padding = 2, max = 16, showCooldown = true }
-	if not AuraUtil.isAuraIconsEnabled(ac, def) then
+	local auraRuntime = AuraUtil.getUnitSingleAuraRuntimeConfig(unit, ac, def and def.auraIcons)
+	if not auraRuntime.enabled then
 		AuraUtil.hideAuraContainers(st)
 		AuraUtil.UpdateSingleDispelIndicator(unit, allowSample)
 		return
 	end
-	local resolved = AuraUtil.resolveSingleAuraConfig(ac, def and def.auraIcons)
-	local buffStyle = AuraUtil.prepareSingleAuraSectionStyle(resolved.buff)
-	local debuffStyle = AuraUtil.prepareSingleAuraSectionStyle(resolved.debuff)
-	local showBuffs = buffStyle.enabled ~= false
-	local showDebuffs = debuffStyle.enabled ~= false
+	local resolved = auraRuntime.resolved
+	local buffStyle = auraRuntime.buff
+	local debuffStyle = auraRuntime.debuff
+	local showBuffs = auraRuntime.showBuffs
+	local showDebuffs = auraRuntime.showDebuffs
 	if not showBuffs and not showDebuffs then
 		AuraUtil.hideAuraContainers(st)
 		AuraUtil.UpdateSingleDispelIndicator(unit, allowSample)
@@ -3848,7 +3926,7 @@ function AuraUtil.updateTargetAuraIcons(startIndex, unit)
 	end
 	local auras, order, indexById = AuraUtil.getAuraTables(unit)
 	if not auras or not order or not indexById then return end
-	local _, harmfulFilter = AuraUtil.getAuraFilters(unit, ac, def and def.auraIcons)
+	local _, harmfulFilter = AuraUtil.getUnitAuraFilters(unit, auraRuntime)
 	local function isAuraDebuff(aura)
 		if issecretvalue and issecretvalue(aura.isHarmful) and C_UnitAuras and C_UnitAuras.IsAuraFilteredOutByInstanceID then
 			return not C_UnitAuras.IsAuraFilteredOutByInstanceID(unit, aura.auraInstanceID, harmfulFilter)
@@ -4080,16 +4158,16 @@ function AuraUtil.fullScanTargetAuras(unit)
 	local cfg = (st and st.cfg) or ensureDB(unit)
 	local def = defaultsFor(unit)
 	local ac = cfg.auraIcons or (def and def.auraIcons) or defaults.target.auraIcons or {}
-	if not AuraUtil.isAuraIconsEnabled(ac, def) then
+	local auraRuntime = AuraUtil.getUnitSingleAuraRuntimeConfig(unit, ac, def and def.auraIcons)
+	if not auraRuntime.enabled then
 		if st then st._sampleAurasActive = nil end
 		AuraUtil.updateTargetAuraIcons(nil, unit)
 		return
 	end
-	local resolved = AuraUtil.resolveSingleAuraConfig(ac, def and def.auraIcons)
-	local buff = AuraUtil.prepareSingleAuraSectionStyle(resolved.buff)
-	local debuff = AuraUtil.prepareSingleAuraSectionStyle(resolved.debuff)
-	local showBuffs = buff.enabled ~= false
-	local showDebuffs = debuff.enabled ~= false
+	local buff = auraRuntime.buff
+	local debuff = auraRuntime.debuff
+	local showBuffs = auraRuntime.showBuffs
+	local showDebuffs = auraRuntime.showDebuffs
 	if not showBuffs and not showDebuffs then
 		AuraUtil.updateTargetAuraIcons(nil, unit)
 		return
@@ -4105,8 +4183,9 @@ function AuraUtil.fullScanTargetAuras(unit)
 		AuraUtil.updateTargetAuraIcons(nil, unit)
 		return
 	end
-	local helpfulFilter, harmfulFilter = AuraUtil.getAuraFilters(unit, ac, def and def.auraIcons)
-	local helpfulLimit, harmfulLimit = AuraUtil.getTargetAuraQueryLimits(ac, def and def.auraIcons)
+	local helpfulFilter, harmfulFilter = AuraUtil.getUnitAuraFilters(unit, auraRuntime)
+	local helpfulLimit = auraRuntime.helpfulLimit
+	local harmfulLimit = auraRuntime.harmfulLimit
 	if showBuffs then AuraUtil.scanTargetAuraSlots(unit, helpfulFilter, helpfulLimit, buff.hidePermanentAuras == true) end
 	if showDebuffs then AuraUtil.scanTargetAuraSlots(unit, harmfulFilter, harmfulLimit, debuff.hidePermanentAuras == true) end
 	AuraUtil.updateTargetAuraIcons(nil, unit)
@@ -7567,9 +7646,10 @@ local function layoutFrame(cfg, unit)
 	if (unit == UNIT.PLAYER or unit == "target" or unit == UNIT.FOCUS or isBossUnit(unit)) and st.auraContainer then
 		st.auraContainer:ClearAllPoints()
 		local acfg = cfg.auraIcons or def.auraIcons or defaults.target.auraIcons or {}
-		local resolvedAuras = AuraUtil.resolveSingleAuraConfig(acfg, def and def.auraIcons)
-		local buffAura = AuraUtil.prepareSingleAuraSectionStyle(resolvedAuras.buff)
-		local debuffAura = AuraUtil.prepareSingleAuraSectionStyle(resolvedAuras.debuff)
+		local auraRuntime = AuraUtil.getUnitSingleAuraRuntimeConfig(unit, acfg, def and def.auraIcons)
+		local resolvedAuras = auraRuntime.resolved
+		local buffAura = auraRuntime.buff
+		local debuffAura = auraRuntime.debuff
 		local anchor = buffAura.anchor or "BOTTOM"
 		local defAx, defAy = UF._auraLayout.defaultOffset(anchor)
 		local baseAx = (buffAura.offset and buffAura.offset.x)
@@ -8161,6 +8241,7 @@ local function applyConfig(unit)
 	local def = defaultsFor(unit)
 	states[unit] = states[unit] or {}
 	local st = states[unit]
+	AuraUtil.invalidateUnitSingleAuraRuntimeConfig(unit)
 	st.cfg = cfg
 	st._healthColorDirty = true
 	st._healthPercentCurveDirty = true
@@ -9720,15 +9801,15 @@ onEvent = function(self, event, unit, ...)
 			end
 		end
 		local ac = cfg.auraIcons or (def and def.auraIcons) or defaults.target.auraIcons or { size = 24, padding = 2, max = 16, showCooldown = true }
-		if not AuraUtil.isAuraIconsEnabled(ac, def) then
+		local auraRuntime = AuraUtil.getUnitSingleAuraRuntimeConfig(unit, ac, def and def.auraIcons)
+		if not auraRuntime.enabled then
 			AuraUtil.UpdateSingleDispelIndicator(unit, allowSample)
 			return
 		end
-		local resolvedAuras = AuraUtil.resolveSingleAuraConfig(ac, def and def.auraIcons)
-		local buffAuras = AuraUtil.prepareSingleAuraSectionStyle(resolvedAuras.buff)
-		local debuffAuras = AuraUtil.prepareSingleAuraSectionStyle(resolvedAuras.debuff)
-		local showBuffs = buffAuras.enabled ~= false
-		local showDebuffs = debuffAuras.enabled ~= false
+		local buffAuras = auraRuntime.buff
+		local debuffAuras = auraRuntime.debuff
+		local showBuffs = auraRuntime.showBuffs
+		local showDebuffs = auraRuntime.showDebuffs
 		if not showBuffs and not showDebuffs then
 			AuraUtil.resetTargetAuras(unit)
 			AuraUtil.updateTargetAuraIcons(nil, unit)
@@ -9740,7 +9821,7 @@ onEvent = function(self, event, unit, ...)
 			AuraUtil.fullScanTargetAuras(unit)
 			return
 		end
-		local helpfulFilter, harmfulFilter = AuraUtil.getAuraFilters(unit, ac, def and def.auraIcons)
+		local helpfulFilter, harmfulFilter = AuraUtil.getUnitAuraFilters(unit, auraRuntime)
 		local eventInfo = arg1
 		if not UnitExists(unit) then
 			AuraUtil.resetTargetAuras(unit)
@@ -9755,7 +9836,7 @@ onEvent = function(self, event, unit, ...)
 		if not st or not st.auraContainer then return end
 		local auras, order, indexById = AuraUtil.getAuraTables(unit)
 		if not auras or not order or not indexById then return end
-		local relayoutThreshold = AuraUtil.getSingleAuraRelayoutThreshold(ac, def and def.auraIcons)
+		local relayoutThreshold = auraRuntime.relayoutThreshold
 		local firstChanged
 		if eventInfo.addedAuras then
 			for _, aura in ipairs(eventInfo.addedAuras) do
