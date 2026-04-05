@@ -282,7 +282,7 @@ Bars.GetCooldownValueText = function(icon, durationObject, startTime, duration, 
 	if remaining ~= nil then return durationToText(remaining) end
 	local start = safeNumber(startTime)
 	local total = safeNumber(duration)
-	if not (start and total and total > 0) then return nil end
+	if not (start and total and total > 0) then return getCooldownText(icon) end
 	local now = (Api.GetTime and Api.GetTime()) or GetTime()
 	local modifier = safeNumber(rate) or 1
 	local text = durationToText(max(0, total - ((now - start) * modifier)))
@@ -293,7 +293,7 @@ end
 Bars.GetLiveBarValueText = function(state)
 	if type(state) ~= "table" or state.showValueText ~= true then return nil end
 	if state.mode ~= Bars.BAR_MODE.COOLDOWN then return nil end
-	if state.fillDurationObject == nil and (safeNumber(state.duration) or 0) <= 0 then return nil end
+	if state.cooldownVisibilityActive ~= true then return nil end
 	return Bars.GetCooldownValueText(state.icon, state.fillDurationObject, state.startTime, state.duration, state.rate)
 end
 
@@ -1646,7 +1646,7 @@ function Bars.OnBarValueTextUpdate(self, elapsed)
 	if self._eqolValueTextElapsed < 0.05 then return end
 	self._eqolValueTextElapsed = 0
 	local text = Bars.GetLiveBarValueText(self._eqolBarState)
-	if text ~= nil and text ~= "" then
+	if hasTextValue(text) then
 		self.value:SetText(text)
 		if self.value.Show and self.value.IsShown and not self.value:IsShown() then self.value:Show() end
 	else
@@ -1656,7 +1656,7 @@ end
 
 Bars.ConfigureBarValueTextUpdater = function(barFrame, state)
 	if not barFrame then return end
-	local useDynamicText = state and state.showValueText == true and Bars.GetLiveBarValueText(state) ~= nil
+	local useDynamicText = state and state.preview ~= true and state.showValueText == true and state.mode == Bars.BAR_MODE.COOLDOWN and state.cooldownVisibilityActive == true
 	if useDynamicText ~= true then
 		Bars.ClearBarValueTextUpdater(barFrame)
 		return
@@ -1666,7 +1666,7 @@ Bars.ConfigureBarValueTextUpdater = function(barFrame, state)
 	barFrame._eqolValueTextElapsed = 0
 	local initialText = Bars.GetLiveBarValueText(state)
 	if barFrame.value then
-		if initialText ~= nil and initialText ~= "" then
+		if hasTextValue(initialText) then
 			barFrame.value:SetText(initialText)
 			barFrame.value:Show()
 		else
