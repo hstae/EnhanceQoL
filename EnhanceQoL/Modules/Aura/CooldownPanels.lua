@@ -29,6 +29,9 @@ local cdp = {
 		DEFAULT_X = 0,
 		DEFAULT_Y = 100,
 	},
+	FIXED_VISUAL = {
+		LAYOUTS = setmetatable({}, { __mode = "k" }),
+	},
 }
 
 CooldownPanels.ENTRY_TYPE = {
@@ -5375,15 +5378,73 @@ function CooldownPanels._eqolFixedVisualCacheUtil.ClearSparseTable(tbl)
 	end
 end
 
-function CooldownPanels._eqolFixedVisualCacheUtil.Prepare(frame, panel, fixedGridColumns)
+function CooldownPanels._eqolFixedVisualCacheUtil.GetSharedLayoutCache(fixedLayoutCache)
+	if type(fixedLayoutCache) ~= "table" then return nil end
+	local layouts = cdp.FIXED_VISUAL and cdp.FIXED_VISUAL.LAYOUTS or nil
+	if type(layouts) ~= "table" then return nil end
+	local shared = layouts[fixedLayoutCache]
+	if type(shared) ~= "table" then
+		shared = {
+			orderedCellsByGroupId = {},
+			dynamicPlacementsByGroupId = {},
+			groupStateById = {},
+		}
+		layouts[fixedLayoutCache] = shared
+	end
+	return shared
+end
+
+function CooldownPanels._eqolFixedVisualCacheUtil.SyncSharedGroupState(shared, group)
+	if type(shared) ~= "table" or type(group) ~= "table" then return nil end
+	local groupId = type(group.id) == "string" and group.id or tostring(group.id or "")
+	local state = shared.groupStateById and shared.groupStateById[groupId] or nil
+	if type(state) ~= "table" then
+		state = {}
+		shared.groupStateById[groupId] = state
+	end
+	local mode = group.mode
+	local columns = group.columns
+	local rows = group.rows
+	local column = group.column
+	local row = group.row
+	local startPoint = group.dynamicStartPoint
+	local direction = group.dynamicDirection
+	if
+		state.groupRef ~= group
+		or state.mode ~= mode
+		or state.columns ~= columns
+		or state.rows ~= rows
+		or state.column ~= column
+		or state.row ~= row
+		or state.startPoint ~= startPoint
+		or state.direction ~= direction
+	then
+		shared.orderedCellsByGroupId[groupId] = nil
+		shared.dynamicPlacementsByGroupId[groupId] = nil
+		state.groupRef = group
+		state.mode = mode
+		state.columns = columns
+		state.rows = rows
+		state.column = column
+		state.row = row
+		state.startPoint = startPoint
+		state.direction = direction
+	end
+	return groupId
+end
+
+function CooldownPanels._eqolFixedVisualCacheUtil.Prepare(frame, panel, fixedGridColumns, fixedLayoutCache)
 	if not frame then return nil end
 	local cache = frame._eqolFixedVisualCache
 	if type(cache) ~= "table" then
 		cache = {}
 		frame._eqolFixedVisualCache = cache
 	end
+	local sharedLayoutCache = CooldownPanels._eqolFixedVisualCacheUtil.GetSharedLayoutCache(fixedLayoutCache)
 	cache.panel = panel
 	cache.fixedGridColumns = fixedGridColumns
+	cache.fixedLayoutCacheRef = fixedLayoutCache
+	cache.sharedLayoutCache = sharedLayoutCache
 	cache.slotCenterX = cache.slotCenterX or {}
 	cache.slotCenterY = cache.slotCenterY or {}
 	cache.slotCenterMissing = cache.slotCenterMissing or {}
@@ -5392,8 +5453,10 @@ function CooldownPanels._eqolFixedVisualCacheUtil.Prepare(frame, panel, fixedGri
 	CooldownPanels._eqolFixedVisualCacheUtil.ClearSparseTable(cache.slotCenterX)
 	CooldownPanels._eqolFixedVisualCacheUtil.ClearSparseTable(cache.slotCenterY)
 	CooldownPanels._eqolFixedVisualCacheUtil.ClearSparseTable(cache.slotCenterMissing)
-	CooldownPanels._eqolFixedVisualCacheUtil.ClearSparseTable(cache.orderedCellsByGroupId)
-	CooldownPanels._eqolFixedVisualCacheUtil.ClearSparseTable(cache.dynamicPlacementsByGroupId)
+	if not sharedLayoutCache then
+		CooldownPanels._eqolFixedVisualCacheUtil.ClearSparseTable(cache.orderedCellsByGroupId)
+		CooldownPanels._eqolFixedVisualCacheUtil.ClearSparseTable(cache.dynamicPlacementsByGroupId)
+	end
 	return cache
 end
 
@@ -5434,28 +5497,44 @@ end
 
 function CooldownPanels._eqolFixedVisualCacheUtil.GetOrderedCells(cache, group)
 	if type(group) ~= "table" then return nil end
-	if not (cache and cache.orderedCellsByGroupId) then return Helper.GetFixedGroupOrderedCells and Helper.GetFixedGroupOrderedCells(group) or nil end
-	local key = tostring(group.id or "")
-	local cached = cache.orderedCellsByGroupId[key]
+	local store = nil
+	local key = nil
+	if cache and cache.sharedLayoutCache then
+		key = CooldownPanels._eqolFixedVisualCacheUtil.SyncSharedGroupState(cache.sharedLayoutCache, group)
+		store = cache.sharedLayoutCache.orderedCellsByGroupId
+	elseif cache and cache.orderedCellsByGroupId then
+		key = type(group.id) == "string" and group.id or tostring(group.id or "")
+		store = cache.orderedCellsByGroupId
+	end
+	if not store then return Helper.GetFixedGroupOrderedCells and Helper.GetFixedGroupOrderedCells(group) or nil end
+	local cached = store[key]
 	if cached ~= nil then
 		if cached == false then return nil end
 		return cached
 	end
 	cached = Helper.GetFixedGroupOrderedCells and Helper.GetFixedGroupOrderedCells(group) or nil
-	cache.orderedCellsByGroupId[key] = cached or false
+	store[key] = cached or false
 	return cached
 end
 
 function CooldownPanels._eqolFixedVisualCacheUtil.GetDynamicPlacement(cache, group, index, count)
 	if type(group) ~= "table" then return nil end
-	if not (cache and cache.dynamicPlacementsByGroupId) then
+	local placementsByGroupId = nil
+	local groupKey = nil
+	if cache and cache.sharedLayoutCache then
+		groupKey = CooldownPanels._eqolFixedVisualCacheUtil.SyncSharedGroupState(cache.sharedLayoutCache, group)
+		placementsByGroupId = cache.sharedLayoutCache.dynamicPlacementsByGroupId
+	elseif cache and cache.dynamicPlacementsByGroupId then
+		groupKey = type(group.id) == "string" and group.id or tostring(group.id or "")
+		placementsByGroupId = cache.dynamicPlacementsByGroupId
+	end
+	if not placementsByGroupId then
 		return Helper.GetFixedGroupDynamicPlacement and Helper.GetFixedGroupDynamicPlacement(group, index, count) or nil
 	end
-	local key = tostring(group.id or "")
-	local groupCache = cache.dynamicPlacementsByGroupId[key]
+	local groupCache = placementsByGroupId[groupKey]
 	if type(groupCache) ~= "table" then
 		groupCache = {}
-		cache.dynamicPlacementsByGroupId[key] = groupCache
+		placementsByGroupId[groupKey] = groupCache
 	end
 	local countKey = tostring(count or 0)
 	local countCache = groupCache[countKey]
@@ -14544,7 +14623,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 				end
 			end
 		end
-		fixedVisualCache = CooldownPanels._eqolFixedVisualCacheUtil.Prepare(frame, panel, fixedGridColumns)
+		fixedVisualCache = CooldownPanels._eqolFixedVisualCacheUtil.Prepare(frame, panel, fixedGridColumns, fixedLayoutCache)
 	end
 	local editGridColumns
 	if layoutEditActive and not fixedLayout then
