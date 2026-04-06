@@ -6421,14 +6421,11 @@ end
 function CooldownPanels:GetCachedSpellCooldownDurationObject(spellId)
 	if not spellId then return nil end
 	local runtime = self:EnsureSpellQueryCaches()
-	local pass = runtime.spellQueryPass
-	if not pass then return getSpellCooldownDurationObject(spellId) end
 	local cache = runtime.spellCooldownDurationCache
 	local cached = cache[spellId]
-	if cached and cached.pass == pass then return cached.value end
+	if cached then return cached.value end
 	cached = cached or {}
 	cache[spellId] = cached
-	cached.pass = pass
 	cached.value = getSpellCooldownDurationObject(spellId)
 	return cached.value
 end
@@ -6436,14 +6433,11 @@ end
 function CooldownPanels:GetCachedSpellCooldownInfo(spellId)
 	if not spellId then return 0, 0, false, 1, nil, false end
 	local runtime = self:EnsureSpellQueryCaches()
-	local pass = runtime.spellQueryPass
-	if not pass then return getSpellCooldownInfo(spellId) end
 	local cache = runtime.spellCooldownInfoCache
 	local cached = cache[spellId]
-	if cached and cached.pass == pass then return cached.startTime, cached.duration, cached.enabled, cached.modRate, cached.isOnGCD, cached.isActive end
+	if cached then return cached.startTime, cached.duration, cached.enabled, cached.modRate, cached.isOnGCD, cached.isActive end
 	cached = cached or {}
 	cache[spellId] = cached
-	cached.pass = pass
 	cached.startTime, cached.duration, cached.enabled, cached.modRate, cached.isOnGCD, cached.isActive = getSpellCooldownInfo(spellId)
 	return cached.startTime, cached.duration, cached.enabled, cached.modRate, cached.isOnGCD, cached.isActive
 end
@@ -6451,14 +6445,11 @@ end
 function CooldownPanels:GetCachedSpellChargesInfo(spellId)
 	if not spellId or not Api.GetSpellChargesInfo then return nil end
 	local runtime = self:EnsureSpellQueryCaches()
-	local pass = runtime.spellQueryPass
-	if not pass then return Api.GetSpellChargesInfo(spellId) end
 	local cache = runtime.spellChargesInfoCache
 	local cached = cache[spellId]
-	if cached and cached.pass == pass then return cached.value end
+	if cached then return cached.value end
 	cached = cached or {}
 	cache[spellId] = cached
-	cached.pass = pass
 	cached.value = Api.GetSpellChargesInfo(spellId)
 	return cached.value
 end
@@ -6466,18 +6457,15 @@ end
 function CooldownPanels:GetCachedSpellChargeDurationObject(spellId)
 	if not spellId or not (C_Spell and C_Spell.GetSpellChargeDuration) then return nil end
 	local runtime = self:EnsureSpellQueryCaches()
-	local pass = runtime.spellQueryPass
-	if not pass then return C_Spell.GetSpellChargeDuration(spellId) end
 	local cache = runtime.spellChargeDurationCache
 	if not cache then
 		cache = {}
 		runtime.spellChargeDurationCache = cache
 	end
 	local cached = cache[spellId]
-	if cached and cached.pass == pass then return cached.value end
+	if cached then return cached.value end
 	cached = cached or {}
 	cache[spellId] = cached
-	cached.pass = pass
 	cached.value = C_Spell.GetSpellChargeDuration(spellId)
 	return cached.value
 end
