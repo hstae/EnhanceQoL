@@ -18,7 +18,6 @@ local SettingType = EditMode and EditMode.lib and EditMode.lib.SettingType
 local L = LibStub("AceLocale-3.0"):GetLocale(parentAddonName)
 local LSM = LibStub("LibSharedMedia-3.0", true)
 local Glow = addon.Glow
-local Masque
 local cdp = {
 	FAKE_CURSOR = {
 		FRAME_NAME = "EQOL_CooldownPanelsFakeCursor",
@@ -1137,39 +1136,8 @@ function CooldownPanels:UpdateCursorAnchorState()
 	end
 end
 
-local function getMasqueGroup()
-	if not Masque and LibStub then Masque = LibStub("Masque", true) end
-	if not Masque then return nil end
-	CooldownPanels.runtime = CooldownPanels.runtime or {}
-	if not CooldownPanels.runtime.masqueGroup then CooldownPanels.runtime.masqueGroup = Masque:Group(parentAddonName, "Cooldown Panels", "CooldownPanels") end
-	return CooldownPanels.runtime.masqueGroup
-end
-
-function CooldownPanels:GetMasqueRegions(icon)
-	if not icon then return nil end
-	icon._eqolMasqueRegions = icon._eqolMasqueRegions or {
-		Icon = icon.texture,
-		Cooldown = icon.cooldown,
-		Normal = icon.msqNormal,
-	}
-	return icon._eqolMasqueRegions
-end
-
-function CooldownPanels:SyncMasqueButton(icon)
-	if not icon then return false end
-
-	local group = getMasqueGroup()
-	if not group then return false end
-	if not icon._eqolMasqueAdded then
-		group:AddButton(icon, self:GetMasqueRegions(icon), "Action", true)
-		icon._eqolMasqueAdded = true
-		if group.ReSkin then group:ReSkin(icon) end
-		icon._eqolMasqueNeedsReskin = nil
-	elseif icon._eqolMasqueNeedsReskin then
-		if group.ReSkin then group:ReSkin(icon) end
-		icon._eqolMasqueNeedsReskin = nil
-	end
-	return true
+function CooldownPanels:GetGlowStyleOptions(panelId)
+	return Helper.GLOW_STYLE_OPTIONS or {}
 end
 
 local ICON_BORDER_TEXTURE_DEFAULT = "DEFAULT"
@@ -1210,24 +1178,6 @@ local function resolveIconBorderTexture(value)
 		if type(tex) == "string" and tex ~= "" then return tex end
 	end
 	return key
-end
-
-function CooldownPanels:RegisterMasqueButtons()
-	local group = getMasqueGroup()
-	if not group then return end
-	for _, runtime in pairs(self.runtime or {}) do
-		local frame = runtime and runtime.frame
-		if frame and frame._eqolPanelFrame and frame.icons then
-			for _, icon in ipairs(frame.icons) do
-				if icon then self:SyncMasqueButton(icon) end
-			end
-		end
-	end
-end
-
-function CooldownPanels:ReskinMasque()
-	local group = getMasqueGroup()
-	if group and group.ReSkin then group:ReSkin() end
 end
 
 local getEditor
@@ -5870,7 +5820,6 @@ end
 function cdp.RUNTIME.HasPlacementChange(icon, snapshot, data, fixedLayoutCache, fixedGridColumns, slotColumn, slotRow, layoutEditActive)
 	if not (icon and snapshot and data) then return true end
 	if icon._eqolVisualSize == nil or icon._eqolVisualAnchor == nil or icon._eqolVisualOffsetX == nil or icon._eqolVisualOffsetY == nil then return true end
-	if icon._eqolMasqueNeedsReskin then return true end
 	local entry = data.entry
 	local layout = data.layout
 	local fixedLocalIndex, fixedCount = cdp.RUNTIME.GetFixedContextSignature(data.fixedContext)
@@ -6304,11 +6253,6 @@ local function createIconFrame(parent)
 	if icon.staticText.SetWordWrap then icon.staticText:SetWordWrap(true) end
 	icon.staticText:Hide()
 
-	icon.msqNormal = icon:CreateTexture(nil, "OVERLAY")
-	icon.msqNormal:SetAllPoints(icon)
-	icon.msqNormal:SetTexture("Interface\\Buttons\\UI-Quickslot2")
-	icon.msqNormal:Hide()
-
 	icon.previewGlowBorder = CreateFrame("Frame", nil, icon, "BackdropTemplate")
 	icon.previewGlowBorder:SetFrameStrata(icon.cooldown:GetFrameStrata() or icon:GetFrameStrata())
 	icon.previewGlowBorder:SetFrameLevel((icon.cooldown:GetFrameLevel() or icon:GetFrameLevel()) + 2)
@@ -6344,15 +6288,6 @@ local function createIconFrame(parent)
 	icon.previewSound:SetSize(12, 12)
 	icon.previewSound:SetPoint("CENTER", icon.previewSoundBorder, "CENTER", 0, 0)
 	icon.previewSound:SetAlpha(0.95)
-
-	if not (parent and parent._eqolIsPreview) then
-		local group = getMasqueGroup()
-		if group then
-			group:AddButton(icon, CooldownPanels:GetMasqueRegions(icon), "Action", true)
-			icon._eqolMasqueAdded = true
-			icon._eqolMasqueNeedsReskin = true
-		end
-	end
 
 	return icon
 end
@@ -7765,11 +7700,6 @@ local function applyIconLayout(frame, count, layout)
 		icon._eqolVisualAnchor = nil
 		icon._eqolVisualOffsetX = nil
 		icon._eqolVisualOffsetY = nil
-		if icon._eqolMasqueNeedsReskin then
-			local group = getMasqueGroup()
-			if group and group.ReSkin then group:ReSkin(icon) end
-			icon._eqolMasqueNeedsReskin = nil
-		end
 		applyIconBorder(icon, layout)
 		if icon.count then
 			local r = countFontColor[1] or 1
@@ -9126,7 +9056,7 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 		local layout = getLayout()
 		local _, currentEntry = getEntry()
 		local _, _, style = CooldownPanels:ResolveEntryGlowStyle(layout, currentEntry)
-		return style
+		return Helper.NormalizeGlowStyle(style, Helper.PANEL_LAYOUT_DEFAULTS.readyGlowStyle)
 	end
 
 	local function getResolvedGlowInset()
@@ -9146,7 +9076,7 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 		local layout = getLayout()
 		local _, currentEntry = getEntry()
 		local _, style = CooldownPanels:ResolveEntryPandemicGlowVisual(layout, currentEntry)
-		return style
+		return Helper.NormalizeGlowStyle(style, layout and layout.readyGlowStyle or Helper.PANEL_LAYOUT_DEFAULTS.readyGlowStyle)
 	end
 
 	local function getResolvedPandemicGlowInset()
@@ -9166,7 +9096,7 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 		local layout = getLayout()
 		local _, currentEntry = getEntry()
 		local style = CooldownPanels:ResolveEntryProcGlowVisual(layout, currentEntry)
-		return style
+		return Helper.NormalizeGlowStyle(style, layout and layout.readyGlowStyle or Helper.PANEL_LAYOUT_DEFAULTS.readyGlowStyle)
 	end
 
 	local function getResolvedProcGlowInset()
@@ -10655,7 +10585,7 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 			get = function() return getResolvedProcGlowStyle() end,
 			set = setProcGlowStyle,
 			generator = function(_, root)
-				for _, option in ipairs(Helper.GLOW_STYLE_OPTIONS or {}) do
+				for _, option in ipairs(CooldownPanels:GetGlowStyleOptions(panelId)) do
 					local label = L[option.labelKey] or option.fallback
 					root:CreateRadio(label, function() return getResolvedProcGlowStyle() == option.value end, function() setProcGlowStyle(nil, option.value) end)
 				end
@@ -10691,7 +10621,7 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 			get = function() return getResolvedGlowStyle() end,
 			set = setGlowStyle,
 			generator = function(_, root)
-				for _, option in ipairs(Helper.GLOW_STYLE_OPTIONS or {}) do
+				for _, option in ipairs(CooldownPanels:GetGlowStyleOptions(panelId)) do
 					local label = L[option.labelKey] or option.fallback
 					root:CreateRadio(label, function() return getResolvedGlowStyle() == option.value end, function() setGlowStyle(nil, option.value) end)
 				end
@@ -10710,7 +10640,7 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 			get = function() return getResolvedPandemicGlowStyle() end,
 			set = setPandemicGlowStyle,
 			generator = function(_, root)
-				for _, option in ipairs(Helper.GLOW_STYLE_OPTIONS or {}) do
+				for _, option in ipairs(CooldownPanels:GetGlowStyleOptions(panelId)) do
 					local label = L[option.labelKey] or option.fallback
 					root:CreateRadio(label, function() return getResolvedPandemicGlowStyle() == option.value end, function() setPandemicGlowStyle(nil, option.value) end)
 				end
@@ -11342,15 +11272,15 @@ function CooldownPanels:BuildLayoutFixedGroupStandaloneSettings(panelId, groupId
 			height = 180,
 			get = function()
 				local layout = getLayout()
-				return select(1, CooldownPanels:ResolveEntryProcGlowVisual(layout, nil))
+				return Helper.NormalizeGlowStyle(select(1, CooldownPanels:ResolveEntryProcGlowVisual(layout, nil)), layout and layout.readyGlowStyle or Helper.PANEL_LAYOUT_DEFAULTS.readyGlowStyle)
 			end,
 			set = function(_, value) setOverride("procGlowStyle", value) end,
 			generator = function(_, root)
-				for _, option in ipairs(Helper.GLOW_STYLE_OPTIONS or {}) do
+				for _, option in ipairs(CooldownPanels:GetGlowStyleOptions(panelId)) do
 					local label = L[option.labelKey] or option.fallback
 					root:CreateRadio(label, function()
 						local layout = getLayout()
-						return select(1, CooldownPanels:ResolveEntryProcGlowVisual(layout, nil)) == option.value
+						return Helper.NormalizeGlowStyle(select(1, CooldownPanels:ResolveEntryProcGlowVisual(layout, nil)), layout and layout.readyGlowStyle or Helper.PANEL_LAYOUT_DEFAULTS.readyGlowStyle) == option.value
 					end, function() setOverride("procGlowStyle", option.value) end)
 				end
 			end,
@@ -11387,15 +11317,15 @@ function CooldownPanels:BuildLayoutFixedGroupStandaloneSettings(panelId, groupId
 			height = 180,
 			get = function()
 				local layout = getLayout()
-				return select(3, CooldownPanels:ResolveEntryGlowStyle(layout, nil))
+				return Helper.NormalizeGlowStyle(select(3, CooldownPanels:ResolveEntryGlowStyle(layout, nil)), Helper.PANEL_LAYOUT_DEFAULTS.readyGlowStyle)
 			end,
 			set = function(_, value) setOverride("readyGlowStyle", value) end,
 			generator = function(_, root)
-				for _, option in ipairs(Helper.GLOW_STYLE_OPTIONS or {}) do
+				for _, option in ipairs(CooldownPanels:GetGlowStyleOptions(panelId)) do
 					local label = L[option.labelKey] or option.fallback
 					root:CreateRadio(label, function()
 						local layout = getLayout()
-						return select(3, CooldownPanels:ResolveEntryGlowStyle(layout, nil)) == option.value
+						return Helper.NormalizeGlowStyle(select(3, CooldownPanels:ResolveEntryGlowStyle(layout, nil)), Helper.PANEL_LAYOUT_DEFAULTS.readyGlowStyle) == option.value
 					end, function() setOverride("readyGlowStyle", option.value) end)
 				end
 			end,
@@ -11434,15 +11364,15 @@ function CooldownPanels:BuildLayoutFixedGroupStandaloneSettings(panelId, groupId
 			height = 180,
 			get = function()
 				local layout = getLayout()
-				return select(2, CooldownPanels:ResolveEntryPandemicGlowVisual(layout, nil))
+				return Helper.NormalizeGlowStyle(select(2, CooldownPanels:ResolveEntryPandemicGlowVisual(layout, nil)), layout and layout.readyGlowStyle or Helper.PANEL_LAYOUT_DEFAULTS.readyGlowStyle)
 			end,
 			set = function(_, value) setOverride("pandemicGlowStyle", value) end,
 			generator = function(_, root)
-				for _, option in ipairs(Helper.GLOW_STYLE_OPTIONS or {}) do
+				for _, option in ipairs(CooldownPanels:GetGlowStyleOptions(panelId)) do
 					local label = L[option.labelKey] or option.fallback
 					root:CreateRadio(label, function()
 						local layout = getLayout()
-						return select(2, CooldownPanels:ResolveEntryPandemicGlowVisual(layout, nil)) == option.value
+						return Helper.NormalizeGlowStyle(select(2, CooldownPanels:ResolveEntryPandemicGlowVisual(layout, nil)), layout and layout.readyGlowStyle or Helper.PANEL_LAYOUT_DEFAULTS.readyGlowStyle) == option.value
 					end, function() setOverride("pandemicGlowStyle", option.value) end)
 				end
 			end,
@@ -14715,7 +14645,6 @@ function CooldownPanels:UpdatePreviewIcons(panelId, countOverride)
 		icon._eqolPreviewCellColumn = slotColumn
 		icon._eqolPreviewCellRow = slotRow
 		CooldownPanels:ApplyEntryIconVisualLayout(icon, entryLayout, entry, fixedLayout and panel or nil, fixedLayout and previewGridColumns or nil, slotColumn, slotRow)
-		CooldownPanels:SyncMasqueButton(icon)
 		CooldownPanels:HideEditorGhostIcon(icon)
 		icon.texture:SetTexture(entry and getEntryIcon(entry) or Helper.PREVIEW_ICON)
 		icon.texture:SetVertexColor(1, 1, 1)
@@ -15590,7 +15519,6 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 				icon:Hide()
 			else
 				CooldownPanels:ApplyEntryIconVisualLayout(icon, nil, nil)
-				self:SyncMasqueButton(icon)
 				CooldownPanels:HideEditorGhostIcon(icon)
 				clearPreviewCooldown(icon.cooldown)
 				icon.cooldown:Clear()
@@ -15660,7 +15588,6 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			local showOnCooldown = data.showOnCooldown == true
 			if data._eqolRuntimePlacementDirty then
 				CooldownPanels:ApplyEntryIconVisualLayout(icon, data.layout, data.entry, fixedLayout and panel or nil, fixedLayout and fixedGridColumns or nil, slotColumn, slotRow, data.fixedContext)
-				self:SyncMasqueButton(icon)
 				cdp.RUNTIME.WritePlacementSnapshot(
 					icon,
 					icon._eqolRuntimeSnapshot,
@@ -16802,8 +16729,6 @@ applyEditLayout = function(panelId, field, value, skipRefresh)
 		end
 		if not next(layout.rowSizes) then layout.rowSizes = nil end
 	end
-
-	if field == "iconSize" then CooldownPanels:ReskinMasque() end
 
 	local syncValue = layout[field]
 	if field == "visibility" then syncValue = PanelVisibility.CopySelectionMap(layout.visibility) end
@@ -18180,15 +18105,19 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				kind = SettingType.Dropdown,
 				parentId = "cooldownPanelGlow",
 				height = 180,
-				default = select(1, CooldownPanels:ResolveEntryProcGlowVisual(layout, nil)),
-				get = function() return select(1, CooldownPanels:ResolveEntryProcGlowVisual(layout, nil)) end,
+				default = Helper.NormalizeGlowStyle(select(1, CooldownPanels:ResolveEntryProcGlowVisual(layout, nil)), layout.readyGlowStyle or Helper.PANEL_LAYOUT_DEFAULTS.readyGlowStyle),
+				get = function()
+					return Helper.NormalizeGlowStyle(select(1, CooldownPanels:ResolveEntryProcGlowVisual(layout, nil)), layout.readyGlowStyle or Helper.PANEL_LAYOUT_DEFAULTS.readyGlowStyle)
+				end,
 				set = function(_, value) applyEditLayout(panelId, "procGlowStyle", value) end,
 				generator = function(_, root)
-					for _, option in ipairs(Helper.GLOW_STYLE_OPTIONS or {}) do
+					for _, option in ipairs(CooldownPanels:GetGlowStyleOptions(panelId)) do
 						local label = L[option.labelKey] or option.fallback
 						root:CreateRadio(
 							label,
-							function() return select(1, CooldownPanels:ResolveEntryProcGlowVisual(layout, nil)) == option.value end,
+							function()
+								return Helper.NormalizeGlowStyle(select(1, CooldownPanels:ResolveEntryProcGlowVisual(layout, nil)), layout.readyGlowStyle or Helper.PANEL_LAYOUT_DEFAULTS.readyGlowStyle) == option.value
+							end,
 							function() applyEditLayout(panelId, "procGlowStyle", option.value) end
 						)
 					end
@@ -18224,7 +18153,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				get = function() return Helper.NormalizeGlowStyle(layout.readyGlowStyle, Helper.PANEL_LAYOUT_DEFAULTS.readyGlowStyle) end,
 				set = function(_, value) applyEditLayout(panelId, "readyGlowStyle", value) end,
 				generator = function(_, root)
-					for _, option in ipairs(Helper.GLOW_STYLE_OPTIONS or {}) do
+					for _, option in ipairs(CooldownPanels:GetGlowStyleOptions(panelId)) do
 						local label = L[option.labelKey] or option.fallback
 						root:CreateRadio(
 							label,
@@ -18240,14 +18169,18 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				parentId = "cooldownPanelGlow",
 				height = 180,
 				default = Helper.NormalizeGlowStyle(layout.pandemicGlowStyle, layout.readyGlowStyle or Helper.PANEL_LAYOUT_DEFAULTS.readyGlowStyle),
-				get = function() return Helper.NormalizeGlowStyle(layout.pandemicGlowStyle, layout.readyGlowStyle or Helper.PANEL_LAYOUT_DEFAULTS.readyGlowStyle) end,
+				get = function()
+					return Helper.NormalizeGlowStyle(layout.pandemicGlowStyle, layout.readyGlowStyle or Helper.PANEL_LAYOUT_DEFAULTS.readyGlowStyle)
+				end,
 				set = function(_, value) applyEditLayout(panelId, "pandemicGlowStyle", value) end,
 				generator = function(_, root)
-					for _, option in ipairs(Helper.GLOW_STYLE_OPTIONS or {}) do
+					for _, option in ipairs(CooldownPanels:GetGlowStyleOptions(panelId)) do
 						local label = L[option.labelKey] or option.fallback
 						root:CreateRadio(
 							label,
-							function() return Helper.NormalizeGlowStyle(layout.pandemicGlowStyle, layout.readyGlowStyle or Helper.PANEL_LAYOUT_DEFAULTS.readyGlowStyle) == option.value end,
+							function()
+								return Helper.NormalizeGlowStyle(layout.pandemicGlowStyle, layout.readyGlowStyle or Helper.PANEL_LAYOUT_DEFAULTS.readyGlowStyle) == option.value
+							end,
 							function() applyEditLayout(panelId, "pandemicGlowStyle", option.value) end
 						)
 					end
@@ -19931,10 +19864,6 @@ local function ensureUpdateFrame()
 			if type(name) == "string" and (name == "Dominos" or name == "Bartender4" or name == "ElvUI" or name:match("^Dominos_") or name:match("^Bartender4_")) then
 				if Keybinds.InvalidateButtonList then Keybinds.InvalidateButtonList() end
 				Keybinds.RequestRefresh("Event:ADDON_LOADED:" .. name)
-			end
-			if name == "Masque" then
-				CooldownPanels:RegisterMasqueButtons()
-				CooldownPanels:ReskinMasque()
 			end
 			return
 		end

@@ -3305,12 +3305,6 @@ function AuraUtil.ensureAuraButton(container, icons, index, ac)
 		end
 	end
 
-	if AuraUtil.getMasqueGroup and AuraUtil.getMasqueGroup() then btn._eqolMasqueRegions = btn._eqolMasqueRegions or {
-		Icon = btn.icon,
-		Cooldown = btn.cd,
-		Border = btn.border,
-	} end
-
 	return btn, icons
 end
 
@@ -3439,7 +3433,6 @@ function AuraUtil.applyAuraToButton(btn, aura, ac, isDebuff, unitToken, harmfulF
 	btn.auraInstanceID = aura.auraInstanceID
 	btn.unitToken = unitToken
 	btn.isDebuff = isDebuff
-	if AuraUtil.syncMasqueButton then AuraUtil.syncMasqueButton(btn, isDebuff) end
 	btn._showTooltip = ac.showTooltip ~= false
 	btn.icon:SetTexture(aura.icon or "")
 	btn.cd:Clear()
@@ -3472,7 +3465,6 @@ function AuraUtil.applyAuraToButton(btn, aura, ac, isDebuff, unitToken, harmfulF
 	end
 	local dispelR, dispelG, dispelB
 	if btn.border then
-		local useMasqueBorder = btn._eqolMasqueType ~= nil
 		local borderKey = ac and ac.borderTexture
 		local showBorder = isDebuff == true
 		if not showBorder then
@@ -3518,76 +3510,70 @@ function AuraUtil.applyAuraToButton(btn, aura, ac, isDebuff, unitToken, harmfulF
 				b = customBorderColor[3] or customBorderColor.b or b
 				a = customBorderColor[4] or customBorderColor.a or a
 			end
-			if useMasqueBorder then
+			local borderMode = tostring((ac and ac.borderRenderMode) or "EDGE"):upper()
+			local useOverlayBorderMode = borderMode == "OVERLAY"
+			local borderTex, borderCoords, borderIsEdge
+			if UFHelper and UFHelper.resolveAuraBorderTexture then
+				borderTex, borderCoords, borderIsEdge = UFHelper.resolveAuraBorderTexture(borderKey)
+			else
+				borderTex = "Interface\\Buttons\\UI-Debuff-Overlays"
+				borderCoords = { 0.296875, 0.5703125, 0, 0.515625 }
+				borderIsEdge = false
+			end
+			local renderAsEdge = borderIsEdge and not useOverlayBorderMode
+			if renderAsEdge and borderTex and borderTex ~= "" then
+				local borderFrame = UFHelper and UFHelper.ensureAuraBorderFrame and UFHelper.ensureAuraBorderFrame(btn)
+				if borderFrame then
+					local edgeSize = (UFHelper and UFHelper.calcAuraBorderSize and UFHelper.calcAuraBorderSize(btn, ac)) or 1
+					local borderOffset = tonumber(ac and ac.borderOffset) or 0
+					local edgeInset = (edgeSize or 1) * 0.5
+					local anchorInset = edgeInset - borderOffset
+					local insetVal = edgeSize
+					if borderFrame._eqolAuraBorderTex ~= borderTex or borderFrame._eqolAuraBorderEdgeSize ~= edgeSize then
+						borderFrame:SetBackdrop({
+							bgFile = "Interface\\Buttons\\WHITE8x8",
+							edgeFile = borderTex,
+							edgeSize = edgeSize,
+							insets = { left = insetVal, right = insetVal, top = insetVal, bottom = insetVal },
+						})
+						borderFrame:SetBackdropColor(0, 0, 0, 0)
+						borderFrame._eqolAuraBorderTex = borderTex
+						borderFrame._eqolAuraBorderEdgeSize = edgeSize
+					end
+					borderFrame:ClearAllPoints()
+					borderFrame:SetPoint("TOPLEFT", btn, "TOPLEFT", anchorInset, -anchorInset)
+					borderFrame:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -anchorInset, anchorInset)
+					borderFrame._eqolAuraBorderInset = anchorInset
+					borderFrame:SetBackdropBorderColor(r, g, b, a)
+					borderFrame:Show()
+				end
+				btn.border:Hide()
+			else
 				if UFHelper and UFHelper.hideAuraBorderFrame then UFHelper.hideAuraBorderFrame(btn) end
+				btn.border:SetTexture(borderTex or "")
+				local useOverlayBorderGeometry = useOverlayBorderMode and not borderCoords
+				if borderCoords then
+					btn.border:SetTexCoord(borderCoords[1], borderCoords[2], borderCoords[3], borderCoords[4])
+				else
+					btn.border:SetTexCoord(0, 1, 0, 1)
+				end
+				if useOverlayBorderGeometry then
+					local bw = btn:GetWidth()
+					local bh = btn:GetHeight()
+					if not bw or bw <= 0 then bw = (ac and ac.size) or 24 end
+					if not bh or bh <= 0 then bh = bw end
+					btn.border:ClearAllPoints()
+					btn.border:SetPoint("CENTER", btn, "CENTER", 0, 0)
+					btn.border:SetSize((bw or 24) + 1, (bh or 24) + 1)
+				else
+					btn.border:SetAllPoints(btn)
+				end
 				btn.border:SetVertexColor(r, g, b, a)
 				btn.border:Show()
-			else
-				local borderMode = tostring((ac and ac.borderRenderMode) or "EDGE"):upper()
-				local useOverlayBorderMode = borderMode == "OVERLAY"
-				local borderTex, borderCoords, borderIsEdge
-				if UFHelper and UFHelper.resolveAuraBorderTexture then
-					borderTex, borderCoords, borderIsEdge = UFHelper.resolveAuraBorderTexture(borderKey)
-				else
-					borderTex = "Interface\\Buttons\\UI-Debuff-Overlays"
-					borderCoords = { 0.296875, 0.5703125, 0, 0.515625 }
-					borderIsEdge = false
-				end
-				local renderAsEdge = borderIsEdge and not useOverlayBorderMode
-				if renderAsEdge and borderTex and borderTex ~= "" then
-					local borderFrame = UFHelper and UFHelper.ensureAuraBorderFrame and UFHelper.ensureAuraBorderFrame(btn)
-					if borderFrame then
-						local edgeSize = (UFHelper and UFHelper.calcAuraBorderSize and UFHelper.calcAuraBorderSize(btn, ac)) or 1
-						local borderOffset = tonumber(ac and ac.borderOffset) or 0
-						local edgeInset = (edgeSize or 1) * 0.5
-						local anchorInset = edgeInset - borderOffset
-						local insetVal = edgeSize
-						if borderFrame._eqolAuraBorderTex ~= borderTex or borderFrame._eqolAuraBorderEdgeSize ~= edgeSize then
-							borderFrame:SetBackdrop({
-								bgFile = "Interface\\Buttons\\WHITE8x8",
-								edgeFile = borderTex,
-								edgeSize = edgeSize,
-								insets = { left = insetVal, right = insetVal, top = insetVal, bottom = insetVal },
-							})
-							borderFrame:SetBackdropColor(0, 0, 0, 0)
-							borderFrame._eqolAuraBorderTex = borderTex
-							borderFrame._eqolAuraBorderEdgeSize = edgeSize
-						end
-						borderFrame:ClearAllPoints()
-						borderFrame:SetPoint("TOPLEFT", btn, "TOPLEFT", anchorInset, -anchorInset)
-						borderFrame:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -anchorInset, anchorInset)
-						borderFrame._eqolAuraBorderInset = anchorInset
-						borderFrame:SetBackdropBorderColor(r, g, b, a)
-						borderFrame:Show()
-					end
-					btn.border:Hide()
-				else
-					if UFHelper and UFHelper.hideAuraBorderFrame then UFHelper.hideAuraBorderFrame(btn) end
-					btn.border:SetTexture(borderTex or "")
-					local useOverlayBorderGeometry = useOverlayBorderMode and not borderCoords
-					if borderCoords then
-						btn.border:SetTexCoord(borderCoords[1], borderCoords[2], borderCoords[3], borderCoords[4])
-					else
-						btn.border:SetTexCoord(0, 1, 0, 1)
-					end
-					if useOverlayBorderGeometry then
-						local bw = btn:GetWidth()
-						local bh = btn:GetHeight()
-						if not bw or bw <= 0 then bw = (ac and ac.size) or 24 end
-						if not bh or bh <= 0 then bh = bw end
-						btn.border:ClearAllPoints()
-						btn.border:SetPoint("CENTER", btn, "CENTER", 0, 0)
-						btn.border:SetSize((bw or 24) + 1, (bh or 24) + 1)
-					else
-						btn.border:SetAllPoints(btn)
-					end
-					btn.border:SetVertexColor(r, g, b, a)
-					btn.border:Show()
-				end
 			end
 		else
 			if UFHelper and UFHelper.hideAuraBorderFrame then UFHelper.hideAuraBorderFrame(btn) end
-			if not useMasqueBorder then btn.border:SetTexture(nil) end
+			btn.border:SetTexture(nil)
 			btn.border:Hide()
 		end
 	end

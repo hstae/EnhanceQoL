@@ -8,7 +8,6 @@
 	<Script file="StandalonePrivateAuras.lua" />
 	<Script file="FocusInterruptTracker.lua" />
 	<Script file="UF.lua" />
-	<Script file="UF_Masque.lua" />
 	<Script file="UF_StandaloneCastbar.lua" />
 	<Include file="UF_GroupFrames.xml" />
 	<Script file="UF_GroupFrames_Helper.lua" />

@@ -31,9 +31,10 @@ Glow.STYLE.AUTOCAST = Glow.STYLE.SHINE
 
 local BLIZZARD_GLOW_TEXTURE = [[Interface\SpellActivationOverlay\IconAlert]]
 local BLIZZARD_ANTS_TEXTURE = [[Interface\SpellActivationOverlay\IconAlertAnts]]
-local CIRCLE_MASK_TEXTURE = "Interface\\CHARACTERFRAME\\TempPortraitAlphaMask"
 local MARCHING_ANTS_ATLAS = "VisualAlert_Ants_Flipbook"
 local FLASH_GLOW_ATLAS = "UI-CooldownManager-VisualAlert-Glow"
+local BLIZZ_CONTAINER_RATIO = 66 / 45
+local FLASH_LEVEL_OFFSET = -2
 
 local VALID_STRATA = {
 	BACKGROUND = true,
@@ -100,27 +101,16 @@ local function normalizeGlowThrottle(opts)
 	return 0.01
 end
 
-local masqueLib
-local function getMasqueLib()
-	if masqueLib == false then return nil end
-	if not masqueLib and LibStub then masqueLib = LibStub("Masque", true) or false end
-	return masqueLib or nil
-end
-
-local function getMasqueTarget(host)
-	if not host then return nil end
-	return host._eqolGlowTarget or host
-end
-
-local function getMasqueConfig(target)
-	local cfg = target and target._MSQ_CFG
-	if not cfg or cfg.Enabled ~= true or cfg.BaseSkin == true then return nil end
-	return cfg
-end
-
-local function getMasqueShape(target)
-	local cfg = getMasqueConfig(target)
-	return cfg and cfg.Shape or nil
+local function getGlowAnchorRegion(host)
+	local target = host and (host._eqolGlowTarget or host) or nil
+	if not target then return host end
+	local region = target.Icon or target.icon or target.texture
+	if region and region.GetWidth and region.GetHeight then
+		local width = region:GetWidth() or 0
+		local height = region:GetHeight() or 0
+		if width > 0 and height > 0 then return region end
+	end
+	return target
 end
 
 local function resetSpellAlertTextures(frame)
@@ -148,93 +138,17 @@ local function resetSpellAlertTextures(frame)
 	if frame.ants then frame.ants:SetTexture(BLIZZARD_ANTS_TEXTURE) end
 end
 
-local function applyMasqueSpellAlert(target, overlay)
-	local masque = getMasqueLib()
-	if not (masque and masque.UpdateSpellAlert and target and overlay and getMasqueConfig(target)) then return end
-	local ok = pcall(masque.UpdateSpellAlert, masque, target, overlay)
-	if ok then return end
-	if issecurevariable and target.overlay and issecurevariable(target, "overlay") then return end
-	local oldOverlay = target.overlay
-	target.overlay = overlay
-	pcall(masque.UpdateSpellAlert, masque, target)
-	target.overlay = oldOverlay
-end
-
 local function resetMarchingAntsTexture(overlay)
 	if not (overlay and overlay.Texture) then return end
-	if not (overlay.Texture.SetAtlas and overlay.Texture:SetAtlas(MARCHING_ANTS_ATLAS)) then
+	if overlay.Texture.SetAtlas then
+		overlay.Texture:SetAtlas(MARCHING_ANTS_ATLAS)
+	else
 		overlay.Texture:SetTexture(BLIZZARD_GLOW_TEXTURE)
 		overlay.Texture:SetTexCoord(0.00781250, 0.50781250, 0.27734375, 0.52734375)
 	end
 	if overlay.FlipAnim then
 		overlay.FlipAnim:SetFlipBookFrameWidth(0)
 		overlay.FlipAnim:SetFlipBookFrameHeight(0)
-	end
-end
-
-local function applyMasqueMarchingAntsTexture(host, overlay)
-	if not (overlay and overlay.Texture) then return end
-	resetMarchingAntsTexture(overlay)
-	local target = getMasqueTarget(host)
-	local shape = getMasqueShape(target)
-	local masque = getMasqueLib()
-	if not shape or shape == "Square" or not (masque and masque.GetAssistedCombatHighlightStyle) then return end
-	local ok, styleData = pcall(masque.GetAssistedCombatHighlightStyle, masque, shape)
-	if not ok or not styleData then return end
-	if styleData.Texture then
-		overlay.Texture:SetTexture(styleData.Texture)
-		overlay.Texture:SetTexCoord(0, 1, 0, 1)
-	end
-	if styleData.TexCoords then
-		local tc = styleData.TexCoords
-		overlay.Texture:SetTexCoord(tc[1] or 0, tc[2] or 1, tc[3] or 0, tc[4] or 1)
-	end
-	if overlay.FlipAnim then
-		overlay.FlipAnim:SetFlipBookFrameWidth(styleData.FrameWidth or 0)
-		overlay.FlipAnim:SetFlipBookFrameHeight(styleData.FrameHeight or 0)
-	end
-end
-
-local function clearMasqueTextureMask(texture, owner, maskField, appliedField)
-	if not (texture and owner) then return end
-	local mask = owner[maskField]
-	if mask and owner[appliedField] then pcall(texture.RemoveMaskTexture, texture, mask) end
-	if mask then mask:Hide() end
-	owner[appliedField] = nil
-end
-
-local function applyMasqueTextureMask(host, owner, texture, maskField, appliedField)
-	if not (host and owner and texture) then return end
-	local target = getMasqueTarget(host)
-	local shape = getMasqueShape(target)
-	if not shape or shape == "Square" then
-		clearMasqueTextureMask(texture, owner, maskField, appliedField)
-		return
-	end
-	local mask = owner[maskField]
-	if not mask then
-		mask = owner:CreateMaskTexture()
-		owner[maskField] = mask
-	end
-	mask:ClearAllPoints()
-	mask:SetAllPoints(owner)
-	if shape == "Circle" then
-		mask:SetTexture(CIRCLE_MASK_TEXTURE)
-	else
-		local cfg = getMasqueConfig(target)
-		local buttonMask = cfg and cfg.ButtonMask
-		local atlas = buttonMask and buttonMask.GetAtlas and buttonMask:GetAtlas()
-		if atlas and mask.SetAtlas then
-			mask:SetAtlas(atlas)
-		else
-			local tex = buttonMask and buttonMask.GetTexture and buttonMask:GetTexture()
-			mask:SetTexture(tex or CIRCLE_MASK_TEXTURE)
-		end
-	end
-	mask:Show()
-	if not owner[appliedField] then
-		texture:AddMaskTexture(mask)
-		owner[appliedField] = true
 	end
 end
 
@@ -249,32 +163,6 @@ local function resetProcGlowTextures(frame)
 	if frame.ProcStartAnim and frame.ProcStartAnim.flipbookStart then
 		frame.ProcStartAnim.flipbookStart:SetFlipBookFrameWidth(0)
 		frame.ProcStartAnim.flipbookStart:SetFlipBookFrameHeight(0)
-	end
-end
-
-local function applyMasqueProcTextures(host)
-	if not host then return end
-	local glow = host._ProcGlow
-	if not glow then return end
-	resetProcGlowTextures(glow)
-	local target = getMasqueTarget(host)
-	local shape = getMasqueShape(target)
-	local masque = getMasqueLib()
-	if not shape or shape == "Square" or not (masque and masque.GetSpellAlertFlipBook) then return end
-	local ok, flipData = pcall(masque.GetSpellAlertFlipBook, masque, "Modern", shape)
-	if not ok or not flipData then
-		ok, flipData = pcall(masque.GetSpellAlertFlipBook, masque, "Classic", shape)
-	end
-	if not ok or not flipData then return end
-	if flipData.LoopTexture and glow.ProcLoop then glow.ProcLoop:SetTexture(flipData.LoopTexture) end
-	if glow.ProcStart then glow.ProcStart:SetTexture(flipData.StartTexture or flipData.LoopTexture or "") end
-	if glow.ProcLoopAnim and glow.ProcLoopAnim.flipbookRepeat and flipData.FrameWidth then
-		glow.ProcLoopAnim.flipbookRepeat:SetFlipBookFrameWidth(flipData.FrameWidth)
-		glow.ProcLoopAnim.flipbookRepeat:SetFlipBookFrameHeight(flipData.FrameHeight or 0)
-	end
-	if glow.ProcStartAnim and glow.ProcStartAnim.flipbookStart and flipData.FrameWidth then
-		glow.ProcStartAnim.flipbookStart:SetFlipBookFrameWidth(flipData.FrameWidth)
-		glow.ProcStartAnim.flipbookStart:SetFlipBookFrameHeight(flipData.FrameHeight or 0)
 	end
 end
 
@@ -293,99 +181,6 @@ local function copyOptions(opts)
 		end
 	end
 	return copy
-end
-
-local SHAPE_AWARE_STYLES = {
-	[Glow.STYLE.BLIZZARD] = true,
-	[Glow.STYLE.MARCHING_ANTS] = true,
-	[Glow.STYLE.FLASH] = true,
-	[Glow.STYLE.BUTTON] = true,
-	[Glow.STYLE.PROC] = true,
-}
-
-local trackedMasqueTargets = setmetatable({}, { __mode = "k" })
-local masqueRefreshTicker
-
-local function hasTrackedMasqueGlow(target)
-	local states = target and target._eqolGlowStates
-	if not states then return false end
-	for _, state in pairs(states) do
-		if state and state.active == true and SHAPE_AWARE_STYLES[state.style] then
-			return true
-		end
-	end
-	return false
-end
-
-local function getMasqueButtonMaskSignature(cfg)
-	local buttonMask = cfg and cfg.ButtonMask
-	if not buttonMask then return "" end
-	local atlas = buttonMask.GetAtlas and buttonMask:GetAtlas()
-	if atlas then return "atlas:" .. tostring(atlas) end
-	local texture = buttonMask.GetTexture and buttonMask:GetTexture()
-	return "texture:" .. tostring(texture)
-end
-
-local function getMasqueSignature(target)
-	local cfg = getMasqueConfig(target)
-	if not cfg then return nil end
-	return table.concat({
-		tostring(cfg.Enabled == true),
-		tostring(cfg.BaseSkin == true),
-		tostring(cfg.Shape or ""),
-		tostring(cfg.SkinID or cfg.Skin or cfg.SkinName or cfg.GroupSkin or ""),
-		getMasqueButtonMaskSignature(cfg),
-	}, "|")
-end
-
-local function stopMasqueRefreshTickerIfIdle()
-	if next(trackedMasqueTargets) then return end
-	if masqueRefreshTicker and masqueRefreshTicker.Cancel then masqueRefreshTicker:Cancel() end
-	masqueRefreshTicker = nil
-end
-
-local function clearMasqueTracking(target)
-	if not target then return end
-	if hasTrackedMasqueGlow(target) then return end
-	trackedMasqueTargets[target] = nil
-	target._eqolMasqueGlowSignature = nil
-	stopMasqueRefreshTickerIfIdle()
-end
-
-local function ensureMasqueTracking(target, state)
-	if not (target and state and SHAPE_AWARE_STYLES[state.style]) then return end
-	local signature = getMasqueSignature(target)
-	if not signature then
-		clearMasqueTracking(target)
-		return
-	end
-	trackedMasqueTargets[target] = true
-	target._eqolMasqueGlowSignature = signature
-	if not masqueRefreshTicker and C_Timer and C_Timer.NewTicker then
-		masqueRefreshTicker = C_Timer.NewTicker(0.2, function()
-			for trackedTarget in pairs(trackedMasqueTargets) do
-				if not hasTrackedMasqueGlow(trackedTarget) then
-					clearMasqueTracking(trackedTarget)
-				else
-					local currentSignature = getMasqueSignature(trackedTarget)
-					if not currentSignature then
-						clearMasqueTracking(trackedTarget)
-					elseif trackedTarget._eqolMasqueGlowSignature ~= currentSignature then
-						local states = trackedTarget._eqolGlowStates
-						if states then
-							for glowKey, glowState in pairs(states) do
-								if glowState and glowState.active == true and SHAPE_AWARE_STYLES[glowState.style] then
-									Glow.Start(trackedTarget, glowKey, glowState.style, glowState.opts)
-								end
-							end
-						end
-						trackedTarget._eqolMasqueGlowSignature = currentSignature
-					end
-				end
-			end
-			stopMasqueRefreshTickerIfIdle()
-		end)
-	end
 end
 
 local function getState(target, key, create)
@@ -468,7 +263,9 @@ local function ensureMarchingAntsOverlay(host)
 	overlay.Texture = overlay:CreateTexture(nil, "ARTWORK")
 	overlay.Texture:SetAllPoints()
 	overlay.Texture:SetAlpha(0)
-	if not (overlay.Texture.SetAtlas and overlay.Texture:SetAtlas(MARCHING_ANTS_ATLAS)) then
+	if overlay.Texture.SetAtlas then
+		overlay.Texture:SetAtlas(MARCHING_ANTS_ATLAS)
+	else
 		overlay.Texture:SetTexture(BLIZZARD_GLOW_TEXTURE)
 		overlay.Texture:SetTexCoord(0.00781250, 0.50781250, 0.27734375, 0.52734375)
 	end
@@ -529,7 +326,7 @@ local function updateMarchingAntsOverlay(host, opts)
 	overlay:SetFrameLevel(max(0, (host:GetFrameLevel() or 0) + 3))
 	anchorCooldownViewerAlert(overlay, host, normalizeInset(opts))
 	overlay.Texture:SetVertexColor(color[1], color[2], color[3], color[4])
-	applyMasqueMarchingAntsTexture(host, overlay)
+	resetMarchingAntsTexture(overlay)
 	return overlay
 end
 
@@ -557,7 +354,9 @@ local function ensureFlashOverlay(host)
 	overlay.Texture = overlay:CreateTexture(nil, "ARTWORK")
 	overlay.Texture:SetAllPoints()
 	overlay.Texture:SetAlpha(0)
-	if not (overlay.Texture.SetAtlas and overlay.Texture:SetAtlas(FLASH_GLOW_ATLAS)) then
+	if overlay.Texture.SetAtlas then
+		overlay.Texture:SetAtlas(FLASH_GLOW_ATLAS)
+	else
 		overlay.Texture:SetTexture(BLIZZARD_GLOW_TEXTURE)
 		overlay.Texture:SetTexCoord(0.00781250, 0.50781250, 0.27734375, 0.52734375)
 	end
@@ -604,17 +403,32 @@ end
 
 local function updateFlashOverlay(host, opts)
 	local overlay = ensureFlashOverlay(host)
+	local anchor = getGlowAnchorRegion(host)
+	local width = max(1, anchor:GetWidth() or 0)
+	local height = max(1, anchor:GetHeight() or 0)
+	local scale = normalizeScalar(opts, "scale", 1) or 1
+	local inset = normalizeInset(opts)
+	local xOffset = normalizeScalar(opts, "xOffset", 0)
+	local yOffset = normalizeScalar(opts, "yOffset", 0)
+	local frameLevel = roundOffset(normalizeScalar(opts, "frameLevel", FLASH_LEVEL_OFFSET))
+	local overlayWidth = max(1, (width * BLIZZ_CONTAINER_RATIO * scale) + (inset * 2))
+	local overlayHeight = max(1, (height * BLIZZ_CONTAINER_RATIO * scale) + (inset * 2))
 	local color = normalizeColor(type(opts) == "table" and opts.color or nil, { 1, 0.82, 0.2, 1 })
 	overlay:SetParent(host)
 	overlay:SetFrameStrata(host:GetFrameStrata())
-	overlay:SetFrameLevel(max(0, (host:GetFrameLevel() or 0) + 3))
-	anchorCooldownViewerAlert(overlay, host, normalizeInset(opts))
+	overlay:SetFrameLevel(max(0, (host:GetFrameLevel() or 0) + frameLevel))
+	overlay:ClearAllPoints()
+	overlay:SetSize(overlayWidth, overlayHeight)
+	overlay:SetPoint("CENTER", anchor, "CENTER", xOffset, yOffset)
+	if overlay.SetAlpha then overlay:SetAlpha(normalizeScalar(opts, "intensity", 1) or 1) end
+	local hasCustomColor = not (color[1] >= 0.99 and color[2] >= 0.99 and color[3] >= 0.99)
+	if overlay.Texture and overlay.Texture.SetDesaturated then overlay.Texture:SetDesaturated(hasCustomColor) end
 	overlay.Texture:SetVertexColor(color[1], color[2], color[3], color[4])
 	if overlay.AlphaAnim then
 		overlay.AlphaAnim:SetFromAlpha(color[4] * 0.25)
 		overlay.AlphaAnim:SetToAlpha(color[4])
+		overlay.AlphaAnim:SetDuration((normalizeScalar(opts, "frequency", 0.25) or 0.25) * 2)
 	end
-	applyMasqueTextureMask(host, overlay, overlay.Texture, "_eqolMasqueTextureMask", "_eqolMasqueTextureMaskApplied")
 	return overlay
 end
 
@@ -838,7 +652,6 @@ local function updateBlizzardOverlay(host, opts)
 	overlay.outerGlow:SetVertexColor(r, g, b, a)
 	overlay.outerGlowOver:SetVertexColor(r, g, b, a)
 	overlay.ants:SetVertexColor(r, g, b, a)
-	applyMasqueSpellAlert(getMasqueTarget(host), overlay)
 	if overlay:IsShown() and not (overlay.animIn and overlay.animIn:IsPlaying()) and not (overlay.animOut and overlay.animOut:IsPlaying()) then applyBlizzardOverlayRestState(overlay) end
 	return overlay
 end
@@ -878,14 +691,17 @@ end
 local BACKENDS = {
 	[Glow.STYLE.BLIZZARD] = {
 		start = function(host, opts) startBlizzard(host, opts) end,
+		refresh = function(host, opts) updateBlizzardOverlay(host, opts) end,
 		stop = function(host) stopBlizzard(host) end,
 	},
 	[Glow.STYLE.MARCHING_ANTS] = {
 		start = function(host, opts) startMarchingAnts(host, opts) end,
+		refresh = function(host, opts) updateMarchingAntsOverlay(host, opts) end,
 		stop = function(host) stopMarchingAnts(host) end,
 	},
 	[Glow.STYLE.FLASH] = {
 		start = function(host, opts) startFlash(host, opts) end,
+		refresh = function(host, opts) updateFlashOverlay(host, opts) end,
 		stop = function(host) stopFlash(host) end,
 	},
 	[Glow.STYLE.BUTTON] = {
@@ -893,9 +709,15 @@ local BACKENDS = {
 			if LCG and LCG.ButtonGlow_Start then
 				LCG.ButtonGlow_Start(host, type(opts) == "table" and opts.color or nil, type(opts) == "table" and opts.frequency or nil, type(opts) == "table" and opts.frameLevel or nil)
 				resetSpellAlertTextures(host and host._ButtonGlow)
-				applyMasqueSpellAlert(getMasqueTarget(host), host and host._ButtonGlow)
 			else
 				startBlizzard(host, opts)
+			end
+		end,
+		refresh = function(host, opts)
+			if LCG and host and host._ButtonGlow then
+				resetSpellAlertTextures(host._ButtonGlow)
+			else
+				updateBlizzardOverlay(host, opts)
 			end
 		end,
 		stop = function(host)
@@ -971,10 +793,12 @@ local BACKENDS = {
 				end
 				procOptions.key = ""
 				LCG.ProcGlow_Start(host, procOptions)
-				applyMasqueProcTextures(host)
 			else
 				startBlizzard(host, opts)
 			end
+		end,
+		refresh = function(host, opts)
+			if not (LCG and host and host._ProcGlow) then updateBlizzardOverlay(host, opts) end
 		end,
 		stop = function(host)
 			if LCG and LCG.ProcGlow_Stop then
@@ -1015,7 +839,6 @@ function Glow.Start(target, key, style, opts)
 	local backend = BACKENDS[style] or BACKENDS[Glow.STYLE.BLIZZARD]
 	if backend and backend.start and state.host then backend.start(state.host, opts) end
 	applyStateAlpha(state)
-	ensureMasqueTracking(target, state)
 	return state.host
 end
 
@@ -1034,7 +857,6 @@ function Glow.Stop(target, key)
 		state.host:Hide()
 	end
 	state.opts = nil
-	clearMasqueTracking(target)
 end
 
 function Glow.StopAll(target)

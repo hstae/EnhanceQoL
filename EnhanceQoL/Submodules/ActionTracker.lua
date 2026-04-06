@@ -13,7 +13,6 @@ local ActionTracker = addon.ActionTracker
 local L = LibStub("AceLocale-3.0"):GetLocale(parentAddonName)
 local EditMode = addon.EditMode
 local SettingType = EditMode and EditMode.lib and EditMode.lib.SettingType
-local Masque
 
 local EDITMODE_ID = "actionTracker"
 local MAX_ICONS_LIMIT = 10
@@ -74,14 +73,6 @@ local VALID_DIRECTIONS = {
 
 ActionTracker.entries = ActionTracker.entries or {}
 ActionTracker.runtime = ActionTracker.runtime or {}
-
-local function getMasqueGroup()
-	if not Masque and LibStub then Masque = LibStub("Masque", true) end
-	if not Masque then return nil end
-	ActionTracker.runtime = ActionTracker.runtime or {}
-	if not ActionTracker.runtime.masqueGroup then ActionTracker.runtime.masqueGroup = Masque:Group(parentAddonName, L["ActionTracker"] or "Action Tracker", "ActionTracker") end
-	return ActionTracker.runtime.masqueGroup
-end
 
 local function getCachedMediaHash(mediaType)
 	if addon.functions and addon.functions.GetLSMMediaHash then
@@ -321,11 +312,6 @@ function ActionTracker:EnsureFrame()
 		icon.cooldown = CreateFrame("Cooldown", nil, icon, "CooldownFrameTemplate")
 		icon.cooldown:SetAllPoints(icon)
 
-		icon.msqNormal = icon:CreateTexture(nil, "OVERLAY")
-		icon.msqNormal:SetAllPoints(icon)
-		icon.msqNormal:SetTexture("Interface\\Buttons\\UI-Quickslot2")
-		icon.msqNormal:Hide()
-
 		icon.timeText = icon:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 		icon.timeText:SetPoint("TOP", icon, "BOTTOM", 0, -TIME_LABEL_PADDING)
 		icon.timeText:SetJustifyH("CENTER")
@@ -350,8 +336,6 @@ function ActionTracker:EnsureFrame()
 	self.frame = frame
 	self:UpdateLayout()
 	self:RefreshIcons()
-	self:RegisterMasqueButtons()
-	self:ReskinMasque()
 
 	return frame
 end
@@ -442,7 +426,6 @@ function ActionTracker:UpdateLayout()
 		end
 	end
 
-	self:ReskinMasque()
 	self:UpdateBorderVisuals()
 end
 
@@ -517,29 +500,6 @@ function ActionTracker:RefreshIcons()
 	end
 
 	self:UpdateBorderVisuals()
-end
-
-function ActionTracker:RegisterMasqueButtons()
-	local group = getMasqueGroup()
-	if not group then return end
-	local frame = self.frame
-	if not frame or not frame.icons then return end
-	for _, icon in ipairs(frame.icons) do
-		if icon and not icon._eqolMasqueAdded then
-			local regions = {
-				Icon = icon.texture,
-				Cooldown = icon.cooldown,
-				Normal = icon.msqNormal,
-			}
-			group:AddButton(icon, regions, "Action", true)
-			icon._eqolMasqueAdded = true
-		end
-	end
-end
-
-function ActionTracker:ReskinMasque()
-	local group = getMasqueGroup()
-	if group and group.ReSkin then group:ReSkin() end
 end
 
 function ActionTracker:OnMediaRegistered(mediaType, mediaKey)
@@ -664,20 +624,6 @@ function ActionTracker:UnregisterEvents()
 end
 
 local editModeRegistered = false
-local masqueLoader
-
-local function ensureMasqueLoader()
-	if masqueLoader then return end
-	local frame = CreateFrame("Frame")
-	frame:RegisterEvent("ADDON_LOADED")
-	frame:SetScript("OnEvent", function(_, event, name)
-		if event == "ADDON_LOADED" and name == "Masque" then
-			ActionTracker:RegisterMasqueButtons()
-			ActionTracker:ReskinMasque()
-		end
-	end)
-	masqueLoader = frame
-end
 
 function ActionTracker:ApplyLayoutData(data)
 	if not data or not addon.db then return end
@@ -1006,7 +952,6 @@ end
 function ActionTracker:OnSettingChanged(enabled)
 	if enabled then
 		self:EnsureFrame()
-		ensureMasqueLoader()
 		self:RegisterEditMode()
 		self:RegisterEvents()
 		self:UpdateLayout()
