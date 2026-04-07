@@ -31,6 +31,7 @@ local cdp = {
 	FIXED_VISUAL = {
 		LAYOUTS = setmetatable({}, { __mode = "k" }),
 	},
+	ENTRY = {},
 	RUNTIME = {},
 }
 
@@ -3517,11 +3518,30 @@ function CooldownPanels:RemoveEntry(panelId, entryId)
 	self:RefreshPanel(panelId)
 end
 
+function cdp.ENTRY.EnsureSpellEntryMeta(metaByPanel, panelId, entryId)
+	metaByPanel[panelId] = metaByPanel[panelId] or {}
+	local meta = metaByPanel[panelId][entryId]
+	if meta then return meta end
+	meta = {}
+	metaByPanel[panelId][entryId] = meta
+	return meta
+end
+
+function cdp.ENTRY.RegisterSpellAlias(index, aliasId, panelId, entryId, meta)
+	local numericAliasId = tonumber(aliasId)
+	if not numericAliasId then return end
+	index[numericAliasId] = index[numericAliasId] or {}
+	index[numericAliasId][panelId] = index[numericAliasId][panelId] or {}
+	index[numericAliasId][panelId][entryId] = meta
+end
+
 function CooldownPanels:RebuildSpellIndex()
 	self:InvalidateSpellQueryCaches()
 	local root = ensureRoot()
 	local runtime = self.runtime or {}
 	local index = {}
+	local spellEntryIndex = {}
+	local spellEntryMeta = {}
 	local enabledPanels = {}
 	local enabledPanelIds = {}
 	local enabledPanelsBySpec = {}
@@ -3569,9 +3589,10 @@ function CooldownPanels:RebuildSpellIndex()
 				enabledPanelIds[#enabledPanelIds + 1] = panelId
 				local layout = panel.layout
 				local wantsRangeCheck = layout and layout.rangeOverlayEnabled == true
-				for _, entry in pairs(panel.entries or {}) do
+				for entryId, entry in pairs(panel.entries or {}) do
 					local spellId
 					local trackedItemId
+					local spellEntryMetaData
 					if entry and entry.type == "SPELL" and entry.spellID then
 						spellId = tonumber(entry.spellID)
 					elseif entry and entry.type == "MACRO" then
@@ -3589,12 +3610,30 @@ function CooldownPanels:RebuildSpellIndex()
 					if spellId then
 						local effectiveId = getEffectiveSpellId(spellId) or spellId
 						if not isSpellPassiveSafe(spellId, effectiveId) then
+							local showCooldown = entry.showCooldown ~= false
+							local staticTextShowOnCooldown = entry.staticTextShowOnCooldown == true
+							local showCharges = entry.showCharges == true
+							local alwaysShow = entry.alwaysShow ~= false
+							spellEntryMetaData = cdp.ENTRY.EnsureSpellEntryMeta(spellEntryMeta, panelId, entryId)
+							spellEntryMetaData.panelId = panelId
+							spellEntryMetaData.entryId = entryId
+							spellEntryMetaData.baseSpellId = spellId
+							spellEntryMetaData.effectiveSpellId = effectiveId
+							spellEntryMetaData.trackCooldown = showCooldown or staticTextShowOnCooldown
+							spellEntryMetaData.trackCharges = showCharges
+							spellEntryMetaData.alwaysShow = alwaysShow
+							spellEntryMetaData.visibilityOnCooldown = showCooldown and not alwaysShow
+							spellEntryMetaData.visibilityOnCharges = showCharges and not alwaysShow
+							spellEntryMetaData.localCooldownSafe = spellEntryMetaData.trackCooldown == true and spellEntryMetaData.visibilityOnCooldown ~= true
+							spellEntryMetaData.localChargesSafe = spellEntryMetaData.trackCharges == true and spellEntryMetaData.visibilityOnCharges ~= true
 							index[spellId] = index[spellId] or {}
 							index[spellId][panelId] = true
+							cdp.ENTRY.RegisterSpellAlias(spellEntryIndex, spellId, panelId, entryId, spellEntryMetaData)
 							if wantsRangeCheck then rangeCheckSpells[spellId] = true end
 							if effectiveId and effectiveId ~= spellId then
 								index[effectiveId] = index[effectiveId] or {}
 								index[effectiveId][panelId] = true
+								cdp.ENTRY.RegisterSpellAlias(spellEntryIndex, effectiveId, panelId, entryId, spellEntryMetaData)
 							end
 						end
 					end
@@ -3639,6 +3678,8 @@ function CooldownPanels:RebuildSpellIndex()
 	runtime.enabledPanelsBySpec = enabledPanelsBySpec
 	runtime.enabledPanelIdsBySpec = enabledPanelIdsBySpec
 	runtime.spellIndex = index
+	runtime.spellEntryIndex = spellEntryIndex
+	runtime.spellEntryMeta = spellEntryMeta
 	runtime.enabledPanels = enabledPanels
 	runtime.enabledPanelIds = enabledPanelIds
 	runtime.itemPanels = itemPanels
@@ -18842,6 +18883,510 @@ local function registerCooldownPanelsSlashCommand()
 	end
 end
 
+function cdp.ENTRY.GetSpellTargets(runtime, spellId, baseSpellId)
+	local index = runtime and runtime.spellEntryIndex
+	if not index then return nil end
+	runtime._eqolSpellEntryTargets = runtime._eqolSpellEntryTargets or {}
+	local targets = runtime._eqolSpellEntryTargets
+	for panelId, entries in pairs(targets) do
+		if entries then
+			for entryId in pairs(entries) do
+				entries[entryId] = nil
+			end
+		end
+		targets[panelId] = nil
+	end
+
+	local function collect(id)
+		local numericId = tonumber(id)
+		if not numericId then return end
+		local panels = index[numericId]
+		if not panels then return end
+		for panelId, entries in pairs(panels) do
+			targets[panelId] = targets[panelId] or {}
+			for entryId, meta in pairs(entries) do
+				targets[panelId][entryId] = meta
+			end
+		end
+	end
+
+	local numericSpellId = tonumber(spellId)
+	local numericBaseSpellId = tonumber(baseSpellId)
+	collect(numericSpellId)
+	if numericBaseSpellId and numericBaseSpellId ~= numericSpellId then collect(numericBaseSpellId) end
+	local effectiveSpellId = numericSpellId and getEffectiveSpellId(numericSpellId) or nil
+	if effectiveSpellId and effectiveSpellId ~= numericSpellId and effectiveSpellId ~= numericBaseSpellId then collect(effectiveSpellId) end
+	local effectiveBaseSpellId = numericBaseSpellId and getEffectiveSpellId(numericBaseSpellId) or nil
+	if effectiveBaseSpellId and effectiveBaseSpellId ~= numericSpellId and effectiveBaseSpellId ~= numericBaseSpellId and effectiveBaseSpellId ~= effectiveSpellId then
+		collect(effectiveBaseSpellId)
+	end
+
+	return next(targets) and targets or nil
+end
+
+function cdp.ENTRY.QueuePanelRefresh(panelsToRefresh, panelId)
+	if not (panelsToRefresh and panelId) then return end
+	panelsToRefresh[panelId] = true
+end
+
+function cdp.ENTRY.GetPanelRefreshScratch(runtime, scratchKey)
+	if not runtime then return nil end
+	scratchKey = scratchKey or "_eqolEntryPanelRefreshScratch"
+	local scratch = runtime[scratchKey]
+	if not scratch then
+		scratch = {}
+		runtime[scratchKey] = scratch
+	else
+		for panelId in pairs(scratch) do
+			scratch[panelId] = nil
+		end
+	end
+	return scratch
+end
+
+function cdp.ENTRY.FlushPanelRefreshes(panelsToRefresh)
+	if not panelsToRefresh then return false end
+	local refreshed = false
+	for panelId in pairs(panelsToRefresh) do
+		panelsToRefresh[panelId] = nil
+		if CooldownPanels.RequestPanelRefresh then
+			CooldownPanels:RequestPanelRefresh(panelId)
+			refreshed = true
+		elseif CooldownPanels:GetPanel(panelId) then
+			CooldownPanels:RefreshPanel(panelId)
+			refreshed = true
+		end
+	end
+	return refreshed
+end
+
+function cdp.ENTRY.ApplyVisibleSpellRuntime(panelId, runtime, icon, data, resolvedLayout)
+	if not (runtime and icon and data) then return false end
+	local staticFontPath = resolvedLayout and resolvedLayout.staticFontPath
+	local staticFontSize = resolvedLayout and resolvedLayout.staticFontSize
+	local staticFontStyle = resolvedLayout and resolvedLayout.staticFontStyle
+	local powerTintR = resolvedLayout and resolvedLayout.powerTintR
+	local powerTintG = resolvedLayout and resolvedLayout.powerTintG
+	local powerTintB = resolvedLayout and resolvedLayout.powerTintB
+	local unusableTintR = resolvedLayout and resolvedLayout.unusableTintR
+	local unusableTintG = resolvedLayout and resolvedLayout.unusableTintG
+	local unusableTintB = resolvedLayout and resolvedLayout.unusableTintB
+	local readyGlowPrimed = CooldownPanels.GetReadyGlowPrimedState(runtime)
+
+	icon:Show()
+	icon.cooldown._eqolPanelId = panelId
+	icon.cooldown._eqolEntryId = data.entryId
+	icon.cooldown._eqolCooldownIsGCD = data.cooldownGCD == true
+	icon.cooldown._eqolSoundReady = data.soundReady and not data.cooldownGCD
+	icon.cooldown._eqolSoundName = data.soundName
+	icon.cooldown._eqolGlowReady = data.glowReady
+	icon.cooldown._eqolGlowDuration = data.glowDuration
+	if icon.cooldown.Resume then icon.cooldown:Resume() end
+	if icon.cooldown.SetAlpha then icon.cooldown:SetAlpha(1) end
+	icon.cooldown:SetHideCountdownNumbers(not data.showCooldownText)
+	if icon.cooldown.SetReverse then icon.cooldown:SetReverse(false) end
+	if icon.cooldown.SetUseAuraDisplayTime then icon.cooldown:SetUseAuraDisplayTime(false) end
+
+	local cooldownStart = data.cooldownStart or 0
+	local cooldownDuration = data.cooldownDuration or 0
+	local cooldownRate = data.cooldownRate or 1
+	local chargeDurationObject = data.chargeDurationObject
+	local cooldownDurationObject = data.cooldownDurationObject
+	local cooldownEnabledOk = isSafeNotFalse(data.cooldownEnabled)
+	local spellCooldownActive = CooldownPanels.IsSpellCooldownInfoActive(data.cooldownIsActive, data.cooldownEnabled, cooldownStart, cooldownDuration)
+	local durationActive = cooldownDurationObject ~= nil and spellCooldownActive
+	local cooldownActive = data.showCooldown and (durationActive or spellCooldownActive)
+	local usingCooldown = false
+	local desaturate = false
+	local hidden = false
+	local chargeCooldownHasAvailableCharge = false
+	local chargeInfoActive = false
+	local entryNoDesaturation = data.noDesaturation == true
+	local entryDrawEdge = data.cooldownDrawEdge ~= false
+	local entryDrawBling = data.cooldownDrawBling ~= false
+	local entryDrawSwipe = data.cooldownDrawSwipe ~= false
+	local entryGcdDrawEdge = data.cooldownGcdDrawEdge == true
+	local entryGcdDrawBling = data.cooldownGcdDrawBling == true
+	local entryGcdDrawSwipe = data.cooldownGcdDrawSwipe == true
+	local hideOnCooldown = data.hideOnCooldown == true
+	local showOnCooldown = data.showOnCooldown == true
+
+	local chargesAlpha = 1
+	if data.showCharges and data.chargesInfo and data.chargesInfo.maxCharges ~= nil then
+		if data.chargesInfo.currentCharges ~= nil then
+			icon.charges:SetText(data.chargesInfo.currentCharges)
+			if data.chargesHideWhenZero == true then chargesAlpha = data.chargesInfo.currentCharges end
+			icon.charges:SetAlpha(chargesAlpha)
+			icon.charges:Show()
+		else
+			icon.charges:SetAlpha(1)
+			icon.charges:Hide()
+		end
+		if data.showCooldown then
+			chargeInfoActive = CooldownPanels.IsChargeInfoActive(data.chargesInfo)
+			if chargeInfoActive then
+				cooldownStart = data.chargesInfo.cooldownStartTime or cooldownStart
+				cooldownDuration = data.chargesInfo.cooldownDuration or cooldownDuration
+				cooldownRate = data.chargesInfo.chargeModRate or cooldownRate
+				cooldownActive = true
+				usingCooldown = true
+			end
+		end
+		if usingCooldown and isSafeNumber(data.chargesInfo.currentCharges) then
+			chargeCooldownHasAvailableCharge = data.chargesInfo.currentCharges > 0 and isSafeLessThan(data.chargesInfo.currentCharges, data.chargesInfo.maxCharges)
+			desaturate = data.chargesInfo.currentCharges == 0
+			if hideOnCooldown or showOnCooldown then hidden = desaturate end
+		end
+	else
+		icon.charges:SetAlpha(1)
+		icon.charges:Hide()
+	end
+
+	CooldownPanels.SetIconDesaturatedRuntime(icon.texture, desaturate, entryNoDesaturation)
+	if hideOnCooldown then
+		icon:SetAlphaFromBoolean(hidden, 0, 1)
+	elseif showOnCooldown then
+		icon:SetAlphaFromBoolean(hidden, 1, 0)
+	else
+		icon:SetAlpha(1)
+	end
+
+	if data.showCooldown then
+		if usingCooldown then
+			setCooldownDrawState(icon.cooldown, entryDrawEdge, entryDrawBling, entryDrawSwipe)
+			if chargeCooldownHasAvailableCharge then
+				if data.showChargesCooldown then
+					if chargeDurationObject and icon.cooldown.SetCooldownFromDurationObject then
+						icon.cooldown:Clear()
+						icon.cooldown:SetCooldownFromDurationObject(chargeDurationObject)
+					elseif isSafeNumber(cooldownStart) and isSafeNumber(cooldownDuration) then
+						icon.cooldown:Clear()
+						icon.cooldown:SetCooldown(cooldownStart, cooldownDuration, cooldownRate)
+					else
+						icon.cooldown:Clear()
+					end
+					if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", onCooldownDone) end
+				else
+					icon.cooldown:Clear()
+					if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", nil) end
+				end
+			else
+				if data.showChargesCooldown then
+					if chargeDurationObject and icon.cooldown.SetCooldownFromDurationObject then
+						icon.cooldown:Clear()
+						icon.cooldown:SetCooldownFromDurationObject(chargeDurationObject)
+					elseif isSafeNumber(cooldownStart) and isSafeNumber(cooldownDuration) then
+						icon.cooldown:Clear()
+						icon.cooldown:SetCooldown(cooldownStart, cooldownDuration, cooldownRate)
+					else
+						icon.cooldown:Clear()
+					end
+					if not data.cooldownGCD and icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", onCooldownDone) end
+				else
+					icon.cooldown:Clear()
+					if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", nil) end
+				end
+
+				if cooldownDurationObject then
+					if data.cooldownGCD then
+					else
+						if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", onCooldownDone) end
+						setCooldownDrawState(icon.cooldown, entryDrawEdge, entryDrawBling, entryDrawSwipe)
+						CooldownPanels.SetIconDesaturationRuntime(icon.texture, cooldownDurationObject:EvaluateRemainingDuration(curveDesat), entryNoDesaturation)
+						if hideOnCooldown then
+							icon:SetAlpha(cooldownDurationObject:EvaluateRemainingDuration(curveAlpha))
+						elseif showOnCooldown then
+							icon:SetAlpha(cooldownDurationObject:EvaluateRemainingDuration(curveDesat))
+						end
+						if data.showChargesCooldown and chargeDurationObject then
+							icon.cooldown:SetCooldownFromDurationObject(chargeDurationObject)
+						else
+							icon.cooldown:SetCooldownFromDurationObject(cooldownDurationObject)
+						end
+					end
+				end
+			end
+		elseif durationActive then
+			icon.cooldown:SetCooldownFromDurationObject(cooldownDurationObject)
+			if data.cooldownGCD then
+				CooldownPanels.SetIconDesaturationRuntime(icon.texture, 0, entryNoDesaturation)
+				if hideOnCooldown then
+					icon:SetAlpha(1)
+				elseif showOnCooldown then
+					icon:SetAlpha(0)
+				end
+				setCooldownDrawState(icon.cooldown, entryGcdDrawEdge, entryGcdDrawBling, entryGcdDrawSwipe)
+			else
+				setCooldownDrawState(icon.cooldown, entryDrawEdge, entryDrawBling, entryDrawSwipe)
+				local desat = cooldownDurationObject:EvaluateRemainingDuration(curveDesat)
+				CooldownPanels.SetIconDesaturationRuntime(icon.texture, desat, entryNoDesaturation)
+				if hideOnCooldown then
+					icon:SetAlpha(cooldownDurationObject:EvaluateRemainingDuration(curveAlpha))
+				elseif showOnCooldown then
+					icon:SetAlpha(cooldownDurationObject:EvaluateRemainingDuration(curveDesat))
+				end
+				if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", onCooldownDone) end
+			end
+		elseif cooldownActive then
+			icon.cooldown:SetCooldown(cooldownStart, cooldownDuration, cooldownRate)
+			CooldownPanels.SetIconDesaturatedRuntime(icon.texture, true, entryNoDesaturation)
+			if hideOnCooldown then
+				icon:SetAlpha(0)
+			elseif showOnCooldown then
+				icon:SetAlpha(1)
+			end
+			setCooldownDrawState(icon.cooldown, entryDrawEdge, entryDrawBling, entryDrawSwipe)
+			if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", onCooldownDone) end
+		else
+			setCooldownDrawState(icon.cooldown, entryDrawEdge, entryDrawBling, entryDrawSwipe)
+			icon.cooldown:Clear()
+			if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", nil) end
+		end
+	else
+		setCooldownDrawState(icon.cooldown, entryDrawEdge, entryDrawBling, entryDrawSwipe)
+		icon.cooldown:Clear()
+		if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", nil) end
+	end
+
+	if data.spellUnusable then
+		icon.texture:SetVertexColor(unusableTintR or 0.6, unusableTintG or 0.6, unusableTintB or 0.6)
+	elseif data.powerInsufficient then
+		icon.texture:SetVertexColor(powerTintR or 0.5, powerTintG or 0.5, powerTintB or 1)
+	elseif data.cooldownEnabled == false and data.cooldownIsActive == false and data.cooldownGCD ~= true then
+		icon.texture:SetVertexColor(0.4, 0.4, 0.4)
+	else
+		icon.texture:SetVertexColor(1, 1, 1)
+	end
+
+	local staticTextCooldown = false
+	if data.entry and data.entry.staticTextShowOnCooldown == true then
+		staticTextCooldown = durationActive or (cooldownEnabledOk and isCooldownActive(cooldownStart, cooldownDuration))
+	end
+	applyStaticText(icon, data.layout, data.entry, staticFontPath, staticFontSize, staticFontStyle, staticTextCooldown)
+	if durationActive and showOnCooldown and data.entry and data.entry.staticTextShowOnCooldown == true and staticTextCooldown and data.entry.spellID then
+		icon.staticText:SetAlpha(cooldownDurationObject:EvaluateRemainingDuration(Helper.FakeCurve))
+		icon.cooldown:SetAlpha(cooldownDurationObject:EvaluateRemainingDuration(Helper.FakeCurve))
+	end
+
+	data.readyAt = runtime.readyAt and runtime.readyAt[data.entryId] or nil
+	local readyGlowCooldownRunning
+	local useSecretReadyGlow = data.spellReadyCondition ~= nil and data.glowReady and data.showCooldown and data.canTriggerReadyGlow
+	local secretReadyGlowAllowed = useSecretReadyGlow and data.readyGlowResourceBlocked ~= true
+	if useSecretReadyGlow then
+		if data.readyAt or (readyGlowPrimed and readyGlowPrimed[data.entryId]) then
+			CooldownPanels.ClearReadyGlowEntryState(panelId, data.entryId, true)
+			data.readyAt = nil
+		end
+	elseif data.canTriggerReadyGlow then
+		readyGlowCooldownRunning = durationActive or usingCooldown or (cooldownEnabledOk and isCooldownActive(cooldownStart, cooldownDuration))
+		if readyGlowCooldownRunning then
+			CooldownPanels.ClearReadyGlowEntryState(panelId, data.entryId, true)
+			data.readyAt = nil
+		end
+	end
+	if not useSecretReadyGlow and data.glowReady and data.showCooldown and data.canTriggerReadyGlow then
+		if data.readyAt then
+			if readyGlowPrimed then readyGlowPrimed[data.entryId] = true end
+		elseif not readyGlowCooldownRunning and not data.cooldownGCD and readyGlowPrimed and not readyGlowPrimed[data.entryId] then
+			triggerReadyGlow(panelId, data.entryId, data.glowDuration)
+			readyGlowPrimed[data.entryId] = true
+			data.readyAt = runtime.readyAt[data.entryId]
+		end
+	end
+
+	local overlayGlow = data.overlayGlow == true
+	local overlayGlowColor = overlayGlow and data.overlayGlowColor or nil
+	local simpleGlowEnabled = overlayGlow
+	local simpleGlowColor = overlayGlowColor
+	local simpleGlowStyle = data.overlayGlowStyle or data.readyGlowStyle
+	local simpleGlowInset = data.overlayGlowInset or data.readyGlowInset
+	if data.glowReady and not useSecretReadyGlow then
+		local ready = data.readyAt ~= nil
+		if ready and data.readyGlowCheckPower == true and data.readyGlowResourceBlocked == true then ready = false end
+		simpleGlowEnabled = overlayGlow or ready
+		simpleGlowColor = ready and data.readyGlowColor or overlayGlowColor
+		simpleGlowStyle = ready and data.readyGlowStyle or (data.overlayGlowStyle or data.readyGlowStyle)
+		simpleGlowInset = ready and data.readyGlowInset or (data.overlayGlowInset or data.readyGlowInset)
+	end
+	setPreviewGlow(icon, false)
+	if data.liveGlowAllowed == false then
+		setGlow(icon, false, nil, "EQOL_SIMPLE")
+		setGlow(icon, false, nil, "EQOL_OVERLAY")
+		setGlow(icon, false, nil, "EQOL_READY")
+	elseif useSecretReadyGlow then
+		setGlow(icon, false, nil, "EQOL_SIMPLE")
+		if secretReadyGlowAllowed then
+			setGlow(icon, overlayGlow, overlayGlowColor, "EQOL_OVERLAY", data.spellReadyCondition, 0, 1, data.overlayGlowStyle or data.readyGlowStyle, data.overlayGlowInset or data.readyGlowInset)
+			setGlow(icon, true, data.readyGlowColor, "EQOL_READY", data.spellReadyCondition, 1, 0, data.readyGlowStyle, data.readyGlowInset)
+		else
+			setGlow(icon, overlayGlow, overlayGlowColor, "EQOL_OVERLAY", nil, nil, nil, data.overlayGlowStyle or data.readyGlowStyle, data.overlayGlowInset or data.readyGlowInset)
+			setGlow(icon, false, nil, "EQOL_READY")
+		end
+	else
+		setGlow(icon, false, nil, "EQOL_OVERLAY")
+		setGlow(icon, false, nil, "EQOL_READY")
+		setGlow(icon, simpleGlowEnabled, simpleGlowColor, "EQOL_SIMPLE", nil, nil, nil, simpleGlowStyle, simpleGlowInset)
+	end
+
+	return true
+end
+
+function cdp.ENTRY.TryRefreshVisibleSpellEntry(panelId, entryId, mode)
+	local panel = CooldownPanels:GetPanel(panelId)
+	local runtime = panel and getRuntime(panelId) or nil
+	if not (panel and runtime and runtime.frame) then return false end
+	if CooldownPanels:IsInEditMode() == true or CooldownPanels:IsPanelLayoutEditActive(panelId) then return false end
+
+	local metaByPanel = CooldownPanels.runtime and CooldownPanels.runtime.spellEntryMeta
+	local meta = metaByPanel and metaByPanel[panelId] and metaByPanel[panelId][entryId] or nil
+	if not meta then return false end
+	if mode == "charges" then
+		if meta.localChargesSafe ~= true then return false end
+	else
+		if meta.localCooldownSafe ~= true then return false end
+	end
+
+	local icon = runtime.entryToIcon and runtime.entryToIcon[entryId] or nil
+	local data = icon and icon._eqolRuntimeData or nil
+	if not (icon and data and data.entryId == entryId and data.resolvedType == "SPELL") then return false end
+
+	local entry = panel.entries and panel.entries[entryId] or nil
+	if not entry then return false end
+	local macro = entry.type == "MACRO" and CooldownPanels.ResolveMacroEntry(entry) or nil
+	local baseSpellId = entry.type == "SPELL" and tonumber(entry.spellID) or (macro and macro.kind == "SPELL" and tonumber(macro.spellID)) or nil
+	if not baseSpellId then return false end
+	local effectiveSpellId = getEffectiveSpellId(baseSpellId) or baseSpellId
+	local spellId = effectiveSpellId or baseSpellId
+	local spellPassive = isSpellPassiveSafe(baseSpellId, effectiveSpellId)
+	if spellPassive or (Api.IsSpellKnown and not Api.IsSpellKnown(spellId)) then return false end
+
+	local showCooldown = entry.showCooldown ~= false
+	local staticTextShowOnCooldown = entry.staticTextShowOnCooldown == true
+	local trackCooldown = showCooldown or staticTextShowOnCooldown
+	local showCharges = entry.showCharges == true
+	local spellPassState = CooldownPanels:GetSpellPassState(spellId)
+	local chargesInfo
+	local chargesInfoActive = false
+	local chargeDurationObject
+	local cooldownDurationObject
+	local cooldownStart, cooldownDuration, cooldownEnabled, cooldownRate, cooldownGCD, cooldownIsActive
+
+	if showCharges then
+		if spellPassState and spellPassState.chargesLoaded == nil then
+			spellPassState.chargesInfo = CooldownPanels:GetCachedSpellChargesInfo(spellId)
+			spellPassState.chargesLoaded = true
+		end
+		chargesInfo = spellPassState and spellPassState.chargesInfo or CooldownPanels:GetCachedSpellChargesInfo(spellId)
+		chargesInfoActive = CooldownPanels.IsChargeInfoActive(chargesInfo)
+	end
+	if trackCooldown or (showCooldown and chargesInfoActive) then
+		if spellPassState and spellPassState.infoLoaded == nil then
+			spellPassState.cooldownStart, spellPassState.cooldownDuration, spellPassState.cooldownEnabled, spellPassState.cooldownRate, spellPassState.cooldownGCD, spellPassState.cooldownIsActive =
+				CooldownPanels:GetCachedSpellCooldownInfo(spellId)
+			spellPassState.infoLoaded = true
+		end
+		if spellPassState then
+			cooldownStart = spellPassState.cooldownStart
+			cooldownDuration = spellPassState.cooldownDuration
+			cooldownEnabled = spellPassState.cooldownEnabled
+			cooldownRate = spellPassState.cooldownRate
+			cooldownGCD = spellPassState.cooldownGCD
+			cooldownIsActive = spellPassState.cooldownIsActive
+		else
+			cooldownStart, cooldownDuration, cooldownEnabled, cooldownRate, cooldownGCD, cooldownIsActive = CooldownPanels:GetCachedSpellCooldownInfo(spellId)
+		end
+	end
+	cooldownIsActive = CooldownPanels.IsSpellCooldownInfoActive(cooldownIsActive, cooldownEnabled, cooldownStart, cooldownDuration)
+	if showCooldown and data.showChargesCooldown and chargesInfoActive then
+		if spellPassState and spellPassState.chargeDurationLoaded == nil then
+			spellPassState.chargeDurationObject = CooldownPanels:GetCachedSpellChargeDurationObject(spellId)
+			spellPassState.chargeDurationLoaded = true
+		end
+		chargeDurationObject = spellPassState and spellPassState.chargeDurationObject or CooldownPanels:GetCachedSpellChargeDurationObject(spellId)
+	end
+	if trackCooldown and cooldownIsActive then
+		if spellPassState and spellPassState.durationLoaded == nil then
+			spellPassState.cooldownDurationObject = CooldownPanels:GetCachedSpellCooldownDurationObject(spellId)
+			spellPassState.durationLoaded = true
+		end
+		cooldownDurationObject = spellPassState and spellPassState.cooldownDurationObject or CooldownPanels:GetCachedSpellCooldownDurationObject(spellId)
+	end
+
+	data.cooldownStart = cooldownStart or 0
+	data.cooldownDuration = cooldownDuration or 0
+	data.cooldownEnabled = cooldownEnabled
+	data.cooldownIsActive = cooldownIsActive
+	data.cooldownRate = cooldownRate or 1
+	data.cooldownGCD = cooldownGCD == true
+	data.chargesInfo = chargesInfo
+	data.chargeDurationObject = chargeDurationObject
+	data.cooldownDurationObject = cooldownDurationObject
+	if data.glowReady and showCooldown then
+		if cooldownGCD then
+			data.spellReadyCondition = true
+		elseif type(cooldownIsActive) == "boolean" then
+			data.spellReadyCondition = not cooldownIsActive
+		else
+			data.spellReadyCondition = nil
+		end
+	else
+		data.spellReadyCondition = nil
+	end
+
+	local resolvedLayout = CooldownPanels.ResolveRuntimeLayout(runtime, runtime.frame, panel.layout)
+	return cdp.ENTRY.ApplyVisibleSpellRuntime(panelId, runtime, icon, data, resolvedLayout)
+end
+
+function cdp.ENTRY.RefreshSpellEntries(spellId, baseSpellId, mode, panelsToRefresh)
+	local runtime = CooldownPanels.runtime
+	local targets = cdp.ENTRY.GetSpellTargets(runtime, spellId, baseSpellId)
+	if not targets then return false end
+	local startedBatch = false
+	if CooldownPanels.BeginRuntimeQueryBatch and CooldownPanels.IsRuntimeQueryBatchActive and not CooldownPanels:IsRuntimeQueryBatchActive() then
+		CooldownPanels:BeginRuntimeQueryBatch()
+		startedBatch = true
+	end
+
+	local refreshed = false
+	for panelId, entries in pairs(targets) do
+		local panelNeedsRefresh = false
+		for entryId, meta in pairs(entries) do
+			local shouldProcess = false
+			if mode == "charges" then
+				shouldProcess = meta.trackCharges == true
+			else
+				shouldProcess = meta.trackCooldown == true
+			end
+			if shouldProcess then
+				if cdp.ENTRY.TryRefreshVisibleSpellEntry(panelId, entryId, mode) then
+					refreshed = true
+				else
+					panelNeedsRefresh = true
+					refreshed = true
+					break
+				end
+			end
+		end
+		if panelNeedsRefresh then cdp.ENTRY.QueuePanelRefresh(panelsToRefresh, panelId) end
+	end
+
+	if startedBatch and CooldownPanels.EndRuntimeQueryBatch then CooldownPanels:EndRuntimeQueryBatch() end
+	return refreshed
+end
+
+local function refreshTrackedSpellEntries(spellId, baseSpellId, mode, panelsToRefresh)
+	return cdp.ENTRY.RefreshSpellEntries(spellId, baseSpellId, mode, panelsToRefresh) == true
+end
+
+local function refreshCooldownEntriesForSpell(spellId, baseSpellId)
+	local runtime = CooldownPanels.runtime
+	local panelsToRefresh = cdp.ENTRY.GetPanelRefreshScratch(runtime, "_eqolSpellEntryRefreshScratch")
+	if not panelsToRefresh then return false end
+	local refreshed = refreshTrackedSpellEntries(spellId, baseSpellId, "cooldown", panelsToRefresh)
+	if cdp.ENTRY.FlushPanelRefreshes(panelsToRefresh) then refreshed = true end
+	return refreshed
+end
+
 refreshPanelsForSpell = function(spellId)
 	local id = tonumber(spellId)
 	if not id then return false end
@@ -19167,7 +19712,16 @@ refreshPanelsForCharges = function()
 	if not chargesIndex or not Api.GetSpellChargesInfo then return false end
 	runtime.chargesState = runtime.chargesState or {}
 	local chargesState = runtime.chargesState
-	local panelsToRefresh
+	local panelsToRefresh = cdp.ENTRY.GetPanelRefreshScratch(runtime, "_eqolChargeEntryRefreshScratch")
+	local changedSpellIds = runtime._eqolChargeChangedSpellScratch
+	if not changedSpellIds then
+		changedSpellIds = {}
+		runtime._eqolChargeChangedSpellScratch = changedSpellIds
+	else
+		for trackedSpellId in pairs(changedSpellIds) do
+			changedSpellIds[trackedSpellId] = nil
+		end
+	end
 
 	for spellId, panels in pairs(chargesIndex) do
 		local info = Api.GetSpellChargesInfo(spellId)
@@ -19213,24 +19767,37 @@ refreshPanelsForCharges = function()
 		})
 
 		if changed and panels then
-			panelsToRefresh = panelsToRefresh or {}
-			for panelId in pairs(panels) do
-				panelsToRefresh[panelId] = true
+			local refreshSpellId = getEffectiveSpellId(spellId) or tonumber(spellId)
+			if refreshSpellId then
+				changedSpellIds[refreshSpellId] = true
+			else
+				for panelId in pairs(panels) do
+					panelsToRefresh[panelId] = true
+				end
 			end
 		end
 	end
 
-	if panelsToRefresh then
-		for panelId in pairs(panelsToRefresh) do
-			if CooldownPanels.RequestPanelRefresh then
-				CooldownPanels:RequestPanelRefresh(panelId)
-			elseif CooldownPanels:GetPanel(panelId) then
-				CooldownPanels:RefreshPanel(panelId)
+	local refreshed = false
+	for trackedSpellId in pairs(changedSpellIds) do
+		local trackedBaseSpellId = getBaseSpellId(trackedSpellId)
+		if refreshTrackedSpellEntries(trackedSpellId, trackedBaseSpellId, "charges", panelsToRefresh) then
+			refreshed = true
+		else
+			local panels = chargesIndex[trackedSpellId]
+			if not panels and trackedBaseSpellId and trackedBaseSpellId ~= trackedSpellId then
+				panels = chargesIndex[trackedBaseSpellId]
+			end
+			if panels then
+				for panelId in pairs(panels) do
+					panelsToRefresh[panelId] = true
+				end
+				refreshed = true
 			end
 		end
-		return true
 	end
-	return false
+	if cdp.ENTRY.FlushPanelRefreshes(panelsToRefresh) then refreshed = true end
+	return refreshed
 end
 
 local function updatePowerStatesVisible(powerTokens)
@@ -20026,16 +20593,17 @@ local function ensureUpdateFrame()
 					if id == nil then return end
 					CooldownPanels:InvalidateSpellQueryCaches("duration", id)
 					CooldownPanels:InvalidateSpellQueryCaches("info", id)
+					local effectiveId = getEffectiveSpellId(id)
+					if effectiveId and effectiveId ~= id then
+						CooldownPanels:InvalidateSpellQueryCaches("duration", effectiveId)
+						CooldownPanels:InvalidateSpellQueryCaches("info", effectiveId)
+					end
 				end
 				invalidateCooldownCachesForId(spellId)
 				if baseSpellId ~= spellId then invalidateCooldownCachesForId(baseSpellId) end
 				CooldownPanels:HandleReadySoundSpellEvent(spellId, baseSpellId, true)
 				CooldownPanels.TraceChargeSpellSnapshot("trace51505_event_SPELL_UPDATE_COOLDOWN_after", spellId, { event = event })
-				if spellId ~= nil then
-					refreshPanelsForSpell(spellId)
-				elseif baseSpellId ~= nil then
-					refreshPanelsForSpell(baseSpellId)
-				end
+				refreshCooldownEntriesForSpell(spellId, baseSpellId)
 				return
 			end
 			CooldownPanels:InvalidateSpellQueryCaches("duration")
