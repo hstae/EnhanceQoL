@@ -16327,7 +16327,7 @@ function CooldownPanels:RefreshPanel(panelId)
 	elseif self:IsInEditMode() then
 		clearRuntimeLayoutShapeCache(runtime)
 		self:ApplyLayout(panelId)
-		self:UpdatePreviewIcons(panelId)
+		self:UpdateRuntimeIcons(panelId)
 	else
 		if ensureAssistedHighlightHook then ensureAssistedHighlightHook() end
 		self:UpdateRuntimeIcons(panelId)
@@ -16423,7 +16423,7 @@ function CooldownPanels:RefreshPanelForCurrentEditContext(panelId, refreshEditor
 	elseif CooldownPanels:IsInEditMode() then
 		if runtime then clearRuntimeLayoutShapeCache(runtime) end
 		CooldownPanels:ApplyLayout(panelId)
-		CooldownPanels:UpdatePreviewIcons(panelId)
+		CooldownPanels:UpdateRuntimeIcons(panelId)
 		CooldownPanels:UpdateVisibility(panelId)
 	elseif CooldownPanels:IsEditorOpen() then
 		if runtime then clearRuntimeLayoutShapeCache(runtime) end
