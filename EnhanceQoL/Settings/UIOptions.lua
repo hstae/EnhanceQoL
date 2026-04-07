@@ -394,6 +394,12 @@ local function createButtonAppearanceControls(category, expandable)
 	addon.functions.SettingsCreateHeadline(category, L["actionBarAppearanceHeader"] or "Button appearance", { parentSection = expandable })
 
 	local hideBorders
+	local borderColorModeOptions = {
+		DEFAULT = L["actionBarBorderDefault"] or "Default (Blizzard)",
+		CUSTOM = L["Use custom color"] or "Use custom color",
+		CLASS = L["Use class color"] or "Use class color",
+	}
+	local borderColorModeOrder = { "DEFAULT", "CUSTOM", "CLASS" }
 	local function getBorderStyle()
 		local current = addon.db.actionBarBorderStyle or "DEFAULT"
 		local list = buildBorderDropdown()
@@ -401,6 +407,12 @@ local function createButtonAppearanceControls(category, expandable)
 		return current
 	end
 	local function isDefaultBorderStyle() return getBorderStyle() == "DEFAULT" end
+	local function getBorderColorMode()
+		local current = addon.db.actionBarBorderColorMode
+		if current == nil then current = addon.db.actionBarBorderColoring and "CUSTOM" or "DEFAULT" end
+		if not borderColorModeOptions[current] then current = "DEFAULT" end
+		return current
+	end
 
 	addon.functions.SettingsCreateScrollDropdown(category, {
 		var = "actionBarBorderStyle",
@@ -493,12 +505,18 @@ local function createButtonAppearanceControls(category, expandable)
 		parentSection = expandable,
 	})
 
-	local borderColorToggle = addon.functions.SettingsCreateCheckbox(category, {
-		var = "actionBarBorderColoring",
-		text = L["actionBarBorderColoring"] or "Custom border color",
-		desc = L["actionBarBorderColoringDesc"] or "Use a custom color for action button borders.",
-		func = function(value)
-			addon.db.actionBarBorderColoring = value and true or false
+	local borderColorMode = addon.functions.SettingsCreateDropdown(category, {
+		var = "actionBarBorderColorMode",
+		text = L["actionBarBorderColoring"] or "Border coloring",
+		desc = L["actionBarBorderColoringDesc"] or "Choose how custom action button borders are colored.",
+		list = borderColorModeOptions,
+		order = borderColorModeOrder,
+		default = "DEFAULT",
+		get = getBorderColorMode,
+		set = function(key)
+			if not borderColorModeOptions[key] then key = "DEFAULT" end
+			addon.db.actionBarBorderColorMode = key
+			addon.db.actionBarBorderColoring = key == "CUSTOM"
 			if ActionBarLabels and ActionBarLabels.RefreshActionButtonBorders then ActionBarLabels.RefreshActionButtonBorders() end
 		end,
 		parentSection = expandable,
@@ -510,9 +528,8 @@ local function createButtonAppearanceControls(category, expandable)
 		callback = function()
 			if ActionBarLabels and ActionBarLabels.RefreshActionButtonBorders then ActionBarLabels.RefreshActionButtonBorders() end
 		end,
-		parent = true,
-		element = borderColorToggle.element,
-		parentCheck = function() return borderColorToggle.setting and borderColorToggle.setting:GetValue() == true end,
+		element = borderColorMode.element,
+		parentCheck = function() return getBorderColorMode() == "CUSTOM" end,
 		colorizeLabel = false,
 		parentSection = expandable,
 	})

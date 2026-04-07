@@ -7,12 +7,16 @@ local DEFAULT_ACTION_BUTTON_COUNT = _G.NUM_ACTIONBAR_BUTTONS or 12
 local PET_ACTION_BUTTON_COUNT = _G.NUM_PET_ACTION_SLOTS or 10
 local STANCE_ACTION_BUTTON_COUNT = _G.NUM_STANCE_SLOTS or _G.NUM_SHAPESHIFT_SLOTS or 10
 local DEFAULT_BORDER_STYLE = "DEFAULT"
+local BORDER_COLOR_MODE_DEFAULT = "DEFAULT"
+local BORDER_COLOR_MODE_CUSTOM = "CUSTOM"
+local BORDER_COLOR_MODE_CLASS = "CLASS"
 local QUICK_SLOT_BORDER = "Interface\\Buttons\\UI-Quickslot2"
 local DEFAULT_BORDER_EDGE_SIZE = 16
 local DEFAULT_BORDER_PADDING = 0
 local EXTRA_ACTION_BAR_NAME = "ExtraActionBar"
 local ZONE_ABILITY_BAR_NAME = "ZoneAbilityBar"
 local LSM = LibStub("LibSharedMedia-3.0", true)
+local UnitClass = UnitClass
 
 local function getDefaultFontFace()
 	if addon.functions and addon.functions.GetGlobalDefaultFontFace then return addon.functions.GetGlobalDefaultFontFace() end
@@ -179,8 +183,35 @@ local function GetBorderPadding()
 	return value
 end
 
+local function GetBorderColorMode()
+	if not addon.db then return BORDER_COLOR_MODE_DEFAULT end
+	local mode = addon.db.actionBarBorderColorMode
+	if mode == nil then
+		if addon.db.actionBarBorderColoring then return BORDER_COLOR_MODE_CUSTOM end
+		return BORDER_COLOR_MODE_DEFAULT
+	end
+	if mode ~= BORDER_COLOR_MODE_CUSTOM and mode ~= BORDER_COLOR_MODE_CLASS then return BORDER_COLOR_MODE_DEFAULT end
+	return mode
+end
+
+local function GetPlayerClassBorderColor()
+	local classToken = UnitClass and select(2, UnitClass("player")) or nil
+	if not classToken then return 1, 1, 1, 1 end
+
+	local colorObj = C_ClassColor and C_ClassColor.GetClassColor and C_ClassColor.GetClassColor(classToken)
+	if colorObj and colorObj.r and colorObj.g and colorObj.b then return colorObj.r, colorObj.g, colorObj.b, 1 end
+
+	local color = (CUSTOM_CLASS_COLORS and CUSTOM_CLASS_COLORS[classToken]) or (RAID_CLASS_COLORS and RAID_CLASS_COLORS[classToken])
+	if color and color.r and color.g and color.b then return color.r, color.g, color.b, color.a or 1 end
+
+	return 1, 1, 1, 1
+end
+
 local function GetBorderColor()
-	if not addon.db or not addon.db.actionBarBorderColoring then return 1, 1, 1, 1 end
+	local mode = GetBorderColorMode()
+	if mode == BORDER_COLOR_MODE_CLASS then return GetPlayerClassBorderColor() end
+	if mode ~= BORDER_COLOR_MODE_CUSTOM then return 1, 1, 1, 1 end
+
 	local col = addon.db.actionBarBorderColor or {}
 	local r = tonumber(col.r) or 1
 	local g = tonumber(col.g) or 1

@@ -819,9 +819,7 @@ local function BuildUnitFrameDriverExpression(config, opts)
 
 	local function addSkyridingClauses(target, seen)
 		addClause(target, seen, "advflyable,flyable,mounted,flying")
-		if addon.variables and addon.variables.unitClass == "DRUID" then
-			addClause(target, seen, "advflyable,flyable,stance:3,flying")
-		end
+		if addon.variables and addon.variables.unitClass == "DRUID" then addClause(target, seen, "advflyable,flyable,stance:3,flying") end
 	end
 
 	if config.ALWAYS_HIDE_IN_GROUP then addClause(hideClauses, hideSeen, "group") end
@@ -2915,6 +2913,7 @@ local function initActionBars()
 	addon.functions.InitDBValue("actionBarBorderEdgeSize", 16)
 	addon.functions.InitDBValue("actionBarBorderPadding", 0)
 	addon.functions.InitDBValue("actionBarBorderColoring", false)
+	if addon.db.actionBarBorderColorMode == nil then addon.db.actionBarBorderColorMode = addon.db.actionBarBorderColoring and "CUSTOM" or "DEFAULT" end
 	addon.functions.InitDBValue("actionBarBorderColor", { r = 1, g = 1, b = 1, a = 1 })
 	addon.functions.InitDBValue("actionBarHideAssistedRotation", false)
 	addon.functions.InitDBValue("hideExtraActionArtwork", false)
