@@ -4279,7 +4279,7 @@ local function applyVisibilityDriver(unit, enabled)
 	local cond
 	local baseCond
 	local showPrefix
-	local prependHideClauses
+	local prependHideClauses = nil
 	if not enabled then
 		cond = "hide"
 	elseif unit == UNIT.TARGET then

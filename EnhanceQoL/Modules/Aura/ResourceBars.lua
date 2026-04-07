@@ -5431,7 +5431,7 @@ function visibilityLogic:NormalizeConfig(config, legacyCfg)
 	local out = normalizeActionbarVisibilityConfig and normalizeActionbarVisibilityConfig(config) or nil
 	if not out and type(legacyCfg) == "table" and legacyCfg.visibilityExplicit == true then out = {} end
 	if not out and type(legacyCfg) == "table" and legacyCfg.visibilityExplicit ~= true then
-		local legacy
+		local legacy = nil
 		if legacyCfg.hideOutOfCombat == true then
 			legacy = legacy or {}
 			legacy.ALWAYS_IN_COMBAT = true

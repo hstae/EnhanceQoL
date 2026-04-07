@@ -3535,6 +3535,40 @@ function cdp.ENTRY.RegisterSpellAlias(index, aliasId, panelId, entryId, meta)
 	index[numericAliasId][panelId][entryId] = meta
 end
 
+function cdp.ENTRY.EnsureItemEntryMeta(metaByPanel, panelId, entryId)
+	metaByPanel[panelId] = metaByPanel[panelId] or {}
+	local meta = metaByPanel[panelId][entryId]
+	if meta then return meta end
+	meta = {}
+	metaByPanel[panelId][entryId] = meta
+	return meta
+end
+
+function cdp.ENTRY.RegisterItemAlias(index, aliasId, panelId, entryId, meta)
+	local numericAliasId = tonumber(aliasId)
+	if not numericAliasId then return end
+	index[numericAliasId] = index[numericAliasId] or {}
+	index[numericAliasId][panelId] = index[numericAliasId][panelId] or {}
+	index[numericAliasId][panelId][entryId] = meta
+end
+
+function cdp.ENTRY.EnsureSlotEntryMeta(metaByPanel, panelId, entryId)
+	metaByPanel[panelId] = metaByPanel[panelId] or {}
+	local meta = metaByPanel[panelId][entryId]
+	if meta then return meta end
+	meta = {}
+	metaByPanel[panelId][entryId] = meta
+	return meta
+end
+
+function cdp.ENTRY.RegisterSlotAlias(index, aliasId, panelId, entryId, meta)
+	local numericAliasId = tonumber(aliasId)
+	if not numericAliasId then return end
+	index[numericAliasId] = index[numericAliasId] or {}
+	index[numericAliasId][panelId] = index[numericAliasId][panelId] or {}
+	index[numericAliasId][panelId][entryId] = meta
+end
+
 function CooldownPanels:RebuildSpellIndex()
 	self:InvalidateSpellQueryCaches()
 	local root = ensureRoot()
@@ -3542,6 +3576,10 @@ function CooldownPanels:RebuildSpellIndex()
 	local index = {}
 	local spellEntryIndex = {}
 	local spellEntryMeta = {}
+	local itemEntryIndex = {}
+	local itemEntryMeta = {}
+	local slotEntryIndex = {}
+	local slotEntryMeta = {}
 	local enabledPanels = {}
 	local enabledPanelIds = {}
 	local enabledPanelsBySpec = {}
@@ -3592,7 +3630,10 @@ function CooldownPanels:RebuildSpellIndex()
 				for entryId, entry in pairs(panel.entries or {}) do
 					local spellId
 					local trackedItemId
+					local trackedSlotId
 					local spellEntryMetaData
+					local itemEntryMetaData
+					local slotEntryMetaData
 					if entry and entry.type == "SPELL" and entry.spellID then
 						spellId = tonumber(entry.spellID)
 					elseif entry and entry.type == "MACRO" then
@@ -3640,8 +3681,16 @@ function CooldownPanels:RebuildSpellIndex()
 					if entry and (entry.type == "ITEM" or entry.type == "SLOT") and entry.showCooldown ~= false then itemPanels[panelId] = true end
 					if entry and entry.type == "ITEM" and entry.showItemUses == true then itemUsesPanels[panelId] = true end
 					if entry and entry.type == "ITEM" then trackedItemId = tonumber(entry.itemID) or trackedItemId end
+					if entry and entry.type == "SLOT" then trackedSlotId = tonumber(entry.slotID) end
 					if trackedItemId then
 						local trackUses = entry and entry.showItemUses == true
+						itemEntryMetaData = cdp.ENTRY.EnsureItemEntryMeta(itemEntryMeta, panelId, entryId)
+						itemEntryMetaData.panelId = panelId
+						itemEntryMetaData.entryId = entryId
+						itemEntryMetaData.baseItemId = trackedItemId
+						itemEntryMetaData.trackUses = trackUses == true
+						itemEntryMetaData.showWhenEmpty = entry and entry.showWhenEmpty == true or false
+						itemEntryMetaData.alwaysShow = entry and entry.alwaysShow ~= false or false
 						local tracked = false
 						if entry and entry.type == "ITEM" and entry.useHighestRank == true then
 							local rankMap = self.itemHighestRankByID
@@ -3652,6 +3701,7 @@ function CooldownPanels:RebuildSpellIndex()
 									if candidateId then
 										itemTrackedIds[candidateId] = true
 										if trackUses then itemUsesTrackedIds[candidateId] = true end
+										cdp.ENTRY.RegisterItemAlias(itemEntryIndex, candidateId, panelId, entryId, itemEntryMetaData)
 										tracked = true
 									end
 								end
@@ -3660,7 +3710,17 @@ function CooldownPanels:RebuildSpellIndex()
 						if not tracked then
 							itemTrackedIds[trackedItemId] = true
 							if trackUses then itemUsesTrackedIds[trackedItemId] = true end
+							cdp.ENTRY.RegisterItemAlias(itemEntryIndex, trackedItemId, panelId, entryId, itemEntryMetaData)
 						end
+					end
+					if trackedSlotId and entry and entry.type == "SLOT" and entry.showCooldown ~= false then
+						slotEntryMetaData = cdp.ENTRY.EnsureSlotEntryMeta(slotEntryMeta, panelId, entryId)
+						slotEntryMetaData.panelId = panelId
+						slotEntryMetaData.entryId = entryId
+						slotEntryMetaData.slotId = trackedSlotId
+						slotEntryMetaData.showWhenNoCooldown = entry.showWhenNoCooldown == true
+						slotEntryMetaData.alwaysShow = entry.alwaysShow ~= false
+						cdp.ENTRY.RegisterSlotAlias(slotEntryIndex, trackedSlotId, panelId, entryId, slotEntryMetaData)
 					end
 				end
 			end
@@ -3680,6 +3740,10 @@ function CooldownPanels:RebuildSpellIndex()
 	runtime.spellIndex = index
 	runtime.spellEntryIndex = spellEntryIndex
 	runtime.spellEntryMeta = spellEntryMeta
+	runtime.itemEntryIndex = itemEntryIndex
+	runtime.itemEntryMeta = itemEntryMeta
+	runtime.slotEntryIndex = slotEntryIndex
+	runtime.slotEntryMeta = slotEntryMeta
 	runtime.enabledPanels = enabledPanels
 	runtime.enabledPanelIds = enabledPanelIds
 	runtime.itemPanels = itemPanels
@@ -18924,6 +18988,34 @@ function cdp.ENTRY.GetSpellTargets(runtime, spellId, baseSpellId)
 	return next(targets) and targets or nil
 end
 
+function cdp.ENTRY.GetItemTargets(runtime, itemId)
+	local index = runtime and runtime.itemEntryIndex
+	if not index then return nil end
+	runtime._eqolItemEntryTargets = runtime._eqolItemEntryTargets or {}
+	local targets = runtime._eqolItemEntryTargets
+	for panelId, entries in pairs(targets) do
+		if entries then
+			for entryId in pairs(entries) do
+				entries[entryId] = nil
+			end
+		end
+		targets[panelId] = nil
+	end
+
+	local numericItemId = tonumber(itemId)
+	if not numericItemId then return nil end
+	local panels = index[numericItemId]
+	if not panels then return nil end
+	for panelId, entries in pairs(panels) do
+		targets[panelId] = targets[panelId] or {}
+		for entryId, meta in pairs(entries) do
+			targets[panelId][entryId] = meta
+		end
+	end
+
+	return next(targets) and targets or nil
+end
+
 function cdp.ENTRY.QueuePanelRefresh(panelsToRefresh, panelId)
 	if not (panelsToRefresh and panelId) then return end
 	panelsToRefresh[panelId] = true
@@ -19231,6 +19323,144 @@ function cdp.ENTRY.ApplyVisibleSpellRuntime(panelId, runtime, icon, data, resolv
 	return true
 end
 
+function cdp.ENTRY.ApplyVisibleItemRuntime(panelId, runtime, icon, data, resolvedLayout)
+	if not (runtime and icon and data) then return false end
+	local staticFontPath = resolvedLayout and resolvedLayout.staticFontPath
+	local staticFontSize = resolvedLayout and resolvedLayout.staticFontSize
+	local staticFontStyle = resolvedLayout and resolvedLayout.staticFontStyle
+	local readyGlowPrimed = CooldownPanels.GetReadyGlowPrimedState(runtime)
+	local cooldownStart = data.cooldownStart or 0
+	local cooldownDuration = data.cooldownDuration or 0
+	local cooldownEnabledOk = data.cooldownEnabled ~= false and data.cooldownEnabled ~= 0
+	local cooldownActive = data.showCooldown and cooldownEnabledOk and isCooldownActive(cooldownStart, cooldownDuration)
+	local entryNoDesaturation = data.noDesaturation == true and data.emptyItem ~= true
+	local entryDrawEdge = data.cooldownDrawEdge ~= false
+	local entryDrawBling = data.cooldownDrawBling ~= false
+	local entryDrawSwipe = data.cooldownDrawSwipe ~= false
+	local hidden = false
+	local desaturate = data.emptyItem == true
+
+	icon:Show()
+	icon.cooldown._eqolPanelId = panelId
+	icon.cooldown._eqolEntryId = data.entryId
+	icon.cooldown._eqolCooldownIsGCD = data.cooldownGCD == true
+	icon.cooldown._eqolSoundReady = data.soundReady and not data.cooldownGCD
+	icon.cooldown._eqolSoundName = data.soundName
+	icon.cooldown._eqolGlowReady = data.glowReady
+	icon.cooldown._eqolGlowDuration = data.glowDuration
+	if icon.cooldown.Resume then icon.cooldown:Resume() end
+	if icon.cooldown.SetAlpha then icon.cooldown:SetAlpha(1) end
+	icon.cooldown:SetHideCountdownNumbers(not data.showCooldownText)
+	if icon.cooldown.SetReverse then icon.cooldown:SetReverse(false) end
+	if icon.cooldown.SetUseAuraDisplayTime then icon.cooldown:SetUseAuraDisplayTime(false) end
+
+	if data.showItemUses then
+		if data.itemUses ~= nil then
+			icon.charges:SetText(data.itemUses)
+			icon.charges:SetAlpha(1)
+			icon.charges:Show()
+		else
+			icon.charges:SetAlpha(1)
+			icon.charges:Hide()
+		end
+	else
+		icon.charges:SetAlpha(1)
+		icon.charges:Hide()
+	end
+
+	if data.showCooldown and cooldownActive then
+		icon.cooldown:SetCooldown(cooldownStart, cooldownDuration, 1)
+		setCooldownDrawState(icon.cooldown, entryDrawEdge, entryDrawBling, entryDrawSwipe)
+		if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", onCooldownDone) end
+		desaturate = true
+		if data.hideOnCooldown == true then
+			icon:SetAlpha(0)
+			hidden = true
+		elseif data.showOnCooldown == true then
+			icon:SetAlpha(1)
+		end
+	else
+		setCooldownDrawState(icon.cooldown, entryDrawEdge, entryDrawBling, entryDrawSwipe)
+		icon.cooldown:Clear()
+		if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", nil) end
+		if data.hideOnCooldown == true then
+			icon:SetAlpha(1)
+		elseif data.showOnCooldown == true then
+			icon:SetAlpha(0)
+			hidden = true
+		else
+			icon:SetAlpha(1)
+		end
+	end
+
+	CooldownPanels.SetIconDesaturatedRuntime(icon.texture, desaturate, entryNoDesaturation)
+	if not hidden and data.showOnCooldown ~= true and data.hideOnCooldown ~= true then icon:SetAlpha(1) end
+
+	if ((data.resolvedType == "ITEM" or data.resolvedType == "SLOT") and not cooldownEnabledOk and isSafeGreaterThan(cooldownDuration, 0)) then
+		icon.texture:SetVertexColor(0.4, 0.4, 0.4)
+	else
+		icon.texture:SetVertexColor(1, 1, 1)
+	end
+
+	if data.showItemCount and data.itemCount ~= nil then
+		icon.count:SetText(data.itemCount)
+		icon.count:Show()
+	else
+		icon.count:Hide()
+	end
+
+	local staticTextCooldown = false
+	if data.entry and data.entry.staticTextShowOnCooldown == true then
+		staticTextCooldown = cooldownEnabledOk and isCooldownActive(cooldownStart, cooldownDuration)
+	end
+	applyStaticText(icon, data.layout, data.entry, staticFontPath, staticFontSize, staticFontStyle, staticTextCooldown)
+
+	data.readyAt = runtime.readyAt and runtime.readyAt[data.entryId] or nil
+	local readyGlowCooldownRunning = cooldownEnabledOk and isCooldownActive(cooldownStart, cooldownDuration)
+	if data.canTriggerReadyGlow then
+		if readyGlowCooldownRunning then
+			CooldownPanels.ClearReadyGlowEntryState(panelId, data.entryId, true)
+			data.readyAt = nil
+		end
+	end
+	if data.glowReady and data.showCooldown and data.canTriggerReadyGlow then
+		if data.readyAt then
+			if readyGlowPrimed then readyGlowPrimed[data.entryId] = true end
+		elseif not readyGlowCooldownRunning and not data.cooldownGCD and readyGlowPrimed and not readyGlowPrimed[data.entryId] then
+			triggerReadyGlow(panelId, data.entryId, data.glowDuration)
+			readyGlowPrimed[data.entryId] = true
+			data.readyAt = runtime.readyAt[data.entryId]
+		end
+	end
+
+	local overlayGlow = data.overlayGlow == true
+	local overlayGlowColor = overlayGlow and data.overlayGlowColor or nil
+	local simpleGlowEnabled = overlayGlow
+	local simpleGlowColor = overlayGlowColor
+	local simpleGlowStyle = data.overlayGlowStyle or data.readyGlowStyle
+	local simpleGlowInset = data.overlayGlowInset or data.readyGlowInset
+	if data.glowReady then
+		local ready = data.readyAt ~= nil
+		if ready and data.readyGlowCheckPower == true and data.readyGlowResourceBlocked == true then ready = false end
+		simpleGlowEnabled = overlayGlow or ready
+		simpleGlowColor = ready and data.readyGlowColor or overlayGlowColor
+		simpleGlowStyle = ready and data.readyGlowStyle or (data.overlayGlowStyle or data.readyGlowStyle)
+		simpleGlowInset = ready and data.readyGlowInset or (data.overlayGlowInset or data.readyGlowInset)
+	end
+	setPreviewGlow(icon, false)
+	if data.liveGlowAllowed == false then
+		setGlow(icon, false, nil, "EQOL_SIMPLE")
+		setGlow(icon, false, nil, "EQOL_OVERLAY")
+		setGlow(icon, false, nil, "EQOL_READY")
+	else
+		setGlow(icon, false, nil, "EQOL_OVERLAY")
+		setGlow(icon, false, nil, "EQOL_READY")
+		setGlow(icon, simpleGlowEnabled, simpleGlowColor, "EQOL_SIMPLE", nil, nil, nil, simpleGlowStyle, simpleGlowInset)
+	end
+
+	return true
+end
+
 function cdp.ENTRY.TryRefreshVisibleSpellEntry(panelId, entryId, mode)
 	local panel = CooldownPanels:GetPanel(panelId)
 	local runtime = panel and getRuntime(panelId) or nil
@@ -19337,6 +19567,169 @@ function cdp.ENTRY.TryRefreshVisibleSpellEntry(panelId, entryId, mode)
 	return cdp.ENTRY.ApplyVisibleSpellRuntime(panelId, runtime, icon, data, resolvedLayout)
 end
 
+function cdp.ENTRY.TryRefreshVisibleItemEntry(panelId, entryId)
+	local panel = CooldownPanels:GetPanel(panelId)
+	local runtime = panel and getRuntime(panelId) or nil
+	if not (panel and runtime and runtime.frame) then return false end
+	if CooldownPanels:IsInEditMode() == true or CooldownPanels:IsPanelLayoutEditActive(panelId) then return false end
+
+	local icon = runtime.entryToIcon and runtime.entryToIcon[entryId] or nil
+	local data = icon and icon._eqolRuntimeData or nil
+	local entry = panel.entries and panel.entries[entryId] or nil
+	if not entry then return false end
+	local macro = entry.type == "MACRO" and CooldownPanels.ResolveMacroEntry(entry) or nil
+	local resolvedType = (macro and macro.kind) or entry.type
+	if resolvedType ~= "ITEM" then return false end
+
+	local baseItemId = tonumber((macro and macro.itemID) or entry.itemID)
+	if not baseItemId then return false end
+	local resolvedItemId = CooldownPanels.ResolveEntryItemID(entry, baseItemId)
+	if not (resolvedItemId and itemHasUseSpell(resolvedItemId)) then return false end
+
+	local showCooldown = entry.showCooldown ~= false
+	local showWhenEmpty = entry.showWhenEmpty == true
+	local showItemCount = entry.showItemCount ~= false
+	local showItemUses = entry.showItemUses == true
+	local alwaysShow = entry.alwaysShow ~= false
+	local itemCache = CooldownPanels.runtime and CooldownPanels.runtime.itemCountCache or nil
+	local cached = itemCache and itemCache[resolvedItemId] or nil
+	if not cached then
+		updateItemCountCacheForItem(resolvedItemId, showItemUses)
+		itemCache = CooldownPanels.runtime and CooldownPanels.runtime.itemCountCache or nil
+		cached = itemCache and itemCache[resolvedItemId] or nil
+	end
+
+	local cachedCount = cached and cached.count
+	local ownsItem
+	if cachedCount ~= nil then
+		ownsItem = cachedCount > 0 or (Api.IsEquippedItem and Api.IsEquippedItem(resolvedItemId))
+	else
+		ownsItem = hasItem(resolvedItemId)
+	end
+	local emptyItem = showWhenEmpty and not ownsItem
+	local cooldownStart, cooldownDuration, cooldownEnabled
+	local cooldownGCD = false
+	local newVisible = false
+	if (ownsItem or showWhenEmpty) and itemHasUseSpell(resolvedItemId) then
+		if (showCooldown or entry.staticTextShowOnCooldown == true) and ownsItem then
+			cooldownStart, cooldownDuration, cooldownEnabled = getItemCooldownInfo(resolvedItemId)
+			if CooldownPanels:IsItemCooldownOnGCD(resolvedItemId, cooldownStart, cooldownDuration) then
+				cooldownStart, cooldownDuration, cooldownEnabled = 0, 0, true
+				cooldownGCD = true
+			end
+		end
+		local cooldownEnabledOk = cooldownEnabled ~= false and cooldownEnabled ~= 0
+		newVisible = alwaysShow or showWhenEmpty
+		if not newVisible and showCooldown and cooldownEnabledOk and isCooldownActive(cooldownStart, cooldownDuration) then newVisible = true end
+	end
+	if not icon then return newVisible ~= true end
+	if not (data and data.entryId == entryId and data.resolvedType == "ITEM") then return false end
+	if not newVisible then return false end
+
+	local itemCount = nil
+	if showItemCount then
+		if cachedCount == nil then
+			updateItemCountCacheForItem(resolvedItemId, showItemUses)
+			itemCache = CooldownPanels.runtime and CooldownPanels.runtime.itemCountCache or nil
+			cached = itemCache and itemCache[resolvedItemId] or nil
+			cachedCount = cached and cached.count or 0
+		end
+		if isSafeGreaterThan(cachedCount, 0) then
+			itemCount = cachedCount
+		elseif showWhenEmpty then
+			itemCount = 0
+		end
+	end
+
+	local itemUses = nil
+	if showItemUses then
+		local uses = cached and cached.uses
+		if uses == nil then
+			updateItemCountCacheForItem(resolvedItemId, true)
+			itemCache = CooldownPanels.runtime and CooldownPanels.runtime.itemCountCache or nil
+			cached = itemCache and itemCache[resolvedItemId] or nil
+			uses = cached and cached.uses or 0
+		end
+		if isSafeGreaterThan(uses, 0) then
+			itemUses = uses
+		elseif showWhenEmpty then
+			itemUses = 0
+		end
+	end
+
+	data.itemCount = itemCount
+	data.itemUses = itemUses
+	data.emptyItem = emptyItem
+	data.cooldownStart = cooldownStart or 0
+	data.cooldownDuration = cooldownDuration or 0
+	data.cooldownEnabled = cooldownEnabled
+	data.cooldownIsActive = nil
+	data.cooldownRate = 1
+	data.cooldownGCD = cooldownGCD == true
+	data.cooldownDurationObject = nil
+	data.chargeDurationObject = nil
+	data.chargesInfo = nil
+	data.canTriggerReadyGlow = ownsItem == true
+	data.resolvedItemId = resolvedItemId
+
+	local resolvedLayout = CooldownPanels.ResolveRuntimeLayout(runtime, runtime.frame, panel.layout)
+	return cdp.ENTRY.ApplyVisibleItemRuntime(panelId, runtime, icon, data, resolvedLayout)
+end
+
+function cdp.ENTRY.TryRefreshVisibleSlotEntry(panelId, entryId)
+	local panel = CooldownPanels:GetPanel(panelId)
+	local runtime = panel and getRuntime(panelId) or nil
+	if not (panel and runtime and runtime.frame) then return false end
+	if CooldownPanels:IsInEditMode() == true or CooldownPanels:IsPanelLayoutEditActive(panelId) then return false end
+
+	local icon = runtime.entryToIcon and runtime.entryToIcon[entryId] or nil
+	local data = icon and icon._eqolRuntimeData or nil
+	local entry = panel.entries and panel.entries[entryId] or nil
+	if not (entry and entry.type == "SLOT") then return false end
+
+	local slotId = tonumber(entry.slotID)
+	if not slotId then return false end
+	local showCooldown = entry.showCooldown ~= false
+	local alwaysShow = entry.alwaysShow ~= false
+	local showWhenNoCooldown = entry.showWhenNoCooldown == true
+	local itemId = Api.GetInventoryItemID and Api.GetInventoryItemID("player", slotId) or nil
+	local hasUsableItem = itemId and itemHasUseSpell(itemId) or false
+	local cooldownStart, cooldownDuration, cooldownEnabled
+	local cooldownGCD = false
+	local newVisible = false
+	if hasUsableItem then
+		if showCooldown or entry.staticTextShowOnCooldown == true then
+			cooldownStart, cooldownDuration, cooldownEnabled = getItemCooldownInfo(itemId, slotId)
+			if CooldownPanels:IsItemCooldownOnGCD(itemId, cooldownStart, cooldownDuration) then
+				cooldownStart, cooldownDuration, cooldownEnabled = 0, 0, true
+				cooldownGCD = true
+			end
+		end
+		local cooldownEnabledOk = cooldownEnabled ~= false and cooldownEnabled ~= 0
+		newVisible = alwaysShow or showWhenNoCooldown
+		if not newVisible and showCooldown and cooldownEnabledOk and isCooldownActive(cooldownStart, cooldownDuration) then newVisible = true end
+	elseif showWhenNoCooldown then
+		newVisible = true
+	end
+	if not icon then return newVisible ~= true end
+	if not (data and data.entryId == entryId and data.resolvedType == "SLOT") then return false end
+	if not newVisible then return false end
+
+	data.cooldownStart = cooldownStart or 0
+	data.cooldownDuration = cooldownDuration or 0
+	data.cooldownEnabled = cooldownEnabled
+	data.cooldownIsActive = nil
+	data.cooldownRate = 1
+	data.cooldownGCD = cooldownGCD == true
+	data.cooldownDurationObject = nil
+	data.chargeDurationObject = nil
+	data.chargesInfo = nil
+	data.canTriggerReadyGlow = hasUsableItem == true
+
+	local resolvedLayout = CooldownPanels.ResolveRuntimeLayout(runtime, runtime.frame, panel.layout)
+	return cdp.ENTRY.ApplyVisibleItemRuntime(panelId, runtime, icon, data, resolvedLayout)
+end
+
 function cdp.ENTRY.RefreshSpellEntries(spellId, baseSpellId, mode, panelsToRefresh)
 	local runtime = CooldownPanels.runtime
 	local targets = cdp.ENTRY.GetSpellTargets(runtime, spellId, baseSpellId)
@@ -19371,6 +19764,119 @@ function cdp.ENTRY.RefreshSpellEntries(spellId, baseSpellId, mode, panelsToRefre
 	end
 
 	if startedBatch and CooldownPanels.EndRuntimeQueryBatch then CooldownPanels:EndRuntimeQueryBatch() end
+	return refreshed
+end
+
+function cdp.ENTRY.RefreshItemEntries(itemId, panelsToRefresh)
+	local runtime = CooldownPanels.runtime
+	local targets = cdp.ENTRY.GetItemTargets(runtime, itemId)
+	if not targets then return false end
+
+	local refreshed = false
+	for panelId, entries in pairs(targets) do
+		local panelNeedsRefresh = false
+		for entryId in pairs(entries) do
+			if cdp.ENTRY.TryRefreshVisibleItemEntry(panelId, entryId) then
+				refreshed = true
+			else
+				panelNeedsRefresh = true
+				refreshed = true
+				break
+			end
+		end
+		if panelNeedsRefresh then cdp.ENTRY.QueuePanelRefresh(panelsToRefresh, panelId) end
+	end
+
+	return refreshed
+end
+
+function cdp.ENTRY.RefreshAllTrackedBagCooldownEntries()
+	local runtime = CooldownPanels.runtime
+	if not runtime then return false end
+	local panelsToRefresh = cdp.ENTRY.GetPanelRefreshScratch(runtime, "_eqolBagCooldownEntryRefreshScratch")
+	local refreshed = false
+
+	local itemMeta = runtime.itemEntryMeta
+	if itemMeta then
+		for panelId, entries in pairs(itemMeta) do
+			local panelNeedsRefresh = false
+			for entryId in pairs(entries) do
+				if cdp.ENTRY.TryRefreshVisibleItemEntry(panelId, entryId) then
+					refreshed = true
+				else
+					panelNeedsRefresh = true
+				end
+			end
+			if panelNeedsRefresh then
+				cdp.ENTRY.QueuePanelRefresh(panelsToRefresh, panelId)
+				refreshed = true
+			end
+		end
+	end
+
+	local slotMeta = runtime.slotEntryMeta
+	if slotMeta then
+		for panelId, entries in pairs(slotMeta) do
+			local panelNeedsRefresh = false
+			for entryId in pairs(entries) do
+				if cdp.ENTRY.TryRefreshVisibleSlotEntry(panelId, entryId) then
+					refreshed = true
+				else
+					panelNeedsRefresh = true
+				end
+			end
+			if panelNeedsRefresh then
+				cdp.ENTRY.QueuePanelRefresh(panelsToRefresh, panelId)
+				refreshed = true
+			end
+		end
+	end
+
+	if cdp.ENTRY.FlushPanelRefreshes(panelsToRefresh) then refreshed = true end
+	return refreshed
+end
+
+function cdp.ENTRY.RefreshChangedTrackedItemEntries()
+	local runtime = CooldownPanels.runtime
+	if not runtime then return false end
+	runtime.itemCountCache = runtime.itemCountCache or {}
+	local cache = runtime.itemCountCache
+	local trackedIds = runtime.itemTrackedIds
+	local trackedUsesIds = runtime.itemUsesTrackedIds
+	if not trackedIds or not next(trackedIds) then return false end
+
+	local changedItemIds = runtime._eqolChangedTrackedItemIds
+	if not changedItemIds then
+		changedItemIds = {}
+		runtime._eqolChangedTrackedItemIds = changedItemIds
+	else
+		for itemId in pairs(changedItemIds) do
+			changedItemIds[itemId] = nil
+		end
+	end
+
+	for itemId in pairs(cache) do
+		if not trackedIds[itemId] then cache[itemId] = nil end
+	end
+	for itemId in pairs(trackedIds) do
+		local slot = cache[itemId] or {}
+		local oldCount = slot.count
+		local oldUses = slot.uses
+		local newCount = Api.GetItemCount(itemId, false, false) or 0
+		local newUses = trackedUsesIds and trackedUsesIds[itemId] and (Api.GetItemCount(itemId, false, true) or 0) or nil
+		if oldCount ~= newCount or oldUses ~= newUses then changedItemIds[itemId] = true end
+		slot.count = newCount
+		slot.uses = newUses
+		cache[itemId] = slot
+	end
+	if not next(changedItemIds) then return false end
+
+	local panelsToRefresh = cdp.ENTRY.GetPanelRefreshScratch(runtime, "_eqolItemEntryRefreshScratch")
+	local refreshed = false
+	for itemId in pairs(changedItemIds) do
+		if cdp.ENTRY.RefreshItemEntries(itemId, panelsToRefresh) then refreshed = true end
+	end
+	if cdp.ENTRY.FlushPanelRefreshes(panelsToRefresh) then refreshed = true end
 	return refreshed
 end
 
@@ -20418,13 +20924,11 @@ local function ensureUpdateFrame()
 			if not itemPanels or not next(itemPanels) then return end
 			local itemUsesPanels = runtime and runtime.itemUsesPanels
 			if itemUsesPanels and next(itemUsesPanels) then updateItemCountCache(true) end
-			for panelId in pairs(itemPanels) do
-				if CooldownPanels.RequestPanelRefresh then
-					CooldownPanels:RequestPanelRefresh(panelId)
-				elseif CooldownPanels:GetPanel(panelId) then
-					CooldownPanels:RefreshPanel(panelId)
-				end
-			end
+			cdp.ENTRY.RefreshAllTrackedBagCooldownEntries()
+			return
+		end
+		if event == "BAG_UPDATE_DELAYED" then
+			cdp.ENTRY.RefreshChangedTrackedItemEntries()
 			return
 		end
 		if event == "ACTIONBAR_SLOT_CHANGED" then
