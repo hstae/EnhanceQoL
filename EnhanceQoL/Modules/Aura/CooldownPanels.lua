@@ -133,7 +133,12 @@ function CooldownPanels:RegisterSpellVariantGroup(variantList)
 		self.spellVariantGroupByID = groupMap
 	end
 	for i = 1, #ids do
-		groupMap[ids[i]] = ids
+		local spellID = ids[i]
+		groupMap[spellID] = ids
+		if Api.GetBaseSpell then
+			local baseSpellID = Api.GetBaseSpell(spellID)
+			if type(baseSpellID) == "number" and baseSpellID > 0 then groupMap[baseSpellID] = ids end
+		end
 	end
 	return true
 end
@@ -500,7 +505,7 @@ end
 function CooldownPanels:GetReadySoundQuerySpellId(spellId)
 	local id = tonumber(spellId)
 	if not id then return nil end
-	return getEffectiveSpellId(id) or id
+	return self:ResolveTrackedSpellID(id)
 end
 
 function CooldownPanels:SpellIndexHasSpell(index, spellId)
@@ -529,8 +534,120 @@ function CooldownPanels:EnsureStaticSpellVariantGroupsLoaded()
 	self.runtime.staticSpellVariantGroupsLoaded = true
 end
 
+function cdp.RUNTIME.EnsureTalentChoiceSpellVariantGroupsLoaded(owner)
+	owner.runtime = owner.runtime or {}
+	local loadedByConfig = owner.runtime.talentChoiceSpellVariantGroupsLoadedByConfig
+	if type(loadedByConfig) ~= "table" then
+		loadedByConfig = {}
+		owner.runtime.talentChoiceSpellVariantGroupsLoadedByConfig = loadedByConfig
+	end
+
+	local configID = Api.GetActiveTalentConfigID and Api.GetActiveTalentConfigID() or nil
+	if not configID or loadedByConfig[configID] == true then return end
+	loadedByConfig[configID] = true
+
+	local configInfo = Api.GetTraitConfigInfo and Api.GetTraitConfigInfo(configID) or nil
+	local treeIDs = configInfo and configInfo.treeIDs
+	if type(treeIDs) ~= "table" then return end
+
+	local selectionNodeType = Api.TraitNodeTypeSelection
+	for _, treeID in ipairs(treeIDs) do
+		local nodeIDs = Api.GetTraitTreeNodes and Api.GetTraitTreeNodes(treeID) or nil
+		if type(nodeIDs) == "table" then
+			for _, nodeID in ipairs(nodeIDs) do
+				local nodeInfo = Api.GetTraitNodeInfo and Api.GetTraitNodeInfo(configID, nodeID) or nil
+				local entryIDs = nodeInfo and nodeInfo.entryIDs
+				if type(entryIDs) == "table" and #entryIDs > 1 and (selectionNodeType == nil or nodeInfo.type == selectionNodeType) then
+					local spellIDs = {}
+					local seenSpellIDs = {}
+					for _, entryID in ipairs(entryIDs) do
+						local entryInfo = Api.GetTraitEntryInfo and Api.GetTraitEntryInfo(configID, entryID) or nil
+						local definitionID = entryInfo and tonumber(entryInfo.definitionID) or nil
+						if definitionID then
+							local definitionInfo = Api.GetTraitDefinitionInfo and Api.GetTraitDefinitionInfo(definitionID) or nil
+							local spellID = definitionInfo and tonumber(definitionInfo.spellID) or nil
+							local baseSpellID = spellID and (getBaseSpellId(spellID) or spellID) or nil
+							if baseSpellID and baseSpellID > 0 and not seenSpellIDs[baseSpellID] then
+								seenSpellIDs[baseSpellID] = true
+								spellIDs[#spellIDs + 1] = baseSpellID
+							end
+						end
+					end
+					if #spellIDs >= 2 then owner:RegisterSpellVariantGroup(spellIDs) end
+				end
+			end
+		end
+	end
+end
+
+function cdp.RUNTIME.ResolveTrackedSpellID(owner, spellId)
+	local numericID = tonumber(spellId)
+	if not numericID then return nil, nil, nil end
+	local storedBaseSpellID = getBaseSpellId(numericID) or numericID
+	local resolvedSpellID = owner:ResolveKnownSpellVariantID(storedBaseSpellID) or storedBaseSpellID
+	local effectiveSpellID = getEffectiveSpellId(resolvedSpellID) or resolvedSpellID
+	return effectiveSpellID, resolvedSpellID, storedBaseSpellID
+end
+
+function cdp.RUNTIME.GetSpellAliasIDs(owner, spellId, outIds, seenIds)
+	local ids = outIds or {}
+	local seen = seenIds or {}
+
+	local function addID(id)
+		local numericID = tonumber(id)
+		if not numericID or seen[numericID] then return end
+		seen[numericID] = true
+		ids[#ids + 1] = numericID
+	end
+
+	local function collectID(id)
+		local numericID = tonumber(id)
+		if not numericID then return end
+		addID(numericID)
+		local baseSpellID = getBaseSpellId(numericID)
+		if baseSpellID and baseSpellID ~= numericID then addID(baseSpellID) end
+		local effectiveSpellID = getEffectiveSpellId(numericID)
+		if effectiveSpellID and effectiveSpellID ~= numericID and effectiveSpellID ~= baseSpellID then addID(effectiveSpellID) end
+	end
+
+	collectID(spellId)
+	local _, _, variantGroup = owner:GetCanonicalSpellVariantID(spellId)
+	if type(variantGroup) == "table" then
+		for i = 1, #variantGroup do
+			collectID(variantGroup[i])
+		end
+	end
+	return ids, seen
+end
+
+function cdp.RUNTIME.AreSpellVariantsEquivalent(owner, firstSpellId, secondSpellId)
+	local firstID = tonumber(firstSpellId)
+	local secondID = tonumber(secondSpellId)
+	if not (firstID and secondID) then return false end
+	if firstID == secondID then return true end
+	local firstCanonicalID = owner:GetCanonicalSpellVariantID(firstID) or getBaseSpellId(firstID) or firstID
+	local secondCanonicalID = owner:GetCanonicalSpellVariantID(secondID) or getBaseSpellId(secondID) or secondID
+	if firstCanonicalID == secondCanonicalID then return true end
+	local firstEffectiveID = getEffectiveSpellId(firstID)
+	local secondEffectiveID = getEffectiveSpellId(secondID)
+	return (firstEffectiveID and firstEffectiveID == secondID) or (secondEffectiveID and secondEffectiveID == firstID)
+		or (firstEffectiveID and secondEffectiveID and firstEffectiveID == secondEffectiveID)
+		or false
+end
+
+function CooldownPanels:EnsureTalentChoiceSpellVariantGroupsLoaded() cdp.RUNTIME.EnsureTalentChoiceSpellVariantGroupsLoaded(self) end
+
+function CooldownPanels:ResolveTrackedSpellID(spellId) return cdp.RUNTIME.ResolveTrackedSpellID(self, spellId) end
+
+function CooldownPanels:GetSpellAliasIDs(spellId, outIds, seenIds) return cdp.RUNTIME.GetSpellAliasIDs(self, spellId, outIds, seenIds) end
+
+function CooldownPanels:AreSpellVariantsEquivalent(firstSpellId, secondSpellId)
+	return cdp.RUNTIME.AreSpellVariantsEquivalent(self, firstSpellId, secondSpellId)
+end
+
 function CooldownPanels:GetCanonicalSpellVariantID(spellId)
 	self:EnsureStaticSpellVariantGroupsLoaded()
+	self:EnsureTalentChoiceSpellVariantGroupsLoaded()
 	local numericID = tonumber(spellId)
 	if not numericID then return nil, false, nil end
 	local baseSpellID = getBaseSpellId(numericID) or numericID
@@ -543,6 +660,7 @@ end
 
 function CooldownPanels:ResolveKnownSpellVariantID(spellId)
 	self:EnsureStaticSpellVariantGroupsLoaded()
+	self:EnsureTalentChoiceSpellVariantGroupsLoaded()
 	local numericID = tonumber(spellId)
 	if not numericID then return nil, false, nil end
 	local baseSpellID = getBaseSpellId(numericID) or numericID
@@ -2527,7 +2645,7 @@ local function getEntryIcon(entry)
 		return Helper.PREVIEW_ICON
 	end
 	if entry.type == "SPELL" and entry.spellID then
-		local spellId = getEffectiveSpellId(entry.spellID) or entry.spellID
+		local spellId = CooldownPanels:ResolveTrackedSpellID(entry.spellID) or getEffectiveSpellId(entry.spellID) or entry.spellID
 		local runtime = CooldownPanels.runtime
 		runtime = runtime or {}
 		CooldownPanels.runtime = runtime
@@ -2668,7 +2786,7 @@ local function getEntryName(entry)
 		end
 	end
 	if entry.type == "SPELL" then
-		local spellId = getEffectiveSpellId(entry.spellID) or entry.spellID
+		local spellId = CooldownPanels:ResolveTrackedSpellID(entry.spellID) or getEffectiveSpellId(entry.spellID) or entry.spellID
 		local name = getSpellName(spellId)
 		return name or ("Spell " .. tostring(entry.spellID or ""))
 	end
@@ -3653,8 +3771,10 @@ function CooldownPanels:RebuildSpellIndex()
 						end
 					end
 					if spellId then
-						local effectiveId = getEffectiveSpellId(spellId) or spellId
-						if not isSpellPassiveSafe(spellId, effectiveId) then
+						local effectiveId, resolvedSpellId = self:ResolveTrackedSpellID(spellId)
+						effectiveId = effectiveId or getEffectiveSpellId(spellId) or spellId
+						resolvedSpellId = resolvedSpellId or spellId
+						if not isSpellPassiveSafe(resolvedSpellId, effectiveId) then
 							local showCooldown = entry.showCooldown ~= false
 							local staticTextShowOnCooldown = entry.staticTextShowOnCooldown == true
 							local showCharges = entry.showCharges == true
@@ -3671,15 +3791,12 @@ function CooldownPanels:RebuildSpellIndex()
 							spellEntryMetaData.visibilityOnCharges = showCharges and not alwaysShow
 							spellEntryMetaData.localCooldownSafe = spellEntryMetaData.trackCooldown == true and spellEntryMetaData.visibilityOnCooldown ~= true
 							spellEntryMetaData.localChargesSafe = spellEntryMetaData.trackCharges == true and spellEntryMetaData.visibilityOnCharges ~= true
-							index[spellId] = index[spellId] or {}
-							index[spellId][panelId] = true
-							cdp.ENTRY.RegisterSpellAlias(spellEntryIndex, spellId, panelId, entryId, spellEntryMetaData)
-							if wantsRangeCheck then rangeCheckSpells[spellId] = true end
-							if effectiveId and effectiveId ~= spellId then
-								index[effectiveId] = index[effectiveId] or {}
-								index[effectiveId][panelId] = true
-								cdp.ENTRY.RegisterSpellAlias(spellEntryIndex, effectiveId, panelId, entryId, spellEntryMetaData)
+							for _, aliasId in ipairs(self:GetSpellAliasIDs(spellId)) do
+								index[aliasId] = index[aliasId] or {}
+								index[aliasId][panelId] = true
+								cdp.ENTRY.RegisterSpellAlias(spellEntryIndex, aliasId, panelId, entryId, spellEntryMetaData)
 							end
+							if wantsRangeCheck and effectiveId then rangeCheckSpells[effectiveId] = true end
 						end
 					end
 					if entry and (entry.type == "ITEM" or entry.type == "SLOT") and entry.showCooldown ~= false then itemPanels[panelId] = true end
@@ -3826,8 +3943,10 @@ function CooldownPanels:RebuildPowerIndex()
 							end
 							if baseId then
 								powerCheckActive = true
-								local effectiveId = getEffectiveSpellId(baseId) or baseId
-								if not isSpellPassiveSafe(baseId, effectiveId) then
+								local effectiveId, resolvedSpellId = self:ResolveTrackedSpellID(baseId)
+								effectiveId = effectiveId or getEffectiveSpellId(baseId) or baseId
+								resolvedSpellId = resolvedSpellId or baseId
+								if not isSpellPassiveSafe(resolvedSpellId, effectiveId) then
 									powerCheckSpells[effectiveId] = true
 									powerPanelsBySpell[effectiveId] = powerPanelsBySpell[effectiveId] or {}
 									powerPanelsBySpell[effectiveId][panelId] = true
@@ -3875,8 +3994,10 @@ function CooldownPanels:RebuildPowerIndex()
 							end
 							if baseId then
 								powerCheckActive = true
-								local effectiveId = getEffectiveSpellId(baseId) or baseId
-								if not isSpellPassiveSafe(baseId, effectiveId) then
+								local effectiveId, resolvedSpellId = self:ResolveTrackedSpellID(baseId)
+								effectiveId = effectiveId or getEffectiveSpellId(baseId) or baseId
+								resolvedSpellId = resolvedSpellId or baseId
+								if not isSpellPassiveSafe(resolvedSpellId, effectiveId) then
 									powerCheckSpells[effectiveId] = true
 									powerPanelsBySpell[effectiveId] = powerPanelsBySpell[effectiveId] or {}
 									powerPanelsBySpell[effectiveId][normalizedPanelId] = true
@@ -3948,18 +4069,16 @@ function CooldownPanels:RebuildChargesIndex()
 							end
 						end
 						if baseId then
-							local effectiveId = getEffectiveSpellId(baseId) or baseId
-							if not isSpellPassiveSafe(baseId, effectiveId) then
+							local effectiveId, resolvedSpellId = self:ResolveTrackedSpellID(baseId)
+							effectiveId = effectiveId or getEffectiveSpellId(baseId) or baseId
+							resolvedSpellId = resolvedSpellId or baseId
+							if not isSpellPassiveSafe(resolvedSpellId, effectiveId) then
 								chargesPanels[panelId] = true
 								if Api.GetSpellChargesInfo then
 									local info = Api.GetSpellChargesInfo(effectiveId)
 									if type(info) == "table" then
 										chargesIndex[effectiveId] = chargesIndex[effectiveId] or {}
 										chargesIndex[effectiveId][panelId] = true
-										if effectiveId ~= baseId then
-											chargesIndex[baseId] = chargesIndex[baseId] or {}
-											chargesIndex[baseId][panelId] = true
-										end
 									end
 								end
 							end
@@ -3981,18 +4100,16 @@ function CooldownPanels:RebuildChargesIndex()
 							end
 						end
 						if baseId then
-							local effectiveId = getEffectiveSpellId(baseId) or baseId
-							if not isSpellPassiveSafe(baseId, effectiveId) then
+							local effectiveId, resolvedSpellId = self:ResolveTrackedSpellID(baseId)
+							effectiveId = effectiveId or getEffectiveSpellId(baseId) or baseId
+							resolvedSpellId = resolvedSpellId or baseId
+							if not isSpellPassiveSafe(resolvedSpellId, effectiveId) then
 								chargesPanels[panelId] = true
 								if Api.GetSpellChargesInfo then
 									local info = Api.GetSpellChargesInfo(effectiveId)
 									if type(info) == "table" then
 										chargesIndex[effectiveId] = chargesIndex[effectiveId] or {}
 										chargesIndex[effectiveId][panelId] = true
-										if effectiveId ~= baseId then
-											chargesIndex[baseId] = chargesIndex[baseId] or {}
-											chargesIndex[baseId][panelId] = true
-										end
 									end
 								end
 							end
@@ -14720,7 +14837,18 @@ end
 
 local function isSpellFlagged(map, baseId, effectiveId)
 	if not map then return false end
-	return (effectiveId and map[effectiveId]) or (baseId and map[baseId]) or false
+	if (effectiveId and map[effectiveId]) or (baseId and map[baseId]) then return true end
+	local canonicalID, _, variantGroup = CooldownPanels:GetCanonicalSpellVariantID(effectiveId or baseId)
+	if canonicalID and map[canonicalID] then return true end
+	if type(variantGroup) == "table" then
+		for i = 1, #variantGroup do
+			local candidateID = tonumber(variantGroup[i])
+			if candidateID and map[candidateID] then return true end
+			local candidateEffectiveID = candidateID and getEffectiveSpellId(candidateID) or nil
+			if candidateEffectiveID and map[candidateEffectiveID] then return true end
+		end
+	end
+	return false
 end
 
 CooldownPanels.SetIconDesaturatedRuntime = function(texture, enabled, skipDesaturation)
@@ -14992,10 +15120,11 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			local cdmAuraAlwaysShowMode = resolvedType == "CDM_AURA" and CooldownPanels:ResolveEntryCDMAuraAlwaysShowMode(entryLayout, entry) or nil
 			local glowReady = entry.type ~= "MACRO" and entry.type ~= "CDM_AURA" and entry.glowReady ~= false
 			local baseSpellId = resolvedType == "SPELL" and ((macro and macro.spellID) or entry.spellID) or nil
-			local effectiveSpellId = baseSpellId and getEffectiveSpellId(baseSpellId) or nil
+			local effectiveSpellId = baseSpellId and CooldownPanels:ResolveTrackedSpellID(baseSpellId) or nil
+			local resolvedSpellId = baseSpellId and select(2, CooldownPanels:ResolveTrackedSpellID(baseSpellId)) or nil
 			local stanceRelevant = resolvedType == "STANCE" and CooldownPanels.IsStanceEntryRelevant and CooldownPanels:IsStanceEntryRelevant(entry) or false
 			local stanceActive = stanceRelevant and CooldownPanels.IsStanceEntryActive and CooldownPanels:IsStanceEntryActive(entry) or false
-			local spellPassive = baseSpellId and isSpellPassiveSafe(baseSpellId, effectiveSpellId) or false
+			local spellPassive = resolvedSpellId and isSpellPassiveSafe(resolvedSpellId, effectiveSpellId) or false
 			local cdmAuraData
 			local stackCount
 			local itemCount
@@ -19023,15 +19152,18 @@ function cdp.ENTRY.GetSpellTargets(runtime, spellId, baseSpellId)
 		end
 	end
 
-	local numericSpellId = tonumber(spellId)
-	local numericBaseSpellId = tonumber(baseSpellId)
-	collect(numericSpellId)
-	if numericBaseSpellId and numericBaseSpellId ~= numericSpellId then collect(numericBaseSpellId) end
-	local effectiveSpellId = numericSpellId and getEffectiveSpellId(numericSpellId) or nil
-	if effectiveSpellId and effectiveSpellId ~= numericSpellId and effectiveSpellId ~= numericBaseSpellId then collect(effectiveSpellId) end
-	local effectiveBaseSpellId = numericBaseSpellId and getEffectiveSpellId(numericBaseSpellId) or nil
-	if effectiveBaseSpellId and effectiveBaseSpellId ~= numericSpellId and effectiveBaseSpellId ~= numericBaseSpellId and effectiveBaseSpellId ~= effectiveSpellId then
-		collect(effectiveBaseSpellId)
+	local seenIDs = {}
+	for _, sourceId in ipairs({ spellId, baseSpellId }) do
+		if sourceId then
+			local aliasIDs = CooldownPanels:GetSpellAliasIDs(sourceId)
+			for i = 1, #aliasIDs do
+				local aliasId = aliasIDs[i]
+				if not seenIDs[aliasId] then
+					seenIDs[aliasId] = true
+					collect(aliasId)
+				end
+			end
+		end
 	end
 
 	return next(targets) and targets or nil
@@ -19534,9 +19666,10 @@ function cdp.ENTRY.TryRefreshVisibleSpellEntry(panelId, entryId, mode)
 	local macro = entry.type == "MACRO" and CooldownPanels.ResolveMacroEntry(entry) or nil
 	local baseSpellId = entry.type == "SPELL" and tonumber(entry.spellID) or (macro and macro.kind == "SPELL" and tonumber(macro.spellID)) or nil
 	if not baseSpellId then return false end
-	local effectiveSpellId = getEffectiveSpellId(baseSpellId) or baseSpellId
+	local effectiveSpellId, resolvedSpellId = CooldownPanels:ResolveTrackedSpellID(baseSpellId)
+	effectiveSpellId = effectiveSpellId or getEffectiveSpellId(baseSpellId) or baseSpellId
 	local spellId = effectiveSpellId or baseSpellId
-	local spellPassive = isSpellPassiveSafe(baseSpellId, effectiveSpellId)
+	local spellPassive = isSpellPassiveSafe(resolvedSpellId or baseSpellId, effectiveSpellId)
 	if spellPassive or (Api.IsSpellKnown and not Api.IsSpellKnown(spellId)) then return false end
 
 	local showCooldown = entry.showCooldown ~= false
@@ -19963,11 +20096,10 @@ refreshPanelsForSpell = function(spellId)
 			refreshed = true
 		end
 	end
-	collectPanels(id)
-	local baseId = getBaseSpellId(id)
-	if baseId and baseId ~= id then collectPanels(baseId) end
-	local effectiveId = getEffectiveSpellId(id)
-	if effectiveId and effectiveId ~= id and effectiveId ~= baseId then collectPanels(effectiveId) end
+	local aliasIDs = CooldownPanels:GetSpellAliasIDs(id)
+	for i = 1, #aliasIDs do
+		collectPanels(aliasIDs[i])
+	end
 	if not refreshed then return false end
 	for panelId in pairs(panelsToRefresh) do
 		panelsToRefresh[panelId] = nil
@@ -20423,8 +20555,10 @@ updateRangeCheckSpells = function(rangeCheckSpells)
 								if macro and macro.kind == "SPELL" and macro.spellID then spellId = tonumber(macro.spellID) end
 							end
 							if spellId then
-								local effectiveId = getEffectiveSpellId(spellId) or spellId
-								if not isSpellPassiveSafe(spellId, effectiveId) then wanted[spellId] = true end
+								local effectiveId, resolvedSpellId = CooldownPanels:ResolveTrackedSpellID(spellId)
+								effectiveId = effectiveId or getEffectiveSpellId(spellId) or spellId
+								resolvedSpellId = resolvedSpellId or spellId
+								if not isSpellPassiveSafe(resolvedSpellId, effectiveId) and effectiveId then wanted[effectiveId] = true end
 							end
 						end
 					end
@@ -20473,8 +20607,7 @@ local function clearReadyGlowForSpell(spellId)
 						local macro = CooldownPanels.ResolveMacroEntry(entry)
 						if macro and macro.kind == "SPELL" and macro.spellID then entrySpellId = tonumber(macro.spellID) end
 					end
-					local effectiveId = entrySpellId and getEffectiveSpellId(entrySpellId) or nil
-					if entrySpellId == id or effectiveId == id then
+					if CooldownPanels:AreSpellVariantsEquivalent(entrySpellId, id) then
 						runtime.readyAt[entryId] = nil
 						local t = runtime.glowTimers[entryId]
 						if t and t.Cancel then t:Cancel() end
@@ -20503,11 +20636,10 @@ local function triggerProcSoundForSpell(spellId)
 		end
 	end
 
-	mergePanels(index[id])
-	local baseId = getBaseSpellId(id)
-	if baseId and baseId ~= id then mergePanels(index[baseId]) end
-	local effectiveId = getEffectiveSpellId(id)
-	if effectiveId and effectiveId ~= id then mergePanels(index[effectiveId]) end
+	local aliasIDs = CooldownPanels:GetSpellAliasIDs(id)
+	for i = 1, #aliasIDs do
+		mergePanels(index[aliasIDs[i]])
+	end
 	if not panels then return end
 
 	-- EINMAL spielen, auch wenn der Spell in mehreren Panels vorkommt.
@@ -20528,16 +20660,11 @@ local function triggerProcSoundForSpell(spellId)
 					local macro = CooldownPanels.ResolveMacroEntry(entry)
 					if macro and macro.kind == "SPELL" and macro.spellID then entryBaseId = tonumber(macro.spellID) end
 				end
-				if entryBaseId then
-					local entryEffId = getEffectiveSpellId(entryBaseId) or entryBaseId
-					if entryBaseId == id or entryEffId == id then
-						if entry.type ~= "MACRO" and entry.soundReady == true then
-							local soundName = normalizeSoundName(entry.soundReadyFile)
-							if soundName and soundName ~= "None" then
-								playSoundName(soundName)
-								return true
-							end
-						end
+				if entryBaseId and CooldownPanels:AreSpellVariantsEquivalent(entryBaseId, id) and entry.type ~= "MACRO" and entry.soundReady == true then
+					local soundName = normalizeSoundName(entry.soundReadyFile)
+					if soundName and soundName ~= "None" then
+						playSoundName(soundName)
+						return true
 					end
 				end
 			end
