@@ -16295,7 +16295,18 @@ function CooldownPanels:RefreshPanel(panelId)
 	if panel.enabled == false and not self:IsInEditMode() and not layoutEditActive then
 		local runtime = self.runtime and self.runtime[panelId]
 		local frame = runtime and runtime.frame
-		if frame then frame:Hide() end
+		if runtime then runtime.visibleCount = 0 end
+		if frame then
+			self:ApplyVisibilityDriverToFrame(frame, nil)
+			local inCombat = (InCombatLockdown and InCombatLockdown()) or false
+			local isProtected = frame.IsProtected and frame:IsProtected()
+			if not (inCombat and isProtected) then
+				frame:Hide()
+				self:UpdatePanelOpacity(panelId, nil)
+			else
+				self:UpdatePanelOpacity(panelId, 0)
+			end
+		end
 		return
 	end
 	local startedRuntimeQueryBatch = false
