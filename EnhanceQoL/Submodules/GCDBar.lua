@@ -82,11 +82,15 @@ local DB_STRATA = "gcdBarStrata"
 
 local DEFAULT_TEX = "Interface\\TargetingFrame\\UI-StatusBar"
 local SPARK_ATLAS = "XPBarAnim-OrangeSpark"
-local GetSpellCooldownInfo = (C_Spell and C_Spell.GetSpellCooldown) or GetSpellCooldown
-local GetTime = GetTime
+local GetSpellCooldownDurationObject = C_Spell and C_Spell.GetSpellCooldownDuration
 local BAR_WIDTH_MIN = 6
 local BAR_HEIGHT_MIN = 1
 local BAR_SIZE_MAX = 2000
+local STATUS_BAR_INTERPOLATION_IMMEDIATE = Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.Immediate or 0
+local STATUS_BAR_INTERPOLATION_TIMER = Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.ExponentialEaseOut or 1
+local STATUS_BAR_TIMER_DIRECTION_ELAPSED = Enum and Enum.StatusBarTimerDirection and Enum.StatusBarTimerDirection.ElapsedTime or 0
+local STATUS_BAR_TIMER_DIRECTION_REMAINING = Enum and Enum.StatusBarTimerDirection and Enum.StatusBarTimerDirection.RemainingTime or 1
+local DURATION_MODIFIER_REALTIME = Enum and Enum.DurationTimeModifier and Enum.DurationTimeModifier.RealTime or 0
 local STRATA_ORDER = { "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG", "FULLSCREEN", "FULLSCREEN_DIALOG", "TOOLTIP" }
 local VALID_STRATA = {}
 for _, strata in ipairs(STRATA_ORDER) do
@@ -499,8 +503,32 @@ local function onWidthMatchGeometryChanged()
 	if GCDBar and GCDBar.AnchorUsesMatchedWidth and GCDBar:AnchorUsesMatchedWidth() then GCDBar:ScheduleMatchedWidthSync() end
 end
 
-local function onGCDBarEvent(_, event, ...)
-	GCDBar:OnEvent(event, ...)
+local function onGCDBarEvent(_, event, ...) GCDBar:OnEvent(event, ...) end
+
+local function onGCDBarValueChanged(_, value) GCDBar:OnValueChanged(value) end
+
+local function getDurationObjectRemaining(durationObject)
+	if not (durationObject and durationObject.GetRemainingDuration) then return nil end
+	return tonumber(durationObject.GetRemainingDuration(durationObject, DURATION_MODIFIER_REALTIME))
+end
+
+local function getDurationObjectTotal(durationObject)
+	if not (durationObject and durationObject.GetTotalDuration) then return nil end
+	return tonumber(durationObject.GetTotalDuration(durationObject, DURATION_MODIFIER_REALTIME))
+end
+
+local function getTimerDirection(progressMode)
+	if progressMode == "ELAPSED" then return STATUS_BAR_TIMER_DIRECTION_ELAPSED end
+	return STATUS_BAR_TIMER_DIRECTION_REMAINING
+end
+
+local function getDurationObjectProgress(durationObject, progressMode)
+	local remaining = getDurationObjectRemaining(durationObject)
+	local total = getDurationObjectTotal(durationObject)
+	if not (remaining and total and total > 0) then return nil end
+	local progress = remaining / total
+	if progressMode == "ELAPSED" then progress = 1 - progress end
+	return clamp01(progress)
 end
 
 function GCDBar:ScheduleMatchedWidthSync()
@@ -629,11 +657,10 @@ end
 
 function GCDBar:ApplyStrata()
 	if not self.frame then return end
-	local strata = self:GetStrata() or ((self.frame.GetParent and self.frame:GetParent() and self.frame:GetParent().GetFrameStrata and self.frame:GetParent():GetFrameStrata()) or self.frame:GetFrameStrata() or "MEDIUM")
+	local strata = self:GetStrata()
+		or ((self.frame.GetParent and self.frame:GetParent() and self.frame:GetParent().GetFrameStrata and self.frame:GetParent():GetFrameStrata()) or self.frame:GetFrameStrata() or "MEDIUM")
 	if self.frame.GetFrameStrata and self.frame.SetFrameStrata and self.frame:GetFrameStrata() ~= strata then self.frame:SetFrameStrata(strata) end
-	if self.frame.border and self.frame.border.GetFrameStrata and self.frame.border.SetFrameStrata and self.frame.border:GetFrameStrata() ~= strata then
-		self.frame.border:SetFrameStrata(strata)
-	end
+	if self.frame.border and self.frame.border.GetFrameStrata and self.frame.border.SetFrameStrata and self.frame.border:GetFrameStrata() ~= strata then self.frame.border:SetFrameStrata(strata) end
 end
 
 function GCDBar:ApplyAppearance()
@@ -708,7 +735,7 @@ function GCDBar:OnMediaRegistered(mediaType, mediaKey)
 		self.frame:SetValue(1)
 		self.frame:Show()
 	elseif self._gcdActive then
-		self:UpdateTimer()
+		self:UpdateSpark()
 	end
 	refreshSettingsUI()
 end
@@ -760,6 +787,7 @@ function GCDBar:EnsureFrame()
 	label:SetText(L["GCDBar"] or "GCD Bar")
 	label:Hide()
 	bar.label = label
+	bar:SetScript("OnValueChanged", onGCDBarValueChanged)
 
 	self.frame = bar
 	self:ApplyAppearance()
@@ -788,40 +816,26 @@ function GCDBar:ShowEditModeHint(show)
 end
 
 function GCDBar:StopTimer()
-	if self.frame and self.frame.SetScript then self.frame:SetScript("OnUpdate", nil) end
 	self._gcdActive = nil
-	self._gcdStart = nil
-	self._gcdDuration = nil
-	self._gcdRate = nil
-	if self.frame then self.frame:Hide() end
+	self._gcdDurationObject = nil
+	if self.frame then
+		if self.frame.SetMinMaxValues then self.frame:SetMinMaxValues(0, 1, STATUS_BAR_INTERPOLATION_IMMEDIATE) end
+		if self.frame.SetValue then self.frame:SetValue(0, STATUS_BAR_INTERPOLATION_IMMEDIATE) end
+		if self.frame.SetToTargetValue then self.frame:SetToTargetValue() end
+		self.frame:Hide()
+	end
 	self:HideSpark()
 end
 
-function GCDBar:UpdateTimer()
+function GCDBar:OnValueChanged(value)
 	if self.previewing then return end
 	if not self.frame then return end
 	if not self._gcdActive then return end
-	local start = self._gcdStart
-	local duration = self._gcdDuration
-	if not start or not duration or duration <= 0 then
+	local remaining = getDurationObjectRemaining(self._gcdDurationObject)
+	if remaining ~= nil and remaining <= 0 then
 		self:StopTimer()
 		return
 	end
-	local now = GetTime and GetTime() or 0
-	local rate = self._gcdRate or 1
-	local elapsed = (now - start) * rate
-	if elapsed >= duration then
-		self:StopTimer()
-		return
-	end
-	local progress = elapsed / duration
-	if progress < 0 then progress = 0 end
-	if progress > 1 then progress = 1 end
-	local value = progress
-	if self:GetProgressMode() ~= "ELAPSED" then value = 1 - progress end
-	self.frame:SetMinMaxValues(0, 1)
-	self.frame:SetValue(value)
-	self.frame:Show()
 	self:UpdateSpark(value)
 end
 
@@ -833,28 +847,29 @@ function GCDBar:UpdateGCD()
 		return
 	end
 	self:MaybeUpdateAnchor()
-	if not GetSpellCooldownInfo then return end
-
-	local start, duration, enabled, modRate
-	local info, info2, info3, info4 = GetSpellCooldownInfo(GCD_SPELL_ID)
-	if type(info) == "table" then
-		start = info.startTime
-		duration = info.duration
-		enabled = info.isEnabled
-		modRate = info.modRate or 1
-	else
-		start, duration, enabled, modRate = info, info2, info3, info4
-	end
-	if not enabled or not duration or duration <= 0 or not start or start <= 0 then
+	if not (GetSpellCooldownDurationObject and self.frame.SetTimerDuration) then
 		self:StopTimer()
 		return
 	end
+
+	local durationObject = GetSpellCooldownDurationObject(GCD_SPELL_ID)
+	local total = getDurationObjectTotal(durationObject)
+	local remaining = getDurationObjectRemaining(durationObject)
+	if not durationObject or not total or total <= 0 or not remaining or remaining <= 0 then
+		self:StopTimer()
+		return
+	end
+
+	local progressMode = self:GetProgressMode()
+	local direction = getTimerDirection(progressMode)
+	local initialValue = getDurationObjectProgress(durationObject, progressMode)
 	self._gcdActive = true
-	self._gcdStart = start
-	self._gcdDuration = duration
-	self._gcdRate = modRate or 1
-	if self.frame.SetScript then self.frame:SetScript("OnUpdate", GCDBar.UpdateTimer) end
-	self:UpdateTimer()
+	self._gcdDurationObject = durationObject
+	if self.frame.SetMinMaxValues then self.frame:SetMinMaxValues(0, 1, STATUS_BAR_INTERPOLATION_IMMEDIATE) end
+	if initialValue ~= nil and self.frame.SetValue then self.frame:SetValue(initialValue, STATUS_BAR_INTERPOLATION_IMMEDIATE) end
+	self.frame:SetTimerDuration(durationObject, STATUS_BAR_INTERPOLATION_TIMER, direction)
+	self.frame:Show()
+	self:UpdateSpark(initialValue ~= nil and initialValue or (self.frame.GetValue and self.frame:GetValue() or nil))
 end
 
 function GCDBar:OnEvent(event, spellID, baseSpellID)

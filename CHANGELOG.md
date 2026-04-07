@@ -26,6 +26,7 @@
 - Resource Bars / Group Frames: Fixed resource bars losing their configured positions or resolving relative-width anchors incorrectly after spec, zone, or instance changes, and corrected specialization update event handling.
 - Unit Frames: Fixed boss frame reliability in some encounters, spec-mapped profile updates after role changes, and missing specialization assignments in profile export/import.
 - Group Frames / Auras: Fixed centered aura layouts drifting off-center and raid `Group Growth` issues when raid frames were grouped by role.
+- GCD Bar: Fixed the bar sometimes starting from `0` or briefly filling the wrong way before smoothing into the active global cooldown progress.
 - Class Buff Reminder: Fixed Holy Paladin beacon tracking, Rogue poison reminders, and role-based hiding when no group role was assigned.
 - Chat / Group Finder: Fixed truncated copied chat history, prevented ChatIM from opening its own whisper window during chat lockdown, and reduced Blizzard UI errors on the Mythic+ score panel.
 - UI: Fixed some glows not showing reliably after login or other state changes, and restored shortened actionbar labels for `Backspace` and `Space`.
