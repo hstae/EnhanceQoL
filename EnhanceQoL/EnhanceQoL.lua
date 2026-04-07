@@ -6038,7 +6038,14 @@ local function setAllHooks()
 		return false
 	end
 
+	local function hasApplicantRestrictions()
+		return addon.functions
+			and addon.functions.isRestrictedContent
+			and addon.functions.isRestrictedContent() == true
+	end
+
 	local function getApplicantPrimaryName(applicantID)
+		if hasApplicantRestrictions() then return nil end
 		if isSecret(applicantID) or not (C_LFGList and C_LFGList.GetApplicantMemberInfo) then return nil end
 		local name = C_LFGList.GetApplicantMemberInfo(applicantID, 1)
 		if isSecret(name) or type(name) ~= "string" or name == "" then return nil end
@@ -6046,6 +6053,7 @@ local function setAllHooks()
 	end
 
 	local function getApplicantDungeonScore(applicantID)
+		if hasApplicantRestrictions() then return nil end
 		if isSecret(applicantID) or not (C_LFGList and C_LFGList.GetApplicantMemberInfo) then return nil end
 		local _, _, _, _, _, _, _, _, _, _, _, dungeonScore = C_LFGList.GetApplicantMemberInfo(applicantID, 1)
 		if isSecret(dungeonScore) or type(dungeonScore) ~= "number" then return nil end
@@ -6061,7 +6069,7 @@ local function setAllHooks()
 	end
 
 	local function FlagIgnoredApplicants(applicantIDs)
-		if not addon.db.enableIgnore or not addon.Ignore or not addon.Ignore.CheckIgnore or isSecret(applicantIDs) then return end
+		if hasApplicantRestrictions() or not addon.db.enableIgnore or not addon.Ignore or not addon.Ignore.CheckIgnore or isSecret(applicantIDs) then return end
 		wipe(ignoredApplicants)
 		for _, applicantID in ipairs(applicantIDs) do
 			if not isSecret(applicantID) then
@@ -6075,16 +6083,16 @@ local function setAllHooks()
 	end
 
 	local function ApplyIgnoreHighlight(memberFrame, applicantID)
+		if hasApplicantRestrictions() then return end
 		if isSecret(applicantID) then return end
 		local entry = ignoredApplicants[applicantID]
 		if not entry or not memberFrame or not memberFrame.Name then return end
 		memberFrame.Name:SetTextColor(1, 0, 0, 1)
 		decorateIgnoredFontString(memberFrame.Name)
-		memberFrame.eqolIgnoreEntry = entry
 	end
 
 	local function SortApplicants(applicants)
-		if addon.functions.isRestrictedContent() then return end
+		if hasApplicantRestrictions() or type(applicants) ~= "table" or isSecret(applicants) then return end
 		if addon.db.lfgSortByRio then
 			local order = {}
 			local scores = {}
@@ -6122,22 +6130,18 @@ local function setAllHooks()
 	end
 
 	hooksecurefunc("LFGListApplicationViewer_UpdateApplicantMember", function(memberFrame, appID, memberIdx)
-		-- Store identifiers for context-menu usage (e.g., Raider.IO link)
-		if memberFrame then
-			memberFrame._eqolApplicantID = isSecret(appID) and nil or appID
-			memberFrame._eqolMemberIdx = isSecret(memberIdx) and nil or memberIdx
-		end
 		if addon.db.enableIgnore then ApplyIgnoreHighlight(memberFrame, appID) end
 	end)
 
 	hooksecurefunc("LFGListApplicationViewer_UpdateResults", function()
-		if not addon.db.enableIgnore or addon.db.lfgSortByRio then return end
+		if hasApplicantRestrictions() or not addon.db.enableIgnore or addon.db.lfgSortByRio then return end
 		local applicants = C_LFGList.GetApplicants() or {}
 		FlagIgnoredApplicants(applicants)
 	end)
 
 	-- Highlight group listings where the leader is on the ignore list
 	local function ApplyIgnoreHighlightSearch(entry)
+		if hasApplicantRestrictions() then return end
 		if not addon.db.enableIgnore or not addon.Ignore or not addon.Ignore.CheckIgnore then return end
 		if not entry or not entry.resultID or isSecret(entry.resultID) then return end
 

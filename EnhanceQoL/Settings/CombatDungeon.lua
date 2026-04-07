@@ -955,9 +955,11 @@ function addon.functions.initDungeonFrame()
 
 		local function AddLFGApplicantRIO(owner, root, ctx)
 			if not addon.db["enableChatIMRaiderIO"] then return end
+			if addon.functions and addon.functions.hasSecretRestrictions and addon.functions.hasSecretRestrictions() then return end
 
-			local appID = owner and owner._eqolApplicantID or (ctx and (ctx.applicantID or ctx.appID))
-			local memberIdx = owner and owner._eqolMemberIdx or (ctx and (ctx.memberIdx or ctx.memberIndex))
+			local ownerParent = owner and owner.GetParent and owner:GetParent() or nil
+			local appID = (ownerParent and ownerParent.applicantID) or (ctx and (ctx.applicantID or ctx.appID))
+			local memberIdx = (owner and owner.memberIdx) or (ctx and (ctx.memberIdx or ctx.memberIndex))
 			if issecretvalue and (issecretvalue(appID) or issecretvalue(memberIdx)) then return end
 			if not appID or not memberIdx then return end
 
