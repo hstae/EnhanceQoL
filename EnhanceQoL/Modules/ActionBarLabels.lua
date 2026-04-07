@@ -11,6 +11,7 @@ local QUICK_SLOT_BORDER = "Interface\\Buttons\\UI-Quickslot2"
 local DEFAULT_BORDER_EDGE_SIZE = 16
 local DEFAULT_BORDER_PADDING = 0
 local EXTRA_ACTION_BAR_NAME = "ExtraActionBar"
+local ZONE_ABILITY_BAR_NAME = "ZoneAbilityBar"
 local LSM = LibStub("LibSharedMedia-3.0", true)
 
 local function getDefaultFontFace()
@@ -51,11 +52,27 @@ local function IsExtraActionButton(button)
 	return button.GetName and button:GetName() == "ExtraActionButton1"
 end
 
+local function IsZoneAbilityButton(button)
+	if not button then return false end
+	if button.EQOL_ActionBarName == ZONE_ABILITY_BAR_NAME then return true end
+	local zoneAbilityFrame = _G.ZoneAbilityFrame
+	local container = zoneAbilityFrame and zoneAbilityFrame.SpellButtonContainer
+	if container and button.GetParent and button:GetParent() == container then
+		button.EQOL_ActionBarName = ZONE_ABILITY_BAR_NAME
+		return true
+	end
+	return false
+end
+
 local function DetermineButtonBarName(button)
 	if not button then return nil end
 	if IsExtraActionButton(button) then
 		button.EQOL_ActionBarName = EXTRA_ACTION_BAR_NAME
 		return EXTRA_ACTION_BAR_NAME
+	end
+	if IsZoneAbilityButton(button) then
+		button.EQOL_ActionBarName = ZONE_ABILITY_BAR_NAME
+		return ZONE_ABILITY_BAR_NAME
 	end
 	if button.EQOL_ActionBarName then return button.EQOL_ActionBarName end
 	local lookup = EnsureActionBarNameLookup()
@@ -93,6 +110,19 @@ local function ForEachActionButton(callback)
 	end
 end
 
+local function ForEachZoneAbilityButton(callback)
+	if type(callback) ~= "function" then return end
+	local zoneAbilityFrame = _G.ZoneAbilityFrame
+	local container = zoneAbilityFrame and zoneAbilityFrame.SpellButtonContainer
+	if not container or not container.EnumerateActive then return end
+	for spellButton in container:EnumerateActive() do
+		if spellButton then
+			spellButton.EQOL_ActionBarName = ZONE_ABILITY_BAR_NAME
+			callback(spellButton)
+		end
+	end
+end
+
 local function ForEachHotkeyButton(callback)
 	if type(callback) ~= "function" then return end
 	local seen = {}
@@ -108,6 +138,20 @@ local function ForEachHotkeyButton(callback)
 			text = (addon.L and addon.L["actionBarExtraActionButton"]) or "Extra Action Button",
 		}, 1)
 	end
+end
+
+local function ForEachActionButtonBorderTarget(callback)
+	if type(callback) ~= "function" then return end
+	local seen = {}
+	local function visit(button)
+		if not button or seen[button] then return end
+		seen[button] = true
+		callback(button)
+	end
+
+	ForEachActionButton(function(button) visit(button) end)
+	visit(_G.ExtraActionButton1)
+	ForEachZoneAbilityButton(visit)
 end
 
 local function GetNormalTexture(button)
@@ -333,7 +377,8 @@ end
 
 function Labels.RefreshActionButtonBorders()
 	if Labels.EnsureActionButtonArtHook then Labels.EnsureActionButtonArtHook() end
-	ForEachActionButton(function(button) RefreshButtonBorder(button) end)
+	if Labels.EnsureZoneAbilityBorderHook then Labels.EnsureZoneAbilityBorderHook() end
+	ForEachActionButtonBorderTarget(function(button) RefreshButtonBorder(button) end)
 end
 
 function Labels.RefreshActionButtonBorder(button) RefreshButtonBorder(button) end
@@ -1021,6 +1066,38 @@ function Labels.EnsureActionButtonArtHook()
 		if Labels.RefreshActionButtonBorder then Labels.RefreshActionButtonBorder(button) end
 	end)
 	Labels._actionBarArtHooked = true
+end
+
+function Labels.EnsureZoneAbilityBorderHook()
+	if Labels._zoneAbilityBorderHooked then return true end
+
+	local mixin = _G.ZoneAbilityFrameSpellButtonMixin
+	if mixin and type(mixin.Refresh) == "function" then
+		hooksecurefunc(mixin, "Refresh", function(button)
+			if Labels.RefreshActionButtonBorder then Labels.RefreshActionButtonBorder(button) end
+		end)
+		Labels._zoneAbilityBorderHooked = true
+		if Labels._zoneAbilityBorderLoadWatcher then
+			Labels._zoneAbilityBorderLoadWatcher:UnregisterEvent("ADDON_LOADED")
+			Labels._zoneAbilityBorderLoadWatcher:SetScript("OnEvent", nil)
+			Labels._zoneAbilityBorderLoadWatcher = nil
+		end
+		return true
+	end
+
+	if not Labels._zoneAbilityBorderLoadWatcher then
+		local frame = CreateFrame("Frame")
+		frame:RegisterEvent("ADDON_LOADED")
+		frame:SetScript("OnEvent", function(self, _, loadedAddonName)
+			if loadedAddonName ~= "Blizzard_ZoneAbility" then return end
+			if Labels.EnsureZoneAbilityBorderHook and Labels.EnsureZoneAbilityBorderHook() then
+				if Labels.RefreshActionButtonBorders then Labels.RefreshActionButtonBorders() end
+			end
+		end)
+		Labels._zoneAbilityBorderLoadWatcher = frame
+	end
+
+	return false
 end
 
 local initFrame = CreateFrame("Frame")

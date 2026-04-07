@@ -20,6 +20,7 @@
 ### 🐛 Fixed
 
 - Cooldown Panels: Fixed centered fixed-slot subgroup anchoring, tracked-aura lag spikes, spell icon dimming, charges and text overrides snapping back after refreshes, ghost previews after Edit Mode, ready sounds failing in combat, dynamic icons, and a module loading error.
+- UI / Action Buttons: Fixed `Hide Border` and custom action-button borders not applying to `ZoneAbilityFrame` buttons.
 - Cooldown Panels (Tracked Auras / Fixed Slots): Full fixed-slot panels now show the proper full-panel error when adding another tracked aura.
 - Resource Bars / Group Frames: Fixed resource bars losing their configured positions or resolving relative-width anchors incorrectly after spec, zone, or instance changes, and corrected specialization update event handling.
 - Unit Frames: Fixed boss frame reliability in some encounters, spec-mapped profile updates after role changes, and missing specialization assignments in profile export/import.
