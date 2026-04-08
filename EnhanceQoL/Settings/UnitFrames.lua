@@ -3,6 +3,7 @@ local addonName, addon = ...
 local L = LibStub("AceLocale-3.0"):GetLocale(addonName)
 local getCVarOptionState = addon.functions.GetCVarOptionState or function() return false end
 local setCVarOptionState = addon.functions.SetCVarOptionState or function() end
+local CompactRaidFrameContainer = _G.CompactRaidFrameContainer
 
 local cUnitFrame = addon.SettingsLayout.rootUI
 

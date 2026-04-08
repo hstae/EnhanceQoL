@@ -9,6 +9,7 @@ end
 
 local AceGUI = addon.AceGUI
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL")
+local canaccessvalue = _G.canaccessvalue
 
 local function colorWrap(hex, text) return "|cff" .. hex .. text .. "|r" end
 
