@@ -6244,6 +6244,11 @@ local function setAllHooks()
 		tracker:OnMediaRegistered(mediaType, mediaKey)
 	end
 
+	local function refreshBRTrackerForMedia(mediaType)
+		if not (addon.MythicPlus and addon.MythicPlus.functions and addon.MythicPlus.functions.refreshBRMedia) then return end
+		addon.MythicPlus.functions.refreshBRMedia(mediaType)
+	end
+
 	local function refreshClassBuffReminderForMedia(mediaType, mediaKey)
 		if mediaType ~= "border" then return end
 		local reminder = addon.ClassBuffReminder
@@ -6342,12 +6347,14 @@ local function setAllHooks()
 			refreshTotalAbsorbTrackerForMedia(mediaType, mediaKey)
 			refreshGCDBarForMedia(mediaType, mediaKey)
 			refreshActionTrackerForMedia(mediaType, mediaKey)
+			refreshBRTrackerForMedia(mediaType)
 			refreshClassBuffReminderForMedia(mediaType, mediaKey)
 			refreshSquareMinimapBorderForMedia(mediaType, mediaKey)
 			if addon.MythicPlus and addon.MythicPlus.functions and addon.MythicPlus.functions.refreshBloodlustMedia then addon.MythicPlus.functions.refreshBloodlustMedia(mediaType, mediaKey) end
 		elseif mediaType == "font" then
 			refreshExperienceBarForMedia(mediaType, mediaKey)
 			refreshTotalAbsorbTrackerForMedia(mediaType, mediaKey)
+			refreshBRTrackerForMedia(mediaType)
 			if addon.MythicPlus and addon.MythicPlus.functions and addon.MythicPlus.functions.refreshBloodlustMedia then addon.MythicPlus.functions.refreshBloodlustMedia(mediaType, mediaKey) end
 			queueGlobalFontRefresh()
 		end
