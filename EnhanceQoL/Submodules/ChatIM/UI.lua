@@ -178,6 +178,15 @@ function ChatIM:FormatURLs(text)
 	return text
 end
 
+local function canUpdateLastTellTarget(target, isBN)
+	if not target or not ChatFrameUtil then return false end
+	if issecretvalue and issecretvalue(target) then return false end
+	if canaccessvalue and not canaccessvalue(target) then return false end
+	if ChatIM.IsChatMessagingRestricted and ChatIM:IsChatMessagingRestricted() then return false end
+	if isBN and C_Secrets and C_Secrets.ShouldUnitIdentityBeSecret and C_Secrets.ShouldUnitIdentityBeSecret() then return false end
+	return true
+end
+
 function ChatIM:HookInsertLink()
 	if self.insertLinkHooked then return end
 
@@ -195,9 +204,7 @@ function ChatIM:HookInsertLink()
 		return true
 	end
 
-	if ChatFrameUtil and type(ChatFrameUtil.InsertLink) == "function" then
-		hooksecurefunc(ChatFrameUtil, "InsertLink", tryInsertLink)
-	end
+	if ChatFrameUtil and type(ChatFrameUtil.InsertLink) == "function" then hooksecurefunc(ChatFrameUtil, "InsertLink", tryInsertLink) end
 	self.insertLinkHooked = true
 end
 
@@ -567,17 +574,19 @@ function ChatIM:AddMessage(partner, text, outbound, isBN, bnetID)
 	end
 	tab.msg:SetMaxLines(ChatIM.maxHistoryLines)
 
-	if outbound then
-		if isBN then
-			ChatFrameUtil.SetLastToldTarget(partner, "BN_WHISPER")
+	if canUpdateLastTellTarget(partner, isBN) then
+		if outbound then
+			if isBN then
+				ChatFrameUtil.SetLastToldTarget(partner, "BN_WHISPER")
+			else
+				ChatFrameUtil.SetLastToldTarget(partner, "WHISPER")
+			end
 		else
-			ChatFrameUtil.SetLastToldTarget(partner, "WHISPER")
-		end
-	else
-		if isBN then
-			ChatFrameUtil.SetLastTellTarget(partner, "BN_WHISPER")
-		else
-			ChatFrameUtil.SetLastTellTarget(partner, "WHISPER")
+			if isBN then
+				ChatFrameUtil.SetLastTellTarget(partner, "BN_WHISPER")
+			else
+				ChatFrameUtil.SetLastTellTarget(partner, "WHISPER")
+			end
 		end
 	end
 
@@ -719,12 +728,10 @@ function ChatIM:FocusConversation(sender, focusEdit)
 
 	if self.tabGroup then self.tabGroup:SelectTab(sender) end
 
-	if focusEdit then
-		C_Timer.After(0, function()
-			local tab = ChatIM.tabs and ChatIM.tabs[sender]
-			if tab and tab.edit and tab.edit:IsShown() then tab.edit:SetFocus() end
-		end)
-	end
+	if focusEdit then C_Timer.After(0, function()
+		local tab = ChatIM.tabs and ChatIM.tabs[sender]
+		if tab and tab.edit and tab.edit:IsShown() then tab.edit:SetFocus() end
+	end) end
 end
 
 function ChatIM:ClearEditFocus()

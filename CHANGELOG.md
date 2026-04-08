@@ -1,6 +1,12 @@
 # Changelog
 
-## [9.12.0] - 2026-04-06
+## [10.0.1] - 2026-04-08
+
+### 🐛 Fixed
+
+- Chat / ChatIM: Fixed a Blizzard taint error in restricted content such as Mythic+ by no longer pushing protected Battle.net whisper targets into the global last-tell history.
+
+## [10.0.0] - 2026-04-06
 
 ### ✨ Added
 
