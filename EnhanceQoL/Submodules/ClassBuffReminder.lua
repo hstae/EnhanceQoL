@@ -2229,12 +2229,17 @@ function Reminder:GetShamanPreferredShieldDisplaySpellId(provider)
 	return normalizeSpellId(provider and provider.lightningShieldDisplaySpellId) or normalizeSpellId(provider and provider.lightningShieldSpellIds and provider.lightningShieldSpellIds[1]) or 192106
 end
 
+function Reminder:ShouldIgnoreShamanBasicShieldsInRestrictedContent()
+	return addon and addon.functions and addon.functions.isRestrictedContent and addon.functions.isRestrictedContent(true) == true
+end
+
 function Reminder:AppendShamanShieldMissingEntries(provider, missingEntries)
 	if type(provider) ~= "table" or type(self) ~= "table" or type(missingEntries) ~= "table" then return 0 end
 	if hasKnownSpellInList(provider.shieldKnownSpellIds or provider.shieldSpellIds) ~= true then return 0 end
 
 	local totalRequirements = 0
 	local hasElementalOrbit = hasKnownSpellInList(provider.elementalOrbitKnownSpellIds or provider.elementalOrbitSpellIds)
+	local ignoreBasicShields = self:ShouldIgnoreShamanBasicShieldsInRestrictedContent()
 	local preferredShieldDisplaySpellId = self:GetShamanPreferredShieldDisplaySpellId(provider)
 	local preferredShieldLabel = safeGetSpellName(preferredShieldDisplaySpellId) or safeGetSpellName(52127) or safeGetSpellName(192106) or "Shield"
 	local hasLightningShield = self:UnitHasAnyAuraSpellIdOrDerivedName("player", provider.lightningShieldSpellIds)
@@ -2249,11 +2254,15 @@ function Reminder:AppendShamanShieldMissingEntries(provider, missingEntries)
 		totalRequirements = totalRequirements + 1
 		if not hasEarthShield then missingEntries[#missingEntries + 1] = makeSelfMissingEntry(earthShieldDisplaySpellId, earthShieldLabel) end
 
-		totalRequirements = totalRequirements + 1
-		if not (hasLightningShield or hasWaterShield) then missingEntries[#missingEntries + 1] = makeSelfMissingEntry(preferredShieldDisplaySpellId, preferredShieldLabel) end
+		if not ignoreBasicShields then
+			totalRequirements = totalRequirements + 1
+			if not (hasLightningShield or hasWaterShield) then missingEntries[#missingEntries + 1] = makeSelfMissingEntry(preferredShieldDisplaySpellId, preferredShieldLabel) end
+		end
 
 		return totalRequirements
 	end
+
+	if ignoreBasicShields then return totalRequirements end
 
 	totalRequirements = totalRequirements + 1
 	local hasAnyShield = self:UnitHasAnyAuraSpellIdOrDerivedName("player", provider.shieldSpellIds)

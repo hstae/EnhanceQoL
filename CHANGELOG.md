@@ -1,5 +1,12 @@
 # Changelog
 
+## [10.0.2] - 2026-04-08
+
+### 🐛 Fixed
+
+- Class Buff Reminder: Fixed Shaman `Water Shield` and `Lightning Shield` sometimes still showing as missing in Mythic+ and similar content even though the correct shield was active.
+- GCD Bar: Reverted the recent GCD timing change so the bar and spark feel smooth and stable again.
+
 ## [10.0.1] - 2026-04-08
 
 ### 🐛 Fixed
