@@ -2574,6 +2574,7 @@ L["UFGroupHealerBuffEditModeButton"] = "Editar colocación de beneficios de sana
 L["UFGroupHealerBuffEditorAddAll"] = "Agregar todo"
 L["UFGroupHealerBuffEditorAddAllSpells"] = "Agregar todos los hechizos"
 L["UFGroupHealerBuffEditorBarDrainAnimation"] = "Animación de drenaje (primera coincidencia)"
+L["UFGroupHealerBuffEditorBarFillFrame"] = "Llenar marco completo"
 L["UFGroupHealerBuffEditorBarOrientation"] = "Orientación de barra"
 L["UFGroupHealerBuffEditorBarReverseFill"] = "Invertir"
 L["UFGroupHealerBuffEditorBarThickness"] = "Grosor de barra"

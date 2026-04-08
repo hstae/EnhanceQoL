@@ -69,6 +69,8 @@ local ORIENTATION_SET = {
 	[ORIENT_VERTICAL] = true,
 }
 
+local BAR_SIZE_MAX = 512
+
 local RULE_MATCH_SET = {
 	[RULE_MATCH_ANY] = true,
 	[RULE_MATCH_ALL] = true,
@@ -674,7 +676,9 @@ function HB.CreateDefaultGroup(id)
 		size = 16,
 		barOrientation = ORIENT_HORIZONTAL,
 		barThickness = 6,
+		barAlpha = 0.9,
 		barDrainAnimation = false,
+		barFillFrame = false,
 		barReverseFill = false,
 		inset = 0,
 		borderSize = 2,
@@ -723,7 +727,15 @@ local function normalizeGroup(group, id)
 	group.size = roundInt(clamp(group.size, 4, 96, 16))
 	group.barOrientation = normalizeOrientation(group.barOrientation)
 	group.barThickness = roundInt(clamp(group.barThickness, 1, 96, 6))
+	local barWidth = clamp(group.barWidth, 1, BAR_SIZE_MAX, nil)
+	if barWidth ~= nil then barWidth = roundInt(barWidth) end
+	group.barWidth = barWidth
+	local barHeight = clamp(group.barHeight, 1, BAR_SIZE_MAX, nil)
+	if barHeight ~= nil then barHeight = roundInt(barHeight) end
+	group.barHeight = barHeight
+	group.barAlpha = clamp(group.barAlpha, 0, 1, nil)
 	group.barDrainAnimation = group.barDrainAnimation == true
+	group.barFillFrame = group.barFillFrame == true
 	group.barReverseFill = normalizeBarReverseFill(group.barReverseFill)
 	group.inset = roundInt(clamp(group.inset, 0, 60, 0))
 	group.borderSize = roundInt(clamp(group.borderSize, 1, 24, 2))
@@ -2052,7 +2064,11 @@ local function getPriorityActiveRuleForGroup(state, compiled, groupId)
 	return nil, nil
 end
 
-local function resolveDisplayColor(group, rule) return resolveColor((rule and rule.color) or (group and group.color)) end
+local function resolveDisplayColor(group, rule)
+	local r, g, b, a = resolveColor((rule and rule.color) or (group and group.color))
+	if group and normalizeStyle(group.style) == STYLE_BAR and group.barAlpha ~= nil then a = clamp(group.barAlpha, 0, 1, a) or a end
+	return r, g, b, a
+end
 
 local function didGroupRenderStateChange(cache, compiled, group, activeRules, familyAuraInstance, styleRevision, layoutRevision)
 	local changed = cache.groupId ~= group.id
@@ -2134,8 +2150,12 @@ local function didBarRenderStateChange(cache, group, groupId, layoutRevision, tr
 		or cache.groupId ~= groupId
 		or cache.layoutRevision ~= layoutRevision
 		or cache.barOrientation ~= group.barOrientation
+		or cache.barWidth ~= group.barWidth
+		or cache.barHeight ~= group.barHeight
+		or cache.barAlpha ~= group.barAlpha
 		or cache.barThickness ~= group.barThickness
 		or cache.barDrainAnimation ~= group.barDrainAnimation
+		or cache.barFillFrame ~= group.barFillFrame
 		or cache.barReverseFill ~= group.barReverseFill
 		or cache.inset ~= group.inset
 		or cache.anchorPoint ~= group.anchorPoint
@@ -2150,8 +2170,12 @@ local function didBarRenderStateChange(cache, group, groupId, layoutRevision, tr
 	cache.groupId = groupId
 	cache.layoutRevision = layoutRevision
 	cache.barOrientation = group.barOrientation
+	cache.barWidth = group.barWidth
+	cache.barHeight = group.barHeight
+	cache.barAlpha = group.barAlpha
 	cache.barThickness = group.barThickness
 	cache.barDrainAnimation = group.barDrainAnimation
+	cache.barFillFrame = group.barFillFrame
 	cache.barReverseFill = group.barReverseFill
 	cache.inset = group.inset
 	cache.anchorPoint = group.anchorPoint
@@ -2418,16 +2442,13 @@ local function renderBar(st, group, trackedAura, colorRule)
 	local scale = getEffectiveScale(st.healerBuffRoot or bar)
 	local inset = group.inset or 0
 	inset = max(0, roundToPixel(inset, scale))
-	local thickness
-	if Pixel and Pixel.Round then
-		thickness = Pixel.Round(max(1, group.barThickness or 6), bar, 1)
-	else
-		thickness = max(1, roundToPixel(group.barThickness or 6, scale))
-	end
 	local r, g, b, a = resolveDisplayColor(group, colorRule)
-	local ox, oy = getStyleAnchoredOffsets(st.healerBuffRoot, group, inset)
 	local orientation = group.barOrientation == ORIENT_VERTICAL and ORIENT_VERTICAL or ORIENT_HORIZONTAL
 	local reverseFill = group.barDrainAnimation == true and group.barReverseFill == true
+	local root = st.healerBuffRoot
+	local rootWidth = root and root.GetWidth and root:GetWidth() or 0
+	local rootHeight = root and root.GetHeight and root:GetHeight() or 0
+	local barWidth, barHeight, useSizedPlacement = HB.GetBarDisplaySize(group, rootWidth, rootHeight)
 	if bar._hbOrientation ~= orientation then
 		bar:SetOrientation(orientation)
 		bar._hbOrientation = orientation
@@ -2438,7 +2459,20 @@ local function renderBar(st, group, trackedAura, colorRule)
 	end
 	bar:SetStatusBarColor(r, g, b, a)
 	bar:SetMinMaxValues(0, 1)
-	if group.barOrientation == ORIENT_VERTICAL then
+	if useSizedPlacement then
+		local ox, oy = HB.ClampOffsetsForRegion(group.anchorPoint, group.x, group.y, rootWidth, rootHeight, barWidth, barHeight, inset)
+		setSinglePointCached(bar, group.anchorPoint or "CENTER", st.healerBuffRoot, group.anchorPoint or "CENTER", ox, oy)
+		setSizeCached(bar, barWidth, barHeight)
+		bar._hbBarWidth = nil
+		bar._hbBarHeight = nil
+	elseif group.barOrientation == ORIENT_VERTICAL then
+		local thickness
+		if Pixel and Pixel.Round then
+			thickness = Pixel.Round(max(1, group.barThickness or 6), bar, 1)
+		else
+			thickness = max(1, roundToPixel(group.barThickness or 6, scale))
+		end
+		local ox, oy = getStyleAnchoredOffsets(st.healerBuffRoot, group, inset)
 		setTwoPointsCached(bar, "TOP", st.healerBuffRoot, "TOP", ox, oy - inset, "BOTTOM", st.healerBuffRoot, "BOTTOM", ox, oy + inset)
 		if bar._hbBarWidth ~= thickness then
 			if Pixel and Pixel.SetWidth then
@@ -2450,6 +2484,13 @@ local function renderBar(st, group, trackedAura, colorRule)
 		end
 		bar._hbBarHeight = nil
 	else
+		local thickness
+		if Pixel and Pixel.Round then
+			thickness = Pixel.Round(max(1, group.barThickness or 6), bar, 1)
+		else
+			thickness = max(1, roundToPixel(group.barThickness or 6, scale))
+		end
+		local ox, oy = getStyleAnchoredOffsets(st.healerBuffRoot, group, inset)
 		setTwoPointsCached(bar, "LEFT", st.healerBuffRoot, "LEFT", ox + inset, oy, "RIGHT", st.healerBuffRoot, "RIGHT", ox - inset, oy)
 		if bar._hbBarHeight ~= thickness then
 			if Pixel and Pixel.SetHeight then
@@ -2728,6 +2769,63 @@ function HB.ClampOffsets(anchorPoint, x, y, frameW, frameH, inset)
 	x = clamp(x, minX, maxX, 0) or 0
 	y = clamp(y, minY, maxY, 0) or 0
 	return roundInt(x), roundInt(y)
+end
+
+function HB.ClampOffsetsForRegion(anchorPoint, x, y, frameW, frameH, regionW, regionH, inset)
+	anchorPoint = normalizeAnchor(anchorPoint)
+	frameW = tonumber(frameW) or 0
+	frameH = tonumber(frameH) or 0
+	if frameW <= 0 then frameW = 200 end
+	if frameH <= 0 then frameH = 100 end
+	inset = clamp(inset, 0, min(frameW, frameH) * 0.5, 0) or 0
+
+	local maxRegionW = max(1, frameW - (inset * 2))
+	local maxRegionH = max(1, frameH - (inset * 2))
+	regionW = clamp(regionW, 1, maxRegionW, maxRegionW) or maxRegionW
+	regionH = clamp(regionH, 1, maxRegionH, maxRegionH) or maxRegionH
+
+	local anchor = ANCHOR_COORDS[anchorPoint] or ANCHOR_COORDS.CENTER
+	local fx = (anchor[1] or 0) + 0.5
+	local fy = (anchor[2] or 0) + 0.5
+
+	local minX = inset + (fx * (regionW - frameW))
+	local maxX = ((1 - fx) * (frameW - regionW)) - inset
+	local minY = inset + (fy * (regionH - frameH))
+	local maxY = ((1 - fy) * (frameH - regionH)) - inset
+
+	x = clamp(x, minX, maxX, 0) or 0
+	y = clamp(y, minY, maxY, 0) or 0
+	return roundInt(x), roundInt(y)
+end
+
+function HB.GetBarDisplaySize(group, rootWidth, rootHeight)
+	if type(group) ~= "table" then return 0, 0, false, false end
+	rootWidth = tonumber(rootWidth) or 0
+	rootHeight = tonumber(rootHeight) or 0
+	if rootWidth <= 0 then rootWidth = 200 end
+	if rootHeight <= 0 then rootHeight = 100 end
+
+	local inset = clamp(group.inset, 0, min(rootWidth, rootHeight) * 0.5, 0) or 0
+	local availableWidth = max(1, rootWidth - (inset * 2))
+	local availableHeight = max(1, rootHeight - (inset * 2))
+	local orientation = normalizeOrientation(group.barOrientation)
+	local thickness = roundInt(clamp(group.barThickness, 1, BAR_SIZE_MAX, 6))
+	local fillFrame = group.barFillFrame == true
+	local useSizedPlacement = fillFrame or group.barWidth ~= nil or group.barHeight ~= nil
+	local width = clamp(group.barWidth, 1, BAR_SIZE_MAX, nil)
+	local height = clamp(group.barHeight, 1, BAR_SIZE_MAX, nil)
+
+	if fillFrame then
+		width = availableWidth
+		height = availableHeight
+	else
+		if width == nil then width = orientation == ORIENT_VERTICAL and thickness or availableWidth end
+		if height == nil then height = orientation == ORIENT_VERTICAL and availableHeight or thickness end
+	end
+
+	width = roundInt(clamp(width, 1, availableWidth, availableWidth))
+	height = roundInt(clamp(height, 1, availableHeight, availableHeight))
+	return width, height, useSizedPlacement, fillFrame
 end
 
 function HB.GetGrowthAxes(growth)

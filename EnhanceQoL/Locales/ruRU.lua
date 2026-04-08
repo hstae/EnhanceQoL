@@ -2574,6 +2574,7 @@ L["UFGroupHealerBuffEditModeButton"] = "Редактировать размещ�
 L["UFGroupHealerBuffEditorAddAll"] = "Добавить все"
 L["UFGroupHealerBuffEditorAddAllSpells"] = "Добавить все заклинания"
 L["UFGroupHealerBuffEditorBarDrainAnimation"] = "Анимация истощения (первое совпадение)"
+L["UFGroupHealerBuffEditorBarFillFrame"] = "Заполнить весь фрейм"
 L["UFGroupHealerBuffEditorBarOrientation"] = "Ориентация полосы"
 L["UFGroupHealerBuffEditorBarReverseFill"] = "Инвертировать"
 L["UFGroupHealerBuffEditorBarThickness"] = "Толщина полосы"

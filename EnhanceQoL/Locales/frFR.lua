@@ -2574,6 +2574,7 @@ L["UFGroupHealerBuffEditModeButton"] = "Modifier le placement des buffs de soign
 L["UFGroupHealerBuffEditorAddAll"] = "Tout ajouter"
 L["UFGroupHealerBuffEditorAddAllSpells"] = "Ajouter tous les sorts"
 L["UFGroupHealerBuffEditorBarDrainAnimation"] = "Animation de vidange (première correspondance)"
+L["UFGroupHealerBuffEditorBarFillFrame"] = "Remplir tout le cadre"
 L["UFGroupHealerBuffEditorBarOrientation"] = "Orientation de la barre"
 L["UFGroupHealerBuffEditorBarReverseFill"] = "Inverser"
 L["UFGroupHealerBuffEditorBarThickness"] = "Épaisseur de barre"

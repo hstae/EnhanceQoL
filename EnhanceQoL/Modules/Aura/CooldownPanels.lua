@@ -7004,19 +7004,17 @@ function CooldownPanels:IsCooldownMatchingGlobalCooldown(cooldownStart, cooldown
 end
 
 function CooldownPanels:IsItemCooldownOnGCD(itemID, cooldownStart, cooldownDuration)
-	if not isCooldownActive(cooldownStart, cooldownDuration) then return false end
+	-- Never discard a real item cooldown just because the linked use spell is on the player GCD.
+	if not self:IsCooldownMatchingGlobalCooldown(cooldownStart, cooldownDuration) then return false end
 	local spellId = self:GetItemUseSpellID(itemID)
 	if not spellId then return false end
-	if Api.GetSpellCooldownInfo then
-		local info = Api.GetSpellCooldownInfo(spellId)
-		if type(info) == "table" then
-			local isOnGCD = type(info.isOnGCD) == "boolean" and info.isOnGCD or nil
-			local isActive = type(info.isActive) == "boolean" and info.isActive or nil
-			if isOnGCD == true and isActive == true then return true end
-			if isOnGCD == false and isActive == true then return false end
-		end
+	local spellStart, spellDuration, _, _, spellIsOnGCD, spellIsActive = self:GetCachedSpellCooldownInfo(spellId)
+	if spellIsOnGCD == true and spellIsActive == true then return true end
+	if spellIsOnGCD == false and spellIsActive == true then return false end
+	if isCooldownActive(spellStart, spellDuration) then
+		return self:IsCooldownMatchingGlobalCooldown(spellStart, spellDuration)
 	end
-	return self:IsCooldownMatchingGlobalCooldown(cooldownStart, cooldownDuration)
+	return false
 end
 
 getSpellCooldownDurationObject = function(spellID)
