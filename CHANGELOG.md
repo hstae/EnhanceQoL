@@ -1,5 +1,15 @@
 # Changelog
 
+## [10.1.0] - 2026-04-08
+
+### ✨ Added
+
+- Shared Media / Sounds: Added `Stormkeeper` as a new EQOL voiceover and added icons to the `Stormkeeper` and `Bloodlust` sound labels.
+
+### 🐛 Fixed
+
+- Cooldown Panels (Tracked Auras): Fixed tracked aura panels sometimes not showing correctly in combat unless a tracked aura was already active beforehand.
+
 ## [10.0.3] - 2026-04-08
 
 ### 🐛 Fixed

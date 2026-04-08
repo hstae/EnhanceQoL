@@ -16513,10 +16513,11 @@ function CooldownPanels:UpdateVisibility(panelId)
 		driverExpression, usesManualVisibility = self:BuildVisibilityDriver(panel)
 	end
 	if canUseDriver and driverExpression and not usesManualVisibility then
-		self:ApplyVisibilityDriverToFrame(frame, driverExpression)
-		self:UpdatePanelOpacity(panelId, nil)
-		self:UpdatePanelMouseState(panelId)
-		return
+		if self:ApplyVisibilityDriverToFrame(frame, driverExpression) then
+			self:UpdatePanelOpacity(panelId, nil)
+			self:UpdatePanelMouseState(panelId)
+			return
+		end
 	end
 	self:ApplyVisibilityDriverToFrame(frame, nil)
 	local shouldShow = self:ShouldShowPanel(panelId)
