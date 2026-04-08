@@ -550,6 +550,32 @@ local function resolveEntryScanInfo(entry, byCooldownID, bySpellID, byCooldownKe
 	return nil, storedCooldownID
 end
 
+local function getScanInfoMatchingFrame(scanInfo, preferredSource, expectedCooldownID)
+	if not (scanInfo and isValidCooldownID(expectedCooldownID)) then return nil, nil end
+	preferredSource = normalizeSourceType(preferredSource)
+
+	local preferredFrame = preferredSource == SOURCE_BAR and scanInfo.barFrame or scanInfo.iconFrame
+	if preferredFrame and cooldownIDsEqual(getCooldownIDFromFrame(preferredFrame, preferredSource), expectedCooldownID) then
+		return preferredFrame, preferredSource
+	end
+
+	local fallbackSource = preferredSource == SOURCE_BAR and SOURCE_ICON or SOURCE_BAR
+	local fallbackFrame = fallbackSource == SOURCE_BAR and scanInfo.barFrame or scanInfo.iconFrame
+	if fallbackFrame and cooldownIDsEqual(getCooldownIDFromFrame(fallbackFrame, fallbackSource), expectedCooldownID) then
+		return fallbackFrame, fallbackSource
+	end
+
+	return nil, nil
+end
+
+local function scanInfoHasOnlyMismatchedFrames(scanInfo, preferredSource, expectedCooldownID)
+	if not (scanInfo and isValidCooldownID(expectedCooldownID)) then return false end
+	local hasAnyFrame = scanInfo.iconFrame ~= nil or scanInfo.barFrame ~= nil
+	if not hasAnyFrame then return false end
+	local matchingFrame = getScanInfoMatchingFrame(scanInfo, preferredSource, expectedCooldownID)
+	return matchingFrame == nil
+end
+
 local function ensureScanInfo(scan, cooldownID)
 	local info = scan.byCooldownID[cooldownID]
 	if info then return info end
@@ -924,14 +950,14 @@ function CDMAuras:SweepInvalidStates()
 	end
 end
 
-local function getEntryTrackedUnit(scanInfo, state, frame)
+local function getEntryTrackedUnit(scanInfo, state, frame, expectedCooldownID, preferredSource)
 	local trackedUnit = nil
 	if frame and type(frame.GetAuraDataUnit) == "function" then
 		local ok, auraUnit = pcall(frame.GetAuraDataUnit, frame)
 		if ok then trackedUnit = normalizeTrackedUnit(auraUnit) end
 	end
 	if not trackedUnit and frame then trackedUnit = normalizeTrackedUnit(frame.auraDataUnit) end
-	if not trackedUnit and scanInfo then trackedUnit = normalizeTrackedUnit(scanInfo.auraUnit) end
+	if not trackedUnit and scanInfo and not scanInfoHasOnlyMismatchedFrames(scanInfo, preferredSource, expectedCooldownID) then trackedUnit = normalizeTrackedUnit(scanInfo.auraUnit) end
 	if not trackedUnit and state then trackedUnit = normalizeTrackedUnit(state.trackUnit) or normalizeTrackedUnit(state.trackedAuraUnit) or normalizeTrackedUnit(state.mappedAuraUnit) end
 	return trackedUnit
 end
@@ -1023,8 +1049,10 @@ function CDMAuras:RebuildTrackedPanelIndex()
 				if entry and entry.type == ENTRY_TYPE then
 					local key = getEntryKey(panelId, entryId)
 					local state = runtime.entryStates[key]
-					local scanInfo = resolveEntryScanInfo(entry, byCooldownID, bySpellID, byCooldownKey)
-					local trackedUnit = getEntryTrackedUnit(scanInfo, state, scanInfo and (scanInfo.iconFrame or scanInfo.barFrame) or nil)
+					local scanInfo, resolvedCooldownID = resolveEntryScanInfo(entry, byCooldownID, bySpellID, byCooldownKey)
+					local expectedCooldownID = isValidCooldownID(resolvedCooldownID) and resolvedCooldownID or entry.cooldownID
+					local matchingFrame = getScanInfoMatchingFrame(scanInfo, entry.sourceType, expectedCooldownID)
+					local trackedUnit = getEntryTrackedUnit(scanInfo, state, matchingFrame, expectedCooldownID, entry.sourceType)
 					if state then state.trackUnit = trackedUnit end
 					registerTrackedPanel(runtime, trackedUnit, panelId)
 				end
@@ -1669,7 +1697,9 @@ function CDMAuras:BuildRuntimeData(panelId, entryId, entry, entryLayout, alwaysS
 	else
 		local _, byCooldownID, bySpellID, byCooldownKey = self:ScanTrackedBuffs(false)
 		scanInfo, resolvedCooldownID = resolveEntryScanInfo(entry, byCooldownID, bySpellID, byCooldownKey)
-		if not scanInfo then
+		local expectedCooldownID = isValidCooldownID(resolvedCooldownID) and resolvedCooldownID or entry.cooldownID
+		local staleFrameScanInfo = scanInfoHasOnlyMismatchedFrames(scanInfo, entry.sourceType, expectedCooldownID)
+		if not scanInfo or staleFrameScanInfo then
 			local runtimePass = runtime.runtimePass
 			local rescanned
 			local rescannedBySpellID
@@ -1687,6 +1717,8 @@ function CDMAuras:BuildRuntimeData(panelId, entryId, entry, entryLayout, alwaysS
 				if runtimePass then runtime.forcedRescanPass = runtimePass end
 			end
 			scanInfo, resolvedCooldownID = resolveEntryScanInfo(entry, rescanned, rescannedBySpellID, rescannedByCooldownKey)
+			expectedCooldownID = isValidCooldownID(resolvedCooldownID) and resolvedCooldownID or entry.cooldownID
+			if scanInfoHasOnlyMismatchedFrames(scanInfo, entry.sourceType, expectedCooldownID) then scanInfo = nil end
 		end
 		if scanInfo ~= nil then
 			state.cachedScanEpoch = runtime.scanEpoch or 0
@@ -1750,7 +1782,7 @@ function CDMAuras:BuildRuntimeData(panelId, entryId, entry, entryLayout, alwaysS
 		if chosenFrame then registerFrameBinding(runtime, key, chosenFrame) end
 	end
 	if state.boundFrame then updatePandemicFrameBinding(runtime, key, state.boundFrame, entry.pandemicGlow == true) end
-	state.trackUnit = getEntryTrackedUnit(scanInfo, state, chosenFrame or fallbackFrame)
+	state.trackUnit = getEntryTrackedUnit(scanInfo, state, chosenFrame or fallbackFrame, resolvedCooldownID or entry.cooldownID, preferredSource)
 	registerTrackedPanel(runtime, state.trackUnit, panelId)
 
 	local auraData

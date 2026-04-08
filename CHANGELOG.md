@@ -4,6 +4,7 @@
 
 ### 🐛 Fixed
 
+- Cooldown Panels (Tracked Auras): Fixed spec-specific tracked aura panels sometimes not updating correctly after switching specializations and passing through a loading screen.
 - Tooltip: Fixed player tooltip details such as item level, specialization, and Mythic+ score sometimes not showing.
 
 ---
