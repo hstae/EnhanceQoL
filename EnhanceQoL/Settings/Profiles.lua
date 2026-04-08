@@ -103,11 +103,52 @@ local EXPORT_BLACKLIST = {
 	containerActionLayouts = true,
 }
 
+local SERIALIZABLE_KEY_TYPES = {
+	boolean = true,
+	number = true,
+	string = true,
+}
+
+local SERIALIZABLE_VALUE_TYPES = {
+	boolean = true,
+	number = true,
+	string = true,
+}
+
+local function sanitizeSerializableValue(value, activeTables)
+	local valueType = type(value)
+	if SERIALIZABLE_VALUE_TYPES[valueType] then return value end
+	if valueType ~= "table" then return nil end
+	if activeTables[value] then return nil end
+
+	activeTables[value] = true
+
+	local clone = {}
+	for rawKey, rawValue in pairs(value) do
+		local keyType = type(rawKey)
+		if SERIALIZABLE_KEY_TYPES[keyType] then
+			local sanitizedValue = sanitizeSerializableValue(rawValue, activeTables)
+			if sanitizedValue ~= nil then clone[rawKey] = sanitizedValue end
+		end
+	end
+
+	activeTables[value] = nil
+	return clone
+end
+
 local function sanitizeProfileData(source)
 	if type(source) ~= "table" then return {} end
 	local filtered = {}
+	local activeTables = {
+		[source] = true,
+	}
 	for key, value in pairs(source) do
-		if not EXPORT_BLACKLIST[key] and not (addon.functions and addon.functions.IsPrivateProfileKey and addon.functions.IsPrivateProfileKey(key)) then filtered[key] = value end
+		if SERIALIZABLE_KEY_TYPES[type(key)] and not EXPORT_BLACKLIST[key]
+			and not (addon.functions and addon.functions.IsPrivateProfileKey and addon.functions.IsPrivateProfileKey(key))
+		then
+			local sanitizedValue = sanitizeSerializableValue(value, activeTables)
+			if sanitizedValue ~= nil then filtered[key] = sanitizedValue end
+		end
 	end
 	return filtered
 end
@@ -149,8 +190,8 @@ local function exportActiveProfile(profileName)
 		data = sanitizeProfileData(source),
 	}
 
-	local serialized = serializer:Serialize(payload)
-	if not serialized or serialized == "" then return nil, "SERIALIZE" end
+	local ok, serialized = pcall(serializer.Serialize, serializer, payload)
+	if not ok or type(serialized) ~= "string" or serialized == "" then return nil, "SERIALIZE" end
 	local compressed = deflate:CompressDeflate(serialized)
 	if not compressed then return nil, "COMPRESS" end
 	return deflate:EncodeForPrint(compressed)
@@ -302,7 +343,7 @@ data = {
 						if not source or source == "" then return end
 						local target = EnhanceQoLDB.profileKeys[UnitGUID("player")]
 						if not target then return end
-						local copied = sanitizeProfileData(CopyTable(EnhanceQoLDB.profiles[source]))
+						local copied = sanitizeProfileData(EnhanceQoLDB.profiles[source])
 						normalizeProfileStorage(copied)
 						EnhanceQoLDB.profiles[target] = copied
 						C_UI.Reload()

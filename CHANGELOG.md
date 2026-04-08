@@ -1,5 +1,11 @@
 # Changelog
 
+## [10.0.3] - 2026-04-08
+
+### 🐛 Fixed
+
+- Profiles / Export & Import: Fixed profile export and profile copy sometimes failing.
+
 ## [10.0.2] - 2026-04-08
 
 ### 🐛 Fixed
