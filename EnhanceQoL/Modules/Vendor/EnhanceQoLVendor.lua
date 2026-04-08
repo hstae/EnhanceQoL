@@ -291,14 +291,7 @@ local function getSlotAnalysisEntry(bag, slot, bagInfo, itemLink, activeKeys)
 	if activeKeys then activeKeys[key] = true end
 	local itemID, quality, hasNoValue, link = getSlotAnalysisState(bagInfo, itemLink)
 	local cached = slotAnalysisCache[key]
-	if
-		cached
-		and cached.cacheVersion == slotAnalysisCacheVersion
-		and cached.itemID == itemID
-		and cached.quality == quality
-		and cached.hasNoValue == hasNoValue
-		and cached.itemLink == link
-	then
+	if cached and cached.cacheVersion == slotAnalysisCacheVersion and cached.itemID == itemID and cached.quality == quality and cached.hasNoValue == hasNoValue and cached.itemLink == link then
 		return cached
 	end
 	tooltipCache[key] = nil
@@ -1034,51 +1027,85 @@ local function sellItems(items)
 	sellNextItem()
 end
 
+local function getVendorUpgradeInfo(itemLink)
+	if not itemLink then return nil, nil, nil end
+
+	local trackKey
+	local currentLevel
+	local maxLevel
+
+	if addon.functions then
+		local info = addon.functions.GetItemUpgradeInfoForLink and addon.functions.GetItemUpgradeInfoForLink(itemLink)
+		if type(info) == "table" then
+			trackKey = info.key
+			currentLevel = tonumber(info.currentLevel)
+			maxLevel = tonumber(info.maxLevel)
+		elseif addon.functions.GetUpgradeTrackKeyFromItemLink then
+			trackKey = addon.functions.GetUpgradeTrackKeyFromItemLink(itemLink)
+		end
+	end
+
+	if currentLevel == nil or maxLevel == nil then
+		local rawInfo = C_Item and C_Item.GetItemUpgradeInfo and C_Item.GetItemUpgradeInfo(itemLink)
+		if type(rawInfo) == "table" then
+			currentLevel = tonumber(rawInfo.currentLevel)
+			maxLevel = tonumber(rawInfo.maxLevel)
+		end
+	end
+
+	return trackKey, currentLevel, maxLevel
+end
+
 getTooltipInfo = function(bag, slot, quality, bagInfo, itemLink)
 	local key = bag .. "_" .. slot
-	local cacheItemKey = itemLink or (bagInfo and bagInfo.hyperlink) or (bagInfo and bagInfo.itemID) or C_Container.GetContainerItemLink(bag, slot) or C_Container.GetContainerItemID(
-		bag,
-		slot
-	)
+	local resolvedItemLink = itemLink or (bagInfo and bagInfo.hyperlink) or C_Container.GetContainerItemLink(bag, slot)
+	local cacheItemKey = resolvedItemLink or (bagInfo and bagInfo.itemID) or C_Container.GetContainerItemID(bag, slot)
 	local cacheQuality = quality or (bagInfo and bagInfo.quality) or false
 	local cached = tooltipCache[key]
 	if cached and cached.itemKey == cacheItemKey and cached.quality == cacheQuality then return cached.bType, cached.canUpgrade, cached.isIgnoredUpgradeTrack end
 
-	local tabName = addon.Vendor.variables.tabNames[quality]
+	local effectiveQuality = quality or (bagInfo and bagInfo.quality)
+	local tabName = addon.Vendor.variables.tabNames[effectiveQuality]
 	local bType
 	local canUpgrade = false
 	local isIgnoredUpgradeTrack = false
+	local ignoreUpgradable = tabName and addon.db["vendor" .. tabName .. "IgnoreUpgradable"]
+	local ignoreMythTrack = tabName and addon.db["vendor" .. tabName .. "IgnoreMythTrack"]
+	local ignoreHeroicTrack = tabName and addon.db["vendor" .. tabName .. "IgnoreHeroicTrack"]
+	local trackKey, currentLevel, maxLevel = getVendorUpgradeInfo(resolvedItemLink)
+
+	if ignoreUpgradable and currentLevel and maxLevel and maxLevel > 0 and currentLevel < maxLevel then canUpgrade = true end
+	if (ignoreMythTrack and trackKey == "myth") or (ignoreHeroicTrack and trackKey == "hero") then isIgnoredUpgradeTrack = true end
+
 	local data = C_TooltipInfo.GetBagItem(bag, slot)
 	if data then
-		local ignoreUpgradable = tabName and addon.db["vendor" .. tabName .. "IgnoreUpgradable"]
-		local ignoreMythTrack = tabName and addon.db["vendor" .. tabName .. "IgnoreMythTrack"]
-		local ignoreHeroicTrack = tabName and addon.db["vendor" .. tabName .. "IgnoreHeroicTrack"]
 		local lines = data.lines
 		for i = 1, lines and #lines or 0 do
 			local v = lines[i]
 			if v.type == 20 then
-				if v.leftText == ITEM_BIND_ON_EQUIP then
+				if not bType and v.leftText == ITEM_BIND_ON_EQUIP then
 					bType = 2
-				elseif v.leftText == ITEM_ACCOUNTBOUND_UNTIL_EQUIP or v.leftText == ITEM_BIND_TO_ACCOUNT_UNTIL_EQUIP then
+				elseif not bType and (v.leftText == ITEM_ACCOUNTBOUND_UNTIL_EQUIP or v.leftText == ITEM_BIND_TO_ACCOUNT_UNTIL_EQUIP) then
 					bType = 8
-				elseif v.leftText == ITEM_ACCOUNTBOUND or v.leftText == ITEM_BIND_TO_BNETACCOUNT then
+				elseif not bType and (v.leftText == ITEM_ACCOUNTBOUND or v.leftText == ITEM_BIND_TO_BNETACCOUNT) then
 					bType = 7
 				end
-				break
 			elseif v.type == 42 then
 				local text = v.rightText or v.leftText
 				if text then
-					if ignoreUpgradable then
+					if ignoreUpgradable and not canUpgrade then
 						local color = v.leftColor
 						if color and color.r and color.g and color.b then
 							if not (color.r > 0.5 and color.g > 0.5 and color.b > 0.5) then canUpgrade = true end
 						end
 					end
-					local tier = text:gsub(".+:%s?", ""):gsub("%s?%d/%d", "")
-					if tier then
-						local tierLower = string.lower(tier)
-						if (ignoreMythTrack and string.lower(L["upgradeLevelMythic"]) == tierLower) or (ignoreHeroicTrack and string.lower(L["upgradeLevelHero"]) == tierLower) then
-							isIgnoredUpgradeTrack = true
+					if not isIgnoredUpgradeTrack and (ignoreMythTrack or ignoreHeroicTrack) then
+						local tier = text:gsub(".+:%s?", ""):gsub("%s?%d/%d", "")
+						if tier then
+							local tierLower = string.lower(tier)
+							if (ignoreMythTrack and string.lower(L["upgradeLevelMythic"]) == tierLower) or (ignoreHeroicTrack and string.lower(L["upgradeLevelHero"]) == tierLower) then
+								isIgnoredUpgradeTrack = true
+							end
 						end
 					end
 				end
@@ -1306,9 +1333,7 @@ local eventHandlers = {
 		updateSellMarks()
 		if addon.db["vendorDestroyEnable"] then scheduleDestroyButtonUpdate() end
 	end,
-	["EQUIPMENT_SETS_CHANGED"] = function()
-		updateSellMarks()
-	end,
+	["EQUIPMENT_SETS_CHANGED"] = function() updateSellMarks() end,
 	["ADDON_LOADED"] = function(loadedAddonName)
 		if loadedAddonName ~= "Baganator" then return end
 		ensureBaganatorIntegration()

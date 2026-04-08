@@ -424,6 +424,10 @@ function Tracker:ResolveAnchorFrame()
 	return _G[target] or UIParent
 end
 
+function Tracker:AnchorUsesUIParent()
+	return self:ResolveAnchorTarget() == "UIParent"
+end
+
 function Tracker:BuildLayoutRecordFromProfile()
 	local cfg = self:GetConfig()
 	return {
@@ -792,6 +796,81 @@ function Tracker:ApplyLayoutData(data)
 	frame.editBg:SetShown(state.previewing == true)
 end
 
+local function refreshEditModeFrame()
+	if EditMode and EditMode.RefreshFrame then EditMode:RefreshFrame(EDITMODE_ID) end
+end
+
+local function refreshEditModeSettingValues()
+	if addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RefreshSettingValues then
+		addon.EditModeLib.internal:RefreshSettingValues()
+	end
+end
+
+local function syncEditModeLayoutFromAnchor()
+	if not (EditMode and EditMode.GetActiveLayoutName and EditMode.SetValue) then return end
+
+	local cfg = Tracker:GetConfig()
+	local anchor = cfg and cfg.anchor
+	if not anchor or (anchor.relativeFrame or "UIParent") ~= "UIParent" then return end
+
+	local layout = EditMode:GetActiveLayoutName()
+	local point = anchor.point or "CENTER"
+	local relativePoint = anchor.relativePoint or point
+	local x = anchor.x or 0
+	local y = anchor.y or 0
+
+	EditMode:SetValue(EDITMODE_ID, "point", point, layout, true)
+	EditMode:SetValue(EDITMODE_ID, "relativePoint", relativePoint, layout, true)
+	EditMode:SetValue(EDITMODE_ID, "x", x, layout, true)
+	EditMode:SetValue(EDITMODE_ID, "y", y, layout, true)
+end
+
+function Tracker:ApplyEditModeSetting(field, value)
+	local payload
+	local editField = field
+
+	if field == "anchorTarget" then
+		payload = { anchorTarget = value }
+	elseif field == "point" then
+		payload = { point = value }
+	elseif field == "relativePoint" then
+		payload = { relativePoint = value }
+	elseif field == "x" then
+		payload = { x = value }
+	elseif field == "y" then
+		payload = { y = value }
+	elseif field == "strata" then
+		payload = { strata = value }
+	else
+		return
+	end
+
+	self:ApplyLayoutData(payload)
+	syncEditModeLayoutFromAnchor()
+
+	if EditMode and EditMode.SetValue then
+		local cfg = self:GetConfig()
+		local syncValue = value
+		if field == "anchorTarget" then
+			syncValue = cfg.anchor.relativeFrame
+		elseif field == "point" then
+			syncValue = cfg.anchor.point
+		elseif field == "relativePoint" then
+			syncValue = cfg.anchor.relativePoint
+		elseif field == "x" then
+			syncValue = cfg.anchor.x
+		elseif field == "y" then
+			syncValue = cfg.anchor.y
+		elseif field == "strata" then
+			syncValue = cfg.strata
+		end
+		EditMode:SetValue(EDITMODE_ID, editField, syncValue, nil, true)
+	end
+
+	refreshEditModeSettingValues()
+	if field == "anchorTarget" then refreshEditModeFrame() end
+end
+
 function Tracker:Refresh()
 	if not self:IsEnabled() then
 		if state.frame then
@@ -1005,18 +1084,76 @@ function Tracker:RegisterEditMode()
 				parentId = "focusInterruptTrackerAnchor",
 				height = 180,
 				get = function() return Tracker:GetConfig().anchor.relativeFrame end,
-				set = function(_, value) Tracker:ApplyLayoutData({ anchorTarget = value }) end,
+				set = function(_, value) Tracker:ApplyEditModeSetting("anchorTarget", value) end,
 				generator = function(_, root)
 					local current = Tracker:GetConfig().anchor.relativeFrame
 					for i = 1, #AUTO_ANCHOR_OPTIONS do
 						local option = AUTO_ANCHOR_OPTIONS[i]
 						if option.value == current or hasAnchorFrame(option) then
 							root:CreateRadio(option.label, function() return Tracker:GetConfig().anchor.relativeFrame == option.value end, function()
-								Tracker:ApplyLayoutData({ anchorTarget = option.value })
+								Tracker:ApplyEditModeSetting("anchorTarget", option.value)
 							end)
 						end
 					end
 				end,
+			},
+			{
+				name = L["Anchor point"] or "Anchor point",
+				kind = SettingType.Dropdown,
+				field = "point",
+				parentId = "focusInterruptTrackerAnchor",
+				height = 180,
+				get = function() return Tracker:GetConfig().anchor.point end,
+				set = function(_, value) Tracker:ApplyEditModeSetting("point", value) end,
+				generator = function(_, root)
+					for i = 1, #ANCHOR_POINTS do
+						local point = ANCHOR_POINTS[i]
+						root:CreateRadio(point, function() return Tracker:GetConfig().anchor.point == point end, function()
+							Tracker:ApplyEditModeSetting("point", point)
+						end)
+					end
+				end,
+			},
+			{
+				name = L["Relative point"] or "Relative point",
+				kind = SettingType.Dropdown,
+				field = "relativePoint",
+				parentId = "focusInterruptTrackerAnchor",
+				height = 180,
+				get = function() return Tracker:GetConfig().anchor.relativePoint end,
+				set = function(_, value) Tracker:ApplyEditModeSetting("relativePoint", value) end,
+				generator = function(_, root)
+					for i = 1, #ANCHOR_POINTS do
+						local point = ANCHOR_POINTS[i]
+						root:CreateRadio(point, function() return Tracker:GetConfig().anchor.relativePoint == point end, function()
+							Tracker:ApplyEditModeSetting("relativePoint", point)
+						end)
+					end
+				end,
+			},
+			{
+				name = L["X Offset"] or "X Offset",
+				kind = SettingType.Slider,
+				field = "x",
+				parentId = "focusInterruptTrackerAnchor",
+				minValue = -1000,
+				maxValue = 1000,
+				valueStep = 1,
+				allowInput = true,
+				get = function() return Tracker:GetConfig().anchor.x end,
+				set = function(_, value) Tracker:ApplyEditModeSetting("x", value) end,
+			},
+			{
+				name = L["Y Offset"] or "Y Offset",
+				kind = SettingType.Slider,
+				field = "y",
+				parentId = "focusInterruptTrackerAnchor",
+				minValue = -1000,
+				maxValue = 1000,
+				valueStep = 1,
+				allowInput = true,
+				get = function() return Tracker:GetConfig().anchor.y end,
+				set = function(_, value) Tracker:ApplyEditModeSetting("y", value) end,
 			},
 			{
 				name = L["Frame strata"] or "Frame strata",
@@ -1025,12 +1162,12 @@ function Tracker:RegisterEditMode()
 				parentId = "focusInterruptTrackerAnchor",
 				height = 180,
 				get = function() return Tracker:GetConfig().strata end,
-				set = function(_, value) Tracker:ApplyLayoutData({ strata = value }) end,
+				set = function(_, value) Tracker:ApplyEditModeSetting("strata", value) end,
 				generator = function(_, root)
 					for i = 1, #STRATA_ORDER do
 						local value = STRATA_ORDER[i]
 						root:CreateRadio(value, function() return Tracker:GetConfig().strata == value end, function()
-							Tracker:ApplyLayoutData({ strata = value })
+							Tracker:ApplyEditModeSetting("strata", value)
 						end)
 					end
 				end,
@@ -1266,16 +1403,29 @@ function Tracker:RegisterEditMode()
 				local record = data or {}
 				seedEditModeRecordFromProfile(record)
 				Tracker:ApplyLayoutData(record)
+				syncEditModeLayoutFromAnchor()
+				refreshEditModeSettingValues()
 				return
 			end
-			Tracker:ApplyLayoutData(data)
+			local record = type(data) == "table" and copyValue(data) or {}
+			if not Tracker:AnchorUsesUIParent() then
+				record.point = nil
+				record.relativePoint = nil
+				record.x = nil
+				record.y = nil
+			end
+			Tracker:ApplyLayoutData(record)
+			syncEditModeLayoutFromAnchor()
+			refreshEditModeSettingValues()
 		end,
 		onEnter = function() Tracker:ShowEditModeHint(true) end,
 		onExit = function() Tracker:ShowEditModeHint(false) end,
 		isEnabled = function() return Tracker:IsEnabled() end,
 		settings = settings,
 		relativeTo = function() return Tracker:ResolveAnchorFrame() end,
-		allowDrag = true,
+		allowDrag = function() return Tracker:AnchorUsesUIParent() end,
+		managePosition = false,
+		persistPosition = false,
 		settingsMaxHeight = DEFAULT_SETTINGS_MAX_HEIGHT,
 		showOutsideEditMode = false,
 		collapseExclusive = true,
@@ -1307,7 +1457,7 @@ function Tracker:OnSettingChanged(enabled)
 		end
 	end
 
-	if EditMode and EditMode.RefreshFrame then EditMode:RefreshFrame(EDITMODE_ID) end
+	refreshEditModeFrame()
 end
 
 return Tracker

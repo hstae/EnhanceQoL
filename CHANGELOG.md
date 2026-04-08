@@ -1,5 +1,14 @@
 # Changelog
 
+## [10.1.3] - 2026-04-08
+
+### 🐛 Fixed
+
+- Focus Interrupt Tracker: Fixed edit mode positioning behaving erratically and not updating anchor offset controls correctly while moving the tracker.
+- Vendor: Fixed auto-sell sometimes selling upgradeable gear even when upgradeable items were set to be ignored.
+
+---
+
 ## [10.1.2] - 2026-04-08
 
 ### 🐛 Fixed
