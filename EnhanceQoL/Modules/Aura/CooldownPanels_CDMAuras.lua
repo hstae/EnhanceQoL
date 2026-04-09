@@ -866,6 +866,7 @@ local function hookFrame(frame)
 
 	if frame.SetAuraInstanceInfo then hooksecurefunc(frame, "SetAuraInstanceInfo", function(self) CDMAuras:HandleFrameAuraMutation(self, false) end) end
 	if frame.ClearAuraInstanceInfo then hooksecurefunc(frame, "ClearAuraInstanceInfo", function(self) CDMAuras:HandleFrameAuraMutation(self, true) end) end
+	if frame.RefreshTotemData then hooksecurefunc(frame, "RefreshTotemData", function(self) CDMAuras:HandleFrameTotemMutation(self) end) end
 	if frame.ShowPandemicStateFrame then hooksecurefunc(frame, "ShowPandemicStateFrame", function(self) CDMAuras:HandleFramePandemicStateChanged(self, true) end) end
 	if frame.HidePandemicStateFrame then hooksecurefunc(frame, "HidePandemicStateFrame", function(self) CDMAuras:HandleFramePandemicStateChanged(self, false) end) end
 end
@@ -1279,6 +1280,28 @@ function CDMAuras:HandleFrameAuraMutation(frame, wasCleared)
 			end
 			if changed then refreshedPanels[state.panelId] = true end
 		end
+	end
+
+	for panelId in pairs(refreshedPanels) do
+		requestPanelRefresh(panelId)
+	end
+end
+
+function CDMAuras:HandleFrameTotemMutation(frame)
+	if not frame then return end
+	local runtime = getRuntime()
+	cdm.BumpFrameEpoch(runtime, frame)
+	local keys = runtime.frameEntries[frame]
+	if not keys then return end
+
+	-- Totem-backed tracked buffs can change state on an existing viewer frame without
+	-- touching aura instance data or cooldownID. Force the next runtime build to rescan.
+	self:InvalidateScan(false)
+
+	local refreshedPanels = {}
+	for key in pairs(keys) do
+		local state = runtime.entryStates[key]
+		if state then refreshedPanels[state.panelId] = true end
 	end
 
 	for panelId in pairs(refreshedPanels) do

@@ -6516,6 +6516,8 @@ function GF:LayoutButton(self)
 		if st.nameText.SetNonSpaceWrap then st.nameText:SetNonSpaceWrap(false) end
 		if st.nameText.SetMaxLines then st.nameText:SetMaxLines(1) end
 		GF.ApplyScaledFont(self, st.nameText, tc.font or hc.font, tc.fontSize or hc.fontSize or 12, tc.fontOutline or hc.fontOutline, cfg)
+		-- Let the snapped anchor drive placement; FontString pixel snapping can introduce 1px jitter here.
+		if Pixel and Pixel.DisableSnap then Pixel.DisableSnap(st.nameText) end
 		local nameAnchor = tc.nameAnchor or "LEFT"
 		local baseOffset = (cfg.health and cfg.health.offsetLeft) or {}
 		if nameAnchor and nameAnchor:find("RIGHT") then

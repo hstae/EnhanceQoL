@@ -20092,15 +20092,6 @@ end
 
 local function refreshTrackedSpellEntries(spellId, baseSpellId, mode, panelsToRefresh) return cdp.ENTRY.RefreshSpellEntries(spellId, baseSpellId, mode, panelsToRefresh) == true end
 
-local function refreshCooldownEntriesForSpell(spellId, baseSpellId)
-	local runtime = CooldownPanels.runtime
-	local panelsToRefresh = cdp.ENTRY.GetPanelRefreshScratch(runtime, "_eqolSpellEntryRefreshScratch")
-	if not panelsToRefresh then return false end
-	local refreshed = refreshTrackedSpellEntries(spellId, baseSpellId, "cooldown", panelsToRefresh)
-	if cdp.ENTRY.FlushPanelRefreshes(panelsToRefresh) then refreshed = true end
-	return refreshed
-end
-
 refreshPanelsForSpell = function(spellId)
 	local id = tonumber(spellId)
 	if not id then return false end
@@ -21246,7 +21237,11 @@ local function ensureUpdateFrame()
 				if baseSpellId ~= spellId then invalidateCooldownCachesForId(baseSpellId) end
 				CooldownPanels:HandleReadySoundSpellEvent(spellId, baseSpellId, true)
 				CooldownPanels.TraceChargeSpellSnapshot("trace51505_event_SPELL_UPDATE_COOLDOWN_after", spellId, { event = event })
-				refreshCooldownEntriesForSpell(spellId, baseSpellId)
+				if spellId ~= nil then
+					refreshPanelsForSpell(spellId)
+				elseif baseSpellId ~= nil then
+					refreshPanelsForSpell(baseSpellId)
+				end
 				return
 			end
 			CooldownPanels:InvalidateSpellQueryCaches("duration")

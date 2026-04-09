@@ -1,5 +1,13 @@
 # Changelog
 
+## [10.1.4] - 2026-04-09
+
+### 🐛 Fixed
+
+- Cooldown Panels: Fixed some spells not updating their cooldown displays correctly when other abilities reduced or refreshed them.
+
+---
+
 ## [10.1.3] - 2026-04-08
 
 ### 🐛 Fixed
