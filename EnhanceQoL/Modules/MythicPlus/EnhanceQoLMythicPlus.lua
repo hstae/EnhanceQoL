@@ -1458,10 +1458,7 @@ local function ensureBRAnchor()
 					local record = data or {}
 					seedBREditModeRecordFromProfile(record)
 					applyBRLayoutData(record)
-					if EditMode and EditMode.SetFramePosition then
-						EditMode:SetFramePosition(BR_EDITMODE_ID, record.point or "CENTER", record.x or 0, record.y or 0, layoutName)
-						return
-					end
+					return
 				end
 				applyBRLayoutData(data)
 			end,
@@ -2610,12 +2607,8 @@ local function ensureBloodlustAnchor()
 					bloodlustAnchor._eqolEditModeHydrated = true
 					local record = data or {}
 					seedBloodlustEditModeRecordFromProfile(record)
-					-- Apply visual settings immediately on first Edit Mode open.
 					applyBloodlustLayoutData(record)
-					if EditMode and EditMode.SetFramePosition then
-						EditMode:SetFramePosition(BLOODLUST_EDITMODE_ID, record.point or "CENTER", record.x or 0, record.y or 0, layoutName)
-						return
-					end
+					return
 				end
 				applyBloodlustLayoutData(data)
 			end,
