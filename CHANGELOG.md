@@ -5,6 +5,8 @@
 ### 🐛 Fixed
 
 - Group Frames / Auras: Fixed buff and debuff tooltips blocking clicks on the underlying party and raid frames while aura tooltips are enabled.
+- Group Frames / Healer Buffs: Added the missing `Ebon Might` aura ID `395296` so the buff is tracked correctly.
+- Unit Frames / Visibility: Fixed `Show when Skyriding` and `Show when Flying` sometimes keeping unit frames visible while dead or flying as a ghost.
 
 ---
 
