@@ -3459,6 +3459,8 @@ function AuraUtil.ensureAuraButton(container, icons, index, ac)
 		end
 	end
 
+	if AuraUtil.syncAuraButtonLayer then AuraUtil.syncAuraButtonLayer(btn, container, ac) end
+
 	return btn, icons
 end
 
@@ -7037,6 +7039,50 @@ normalizeStrataToken = function(value)
 	return nil
 end
 
+function AuraUtil.syncAuraContainerLayer(container, parent)
+	if not (container and parent) then return end
+	container._eqolAuraLayerParent = parent
+	local targetStrata = parent.GetFrameStrata and parent:GetFrameStrata()
+	if targetStrata and container.SetFrameStrata and container:GetFrameStrata() ~= targetStrata then container:SetFrameStrata(targetStrata) end
+	if container.SetFrameLevel and parent.GetFrameLevel then
+		local targetLevel = (parent:GetFrameLevel() or 0) + 1
+		if targetLevel < 0 then targetLevel = 0 end
+		if container:GetFrameLevel() ~= targetLevel then container:SetFrameLevel(targetLevel) end
+	end
+end
+
+function AuraUtil.syncAuraButtonLayer(btn, container, ac)
+	if not (btn and container) then return end
+	local parent = container._eqolAuraLayerParent or (container.GetParent and container:GetParent()) or container
+	local targetStrata = normalizeStrataToken(ac and ac.strata)
+	if not targetStrata and parent.GetFrameStrata then targetStrata = parent:GetFrameStrata() end
+	local levelOffset = tonumber(ac and ac.frameLevelOffset)
+	if levelOffset == nil then levelOffset = 5 end
+	local targetLevel = levelOffset
+	if parent.GetFrameLevel then targetLevel = (parent:GetFrameLevel() or 0) + levelOffset end
+	if targetLevel < 0 then targetLevel = 0 end
+	if targetStrata and btn.SetFrameStrata and btn:GetFrameStrata() ~= targetStrata then btn:SetFrameStrata(targetStrata) end
+	if btn.SetFrameLevel and btn:GetFrameLevel() ~= targetLevel then btn:SetFrameLevel(targetLevel) end
+
+	local cdLevel = targetLevel + 1
+	if btn.cd then
+		if targetStrata and btn.cd.SetFrameStrata and btn.cd:GetFrameStrata() ~= targetStrata then btn.cd:SetFrameStrata(targetStrata) end
+		if btn.cd.SetFrameLevel and btn.cd:GetFrameLevel() ~= cdLevel then btn.cd:SetFrameLevel(cdLevel) end
+	end
+
+	local overlayLevel = cdLevel + 5
+	if btn.overlay then
+		if targetStrata and btn.overlay.SetFrameStrata and btn.overlay:GetFrameStrata() ~= targetStrata then btn.overlay:SetFrameStrata(targetStrata) end
+		if btn.overlay.SetFrameLevel and btn.overlay:GetFrameLevel() ~= overlayLevel then btn.overlay:SetFrameLevel(overlayLevel) end
+	end
+
+	local foregroundLevel = overlayLevel + 2
+	if btn.foreground then
+		if targetStrata and btn.foreground.SetFrameStrata and btn.foreground:GetFrameStrata() ~= targetStrata then btn.foreground:SetFrameStrata(targetStrata) end
+		if btn.foreground.SetFrameLevel and btn.foreground:GetFrameLevel() ~= foregroundLevel then btn.foreground:SetFrameLevel(foregroundLevel) end
+	end
+end
+
 local function syncTextFrameLevels(st)
 	if not st then return end
 	local scfg = (st.cfg and st.cfg.status) or {}
@@ -7892,6 +7938,7 @@ local function layoutFrame(cfg, unit)
 		if baseAy == nil then baseAy = defAy end
 		UF._auraLayout.positionContainer(st.auraContainer, anchor, st.barGroup, baseAx, baseAy, barAreaOffsetLeft, barAreaOffsetRight)
 		st.auraContainer:SetWidth(width + borderOffset * 2)
+		AuraUtil.syncAuraContainerLayer(st.auraContainer, st.frame)
 
 		if st.debuffContainer then
 			st.debuffContainer:ClearAllPoints()
@@ -7906,12 +7953,30 @@ local function layoutFrame(cfg, unit)
 			if useSeparateDebuffs then
 				UF._auraLayout.positionContainer(st.debuffContainer, danchor, st.barGroup, baseDax, baseDay, barAreaOffsetLeft, barAreaOffsetRight)
 				st.debuffContainer:SetWidth(width + borderOffset * 2)
+				AuraUtil.syncAuraContainerLayer(st.debuffContainer, st.frame)
 			else
 				-- If not separating, keep the debuff container collapsed
 				st.debuffContainer:SetPoint("TOPLEFT", st.auraContainer, "TOPLEFT", 0, 0)
 				st.debuffContainer:SetWidth(0.001)
 				st.debuffContainer:SetHeight(0.001)
+				AuraUtil.syncAuraContainerLayer(st.debuffContainer, st.frame)
 				st.debuffContainer:Hide()
+			end
+		end
+
+		if st.auraButtons then
+			for i = 1, #st.auraButtons do
+				local btn = st.auraButtons[i]
+				if btn then
+					local buttonStyle = (resolvedAuras.combineLayout == true and btn.isDebuff) and debuffAura or buffAura
+					AuraUtil.syncAuraButtonLayer(btn, st.auraContainer, buttonStyle)
+				end
+			end
+		end
+		if st.debuffButtons and st.debuffContainer then
+			for i = 1, #st.debuffButtons do
+				local btn = st.debuffButtons[i]
+				if btn then AuraUtil.syncAuraButtonLayer(btn, st.debuffContainer, debuffAura) end
 			end
 		end
 	end

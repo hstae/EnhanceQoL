@@ -748,6 +748,38 @@ local function appendUnitAuraSettings(list, unit, def, refreshSelf)
 		end, defaultAuraOffsetY(auraDef.anchor or "BOTTOM"), parentId, true)
 		list[#list].isEnabled = isSectionEnabled
 
+		if unit == "player" then
+			list[#list + 1] = radioDropdown(
+				labelPrefix .. " " .. (L["Frame strata"] or "Frame strata"),
+				strataOptionsWithDefault,
+				function() return getAuraSectionValue(sectionKey, { "strata" }, "") or "" end,
+				function(val)
+					if val == "" then val = nil end
+					setAuraSectionValue(sectionKey, { "strata" }, val)
+					refreshSelf()
+				end,
+				"",
+				parentId
+			)
+			list[#list].isEnabled = isSectionEnabled
+
+			list[#list + 1] = slider(
+				labelPrefix .. " " .. (L["UFDetachedPowerLevelOffset"] or "Frame level offset"),
+				0,
+				50,
+				1,
+				function() return getAuraSectionValue(sectionKey, { "frameLevelOffset" }, 5) end,
+				function(val)
+					setAuraSectionValue(sectionKey, { "frameLevelOffset" }, val or 5)
+					refreshSelf()
+				end,
+				5,
+				parentId,
+				true
+			)
+			list[#list].isEnabled = isSectionEnabled
+		end
+
 		list[#list + 1] = slider(labelPrefix .. " " .. (L["Size"] or "size"), 12, 48, 1, function() return getAuraSectionValue(sectionKey, { "size" }, auraDef.size or 24) end, function(val)
 			setAuraSectionValue(sectionKey, { "size" }, val or auraDef.size or 24)
 			refreshSelf()
@@ -1293,6 +1325,16 @@ function UnitAnchor.AppendResourceBars(list, seen)
 	end
 end
 
+function UnitAnchor.AppendCooldownViewers(list, seen)
+	local function add(frameName, label)
+		if _G and _G[frameName] then UnitAnchor.AddOption(list, seen, frameName, label) end
+	end
+
+	add("EssentialCooldownViewer", L["cooldownViewerEssential"] or "Essential Cooldown Viewer")
+	add("UtilityCooldownViewer", L["cooldownViewerUtility"] or "Utility Cooldown Viewer")
+	add("BuffIconCooldownViewer", L["cooldownViewerBuffIcon"] or "Buff Icon Cooldowns")
+end
+
 function UnitAnchor.AppendCooldownPanels(list, seen)
 	local cp = addon.Aura and addon.Aura.CooldownPanels
 	if not (cp and cp.GetRoot and cp.GetPanel) then return end
@@ -1333,6 +1375,7 @@ function UnitAnchor.GetOptions(unit)
 		end
 	end
 	UnitAnchor.AppendResourceBars(list, seen)
+	UnitAnchor.AppendCooldownViewers(list, seen)
 	UnitAnchor.AppendCooldownPanels(list, seen)
 	return list
 end
