@@ -84,6 +84,15 @@ local AUTO_ENABLE_OPTIONS = {
 	SECONDARY = L["AutoEnableSecondary"] or "Secondary resources",
 }
 local AUTO_ENABLE_ORDER = { "HEALTH", "MAIN", "SECONDARY" }
+local FRAME_STRATA_ORDER = (ResourceBars and ResourceBars.STRATA_ORDER)
+	or { "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG", "FULLSCREEN", "FULLSCREEN_DIALOG", "TOOLTIP" }
+local MAX_FRAME_LEVEL_OFFSET = (ResourceBars and ResourceBars.MAX_FRAME_LEVEL_OFFSET) or 50
+local VALID_FRAME_STRATA = {}
+local FRAME_STRATA_VALUES = { { value = "", text = DEFAULT or "Default" } }
+for _, strata in ipairs(FRAME_STRATA_ORDER) do
+	VALID_FRAME_STRATA[strata] = true
+	FRAME_STRATA_VALUES[#FRAME_STRATA_VALUES + 1] = { value = strata, text = strata }
+end
 
 local function getCachedLSMMedia(mediaType)
 	local names = addon.functions and addon.functions.GetLSMMediaNames and addon.functions.GetLSMMediaNames(mediaType)
@@ -299,6 +308,13 @@ local function setIfChanged(tbl, key, value)
 	if tbl[key] == value then return false end
 	tbl[key] = value
 	return true
+end
+
+local function normalizeFrameStrataValue(value)
+	if type(value) ~= "string" or value == "" then return "" end
+	local upper = string.upper(value)
+	if VALID_FRAME_STRATA[upper] then return upper end
+	return ""
 end
 
 local function notifyResourceBarSettings()
@@ -738,6 +754,62 @@ local function registerEditModeBars()
 						if not setIfChanged(c, "height", value) then return end
 						if EditMode and EditMode.SetValue then EditMode:SetValue(frameId, "height", value, nil, true) end
 						applyBarSize()
+						queueRefresh()
+					end,
+				},
+				{
+					name = L["Frame strata"] or "Frame strata",
+					kind = settingType.Dropdown,
+					height = 180,
+					field = "strata",
+					parentId = "frame",
+					values = FRAME_STRATA_VALUES,
+					default = "",
+					get = function()
+						local c = curSpecCfg()
+						return normalizeFrameStrataValue((c and c.strata) or (cfg and cfg.strata))
+					end,
+					set = function(_, value)
+						local c = curSpecCfg()
+						if not c then return end
+						local normalized = normalizeFrameStrataValue(value)
+						if not setIfChanged(c, "strata", normalized ~= "" and normalized or nil) then return end
+						queueRefresh()
+					end,
+				},
+				{
+					name = L["UFDetachedPowerLevelOffset"] or "Frame level offset",
+					kind = settingType.Slider,
+					allowInput = true,
+					field = "frameLevelOffset",
+					minValue = 0,
+					maxValue = MAX_FRAME_LEVEL_OFFSET,
+					valueStep = 1,
+					default = 0,
+					parentId = "frame",
+					get = function()
+						local c = curSpecCfg()
+						local value = (c and c.frameLevelOffset)
+						if value == nil then value = cfg and cfg.frameLevelOffset end
+						value = tonumber(value) or 0
+						if value < 0 then
+							value = 0
+						elseif value > MAX_FRAME_LEVEL_OFFSET then
+							value = MAX_FRAME_LEVEL_OFFSET
+						end
+						return math.floor(value + 0.5)
+					end,
+					set = function(_, value)
+						local c = curSpecCfg()
+						if not c then return end
+						local normalized = tonumber(value) or 0
+						if normalized < 0 then
+							normalized = 0
+						elseif normalized > MAX_FRAME_LEVEL_OFFSET then
+							normalized = MAX_FRAME_LEVEL_OFFSET
+						end
+						normalized = math.floor(normalized + 0.5)
+						if not setIfChanged(c, "frameLevelOffset", normalized > 0 and normalized or nil) then return end
 						queueRefresh()
 					end,
 				},

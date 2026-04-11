@@ -50,6 +50,18 @@ local ensureEditModeRegistration
 local ensureRelativeFrameFallback
 local visibilityDriverWatcher
 local ResourcebarVars = {
+	STRATA_ORDER = {
+		"BACKGROUND",
+		"LOW",
+		"MEDIUM",
+		"HIGH",
+		"DIALOG",
+		"FULLSCREEN",
+		"FULLSCREEN_DIALOG",
+		"TOOLTIP",
+	},
+	DEFAULT_FRAME_STRATA = "MEDIUM",
+	MAX_FRAME_LEVEL_OFFSET = 50,
 	RESOURCE_SHARE_KIND = "EQOL_RESOURCE_BAR_PROFILE",
 	COOLDOWN_VIEWER_FRAME_NAME = "EssentialCooldownViewer",
 	MIN_RESOURCE_BAR_WIDTH = 10,
@@ -136,6 +148,10 @@ local ResourcebarVars = {
 	AURA_POWER_CONFIG = {},
 }
 local RB = ResourcebarVars
+ResourceBars._validFrameStrata = ResourceBars._validFrameStrata or {}
+for _, strata in ipairs(RB.STRATA_ORDER) do
+	ResourceBars._validFrameStrata[strata] = true
+end
 RB.UNITFRAME_ANCHOR_MAP = {
 	PlayerFrame = { uf = "EQOLUFPlayerFrame", blizz = "PlayerFrame", ufKey = "player" },
 	EQOLUFPlayerFrame = { uf = "EQOLUFPlayerFrame", blizz = "PlayerFrame", ufKey = "player" },
@@ -215,6 +231,8 @@ local COSMETIC_BAR_KEYS = {
 	"barTexture",
 	"width",
 	"height",
+	"strata",
+	"frameLevelOffset",
 	"textStyle",
 	"shortNumbers",
 	"percentRounding",
@@ -1819,6 +1837,25 @@ local function resolveFontColor(cfg)
 	return fc and (fc[1] or 1) or 1, fc and (fc[2] or 1) or 1, fc and (fc[3] or 1) or 1, fc and (fc[4] or 1) or 1
 end
 
+function ResourceBars.NormalizeFrameStrataToken(strata)
+	if type(strata) ~= "string" or strata == "" then return nil end
+	local upper = string.upper(strata)
+	if ResourceBars._validFrameStrata and ResourceBars._validFrameStrata[upper] then return upper end
+	return nil
+end
+
+function ResourceBars.NormalizeFrameLevelOffset(offset)
+	local value = tonumber(offset)
+	if value == nil then return nil end
+	value = floor(value + 0.5)
+	if value < 0 then
+		value = 0
+	elseif value > RB.MAX_FRAME_LEVEL_OFFSET then
+		value = RB.MAX_FRAME_LEVEL_OFFSET
+	end
+	return value
+end
+
 local function setFontWithFallback(fs, face, size, outline)
 	if not fs or not face then return end
 	if outline == "" then outline = nil end
@@ -1841,19 +1878,21 @@ local function ensureBackdropFrames(frame)
 	local bg = frame._rbBackground
 	if not bg then
 		bg = CreateFrame("Frame", nil, frame, "BackdropTemplate")
-		local base = frame:GetFrameLevel() or 1
-		bg:SetFrameLevel(max(base - 2, 0))
 		bg:EnableMouse(false)
 		frame._rbBackground = bg
 	end
 	local border = frame._rbBorder
 	if not border then
 		border = CreateFrame("Frame", nil, frame, "BackdropTemplate")
-		local base = frame:GetFrameLevel() or 1
-		border:SetFrameLevel(min(base + 2, 65535))
 		border:EnableMouse(false)
 		frame._rbBorder = border
 	end
+	local base = frame:GetFrameLevel() or 1
+	local strata = (frame.GetFrameStrata and frame:GetFrameStrata()) or RB.DEFAULT_FRAME_STRATA
+	if bg.GetFrameStrata and bg:GetFrameStrata() ~= strata then bg:SetFrameStrata(strata) end
+	if border.GetFrameStrata and border:GetFrameStrata() ~= strata then border:SetFrameStrata(strata) end
+	if bg.GetFrameLevel and bg:GetFrameLevel() ~= max(base - 2, 0) then bg:SetFrameLevel(max(base - 2, 0)) end
+	if border.GetFrameLevel and border:GetFrameLevel() ~= min(base + 2, 65535) then border:SetFrameLevel(min(base + 2, 65535)) end
 	return bg, border
 end
 
@@ -1913,6 +1952,84 @@ local function ensureTextOverlayFrame(bar)
 	overlay:SetFrameStrata(bar:GetFrameStrata())
 	overlay:SetFrameLevel(max(borderLevel + 1, baseLevel + 1))
 	return overlay
+end
+
+local function applyBarFrameLayers(bar, cfg)
+	if not bar then return end
+	local function setFrameStrataIfNeeded(frame, strata)
+		if not (frame and frame.SetFrameStrata and strata) then return end
+		if frame:GetFrameStrata() ~= strata then frame:SetFrameStrata(strata) end
+	end
+
+	local function setFrameLevelIfNeeded(frame, level)
+		if not (frame and frame.SetFrameLevel and level ~= nil) then return end
+		if frame:GetFrameLevel() ~= level then frame:SetFrameLevel(level) end
+	end
+
+	if bar._rbBaseStrata == nil and bar.GetFrameStrata then
+		bar._rbBaseStrata = ResourceBars.NormalizeFrameStrataToken(bar:GetFrameStrata()) or RB.DEFAULT_FRAME_STRATA
+	end
+	if bar._rbBaseFrameLevel == nil and bar.GetFrameLevel then bar._rbBaseFrameLevel = bar:GetFrameLevel() or 0 end
+
+	local strata = ResourceBars.NormalizeFrameStrataToken(cfg and cfg.strata) or bar._rbBaseStrata or RB.DEFAULT_FRAME_STRATA
+	local baseLevel = tonumber(bar._rbBaseFrameLevel)
+	if baseLevel == nil then baseLevel = (bar.GetFrameLevel and bar:GetFrameLevel()) or 0 end
+	local levelOffset = ResourceBars.NormalizeFrameLevelOffset(cfg and cfg.frameLevelOffset) or 0
+	local desiredLevel = max(0, baseLevel + levelOffset)
+	setFrameStrataIfNeeded(bar, strata)
+	setFrameLevelIfNeeded(bar, desiredLevel)
+	do
+		local childLevel = min(desiredLevel + 1, 65535)
+		local borderLevel = min(desiredLevel + 2, 65535)
+		local bg, border = ensureBackdropFrames(bar)
+		if bg then
+			setFrameStrataIfNeeded(bg, strata)
+			setFrameLevelIfNeeded(bg, max(desiredLevel - 2, 0))
+		end
+		if border then
+			setFrameStrataIfNeeded(border, strata)
+			setFrameLevelIfNeeded(border, borderLevel)
+		end
+		if bar._rbInner then
+			setFrameStrataIfNeeded(bar._rbInner, strata)
+			setFrameLevelIfNeeded(bar._rbInner, desiredLevel)
+		end
+		if bar._rbTextOverlay then
+			setFrameStrataIfNeeded(bar._rbTextOverlay, strata)
+			setFrameLevelIfNeeded(bar._rbTextOverlay, max(borderLevel + 1, childLevel))
+		end
+		if bar.absorbBar then
+			setFrameStrataIfNeeded(bar.absorbBar, strata)
+			setFrameLevelIfNeeded(bar.absorbBar, childLevel)
+		end
+		if bar.runes then
+			for i = 1, #bar.runes do
+				local sb = bar.runes[i]
+				if sb then
+					setFrameStrataIfNeeded(sb, strata)
+					setFrameLevelIfNeeded(sb, childLevel)
+					if sb._rbSegmentBorder then
+						setFrameStrataIfNeeded(sb._rbSegmentBorder, strata)
+						setFrameLevelIfNeeded(sb._rbSegmentBorder, borderLevel)
+					end
+				end
+			end
+		end
+		if bar._rbDiscreteSegments then
+			for i = 1, #bar._rbDiscreteSegments do
+				local sb = bar._rbDiscreteSegments[i]
+				if sb then
+					setFrameStrataIfNeeded(sb, strata)
+					setFrameLevelIfNeeded(sb, childLevel)
+					if sb._rbSegmentBorder then
+						setFrameStrataIfNeeded(sb._rbSegmentBorder, strata)
+						setFrameLevelIfNeeded(sb._rbSegmentBorder, borderLevel)
+					end
+				end
+			end
+		end
+	end
+	return strata, desiredLevel
 end
 
 local EnumPowerType = Enum.PowerType
@@ -2890,6 +3007,8 @@ function ResourceBars.PrepareBarConfigForRuntime(cfg, pType, specInfo)
 	if cfg._eqolRuntimePrepareStamp == stamp then return cfg end
 
 	if cfg._rbType ~= pType then cfg._rbType = pType end
+	cfg.strata = ResourceBars.NormalizeFrameStrataToken(cfg.strata)
+	cfg.frameLevelOffset = ResourceBars.NormalizeFrameLevelOffset(cfg.frameLevelOffset)
 	if isAuraPowerType and isAuraPowerType(pType) then ensureAuraPowerDefaults(pType, cfg) end
 	if ResourceBars.EnsureRogueChargedComboDefaults then ResourceBars.EnsureRogueChargedComboDefaults(cfg, pType) end
 	ensureDruidShowFormsDefaults(cfg, pType, specInfo)
@@ -3169,6 +3288,11 @@ function createHealthBar()
 		if mainFrame:GetParent() ~= UIParent then mainFrame:SetParent(UIParent) end
 		if healthBar and healthBar.GetParent and healthBar:GetParent() ~= UIParent then healthBar:SetParent(UIParent) end
 		if mainFrame.SetClampedToScreen then mainFrame:SetClampedToScreen(true) end
+		local settings = getBarSettings("HEALTH") or {}
+		healthBar._cfg = settings
+		applyBarFrameLayers(healthBar, settings)
+		applyBackdrop(healthBar, settings)
+		if healthBar.absorbBar then ResourceBars.SyncAbsorbBarAppearance(healthBar, settings, true) end
 		mainFrame:Show()
 		healthBar:Show()
 		return
@@ -3229,6 +3353,7 @@ function createHealthBar()
 	healthBar:SetPoint(anchor.point or "TOPLEFT", rel, anchor.relativePoint or anchor.point or "TOPLEFT", anchor.x or 0, anchor.y or 0)
 	local settings = getBarSettings("HEALTH")
 	healthBar._cfg = settings
+	applyBarFrameLayers(healthBar, settings)
 	applyBackdrop(healthBar, settings)
 
 	if not healthBar.text then healthBar.text = healthBar:CreateFontString(nil, "OVERLAY", "GameFontHighlight") end
@@ -3250,6 +3375,7 @@ function createHealthBar()
 	end
 	absorbBar:SetStatusBarColor(0.8, 0.8, 0.8, 0.8)
 	healthBar.absorbBar = absorbBar
+	applyBarFrameLayers(healthBar, settings)
 	ResourceBars.SyncAbsorbBarAppearance(healthBar, settings, true)
 	if healthBar._rbBackdropState and healthBar._rbBackdropState.insets then applyStatusBarInsets(healthBar, healthBar._rbBackdropState.insets, true) end
 
@@ -4877,6 +5003,7 @@ function layoutRunes(bar)
 		end
 		sb:ClearAllPoints()
 		if sb:GetParent() ~= inner then sb:SetParent(inner) end
+		if sb.SetFrameStrata then sb:SetFrameStrata(bar:GetFrameStrata()) end
 		sb:SetFrameLevel((bar:GetFrameLevel() or 1) + 1)
 		if vertical then
 			sb:SetWidth(w)
@@ -5091,6 +5218,7 @@ local function createPowerBar(type, anchor)
 	end
 
 	-- Visuals and text
+	applyBarFrameLayers(bar, settings)
 	applyBackdrop(bar, settings)
 	if type ~= "RUNES" then applyBarFillColor(bar, settings, type) end
 
@@ -6503,6 +6631,7 @@ function ResourceBars.Refresh()
 		local hTex = resolveTexture(hCfg2)
 		healthBar:SetStatusBarTexture(hTex)
 		configureSpecialTexture(healthBar, "HEALTH", hCfg2)
+		applyBarFrameLayers(healthBar, hCfg2)
 		if healthBar.absorbBar then ResourceBars.SyncAbsorbBarAppearance(healthBar, hCfg2, true) end
 		healthBar:ClearAllPoints()
 		healthBar:SetPoint(a.point or "TOPLEFT", rel, a.relativePoint or a.point or "TOPLEFT", a.x or 0, a.y or 0)
@@ -6554,6 +6683,7 @@ function ResourceBars.Refresh()
 			bar._cfg = cfg
 			local defaultStyle = (pType == "MANA" or pType == "STAGGER") and "PERCENT" or "CURMAX"
 			bar._style = (cfg and cfg.textStyle) or defaultStyle
+			applyBarFrameLayers(bar, cfg)
 
 			if pType == "RUNES" then
 				layoutRunes(bar)
@@ -6581,6 +6711,7 @@ function ResourceBars.Refresh()
 		healthBar._cfg = hCfg
 		healthBar:SetStatusBarTexture(resolveTexture(hCfg))
 		configureSpecialTexture(healthBar, "HEALTH", hCfg)
+		applyBarFrameLayers(healthBar, hCfg)
 		applyBackdrop(healthBar, hCfg)
 		if healthBar.text then applyFontToString(healthBar.text, hCfg) end
 		applyTextPosition(healthBar, hCfg, 3, 0)
@@ -6604,6 +6735,7 @@ function ResourceBars.Refresh()
 				bar:SetStatusBarTexture(resolveTexture(cfg))
 				configureSpecialTexture(bar, pType, cfg)
 			end
+			applyBarFrameLayers(bar, cfg)
 			applyBackdrop(bar, cfg)
 			configureBarBehavior(bar, cfg, pType)
 			if pType ~= "RUNES" then applyBarFillColor(bar, cfg, pType) end
@@ -6843,6 +6975,8 @@ ResourceBars.DEFAULT_HEALTH_WIDTH = RB.DEFAULT_HEALTH_WIDTH
 ResourceBars.DEFAULT_HEALTH_HEIGHT = RB.DEFAULT_HEALTH_HEIGHT
 ResourceBars.DEFAULT_POWER_WIDTH = RB.DEFAULT_POWER_WIDTH
 ResourceBars.DEFAULT_POWER_HEIGHT = RB.DEFAULT_POWER_HEIGHT or RB.DEFAULT_HEALTH_HEIGHT
+ResourceBars.STRATA_ORDER = RB.STRATA_ORDER
+ResourceBars.MAX_FRAME_LEVEL_OFFSET = RB.MAX_FRAME_LEVEL_OFFSET
 ResourceBars.MIN_RESOURCE_BAR_WIDTH = RB.MIN_RESOURCE_BAR_WIDTH
 ResourceBars.MAELSTROM_WEAPON_SEGMENTS = RB.MAELSTROM_WEAPON_SEGMENTS
 ResourceBars.MAELSTROM_WEAPON_MAX_STACKS = RB.MAELSTROM_WEAPON_MAX_STACKS

@@ -2,6 +2,10 @@
 
 ## [10.2.0-beta4] - 2026-04-11
 
+### ✨ Added
+
+- UI / Bars & Resources: Added `Frame strata` and `Frame level offset` settings for resource bars, with the same layering applied consistently to borders, absorb overlays, and segmented resource elements.
+
 ### 🐛 Fixed
 
 - Group Frames / Auras: Fixed buff and debuff tooltips blocking clicks on the underlying party and raid frames while aura tooltips are enabled.

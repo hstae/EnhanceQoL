@@ -377,6 +377,7 @@ function ResourceBars.LayoutEssences(bar, cfg, count, texturePath)
 		ensureStatusBarTexturePath(sb, texturePath)
 		sb:ClearAllPoints()
 		if sb:GetParent() ~= inner then sb:SetParent(inner) end
+		if sb.SetFrameStrata then sb:SetFrameStrata(bar:GetFrameStrata()) end
 		sb:SetFrameLevel((bar:GetFrameLevel() or 1) + 1)
 		if vertical then
 			sb:SetWidth(w)
@@ -774,6 +775,7 @@ function ResourceBars.LayoutDiscreteSegments(bar, cfg, count, texturePath, separ
 			segments[i] = sb
 		end
 		if sb:GetParent() ~= inner then sb:SetParent(inner) end
+		if sb.SetFrameStrata then sb:SetFrameStrata(bar:GetFrameStrata()) end
 		sb:SetFrameLevel((bar:GetFrameLevel() or 1) + 1)
 		ensureStatusBarTexturePath(sb, texPath)
 		if sb.SetReverseFill then sb:SetReverseFill(reverse) end
