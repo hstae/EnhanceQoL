@@ -5478,20 +5478,22 @@ function visibilityLogic:IsPlayerCasting()
 end
 
 function visibilityLogic:IsPlayerSkyriding()
+	if UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") then return false end
 	if C_PlayerInfo and C_PlayerInfo.GetGlidingInfo then
 		local _, canGlide = C_PlayerInfo.GetGlidingInfo()
 		if canGlide ~= nil then return canGlide == true end
 	end
 	if SecureCmdOptionParse then
 		if addon.variables.unitClass == "DRUID" then
-			return SecureCmdOptionParse("[advflyable,flyable,mounted,flying] 1; [advflyable,flyable,stance:3,flying] 1; [advflyable,flyable,stance:6,flying] 1; 0") == "1"
+			return SecureCmdOptionParse("[nodead,advflyable,flyable,mounted,flying] 1; [nodead,advflyable,flyable,stance:3,flying] 1; [nodead,advflyable,flyable,stance:6,flying] 1; 0") == "1"
 		end
-		return SecureCmdOptionParse("[advflyable,flyable,mounted,flying] 1; 0") == "1"
+		return SecureCmdOptionParse("[nodead,advflyable,flyable,mounted,flying] 1; 0") == "1"
 	end
 	return addon.variables and addon.variables.isPlayerSkyriding == true
 end
 
 function visibilityLogic:IsPlayerFlying()
+	if UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") then return false end
 	if C_PlayerInfo and C_PlayerInfo.GetGlidingInfo then
 		local isGliding = C_PlayerInfo.GetGlidingInfo()
 		if isGliding ~= nil then return isGliding == true end

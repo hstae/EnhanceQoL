@@ -741,6 +741,13 @@ local function IsPlayerCasting()
 	return false
 end
 
+local function IsPlayerDeadOrGhost()
+	if UnitIsDeadOrGhost then return UnitIsDeadOrGhost("player") == true end
+	if UnitIsDead and UnitIsDead("player") then return true end
+	if UnitIsGhost and UnitIsGhost("player") then return true end
+	return false
+end
+
 local function IsPlayerMounted()
 	if IsMounted and IsMounted() then return true end
 	if IsInDruidTravelForm and IsInDruidTravelForm() then return true end
@@ -748,6 +755,7 @@ local function IsPlayerMounted()
 end
 
 local function IsPlayerFlying()
+	if IsPlayerDeadOrGhost() then return false end
 	if C_PlayerInfo and C_PlayerInfo.GetGlidingInfo then
 		local isGliding = C_PlayerInfo.GetGlidingInfo()
 		if isGliding ~= nil then return isGliding == true end
@@ -780,8 +788,9 @@ local function UpdateFrameVisibilityContext()
 	frameVisibilityContext.inGroup = inGroup
 	frameVisibilityContext.inParty = inGroup and not inRaid
 	frameVisibilityContext.inRaid = inRaid
+	local deadOrGhost = IsPlayerDeadOrGhost()
 	frameVisibilityContext.isFlying = IsPlayerFlying()
-	frameVisibilityContext.isSkyriding = addon.variables and addon.variables.isPlayerSkyriding and true or false
+	frameVisibilityContext.isSkyriding = not deadOrGhost and addon.variables and addon.variables.isPlayerSkyriding and true or false
 	frameVisibilityContext.isCasting = IsPlayerCasting()
 	frameVisibilityContext.isMounted = IsPlayerMounted()
 end
@@ -818,20 +827,20 @@ local function BuildUnitFrameDriverExpression(config, opts)
 	end
 
 	local function addSkyridingClauses(target, seen)
-		addClause(target, seen, "advflyable,flyable,mounted,flying")
-		if addon.variables and addon.variables.unitClass == "DRUID" then addClause(target, seen, "advflyable,flyable,stance:3,flying") end
+		addClause(target, seen, "nodead,advflyable,flyable,mounted,flying")
+		if addon.variables and addon.variables.unitClass == "DRUID" then addClause(target, seen, "nodead,advflyable,flyable,stance:3,flying") end
 	end
 
 	if config.ALWAYS_HIDE_IN_GROUP then addClause(hideClauses, hideSeen, "group") end
 	if config.ALWAYS_HIDE_IN_PARTY then addClause(hideClauses, hideSeen, "group:party") end
 	if config.ALWAYS_HIDE_IN_RAID then addClause(hideClauses, hideSeen, "group:raid") end
 	if config.SKYRIDING_INACTIVE then addSkyridingClauses(hideClauses, hideSeen) end
-	if config.FLYING_INACTIVE then addClause(hideClauses, hideSeen, "flying") end
+	if config.FLYING_INACTIVE then addClause(hideClauses, hideSeen, "nodead,flying") end
 
 	if config.ALWAYS_IN_COMBAT then addClause(showClauses, showSeen, "combat") end
 	if config.ALWAYS_OUT_OF_COMBAT then addClause(showClauses, showSeen, "nocombat") end
 	if config.SKYRIDING_ACTIVE then addSkyridingClauses(showClauses, showSeen) end
-	if config.FLYING_ACTIVE then addClause(showClauses, showSeen, "flying") end
+	if config.FLYING_ACTIVE then addClause(showClauses, showSeen, "nodead,flying") end
 	if config.PLAYER_HAS_TARGET then addClause(showClauses, showSeen, "@target,exists") end
 	if config.PLAYER_MOUNTED then addClause(showClauses, showSeen, "mounted") end
 	if config.PLAYER_NOT_MOUNTED then addClause(showClauses, showSeen, "nomounted") end
@@ -932,9 +941,13 @@ local function EnsureFrameVisibilityWatcher()
 		RefreshAllFrameVisibilities()
 	end)
 	watcher:RegisterEvent("PLAYER_ENTERING_WORLD")
+	watcher:RegisterEvent("PLAYER_DEAD")
+	watcher:RegisterEvent("PLAYER_ALIVE")
+	watcher:RegisterEvent("PLAYER_UNGHOST")
 	watcher:RegisterEvent("PLAYER_REGEN_DISABLED")
 	watcher:RegisterEvent("PLAYER_REGEN_ENABLED")
 	watcher:RegisterEvent("PLAYER_TARGET_CHANGED")
+	watcher:RegisterEvent("PLAYER_FLAGS_CHANGED")
 	watcher:RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED")
 	watcher:RegisterEvent("UPDATE_SHAPESHIFT_FORM")
 	watcher:RegisterEvent("GROUP_ROSTER_UPDATE")
@@ -1224,7 +1237,15 @@ local function ApplyVisibilityToUnitFrame(frameName, cbData, config, opts)
 	state.supportsGroupRule = supportsPlayerScopedRules
 
 	local driverExpression = BuildUnitFrameDriverExpression(config)
-	local usesManualRules = config and (config.MOUSEOVER or config.PLAYER_CASTING)
+	local usesManualRules = config
+		and (
+			config.MOUSEOVER
+			or config.PLAYER_CASTING
+			or config.SKYRIDING_ACTIVE
+			or config.SKYRIDING_INACTIVE
+			or config.FLYING_ACTIVE
+			or config.FLYING_INACTIVE
+		)
 	local useDriver = driverExpression and not usesManualRules and not (opts and opts.noStateDriver) and not state.isBossFrame
 
 	if not useDriver and config and (config.SKYRIDING_ACTIVE or config.SKYRIDING_INACTIVE) then EnsureSkyridingStateDriver() end
@@ -2176,7 +2197,7 @@ local function GetActionBarVisibilityContext(combatOverride)
 		mounted = IsPlayerMounted(),
 		isFlying = IsPlayerFlying(),
 		isCasting = IsPlayerCasting(),
-		isSkyriding = addon.variables and addon.variables.isPlayerSkyriding,
+		isSkyriding = not IsPlayerDeadOrGhost() and addon.variables and addon.variables.isPlayerSkyriding,
 	}
 end
 
@@ -2670,9 +2691,9 @@ EnsureSkyridingStateDriver = function()
 	end)
 	local expr
 	if addon.variables.unitClass == "DRUID" then
-		expr = "[advflyable,flyable,mounted,flying] show; [advflyable,flyable,stance:3,flying] show; hide"
+		expr = "[nodead,advflyable,flyable,mounted,flying] show; [nodead,advflyable,flyable,stance:3,flying] show; hide"
 	else
-		expr = "[advflyable,flyable,mounted,flying] show; hide"
+		expr = "[nodead,advflyable,flyable,mounted,flying] show; hide"
 	end
 	local function registerDriver()
 		if addon.variables.skyridingDriverRegistered then return end

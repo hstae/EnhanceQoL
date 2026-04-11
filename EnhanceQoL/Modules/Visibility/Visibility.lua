@@ -641,9 +641,9 @@ local function ensureSkyridingDriver()
 
 	local expr
 	if addon.variables.unitClass == "DRUID" then
-		expr = "[advflyable,flyable,mounted,flying] show; [advflyable,flyable,stance:3,flying] show; hide"
+		expr = "[nodead,advflyable,flyable,mounted,flying] show; [nodead,advflyable,flyable,stance:3,flying] show; hide"
 	else
-		expr = "[advflyable,flyable,mounted,flying] show; hide"
+		expr = "[nodead,advflyable,flyable,mounted,flying] show; hide"
 	end
 	local function registerDriver()
 		if runtime.skyridingDriverRegistered then return end

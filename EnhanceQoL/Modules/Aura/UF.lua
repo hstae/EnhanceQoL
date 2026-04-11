@@ -4554,7 +4554,18 @@ local function applyVisibilityRules(unit)
 	local manualConfig = useConfig
 	local hideInClientScene = UFHelper and UFHelper.shouldHideInClientScene and UFHelper.shouldHideInClientScene(cfg, def)
 	local forceClientSceneHide = not inEdit and cfg and cfg.enabled and hideInClientScene and UF._clientSceneActive == true
-	if unit ~= "boss" and manualConfig and not manualConfig.MOUSEOVER and not manualConfig.PLAYER_CASTING then manualConfig = nil end
+	if
+		unit ~= "boss"
+		and manualConfig
+		and not manualConfig.MOUSEOVER
+		and not manualConfig.PLAYER_CASTING
+		and not manualConfig.SKYRIDING_ACTIVE
+		and not manualConfig.SKYRIDING_INACTIVE
+		and not manualConfig.FLYING_ACTIVE
+		and not manualConfig.FLYING_INACTIVE
+	then
+		manualConfig = nil
+	end
 	local opts = { noStateDriver = true }
 	if unit == "boss" then
 		local bossCount = UF.GetBossFrameCount(cfg)
@@ -9073,6 +9084,7 @@ local generalEvents = {
 	"PLAYER_LEVEL_UP",
 	"PLAYER_DEAD",
 	"PLAYER_ALIVE",
+	"PLAYER_UNGHOST",
 	"PLAYER_TARGET_CHANGED",
 	"PLAYER_LOGIN",
 	"SPELLS_CHANGED",
@@ -9908,6 +9920,7 @@ onEvent = function(self, event, unit, ...)
 		local interpolation = getSmoothInterpolation(playerCfg, defaultsFor(UNIT.PLAYER))
 		if states.player and states.player.health then states.player.health:SetValue(0, interpolation) end
 		updateHealth(playerCfg, UNIT.PLAYER)
+		applyVisibilityRulesAll()
 	elseif event == "PLAYER_ALIVE" then
 		local playerCfg = getCfg(UNIT.PLAYER)
 		refreshMainPower(UNIT.PLAYER)
@@ -9916,6 +9929,9 @@ onEvent = function(self, event, unit, ...)
 		updateCombatIndicator(playerCfg)
 		updateRestingIndicator(playerCfg)
 		updateUnitStatusIndicator(playerCfg, UNIT.PLAYER)
+		applyVisibilityRulesAll()
+	elseif event == "PLAYER_UNGHOST" then
+		applyVisibilityRulesAll()
 	elseif event == "PLAYER_FLAGS_CHANGED" then
 		if unit and allowedEventUnit[unit] then
 			updateUnitStatusIndicator(getCfg(unit), unit)
@@ -9925,6 +9941,7 @@ onEvent = function(self, event, unit, ...)
 		UFHelper.updatePvPIndicator(states[UNIT.PLAYER], UNIT.PLAYER, getCfg(UNIT.PLAYER), defaultsFor(UNIT.PLAYER), true)
 		UFHelper.updateLeaderIndicator(states[UNIT.PLAYER], UNIT.PLAYER, getCfg(UNIT.PLAYER), defaultsFor(UNIT.PLAYER), true)
 		if allowedEventUnit[UNIT.TARGET_TARGET] then updateUnitStatusIndicator(getCfg(UNIT.TARGET_TARGET), UNIT.TARGET_TARGET) end
+		applyVisibilityRulesAll()
 	elseif event == "PLAYER_REGEN_DISABLED" or event == "PLAYER_REGEN_ENABLED" then
 		local playerCfg = getCfg(UNIT.PLAYER)
 		updateCombatIndicator(playerCfg)
