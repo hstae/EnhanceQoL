@@ -1527,8 +1527,9 @@ CooldownPanels.GetRelativeFrameCache = function(runtimePanel, panel, panelKey)
 		local info = Helper.GENERIC_ANCHORS[key]
 		if info then add(key, info.label) end
 	end
-	if _G and _G.EssentialCooldownViewer then add("EssentialCooldownViewer", COOLDOWN_VIEWER_SETTINGS_CATEGORY_ESSENTIAL) end
-	if _G and _G.UtilityCooldownViewer then add("UtilityCooldownViewer", COOLDOWN_VIEWER_SETTINGS_CATEGORY_UTILITY) end
+	if _G and _G.EssentialCooldownViewer then add("EssentialCooldownViewer", L["cooldownViewerEssential"] or COOLDOWN_VIEWER_SETTINGS_CATEGORY_ESSENTIAL or "Essential Cooldown Viewer") end
+	if _G and _G.UtilityCooldownViewer then add("UtilityCooldownViewer", L["cooldownViewerUtility"] or COOLDOWN_VIEWER_SETTINGS_CATEGORY_UTILITY or "Utility Cooldown Viewer") end
+	if _G and _G.BuffIconCooldownViewer then add("BuffIconCooldownViewer", L["cooldownViewerBuffIcon"] or "Buff Icon Cooldowns") end
 
 	local anchorHelper = CooldownPanels.AnchorHelper
 	if anchorHelper and anchorHelper.CollectAnchorEntries then

@@ -14064,6 +14064,44 @@ function GF.WouldGroupAnchorLoop(kind, target)
 	return false
 end
 
+function GF.WouldGroupAnchorLiveLoop(kind, target)
+	local ownerFrameName = GF.GetGroupAnchorFrameName(kind)
+	if not ownerFrameName or type(target) ~= "string" or target == "" or target == "UIParent" then return false end
+
+	local ownerFrame = (GF.anchors and GF.anchors[kind]) or _G[ownerFrameName]
+	if not ownerFrame then return false end
+
+	local current
+	local currentKind = GF.GetGroupAnchorTargetKind(target)
+	local sharedAnchors = addon.SharedAnchors
+	if currentKind then
+		current = (GF.anchors and GF.anchors[currentKind]) or _G[target]
+	elseif sharedAnchors and sharedAnchors.ResolveFrame then
+		current = sharedAnchors:ResolveFrame(target)
+	else
+		current = _G[target]
+	end
+
+	if not current or current == UIParent then return false end
+	if current == ownerFrame then return true end
+
+	local visited = {}
+	local limit = 16
+	while current and current ~= UIParent and limit > 0 do
+		if current == ownerFrame then return true end
+		if visited[current] then break end
+		visited[current] = true
+		if not current.GetPoint then break end
+		local _, relativeTo = current:GetPoint(1)
+		if relativeTo == ownerFrame then return true end
+		current = type(relativeTo) == "string" and _G[relativeTo] or relativeTo
+		limit = limit - 1
+	end
+
+	if limit <= 0 then return true end
+	return false
+end
+
 function GF.ValidateGroupAnchorTarget(kind, value, currentTarget, suppressLoopMessage)
 	local current = type(currentTarget) == "string" and currentTarget or ((getCfg(kind) and getCfg(kind).relativeTo) or "UIParent")
 	local target
@@ -14088,7 +14126,7 @@ function GF.ValidateGroupAnchorTarget(kind, value, currentTarget, suppressLoopMe
 
 	if target == GF.GetGroupAnchorFrameName(kind) then target = "UIParent" end
 
-	if GF.WouldGroupAnchorLoop(kind, target) then
+	if GF.WouldGroupAnchorLoop(kind, target) or GF.WouldGroupAnchorLiveLoop(kind, target) then
 		if not suppressLoopMessage then
 			print("|cff00ff98Enhance QoL|r: " .. (L["AnchorLoop"] or 'Anchor loop detected for "%s". Resetting to UIParent.'):format(GF.GetGroupAnchorTargetLabel(target)))
 		end

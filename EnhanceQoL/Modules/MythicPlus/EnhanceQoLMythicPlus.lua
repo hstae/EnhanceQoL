@@ -177,6 +177,28 @@ local function maybeScheduleTrackerAnchorRefresh(target)
 	if SharedAnchors and SharedAnchors.MaybeScheduleRefresh then SharedAnchors:MaybeScheduleRefresh(target) end
 end
 
+local function trackerAnchorNeedsReapply(target)
+	if trackerAnchorUsesUIParent(target) then return false end
+	return resolveTrackerAnchorFrame(target) == UIParent
+end
+
+local function trackersNeedAnchorReapply()
+	if not addon.db then return false end
+	if addon.db["mythicPlusBRTrackerEnabled"] and trackerAnchorNeedsReapply(addon.db["mythicPlusBRTrackerRelativeFrame"]) then return true end
+	if addon.db["mythicPlusBloodlustTrackerEnabled"] and trackerAnchorNeedsReapply(addon.db["mythicPlusBloodlustTrackerRelativeFrame"]) then return true end
+	return false
+end
+
+local function cancelTrackerAnchorReapplyTicker()
+	local variables = addon.MythicPlus and addon.MythicPlus.variables
+	local ticker = variables and variables.trackerAnchorReapplyTicker or nil
+	if ticker and ticker.Cancel then ticker:Cancel() end
+	if variables then
+		variables.trackerAnchorReapplyTicker = nil
+		variables.trackerAnchorReapplyAttempts = nil
+	end
+end
+
 local function normalizeBRSize(value)
 	local size = tonumber(value) or defaultButtonSize
 	size = math.floor(size + 0.5)
@@ -699,6 +721,12 @@ local function applyBRLayoutData(data)
 	applyBRBorderVisualSettings()
 	applyBRCooldownVisualSettings()
 	applyBRChargesVisualSettings()
+	if trackerAnchorNeedsReapply(relativeFrame)
+		and not (addon.MythicPlus and addon.MythicPlus.variables and addon.MythicPlus.variables.trackerAnchorReapplyBusy)
+		and addon.MythicPlus and addon.MythicPlus.functions and addon.MythicPlus.functions.ScheduleTrackerAnchorReapply
+	then
+		addon.MythicPlus.functions.ScheduleTrackerAnchorReapply("BR")
+	end
 end
 
 local function ensureBRAnchor()
@@ -1923,6 +1951,12 @@ local function applyBloodlustLayoutData(data)
 	-- Always apply text styling so Edit Mode preview updates even without a live tracker button.
 	applyBloodlustCooldownVisualSettings()
 	applyBloodlustBorderVisualSettings()
+	if trackerAnchorNeedsReapply(relativeFrame)
+		and not (addon.MythicPlus and addon.MythicPlus.variables and addon.MythicPlus.variables.trackerAnchorReapplyBusy)
+		and addon.MythicPlus and addon.MythicPlus.functions and addon.MythicPlus.functions.ScheduleTrackerAnchorReapply
+	then
+		addon.MythicPlus.functions.ScheduleTrackerAnchorReapply("Bloodlust")
+	end
 end
 
 local function ensureBloodlustAnchor()
@@ -2930,6 +2964,68 @@ end
 addon.MythicPlus.functions.refreshBloodlustTracker = refreshBloodlustTracker
 addon.MythicPlus.functions.syncBloodlustUnitAuraRegistration = syncBloodlustUnitAuraRegistration
 
+local function reapplyTrackerAnchors()
+	if not addon.db then
+		cancelTrackerAnchorReapplyTicker()
+		return false
+	end
+
+	local variables = addon.MythicPlus and addon.MythicPlus.variables
+	if variables then variables.trackerAnchorReapplyAttempts = (variables.trackerAnchorReapplyAttempts or 0) + 1 end
+
+	if addon.db["mythicPlusBRTrackerEnabled"] then
+		ensureBRAnchor()
+		applyBRLayoutData()
+		if EditMode and EditMode.RefreshFrame then EditMode:RefreshFrame(BR_EDITMODE_ID) end
+	end
+
+	if addon.db["mythicPlusBloodlustTrackerEnabled"] then
+		ensureBloodlustAnchor()
+		applyBloodlustLayoutData()
+		if EditMode and EditMode.RefreshFrame then EditMode:RefreshFrame(BLOODLUST_EDITMODE_ID) end
+	end
+
+	if not trackersNeedAnchorReapply() then
+		cancelTrackerAnchorReapplyTicker()
+		return false
+	end
+
+	if variables and (variables.trackerAnchorReapplyAttempts or 0) >= 15 then
+		cancelTrackerAnchorReapplyTicker()
+		return false
+	end
+
+	return true
+end
+
+local function scheduleTrackerAnchorReapply()
+	if not addon.db or not trackersNeedAnchorReapply() then
+		cancelTrackerAnchorReapplyTicker()
+		return
+	end
+
+	local variables = addon.MythicPlus and addon.MythicPlus.variables
+	if not variables or variables.trackerAnchorReapplyBusy then return end
+
+	if not variables.trackerAnchorReapplyTicker then variables.trackerAnchorReapplyAttempts = 0 end
+
+	variables.trackerAnchorReapplyBusy = true
+	local shouldContinue = reapplyTrackerAnchors()
+	variables.trackerAnchorReapplyBusy = nil
+	if not shouldContinue or variables.trackerAnchorReapplyTicker or not (C_Timer and C_Timer.NewTicker) then return end
+
+	variables.trackerAnchorReapplyTicker = C_Timer.NewTicker(0.2, function()
+		if variables.trackerAnchorReapplyBusy then return end
+		variables.trackerAnchorReapplyBusy = true
+		local keepTrying = reapplyTrackerAnchors()
+		variables.trackerAnchorReapplyBusy = nil
+		if not keepTrying then cancelTrackerAnchorReapplyTicker() end
+	end)
+end
+
+addon.MythicPlus.functions.ReapplyTrackerAnchors = reapplyTrackerAnchors
+addon.MythicPlus.functions.ScheduleTrackerAnchorReapply = scheduleTrackerAnchorReapply
+
 local function setBRInfo(info)
 	if brButton and brButton.cooldownFrame and info then
 		local current = info.currentCharges
@@ -3169,6 +3265,9 @@ function addon.MythicPlus.functions.InitMain()
 	if bloodlustStateActive and (not bloodlustButton or not bloodlustButton.cooldownFrame) then
 		createBloodlustFrame()
 		refreshBloodlustTracker(false)
+	end
+	if addon.MythicPlus and addon.MythicPlus.functions and addon.MythicPlus.functions.ScheduleTrackerAnchorReapply then
+		addon.MythicPlus.functions.ScheduleTrackerAnchorReapply("InitMain")
 	end
 
 	if addon.db["mythicPlusEnableDungeonFilter"] then addon.MythicPlus.functions.addDungeonFilter() end

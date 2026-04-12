@@ -1,5 +1,17 @@
 # Changelog
 
+## [10.2.0-beta5] - 2026-04-12
+
+### ✨ Added
+
+- Unit Frames / Cooldown Viewer Anchoring: Player, party, and raid frames can now be anchored directly to the original Blizzard Cooldown Manager viewers, including `EssentialCooldownViewer`, `UtilityCooldownViewer`, and `BuffIconCooldownViewer`.
+
+### 🐛 Fixed
+
+- Combat Resurrection Tracker / Bloodlust Tracker: Fixed anchors to cooldown panels and cooldown viewers not always restoring correctly after login or reload.
+
+---
+
 ## [10.2.0-beta4] - 2026-04-11
 
 ### ✨ Added
@@ -17,6 +29,7 @@
 ## [10.2.0-beta3] - 2026-04-10
 
 ### ✨ Added
+
 
 - Group Frames / Party & Raid: Added an `Anchor to` option in Edit Mode so party and raid frames can be attached to other supported UI elements instead of only the screen.
 - Unit Frames / Player Highlight: Added a separate `Highlight in combat` toggle with its own combat highlight color.

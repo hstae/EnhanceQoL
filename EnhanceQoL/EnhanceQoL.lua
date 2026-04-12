@@ -1507,6 +1507,179 @@ local function IsCooldownViewerInEditMode()
 	return false
 end
 
+addon.constants.COOLDOWN_VIEWER_COMBAT_LOCK = addon.constants.COOLDOWN_VIEWER_COMBAT_LOCK or {
+	frames = {
+		"EssentialCooldownViewer",
+		"UtilityCooldownViewer",
+		"BuffIconCooldownViewer",
+	},
+	ufKeys = {
+		"player",
+		"target",
+		"targettarget",
+		"focus",
+		"pet",
+		"boss",
+	},
+	groupKinds = {
+		"party",
+		"raid",
+		"mt",
+		"ma",
+	},
+}
+
+function addon.functions.IsFrameAnchoredToTarget(frame, target, visited)
+	if not (frame and target and frame.GetNumPoints) then return false end
+	if frame == target then return true end
+
+	visited = visited or {}
+	if visited[frame] then return false end
+	visited[frame] = true
+
+	local numPoints = frame:GetNumPoints() or 0
+	for pointIndex = 1, numPoints do
+		local _, relativeTo = frame:GetPoint(pointIndex)
+		local relativeFrame = type(relativeTo) == "string" and _G[relativeTo] or relativeTo
+		if relativeFrame then
+			if relativeFrame == target then return true end
+			if relativeFrame ~= UIParent and addon.functions.IsFrameAnchoredToTarget(relativeFrame, target, visited) then return true end
+		end
+	end
+
+	return false
+end
+
+function addon.functions.CooldownViewerHasSecureDependents(viewerFrame)
+	if not viewerFrame then return false end
+
+	local uf = addon.Aura and addon.Aura.UF
+	if uf and uf.GetAnchorFrameName then
+		for _, unit in ipairs(addon.constants.COOLDOWN_VIEWER_COMBAT_LOCK.ufKeys) do
+			local frameName = uf.GetAnchorFrameName(unit)
+			local anchorFrame = frameName and _G[frameName] or nil
+			if anchorFrame and addon.functions.IsFrameAnchoredToTarget(anchorFrame, viewerFrame) then return true end
+		end
+	end
+
+	local groupFrames = uf and uf.GroupFrames
+	local anchors = groupFrames and groupFrames.anchors
+	if anchors then
+		for _, kind in ipairs(addon.constants.COOLDOWN_VIEWER_COMBAT_LOCK.groupKinds) do
+			local anchorFrame = anchors[kind]
+			if anchorFrame and addon.functions.IsFrameAnchoredToTarget(anchorFrame, viewerFrame) then return true end
+		end
+	end
+
+	return false
+end
+
+function addon.functions.EnsureCooldownViewerCombatLockOverlay(frameName)
+	addon.variables = addon.variables or {}
+	addon.variables.cooldownViewerCombatLockOverlays = addon.variables.cooldownViewerCombatLockOverlays or {}
+	local overlay = addon.variables.cooldownViewerCombatLockOverlays[frameName]
+	if overlay then return overlay end
+
+	overlay = CreateFrame("Button", nil, UIParent, "BackdropTemplate")
+	overlay:Hide()
+	overlay:EnableMouse(true)
+	if overlay.SetPropagateMouseClicks then overlay:SetPropagateMouseClicks(false) end
+	if overlay.SetPropagateMouseMotion then overlay:SetPropagateMouseMotion(false) end
+	overlay:SetScript("OnMouseDown", function() end)
+	overlay:SetScript("OnMouseUp", function() end)
+	overlay:SetBackdrop({
+		bgFile = "Interface\\Buttons\\WHITE8x8",
+		edgeFile = "Interface\\Buttons\\WHITE8x8",
+		edgeSize = 1,
+	})
+	overlay:SetBackdropColor(0.05, 0.05, 0.05, 0.72)
+	overlay:SetBackdropBorderColor(0.95, 0.3, 0.3, 0.9)
+	overlay.label = overlay:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+	overlay.label:SetPoint("CENTER")
+	overlay.label:SetJustifyH("CENTER")
+	overlay.label:SetJustifyV("MIDDLE")
+	overlay.label:SetWordWrap(true)
+	overlay.label:SetTextColor(1, 0.85, 0.24, 1)
+	addon.variables.cooldownViewerCombatLockOverlays[frameName] = overlay
+	return overlay
+end
+
+function addon.functions.SyncCooldownViewerCombatLockOverlay(frameName, overlay, frame)
+	frame = frame or (frameName and _G[frameName]) or nil
+	overlay = overlay or (addon.variables and addon.variables.cooldownViewerCombatLockOverlays and addon.variables.cooldownViewerCombatLockOverlays[frameName]) or nil
+	if not (frame and overlay) then return overlay end
+
+	local targetFrame = frame.Selection or frame
+
+	overlay:ClearAllPoints()
+	overlay:SetAllPoints(targetFrame)
+
+	if targetFrame.GetFrameStrata then overlay:SetFrameStrata(targetFrame:GetFrameStrata()) end
+	overlay:SetFrameLevel(((targetFrame.GetFrameLevel and targetFrame:GetFrameLevel()) or 0) + 10)
+
+	if overlay.label then
+		local width = targetFrame.GetWidth and targetFrame:GetWidth() or 0
+		overlay.label:SetWidth(math.max(48, width - 12))
+		overlay.label:SetText(string.format("%s\n%s", LOCKED or "Locked", COMBAT or "Combat"))
+	end
+
+	return overlay
+end
+
+function addon.functions.UpdateCooldownViewerCombatLockOverlay(frameName)
+	local frame = frameName and _G[frameName]
+	local overlay = addon.variables and addon.variables.cooldownViewerCombatLockOverlays and addon.variables.cooldownViewerCombatLockOverlays[frameName]
+	local inCombat = InCombatLockdown and InCombatLockdown()
+	local locked = false
+
+	if frame and not inCombat then
+		overlay = overlay or addon.functions.EnsureCooldownViewerCombatLockOverlay(frameName)
+		overlay = addon.functions.SyncCooldownViewerCombatLockOverlay(frameName, overlay, frame)
+	end
+
+	if frame and frame.IsShown and frame:IsShown() and IsCooldownViewerInEditMode() and inCombat then
+		locked = addon.functions.CooldownViewerHasSecureDependents(frame) == true
+	end
+
+	if not locked then
+		if overlay then overlay:Hide() end
+		return
+	end
+
+	overlay = overlay or addon.functions.EnsureCooldownViewerCombatLockOverlay(frameName)
+	if not inCombat then overlay = addon.functions.SyncCooldownViewerCombatLockOverlay(frameName, overlay, frame) end
+
+	overlay:Show()
+end
+
+function addon.functions.UpdateCooldownViewerCombatLocks()
+	for _, frameName in ipairs(addon.constants.COOLDOWN_VIEWER_COMBAT_LOCK.frames) do
+		addon.functions.UpdateCooldownViewerCombatLockOverlay(frameName)
+	end
+end
+
+function addon.functions.EnsureCooldownViewerCombatLockWatcher()
+	addon.variables = addon.variables or {}
+	if addon.variables.cooldownViewerCombatLockWatcher then return end
+
+	local watcher = CreateFrame("Frame")
+	watcher:RegisterEvent("PLAYER_ENTERING_WORLD")
+	watcher:RegisterEvent("PLAYER_REGEN_DISABLED")
+	watcher:RegisterEvent("PLAYER_REGEN_ENABLED")
+	watcher:RegisterEvent("COOLDOWN_VIEWER_DATA_LOADED")
+	watcher:SetScript("OnEvent", function()
+		if addon.functions.UpdateCooldownViewerCombatLocks then addon.functions.UpdateCooldownViewerCombatLocks() end
+	end)
+
+	addon.variables.cooldownViewerCombatLockWatcher = watcher
+	for _, frameName in ipairs(addon.constants.COOLDOWN_VIEWER_COMBAT_LOCK.frames) do
+		if _G[frameName] then
+			local overlay = addon.functions.EnsureCooldownViewerCombatLockOverlay(frameName)
+			addon.functions.SyncCooldownViewerCombatLockOverlay(frameName, overlay, _G[frameName])
+		end
+	end
+end
+
 local function applyCooldownViewerMode(frameName, cfg)
 	local frame = frameName and _G[frameName]
 	if not frame then return false end
@@ -1705,6 +1878,8 @@ function addon.functions.ApplyCooldownViewerVisibility()
 		if not enabled then cfg = nil end
 		if not applyCooldownViewerMode(frameName, cfg) then missingFrame = true end
 	end
+
+	if addon.functions.UpdateCooldownViewerCombatLocks then addon.functions.UpdateCooldownViewerCombatLocks() end
 
 	if enabled and missingFrame then
 		scheduleCooldownViewerReapply()
@@ -3648,6 +3823,7 @@ local function initUnitFrame()
 	if addon.functions.ApplyCooldownViewerVisibility then addon.functions.ApplyCooldownViewerVisibility() end
 	if addon.functions.EnsureCooldownViewerWatcher then addon.functions.EnsureCooldownViewerWatcher() end
 	if addon.functions.EnsureCooldownViewerEditCallbacks then addon.functions.EnsureCooldownViewerEditCallbacks() end
+	if addon.functions.EnsureCooldownViewerCombatLockWatcher then addon.functions.EnsureCooldownViewerCombatLockWatcher() end
 	if addon.functions.ApplySpellActivationOverlayVisibility then addon.functions.ApplySpellActivationOverlayVisibility() end
 	if addon.functions.EnsureSpellActivationOverlayWatcher then addon.functions.EnsureSpellActivationOverlayWatcher() end
 end
@@ -7003,6 +7179,7 @@ local eventHandlers = {
 		end
 		if addon.MythicPlus and addon.MythicPlus.functions then
 			if addon.MythicPlus.functions.InitSettings then addon.MythicPlus.functions.InitSettings() end
+			if addon.MythicPlus.functions.ScheduleTrackerAnchorReapply then addon.MythicPlus.functions.ScheduleTrackerAnchorReapply("PLAYER_LOGIN") end
 		end
 	end,
 	["PLAYER_MONEY"] = function()
