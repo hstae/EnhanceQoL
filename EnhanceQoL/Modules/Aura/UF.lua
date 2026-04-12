@@ -5344,23 +5344,11 @@ function UF._getCastIconBorderOutset(ccfg, defc)
 	return size + offset
 end
 
-local function ensureCastEdgeTextures(border)
-	if not border then return nil end
-	if border._ufCastEdgeTextures then return border._ufCastEdgeTextures end
-	local textures = {}
-	for _, key in ipairs({ "Top", "Bottom", "Left", "Right" }) do
-		local tex = border:CreateTexture(nil, "OVERLAY")
-		textures[key] = tex
-	end
-	border._ufCastEdgeTextures = textures
-	return textures
-end
-
 function UF._ensureCastIconBorderFrame(st)
 	if not st or not st.castBar or not st.castIcon or not st.castIconLayer then return nil end
 	local border = st.castIconBorder
 	if not border then
-		border = CreateFrame("Frame", nil, st.castIconLayer)
+		border = CreateFrame("Frame", nil, st.castIconLayer, "BackdropTemplate")
 		border:EnableMouse(false)
 		st.castIconBorder = border
 	end
@@ -5385,7 +5373,6 @@ function UF._applyCastIconBorder(st, ccfg, defc)
 		local color = (type(borderCfg) == "table" and borderCfg.color) or (type(borderDef) == "table" and borderDef.color) or { 0, 0, 0, 0.8 }
 		local colorR, colorG, colorB, colorA = unpackColor(color, 0, 0, 0, 0.8)
 		local cache = border._ufCastIconBorderCache
-		local textures = ensureCastEdgeTextures(border)
 		local styleChanged = not cache or cache.edgeFile ~= edgeFile or cache.edgeSize ~= size
 		local colorChanged = not cache
 			or cache.colorR ~= colorR
@@ -5396,38 +5383,18 @@ function UF._applyCastIconBorder(st, ccfg, defc)
 		border:ClearAllPoints()
 		border:SetPoint("TOPLEFT", st.castIcon, "TOPLEFT", -offset, offset)
 		border:SetPoint("BOTTOMRIGHT", st.castIcon, "BOTTOMRIGHT", offset, -offset)
-		if textures then
-			textures.Top:ClearAllPoints()
-			textures.Top:SetPoint("TOPLEFT", border, "TOPLEFT", 0, 0)
-			textures.Top:SetPoint("TOPRIGHT", border, "TOPRIGHT", 0, 0)
-			textures.Top:SetHeight(size)
-
-			textures.Bottom:ClearAllPoints()
-			textures.Bottom:SetPoint("BOTTOMLEFT", border, "BOTTOMLEFT", 0, 0)
-			textures.Bottom:SetPoint("BOTTOMRIGHT", border, "BOTTOMRIGHT", 0, 0)
-			textures.Bottom:SetHeight(size)
-
-			textures.Left:ClearAllPoints()
-			textures.Left:SetPoint("TOPLEFT", border, "TOPLEFT", 0, 0)
-			textures.Left:SetPoint("BOTTOMLEFT", border, "BOTTOMLEFT", 0, 0)
-			textures.Left:SetWidth(size)
-
-			textures.Right:ClearAllPoints()
-			textures.Right:SetPoint("TOPRIGHT", border, "TOPRIGHT", 0, 0)
-			textures.Right:SetPoint("BOTTOMRIGHT", border, "BOTTOMRIGHT", 0, 0)
-			textures.Right:SetWidth(size)
+		if styleChanged then
+			local style = {
+				bgFile = "Interface\\Buttons\\WHITE8x8",
+				edgeFile = edgeFile,
+				edgeSize = size,
+				insets = { left = size, right = size, top = size, bottom = size },
+			}
+			border._ufCastIconBorderStyle = style
+			border:SetBackdrop(style)
+			border:SetBackdropColor(0, 0, 0, 0)
 		end
-		if styleChanged and textures then
-			for _, tex in pairs(textures) do
-				tex:SetTexture(edgeFile)
-			end
-		end
-		if (styleChanged or colorChanged) and textures then
-			for _, tex in pairs(textures) do
-				tex:SetVertexColor(colorR, colorG, colorB, colorA)
-				tex:Show()
-			end
-		end
+		if styleChanged or colorChanged then border:SetBackdropBorderColor(colorR, colorG, colorB, colorA) end
 		cache = cache or {}
 		cache.edgeFile = edgeFile
 		cache.edgeSize = size
@@ -5440,11 +5407,7 @@ function UF._applyCastIconBorder(st, ccfg, defc)
 	else
 		local border = st.castIconBorder
 		if border then
-			if border._ufCastEdgeTextures then
-				for _, tex in pairs(border._ufCastEdgeTextures) do
-					tex:Hide()
-				end
-			end
+			border:SetBackdrop(nil)
 			border:Hide()
 		end
 	end
