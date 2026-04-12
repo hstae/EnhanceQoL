@@ -2,10 +2,15 @@
 
 ## [10.2.0-beta5] - 2026-04-12
 
+### ✨ Added
+
+- Data Panels / Coordinates: Added a precision setting for the coordinates stream, so displayed coordinates can use `0`, `1`, or `2` decimal places.
+
 ### 🐛 Fixed
 
 - Pet Frame was visible, even without pets when setting a visibility condition‚
 - Group Frames / Auras: Restored the previous layering so party and raid buffs or debuffs stay above role icons and raid markers again.
+- Group Frames / Party: Fixed switching UF profiles in Delves and similar party-instance content with `Show Player` enabled sometimes throwing Lua errors and stretching the party frame to full screen height.
 
 ---
 

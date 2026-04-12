@@ -5509,7 +5509,7 @@ function GF:ApplyProfileChange(reason)
 	if InCombatLockdown and InCombatLockdown() then
 		self._pendingRefresh = true
 	else
-		self:RunPostEnterWorldRefreshPass()
+		self:RunProfileChangeRefreshPass()
 	end
 end
 
@@ -6112,10 +6112,7 @@ function GF:BuildButton(self)
 	GF:LayoutButton(self)
 end
 
-function GF:OnUnitButtonSizeChanged(self)
-	if not self then return end
-	GF:LayoutButton(self)
-
+function GF.RefreshUnitButtonAfterSizeChange(self)
 	local unit = getUnit(self)
 	local st = getState(self)
 	if not (unit and st) then return end
@@ -6127,6 +6124,74 @@ function GF:OnUnitButtonSizeChanged(self)
 	GF:UpdateStatusText(self, unit, st)
 	GF:UpdateLevel(self, unit, st)
 	GF:UpdateRange(self)
+end
+
+function GF.GetExpectedUnitButtonSize(self)
+	if not self then return nil, nil end
+
+	local expectedW = tonumber(self._eqolExpectedWidth)
+	local expectedH = tonumber(self._eqolExpectedHeight)
+	if expectedW and expectedW > 0 and expectedH and expectedH > 0 then return expectedW, expectedH end
+
+	local parent = self.GetParent and self:GetParent() or nil
+	expectedW = tonumber(parent and parent._eqolExpectedChildWidth)
+	expectedH = tonumber(parent and parent._eqolExpectedChildHeight)
+	if expectedW and expectedW > 0 and expectedH and expectedH > 0 then return expectedW, expectedH end
+
+	return nil, nil
+end
+
+-- SecureGroupHeader can briefly hand children absurd sizes while attributes settle.
+-- Clamp back to the expected child size and let the next frame relayout from sane bounds.
+function GF.RepairTransientUnitButtonSize(self)
+	if not (self and self.GetSize and self.SetSize) then return false end
+	if self._eqolPreview or self._eqolTransientSizeRepairPending then return false end
+
+	local expectedW, expectedH = GF.GetExpectedUnitButtonSize(self)
+	if not (expectedW and expectedH) then return false end
+
+	local w, h = self:GetSize()
+	if not (w and h and w > 0 and h > 0) then return false end
+
+	local widthExploded = w > max(expectedW * 3, expectedW + 128)
+	local heightExploded = h > max(expectedH * 3, expectedH + 128)
+	if not widthExploded and not heightExploded then return false end
+
+	if InCombatLockdown and InCombatLockdown() then
+		local kind = self._eqolGroupKind
+		if kind then GF:MarkPendingHeaderRefresh(kind) end
+		return true
+	end
+
+	self._eqolTransientSizeRepairPending = true
+	if Pixel and Pixel.SetSize then
+		Pixel.SetSize(self, expectedW, expectedH, 1, 1)
+	else
+		self:SetSize(expectedW, expectedH)
+	end
+
+	local function finalize()
+		self._eqolTransientSizeRepairPending = nil
+		if not isFeatureEnabled() then return end
+		if GF.RepairTransientUnitButtonSize(self) then return end
+		GF:LayoutButton(self)
+		GF.RefreshUnitButtonAfterSizeChange(self)
+	end
+
+	if C_Timer and C_Timer.After then
+		C_Timer.After(0, finalize)
+	else
+		finalize()
+	end
+
+	return true
+end
+
+function GF:OnUnitButtonSizeChanged(self)
+	if not self then return end
+	if GF.RepairTransientUnitButtonSize(self) then return end
+	GF:LayoutButton(self)
+	GF.RefreshUnitButtonAfterSizeChange(self)
 end
 
 function GF:LayoutButton(self)
@@ -11322,6 +11387,8 @@ local function syncHeaderChild(child, kind, cfg, frameW, frameH)
 	child._eqolUseSecureUnitAttribute = true
 	child._eqolCfg = cfg
 	child._eqolFitScale = fitScale
+	child._eqolExpectedWidth = tonumber(frameW) or child._eqolExpectedWidth
+	child._eqolExpectedHeight = tonumber(frameH) or child._eqolExpectedHeight
 	updateButtonConfig(child, cfg)
 	if frameW and frameH and child.SetSize then
 		local inCombat = InCombatLockdown and InCombatLockdown()
@@ -11896,6 +11963,8 @@ local function applyRaidGroupHeaders(cfg, layout, groupSpecs, forceShow, forceHi
 				local function setAttr(key, value) GF:SetHeaderAttributeIfChanged(header, key, value) end
 				local specSortMethod = tostring(spec.sortMethod or "INDEX"):upper()
 				header._eqolDisplayGroup = tonumber(spec.group) or i
+				header._eqolExpectedChildWidth = tonumber(layout and layout.w) or nil
+				header._eqolExpectedChildHeight = tonumber(layout and layout.h) or nil
 				setAttr("showParty", false)
 				setAttr("showRaid", true)
 				setAttr("showPlayer", true)
@@ -11990,6 +12059,10 @@ local function applyRaidGroupHeaders(cfg, layout, groupSpecs, forceShow, forceHi
 						end
 					end
 				end
+			end
+			if not active then
+				header._eqolExpectedChildWidth = nil
+				header._eqolExpectedChildHeight = nil
 			end
 			header._eqolFitScale = groupScale
 			if header.SetScale then header:SetScale(groupScale) end
@@ -12237,6 +12310,8 @@ function GF:ApplyHeaderAttributes(kind, options)
 
 	local wStr = ("%.3f"):format(renderW)
 	local hStr = ("%.3f"):format(renderH)
+	header._eqolExpectedChildWidth = renderW
+	header._eqolExpectedChildHeight = renderH
 
 	local initConfigFunction = string.format(
 		[[
@@ -26949,6 +27024,22 @@ function GF:CancelPostEnterWorldRefreshTicker()
 	if ticker and ticker.Cancel then ticker:Cancel() end
 	self._postEnterWorldTicker = nil
 	self._postEnterWorldRefreshPasses = nil
+end
+
+function GF:RunProfileChangeRefreshPass()
+	if not isFeatureEnabled() then return end
+	self:EnsureHeaders()
+	-- Profile switches can flip secure header attributes like showPlayer while
+	-- the group header is live. Use the lighter refresh path so the secure
+	-- header owns child rebuilding unless the layout key actually changed.
+	self.Refresh()
+	self:RefreshRangeFade()
+	self:RefreshRoleIcons()
+	self:RefreshGroupIcons()
+	self:RefreshStatusIcons()
+	self:RefreshStatusText()
+	self:RefreshGroupIndicators()
+	queueGroupIndicatorRefresh(0.05, 4)
 end
 
 function GF:RunPostEnterWorldRefreshPass()
