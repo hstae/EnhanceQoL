@@ -1,29 +1,19 @@
 # Changelog
 
-## [10.2.0-beta5] - 2026-04-12
-
-### ✨ Added
-
-- Unit Frames / Cooldown Viewer Anchoring: Player, party, and raid frames can now be anchored directly to the original Blizzard Cooldown Manager viewers, including `EssentialCooldownViewer`, `UtilityCooldownViewer`, and `BuffIconCooldownViewer`.
-
-### 🐛 Fixed
-
-- Combat Resurrection Tracker / Bloodlust Tracker: Fixed anchors to cooldown panels and cooldown viewers not always restoring correctly after login or reload.
-- Unit Frames / Status Text: Fixed `Group number font` on player and target frames using the regular status text font instead of its own dedicated font setting.
-
----
-
-## [10.2.0-beta4] - 2026-04-11
+## [10.2.0-beta4] - 2026-04-12
 
 ### ✨ Added
 
 - UI / Bars & Resources: Added `Frame strata` and `Frame level offset` settings for resource bars, with the same layering applied consistently to borders, absorb overlays, and segmented resource elements.
+- Unit Frames / Cooldown Viewer Anchoring: Player, party, and raid frames can now be anchored directly to the original Blizzard Cooldown Manager viewers, including `EssentialCooldownViewer`, `UtilityCooldownViewer`, and `BuffIconCooldownViewer`.
 
 ### 🐛 Fixed
 
 - Group Frames / Auras: Fixed buff and debuff tooltips blocking clicks on the underlying party and raid frames while aura tooltips are enabled.
 - Group Frames / Healer Buffs: Added the missing `Ebon Might` aura ID `395296` so the buff is tracked correctly.
 - Unit Frames / Visibility: Fixed `Show when Skyriding` and `Show when Flying` sometimes keeping unit frames visible while dead or flying as a ghost.
+- Combat Resurrection Tracker / Bloodlust Tracker: Fixed anchors to cooldown panels and cooldown viewers not always restoring correctly after login or reload.
+- Unit Frames / Status Text: Fixed `Group number font` on player and target frames using the regular status text font instead of its own dedicated font setting.
 
 ---
 
