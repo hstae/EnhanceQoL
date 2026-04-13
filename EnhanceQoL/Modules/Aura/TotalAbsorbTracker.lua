@@ -302,6 +302,7 @@ function Tracker:EvaluateAbsorbAmount()
 		if calculator.ResetPredictedValues then calculator:ResetPredictedValues() end
 		if calculator.SetDamageAbsorbClampMode and Enum and Enum.UnitDamageAbsorbClampMode then calculator:SetDamageAbsorbClampMode(Enum.UnitDamageAbsorbClampMode.MaximumHealth) end
 		UnitGetDetailedHealPrediction("player", "player", calculator)
+		if calculator.GetTotalDamageAbsorbs then return calculator:GetTotalDamageAbsorbs() end
 		if calculator.GetDamageAbsorbs then return calculator:GetDamageAbsorbs() end
 	end
 

@@ -117,6 +117,37 @@ local textOptions = {
 	{ value = "NONE", label = NONE },
 }
 
+function UF.ui.formatHealthAbsorbTextLabel(style)
+	local currentLabel = L["Current"] or "Current"
+	local absorbLabel = L["Absorb"] or "Absorb"
+	if style == "PAREN" then return string.format("%s (%s)", currentLabel, absorbLabel) end
+	if style == "PIPE" then return string.format("%s | %s", currentLabel, absorbLabel) end
+	if style == "PLUS" then return string.format("%s + %s", currentLabel, absorbLabel) end
+	return absorbLabel
+end
+
+UF.ui.healthTextOptions = {
+	{ value = "PERCENT", label = L["Percent"] or "Percent" },
+	{ value = "CURMAX", label = L["Current/Max"] or "Current/Max" },
+	{ value = "CURRENT", label = L["Current"] or "Current" },
+	{ value = "CURABSORB", label = UF.ui.formatHealthAbsorbTextLabel("PAREN") },
+	{ value = "CURABSORBPIPE", label = UF.ui.formatHealthAbsorbTextLabel("PIPE") },
+	{ value = "CURABSORBPLUS", label = UF.ui.formatHealthAbsorbTextLabel("PLUS") },
+	{ value = "ABSORB", label = UF.ui.formatHealthAbsorbTextLabel("ABSORB") },
+	{ value = "MAX", label = L["Max"] or "Max" },
+	{ value = "CURPERCENT", label = L["Current / Percent"] or "Current / Percent" },
+	{ value = "CURMAXPERCENT", label = L["Current/Max Percent"] or "Current/Max Percent" },
+	{ value = "MAXPERCENT", label = L["Max / Percent"] or "Max / Percent" },
+	{ value = "PERCENTMAX", label = L["Percent / Max"] or "Percent / Max" },
+	{ value = "PERCENTCUR", label = L["Percent / Current"] or "Percent / Current" },
+	{ value = "PERCENTCURMAX", label = L["Percent / Current / Max"] or "Percent / Current / Max" },
+	{ value = "LEVELPERCENT", label = L["Level / Percent"] or "Level / Percent" },
+	{ value = "LEVELPERCENTMAX", label = L["Level / Percent / Max"] or "Level / Percent / Max" },
+	{ value = "LEVELPERCENTCUR", label = L["Level / Percent / Current"] or "Level / Percent / Current" },
+	{ value = "LEVELPERCENTCURMAX", label = L["Level / Percent / Current / Max"] or "Level / Percent / Current / Max" },
+	{ value = "NONE", label = NONE },
+}
+
 local delimiterOptions = {
 	{ value = " ", label = L["Space"] or "Space" },
 	{ value = "  ", label = L["Double Space"] or "Double space" },
@@ -3870,7 +3901,7 @@ local function buildUnitSettings(unit)
 
 	list[#list + 1] = radioDropdown(
 		L["Left text"] or "Left text",
-		textOptions,
+		UF.ui.healthTextOptions,
 		function() return normalizeTextMode(getValue(unit, { "health", "textLeft" }, healthDef.textLeft or "PERCENT")) end,
 		function(val)
 			setValue(unit, { "health", "textLeft" }, val)
@@ -3883,7 +3914,7 @@ local function buildUnitSettings(unit)
 
 	list[#list + 1] = radioDropdown(
 		L["Center text"] or "Center text",
-		textOptions,
+		UF.ui.healthTextOptions,
 		function() return normalizeTextMode(getValue(unit, { "health", "textCenter" }, healthDef.textCenter or "NONE")) end,
 		function(val)
 			setValue(unit, { "health", "textCenter" }, val)
@@ -3896,7 +3927,7 @@ local function buildUnitSettings(unit)
 
 	list[#list + 1] = radioDropdown(
 		L["Right text"] or "Right text",
-		textOptions,
+		UF.ui.healthTextOptions,
 		function() return normalizeTextMode(getValue(unit, { "health", "textRight" }, healthDef.textRight or "CURMAX")) end,
 		function(val)
 			setValue(unit, { "health", "textRight" }, val)

@@ -2770,6 +2770,34 @@ local function join3(a, b, c, sep1, sep2) return a .. sep1 .. b .. sep2 .. c end
 
 local function join4(a, b, c, d, sep1, sep2, sep3) return a .. sep1 .. b .. sep2 .. c .. sep3 .. d end
 
+function H.formatDisplayValue(value, useShort)
+	if addon.variables and addon.variables.isMidnight and issecretvalue and value ~= nil and issecretvalue(value) then
+		if useShort == false then return BreakUpLargeNumbers(value) end
+		return AbbreviateNumbers and AbbreviateNumbers(value) or H.shortValue(value)
+	end
+	if useShort == false then return tostring(value or 0) end
+	return H.shortValue(value or 0)
+end
+
+function H.formatOptionalDisplayValue(value, useShort)
+	if value == nil then return "" end
+	return H.formatDisplayValue(value, useShort)
+end
+
+function H.formatAbsorbModeText(mode, curText, absorbText, absorbValue)
+	if mode == "ABSORB" then return absorbText end
+	if WrapString then
+		if mode == "CURABSORB" then return curText .. (WrapString(absorbText, " (", ")") or "") end
+		if mode == "CURABSORBPIPE" then return curText .. (WrapString(absorbText, " | ", "") or "") end
+		if mode == "CURABSORBPLUS" then return curText .. (WrapString(absorbText, " + ", "") or "") end
+	end
+	if absorbText == nil or absorbText == "" then return curText end
+	if mode == "CURABSORB" then return string.format("%s (%s)", curText, absorbText) end
+	if mode == "CURABSORBPIPE" then return join2(curText, absorbText, " | ") end
+	if mode == "CURABSORBPLUS" then return join2(curText, absorbText, " + ") end
+	return curText
+end
+
 local function formatPercentModeText(mode, curText, maxText, percentText, levelText, joinPrimary, joinSecondary, joinTertiary)
 	if not percentText then return "" end
 	if mode == "PERCENT" then return percentText end
@@ -2792,6 +2820,7 @@ function H.shortValue(val)
 end
 
 function H.textModeUsesLevel(mode) return type(mode) == "string" and mode:find("LEVEL", 1, true) ~= nil end
+function H.textModeUsesAbsorb(mode) return mode == "ABSORB" or mode == "CURABSORB" or mode == "CURABSORBPIPE" or mode == "CURABSORBPLUS" end
 function H.textModeUsesDeficit(mode) return mode == "DEFICIT" end
 
 function H.getUnitLevelText(unit, levelOverride, hideClassificationText)
@@ -2813,7 +2842,7 @@ function H.getUnitLevelText(unit, levelOverride, hideClassificationText)
 	return levelText
 end
 
-function H.formatText(mode, cur, maxv, useShort, percentValue, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, missingValue, roundPercent, delimitersResolved)
+function H.formatText(mode, cur, maxv, useShort, percentValue, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, missingValue, roundPercent, delimitersResolved, absorbValue)
 	if mode == "NONE" then return "" end
 	local joinPrimary, joinSecondary, joinTertiary
 	if delimitersResolved then
@@ -2829,6 +2858,11 @@ function H.formatText(mode, cur, maxv, useShort, percentValue, delimiter, delimi
 	local percentSuffix = hidePercentSymbol and "" or "%"
 	if levelText == nil or levelText == "" then levelText = "??" end
 	local isPercentMode = type(mode) == "string" and mode:find("PERCENT", 1, true) ~= nil
+	if H.textModeUsesAbsorb(mode) then
+		local curText = H.formatDisplayValue(cur, useShort)
+		local absorbText = H.formatOptionalDisplayValue(absorbValue, useShort)
+		return H.formatAbsorbModeText(mode, curText, absorbText, absorbValue)
+	end
 	if mode == "DEFICIT" then
 		if issecretvalue and issecretvalue(missingValue) then
 			local infix = useShort and H.shortValue(missingValue) or BreakUpLargeNumbers(missingValue)

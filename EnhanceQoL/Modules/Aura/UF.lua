@@ -5447,6 +5447,12 @@ local function ensureHealPredictionCalculator(st)
 	return calc
 end
 
+function UF.RefreshHealPredictionCalculator(st, unit)
+	local calc = ensureHealPredictionCalculator(st)
+	if calc and UnitGetDetailedHealPrediction then UnitGetDetailedHealPrediction(unit, "player", calc) end
+	return calc
+end
+
 local setFrameLevelAbove
 
 local function shouldShowSampleAbsorb(unit)
@@ -5455,6 +5461,37 @@ local function shouldShowSampleAbsorb(unit)
 	if samples[unit] == true then return true end
 	if unit and unit:match("^boss%d+$") then return samples.boss == true end
 	return false
+end
+
+function UF.HealthTextUsesAbsorbMode(leftMode, centerMode, rightMode)
+	if not (UFHelper and UFHelper.textModeUsesAbsorb) then return false end
+	return UFHelper.textModeUsesAbsorb(leftMode) or UFHelper.textModeUsesAbsorb(centerMode) or UFHelper.textModeUsesAbsorb(rightMode)
+end
+
+function UF.CacheHealthTextAbsorbAmount(st, unit, maxv, fallbackAbsorb, calc)
+	local amount
+	if calc and calc.GetTotalDamageAbsorbs then
+		amount = calc:GetTotalDamageAbsorbs()
+	elseif calc and calc.GetDamageAbsorbs then
+		amount = calc:GetDamageAbsorbs()
+	end
+	if amount == nil then amount = fallbackAbsorb end
+	if amount == nil then amount = UnitGetTotalAbsorbs and UnitGetTotalAbsorbs(unit) or 0 end
+
+	local maxForValue
+	if issecretvalue and issecretvalue(maxv) then
+		maxForValue = maxv or 1
+	else
+		maxForValue = (maxv and maxv > 0) and maxv or 1
+	end
+
+	local hasVisibleAbsorb = amount and (not issecretvalue or not issecretvalue(amount)) and amount > 0
+	if shouldShowSampleAbsorb(unit) and not hasVisibleAbsorb and (not issecretvalue or not issecretvalue(maxForValue)) then amount = (maxForValue or 1) * 0.6 end
+
+	if st then
+		st._healthTextAbsorbAmount = amount
+	end
+	return amount
 end
 
 local function applyIncomingHealBar(st, hc, healthHeight, reverseHealth, interpolation)
@@ -5480,7 +5517,7 @@ local function applyIncomingHealBar(st, hc, healthHeight, reverseHealth, interpo
 	st.incomingHeal:Hide()
 end
 
-local function updateIncomingHeal(st, unit, hc, defH, cur, maxv, interpolation)
+local function updateIncomingHeal(st, unit, hc, defH, cur, maxv, interpolation, calc)
 	local bar = st and st.incomingHeal
 	if not bar then return end
 	if hc.incomingHealEnabled ~= true then
@@ -5488,8 +5525,7 @@ local function updateIncomingHeal(st, unit, hc, defH, cur, maxv, interpolation)
 		return
 	end
 
-	local calc = ensureHealPredictionCalculator(st)
-	if calc and UnitGetDetailedHealPrediction then UnitGetDetailedHealPrediction(unit, "player", calc) end
+	calc = calc or UF.RefreshHealPredictionCalculator(st, unit)
 
 	local incomingHeal = 0
 	if calc and calc.GetIncomingHeals then
@@ -6669,8 +6705,15 @@ local function updateHealth(cfg, unit)
 		finalR, finalG, finalB, finalA = tc[1] or 0.5, tc[2] or 0.5, tc[3] or 0.5, tc[4] or 1
 	end
 
+	local healthLeftMode = hc.textLeft or defH.textLeft or "PERCENT"
+	local healthCenterMode = hc.textCenter or defH.textCenter or "NONE"
+	local healthRightMode = hc.textRight or defH.textRight or "CURMAX"
+	local needsHealthAbsorbText = UF.HealthTextUsesAbsorbMode(healthLeftMode, healthCenterMode, healthRightMode)
+	local healPredictionCalc
+	if hc.incomingHealEnabled == true or needsHealthAbsorbText then healPredictionCalc = UF.RefreshHealPredictionCalculator(st, unit) end
+
 	st.health:SetStatusBarColor(finalR or 0, finalG or 0.8, finalB or 0, finalA or 1)
-	updateIncomingHeal(st, unit, hc, defH, cur, maxv, interpolation)
+	updateIncomingHeal(st, unit, hc, defH, cur, maxv, interpolation, healPredictionCalc)
 	if allowAbsorb and (st.absorb or st.healAbsorb) then
 		local cacheGuid = UnitGUID and UnitGUID(unit) or unit
 		local guidComparable = not (issecretvalue and issecretvalue(cacheGuid))
@@ -6683,6 +6726,11 @@ local function updateHealth(cfg, unit)
 			st._absorbAmount = UnitGetTotalAbsorbs and UnitGetTotalAbsorbs(unit) or 0
 			st._healAbsorbAmount = UnitGetTotalHealAbsorbs and UnitGetTotalHealAbsorbs(unit) or 0
 		end
+	end
+	if needsHealthAbsorbText then
+		UF.CacheHealthTextAbsorbAmount(st, unit, maxv, st._absorbAmount, healPredictionCalc)
+	else
+		st._healthTextAbsorbAmount = nil
 	end
 	if allowAbsorb and st.absorb then
 		local abs = st._absorbAmount
@@ -8775,6 +8823,7 @@ applyBossEditSample = function(idx, cfg)
 	local sampleHealthCur = 580000
 	local sampleHealthMax = 1000000
 	local sampleHealthPercent = 58
+	local sampleHealthAbsorb = shouldShowSampleAbsorb(unit) and 600000 or 180000
 	local samplePowerCur = 73
 	local samplePowerMax = 100
 	local samplePowerPercent = 73
@@ -8811,7 +8860,9 @@ applyBossEditSample = function(idx, cfg)
 					hidePercentSymbol,
 					levelText,
 					nil,
-					roundPercent
+					roundPercent,
+					nil,
+					sampleHealthAbsorb
 				)
 			)
 		end
@@ -8833,7 +8884,9 @@ applyBossEditSample = function(idx, cfg)
 					hidePercentSymbol,
 					levelText,
 					nil,
-					roundPercent
+					roundPercent,
+					nil,
+					sampleHealthAbsorb
 				)
 			)
 		end
@@ -8855,7 +8908,9 @@ applyBossEditSample = function(idx, cfg)
 					hidePercentSymbol,
 					levelText,
 					nil,
-					roundPercent
+					roundPercent,
+					nil,
+					sampleHealthAbsorb
 				)
 			)
 		end
@@ -9590,8 +9645,16 @@ function UF.UpdateUnitTexts(unit, force)
 			local hidePercentSymbol = hc.hidePercentSymbol == true
 			local roundPercent = hc.roundPercent == true
 			local levelText
+			local absorbTextAmount
 			if UFHelper.textModeUsesLevel(leftMode) or UFHelper.textModeUsesLevel(centerMode) or UFHelper.textModeUsesLevel(rightMode) then
 				levelText = UFHelper.getUnitLevelText(unit, nil, UF.ShouldHideClassificationText(cfg, unit))
+			end
+			if UF.HealthTextUsesAbsorbMode(leftMode, centerMode, rightMode) then
+				absorbTextAmount = st._healthTextAbsorbAmount
+				if absorbTextAmount == nil then
+					local calc = UF.RefreshHealPredictionCalculator(st, unit)
+					absorbTextAmount = UF.CacheHealthTextAbsorbAmount(st, unit, maxv, st._absorbAmount, calc)
+				end
 			end
 
 			if st.healthTextLeft then
@@ -9599,7 +9662,7 @@ function UF.UpdateUnitTexts(unit, force)
 					st.healthTextLeft:SetText("")
 				else
 					st.healthTextLeft:SetText(
-						UFHelper.formatText(leftMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, nil, roundPercent, true)
+						UFHelper.formatText(leftMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, nil, roundPercent, true, absorbTextAmount)
 					)
 				end
 			end
@@ -9608,7 +9671,7 @@ function UF.UpdateUnitTexts(unit, force)
 					st.healthTextCenter:SetText("")
 				else
 					st.healthTextCenter:SetText(
-						UFHelper.formatText(centerMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, nil, roundPercent, true)
+						UFHelper.formatText(centerMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, nil, roundPercent, true, absorbTextAmount)
 					)
 				end
 			end
@@ -9617,7 +9680,7 @@ function UF.UpdateUnitTexts(unit, force)
 					st.healthTextRight:SetText("")
 				else
 					st.healthTextRight:SetText(
-						UFHelper.formatText(rightMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, nil, roundPercent, true)
+						UFHelper.formatText(rightMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, nil, roundPercent, true, absorbTextAmount)
 					)
 				end
 			end
