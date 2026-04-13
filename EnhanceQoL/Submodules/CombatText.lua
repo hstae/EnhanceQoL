@@ -327,6 +327,7 @@ function CombatText:ApplyAnchorPosition(data)
 		if data.y ~= nil then y = data.y end
 	end
 
+	if self.frame.SetClampedToScreen then self.frame:SetClampedToScreen(true) end
 	self.frame:ClearAllPoints()
 	self.frame:SetPoint(point, self:ResolveAnchorFrame(), relativePoint, tonumber(x) or 0, tonumber(y) or 0)
 end
@@ -873,6 +874,19 @@ function CombatText:OnSettingChanged(enabled)
 	if EditMode and EditMode.RefreshFrame then EditMode:RefreshFrame(EDITMODE_ID) end
 	self:_debugCheckExternal("OnSettingChanged:end")
 	self:_debugTrace("OnSettingChanged:end", { enabled = enabled == true })
+end
+
+function CombatText:RefreshAnchor()
+	if not addon.db or addon.db[DB_ENABLED] ~= true then return end
+
+	self:EnsureFrame()
+	if self.frame and self.frame.SetClampedToScreen then self.frame:SetClampedToScreen(true) end
+
+	if EditMode and EditMode.RefreshFrame then
+		EditMode:RefreshFrame(EDITMODE_ID)
+	else
+		self:ApplyAnchorPosition()
+	end
 end
 
 return CombatText

@@ -7181,6 +7181,7 @@ local eventHandlers = {
 			if addon.MythicPlus.functions.InitSettings then addon.MythicPlus.functions.InitSettings() end
 			if addon.MythicPlus.functions.ScheduleTrackerAnchorReapply then addon.MythicPlus.functions.ScheduleTrackerAnchorReapply("PLAYER_LOGIN") end
 		end
+		if addon.CombatText and addon.CombatText.RefreshAnchor then addon.CombatText:RefreshAnchor() end
 	end,
 	["PLAYER_MONEY"] = function()
 		local privateDB = getPrivateDB()
