@@ -275,40 +275,6 @@ function GF.ScaleOffset(offset, factor)
 	}
 end
 
-GF.IsCenteredHorizontalAnchor = GF.IsCenteredHorizontalAnchor
-	or function(point)
-		if type(point) ~= "string" then return false end
-		return not point:find("LEFT", 1, true) and not point:find("RIGHT", 1, true)
-	end
-
-GF.GetCenteredFontStringHalfPixelOffset = GF.GetCenteredFontStringHalfPixelOffset
-	or function(fs)
-		if not (fs and fs.GetStringWidth and Pixel and Pixel.GetPixelToUIUnitFactor) then return 0 end
-		local width = tonumber(fs:GetStringWidth()) or 0
-		if width <= 0 then return 0 end
-		local scale = (Pixel.GetScale and Pixel.GetScale(fs)) or (fs.GetEffectiveScale and fs:GetEffectiveScale()) or 1
-		scale = tonumber(scale) or 1
-		if scale <= 0 then scale = 1 end
-		local factor = Pixel.GetPixelToUIUnitFactor()
-		local widthPixels = floor(((width * scale) / factor) + 0.5)
-		if widthPixels <= 0 or (widthPixels % 2) == 0 then return 0 end
-		return (factor / scale) * 0.5
-	end
-
-function GF.ApplyCenteredNameTextNudge(st)
-	local fs = st and st.nameText
-	local anchor = st and st._eqolNameAnchorState
-	if not (fs and anchor and anchor.centered and anchor.relativeTo) then
-		if st then st._eqolNameCenterNudgeX = nil end
-		return
-	end
-	local nudgeX = GF.GetCenteredFontStringHalfPixelOffset(fs)
-	if st._eqolNameCenterNudgeX == nudgeX then return end
-	st._eqolNameCenterNudgeX = nudgeX
-	fs:ClearAllPoints()
-	fs:SetPoint(anchor.point, anchor.relativeTo, anchor.relativePoint, anchor.x + nudgeX, anchor.y)
-end
-
 function GF.GetScaledBarTextConfig(cfgSection, factor)
 	if factor == nil or factor == 1 or type(cfgSection) ~= "table" then return cfgSection end
 	return {
@@ -978,6 +944,35 @@ local function roundToEvenPixel(value, scale)
 	-- Snap half-size to pixel grid and double it so final size always lands on an even pixel count.
 	if Pixel and Pixel.RoundEven then return Pixel.RoundEven(value, scale, 2) end
 	return roundToPixel(value * 0.5, scale) * 2
+end
+
+function GF.ShouldForceLiveGroupButtonSize(kind) return kind == "party" or kind == "mt" or kind == "ma" end
+
+function GF.ForceLiveGroupButtonSize(self, kind, cfg, width, height)
+	if not (self and self.SetSize) then return false end
+	if InCombatLockdown and InCombatLockdown() then return false end
+
+	kind = kind or self._eqolGroupKind or "party"
+	if not GF.ShouldForceLiveGroupButtonSize(kind) then return false end
+
+	cfg = cfg or self._eqolCfg or getCfg(kind)
+	local scale = GFH.GetEffectiveScale(UIParent)
+	local def = DEFAULTS[kind] or DEFAULTS.party or {}
+	local w = tonumber(width)
+	local h = tonumber(height)
+
+	if not w then w = clampNumber(tonumber(cfg and cfg.width) or tonumber(def.width) or 100, 40, 600, 100) end
+	if not h then h = clampNumber(tonumber(cfg and cfg.height) or tonumber(def.height) or 24, 10, 200, 24) end
+	if w <= 0 or h <= 0 then return false end
+
+	w = roundToEvenPixel(w, scale)
+	h = roundToEvenPixel(h, scale)
+	if Pixel and Pixel.SetSize then
+		Pixel.SetSize(self, w, h, 1, 1)
+	else
+		self:SetSize(w, h)
+	end
+	return true
 end
 
 GF.GetLayoutAnchorFrame = GF.GetLayoutAnchorFrame or function(st, fallback)
@@ -1775,25 +1770,13 @@ local function applyStatusTextAnchor(st, anchor, offset, scale, parent, fs)
 	if not target then return end
 	local point, relPoint, justify = resolveStatusTextAnchor(anchor)
 	local off = offset or {}
-	local anchorX, anchorY
-	if Pixel and Pixel.Round then
-		anchorX = Pixel.Round(off.x or 0, target)
-		anchorY = Pixel.Round(off.y or 0, target)
-	else
-		anchorX = roundToPixel(off.x or 0, scale)
-		anchorY = roundToPixel(off.y or 0, scale)
-	end
 	target:ClearAllPoints()
 	if Pixel and Pixel.SetPoint then
 		Pixel.SetPoint(target, point, parent, relPoint, off.x or 0, off.y or 0)
 	else
-		target:SetPoint(point, parent, relPoint, anchorX, anchorY)
+		target:SetPoint(point, parent, relPoint, roundToPixel(off.x or 0, scale), roundToPixel(off.y or 0, scale))
 	end
 	if justify and target.SetJustifyH then target:SetJustifyH(justify) end
-	if GFH and GFH.SetCenteredFontStringAnchorState then
-		GFH.SetCenteredFontStringAnchorState(target, point, parent, relPoint, anchorX, anchorY, justify == "CENTER" and GFH.IsCenteredHorizontalAnchor and GFH.IsCenteredHorizontalAnchor(point))
-	end
-	if GFH and GFH.ApplyCenteredFontStringNudge then GFH.ApplyCenteredFontStringNudge(target) end
 end
 
 local function applyGroupIndicatorAnchor(fs, anchor, offset, scale, parent)
@@ -1806,25 +1789,13 @@ local function applyGroupIndicatorAnchor(fs, anchor, offset, scale, parent)
 	end
 	local _, _, justify = resolveStatusTextAnchor(anchor)
 	local off = offset or {}
-	local anchorX, anchorY
-	if Pixel and Pixel.Round then
-		anchorX = Pixel.Round(off.x or 0, fs)
-		anchorY = Pixel.Round(off.y or 0, fs)
-	else
-		anchorX = roundToPixel(off.x or 0, scale)
-		anchorY = roundToPixel(off.y or 0, scale)
-	end
 	fs:ClearAllPoints()
 	if Pixel and Pixel.SetPoint then
 		Pixel.SetPoint(fs, point, parent, relPoint, off.x or 0, off.y or 0)
 	else
-		fs:SetPoint(point, parent, relPoint, anchorX, anchorY)
+		fs:SetPoint(point, parent, relPoint, roundToPixel(off.x or 0, scale), roundToPixel(off.y or 0, scale))
 	end
 	if justify and fs.SetJustifyH then fs:SetJustifyH(justify) end
-	if GFH and GFH.SetCenteredFontStringAnchorState then
-		GFH.SetCenteredFontStringAnchorState(fs, point, parent, relPoint, anchorX, anchorY, justify == "CENTER" and GFH.IsCenteredHorizontalAnchor and GFH.IsCenteredHorizontalAnchor(point))
-	end
-	if GFH and GFH.ApplyCenteredFontStringNudge then GFH.ApplyCenteredFontStringNudge(fs) end
 end
 
 local function stopDispelGlow(frame, effect, st)
@@ -1883,7 +1854,6 @@ local function setTextSlot(st, fs, cacheKey, mode, cur, maxv, useShort, percentV
 		if last ~= "" then
 			st[cacheKey] = ""
 			fs:SetText("")
-			if GFH and GFH.ApplyCenteredFontStringNudge then GFH.ApplyCenteredFontStringNudge(fs) end
 		end
 		return
 	end
@@ -1896,13 +1866,11 @@ local function setTextSlot(st, fs, cacheKey, mode, cur, maxv, useShort, percentV
 	if issecretvalue and issecretvalue(text) then
 		fs:SetText(text)
 		st[cacheKey] = nil
-		if GFH and GFH.ApplyCenteredFontStringNudge then GFH.ApplyCenteredFontStringNudge(fs) end
 		return
 	end
 	if last ~= text then
 		st[cacheKey] = text
 		fs:SetText(text)
-		if GFH and GFH.ApplyCenteredFontStringNudge then GFH.ApplyCenteredFontStringNudge(fs) end
 	end
 end
 
@@ -6085,10 +6053,6 @@ function GF:BuildButton(self)
 		UFHelper.applyFont(st.nameText, tc.font or hc.font, tc.fontSize or hc.fontSize or 12, tc.fontOutline or hc.fontOutline)
 	end
 
-	if not st._sizeHooked then
-		st._sizeHooked = true
-		self:HookScript("OnSizeChanged", function(btn) GF:OnUnitButtonSizeChanged(btn) end)
-	end
 	if not st._dispelOnHideHooked then
 		st._dispelOnHideHooked = true
 		self:HookScript("OnHide", function(btn)
@@ -6110,88 +6074,6 @@ function GF:BuildButton(self)
 	GF:LayoutAuras(self)
 	hookTextFrameLevels(st)
 	GF:LayoutButton(self)
-end
-
-function GF.RefreshUnitButtonAfterSizeChange(self)
-	local unit = getUnit(self)
-	local st = getState(self)
-	if not (unit and st) then return end
-
-	GF:UpdateHealthStyle(self)
-	GF:UpdateHealthValue(self, unit, st)
-	GF:UpdatePowerValue(self, unit, st)
-	GF:UpdateName(self, unit, st)
-	GF:UpdateStatusText(self, unit, st)
-	GF:UpdateLevel(self, unit, st)
-	GF:UpdateRange(self)
-end
-
-function GF.GetExpectedUnitButtonSize(self)
-	if not self then return nil, nil end
-
-	local expectedW = tonumber(self._eqolExpectedWidth)
-	local expectedH = tonumber(self._eqolExpectedHeight)
-	if expectedW and expectedW > 0 and expectedH and expectedH > 0 then return expectedW, expectedH end
-
-	local parent = self.GetParent and self:GetParent() or nil
-	expectedW = tonumber(parent and parent._eqolExpectedChildWidth)
-	expectedH = tonumber(parent and parent._eqolExpectedChildHeight)
-	if expectedW and expectedW > 0 and expectedH and expectedH > 0 then return expectedW, expectedH end
-
-	return nil, nil
-end
-
--- SecureGroupHeader can briefly hand children absurd sizes while attributes settle.
--- Clamp back to the expected child size and let the next frame relayout from sane bounds.
-function GF.RepairTransientUnitButtonSize(self)
-	if not (self and self.GetSize and self.SetSize) then return false end
-	if self._eqolPreview or self._eqolTransientSizeRepairPending then return false end
-
-	local expectedW, expectedH = GF.GetExpectedUnitButtonSize(self)
-	if not (expectedW and expectedH) then return false end
-
-	local w, h = self:GetSize()
-	if not (w and h and w > 0 and h > 0) then return false end
-
-	local widthExploded = w > max(expectedW * 3, expectedW + 128)
-	local heightExploded = h > max(expectedH * 3, expectedH + 128)
-	if not widthExploded and not heightExploded then return false end
-
-	if InCombatLockdown and InCombatLockdown() then
-		local kind = self._eqolGroupKind
-		if kind then GF:MarkPendingHeaderRefresh(kind) end
-		return true
-	end
-
-	self._eqolTransientSizeRepairPending = true
-	if Pixel and Pixel.SetSize then
-		Pixel.SetSize(self, expectedW, expectedH, 1, 1)
-	else
-		self:SetSize(expectedW, expectedH)
-	end
-
-	local function finalize()
-		self._eqolTransientSizeRepairPending = nil
-		if not isFeatureEnabled() then return end
-		if GF.RepairTransientUnitButtonSize(self) then return end
-		GF:LayoutButton(self)
-		GF.RefreshUnitButtonAfterSizeChange(self)
-	end
-
-	if C_Timer and C_Timer.After then
-		C_Timer.After(0, finalize)
-	else
-		finalize()
-	end
-
-	return true
-end
-
-function GF:OnUnitButtonSizeChanged(self)
-	if not self then return end
-	if GF.RepairTransientUnitButtonSize(self) then return end
-	GF:LayoutButton(self)
-	GF.RefreshUnitButtonAfterSizeChange(self)
 end
 
 function GF:LayoutButton(self)
@@ -6574,8 +6456,6 @@ function GF:LayoutButton(self)
 		if st.nameText.SetNonSpaceWrap then st.nameText:SetNonSpaceWrap(false) end
 		if st.nameText.SetMaxLines then st.nameText:SetMaxLines(1) end
 		GF.ApplyScaledFont(self, st.nameText, tc.font or hc.font, tc.fontSize or hc.fontSize or 12, tc.fontOutline or hc.fontOutline, cfg)
-		-- Let the snapped anchor drive placement; FontString pixel snapping can introduce 1px jitter here.
-		if Pixel and Pixel.DisableSnap then Pixel.DisableSnap(st.nameText) end
 		local nameAnchor = tc.nameAnchor or "LEFT"
 		local baseOffset = (cfg.health and cfg.health.offsetLeft) or {}
 		if nameAnchor and nameAnchor:find("RIGHT") then
@@ -6589,14 +6469,7 @@ function GF:LayoutButton(self)
 		local nameY = (nameOffset.y ~= nil and nameOffset.y or baseOffset.y or 0) * contentScale
 		local nameAnchorFrame = layoutAnchor or st.health
 		if nameAnchor and nameAnchor:find("BOTTOM") then nameAnchorFrame = st.health or nameAnchorFrame end
-		if GFH and GFH.SnapPointOffsets then
-			nameX, nameY = GFH.SnapPointOffsets(nameAnchorFrame, nameAnchor, nameX, nameY, scale)
-		else
-			nameX, nameY = roundToPixel(nameX, scale), roundToPixel(nameY, scale)
-		end
 		local nameMaxChars = tonumber(tc.nameMaxChars) or 0
-		st._eqolNameAnchorState = nil
-		st._eqolNameCenterNudgeX = nil
 		st.nameText:ClearAllPoints()
 		if nameMaxChars <= 0 then
 			local vert = "CENTER"
@@ -6607,38 +6480,19 @@ function GF:LayoutButton(self)
 			end
 			local leftPoint = (vert == "CENTER") and "LEFT" or (vert .. "LEFT")
 			local rightPoint = (vert == "CENTER") and "RIGHT" or (vert .. "RIGHT")
-			local leftX, leftY
-			local rightX, rightY
-			if GFH and GFH.SnapPointOffsets then
-				leftX, leftY = GFH.SnapPointOffsets(nameAnchorFrame, leftPoint, nameX, nameY, scale)
-				rightX, rightY = GFH.SnapPointOffsets(nameAnchorFrame, rightPoint, -4 * contentScale, nameY, scale)
-			else
-				leftX, leftY = roundToPixel(nameX, scale), roundToPixel(nameY, scale)
-				rightX, rightY = roundToPixel(-4 * contentScale, scale), roundToPixel(nameY, scale)
-			end
 			if Pixel and Pixel.SetPoint then
-				Pixel.SetPoint(st.nameText, leftPoint, nameAnchorFrame, leftPoint, leftX, leftY)
-				Pixel.SetPoint(st.nameText, rightPoint, nameAnchorFrame, rightPoint, rightX, rightY)
+				Pixel.SetPoint(st.nameText, leftPoint, nameAnchorFrame, leftPoint, nameX, nameY)
+				Pixel.SetPoint(st.nameText, rightPoint, nameAnchorFrame, rightPoint, -4 * contentScale, nameY)
 			else
-				st.nameText:SetPoint(leftPoint, nameAnchorFrame, leftPoint, leftX, leftY)
-				st.nameText:SetPoint(rightPoint, nameAnchorFrame, rightPoint, rightX, rightY)
+				st.nameText:SetPoint(leftPoint, nameAnchorFrame, leftPoint, roundToPixel(nameX, scale), roundToPixel(nameY, scale))
+				st.nameText:SetPoint(rightPoint, nameAnchorFrame, rightPoint, roundToPixel(-4 * contentScale, scale), roundToPixel(nameY, scale))
 			end
 		else
-			local centeredNameAnchor = GF.IsCenteredHorizontalAnchor and GF.IsCenteredHorizontalAnchor(nameAnchor)
-			st._eqolNameAnchorState = {
-				centered = centeredNameAnchor,
-				point = nameAnchor,
-				relativeTo = nameAnchorFrame,
-				relativePoint = nameAnchor,
-				x = nameX,
-				y = nameY,
-			}
 			if Pixel and Pixel.SetPoint then
 				Pixel.SetPoint(st.nameText, nameAnchor, nameAnchorFrame, nameAnchor, nameX, nameY)
 			else
-				st.nameText:SetPoint(nameAnchor, nameAnchorFrame, nameAnchor, nameX, nameY)
+				st.nameText:SetPoint(nameAnchor, nameAnchorFrame, nameAnchor, roundToPixel(nameX, scale), roundToPixel(nameY, scale))
 			end
-			if centeredNameAnchor and GF.ApplyCenteredNameTextNudge then GF.ApplyCenteredNameTextNudge(st) end
 		end
 		local justify = "CENTER"
 		if nameAnchor and nameAnchor:find("LEFT") then
@@ -6673,7 +6527,6 @@ function GF:LayoutButton(self)
 		local levelOutline = sc.levelFontOutline or tc.fontOutline or hc.fontOutline
 		if UFHelper and UFHelper.applyFont then UFHelper.applyFont(st.levelText, levelFont, levelFontSize, levelOutline) end
 		local anchor = sc.levelAnchor or "RIGHT"
-		if Pixel and Pixel.DisableSnap then Pixel.DisableSnap(st.levelText) end
 		local levelOffset = sc.levelOffset or {}
 		if st.levelText.SetWidth then
 			if Pixel and Pixel.SetWidth then
@@ -6682,17 +6535,11 @@ function GF:LayoutButton(self)
 				st.levelText:SetWidth(roundToPixel((sc.levelWidth or 26), scale))
 			end
 		end
-		local levelX, levelY
-		if GFH and GFH.SnapPointOffsets then
-			levelX, levelY = GFH.SnapPointOffsets(st.health, anchor, levelOffset.x or 0, levelOffset.y or 0, scale)
-		else
-			levelX, levelY = roundToPixel(levelOffset.x or 0, scale), roundToPixel(levelOffset.y or 0, scale)
-		end
 		st.levelText:ClearAllPoints()
 		if Pixel and Pixel.SetPoint then
-			Pixel.SetPoint(st.levelText, anchor, st.health, anchor, levelX, levelY)
+			Pixel.SetPoint(st.levelText, anchor, st.health, anchor, levelOffset.x or 0, levelOffset.y or 0)
 		else
-			st.levelText:SetPoint(anchor, st.health, anchor, levelX, levelY)
+			st.levelText:SetPoint(anchor, st.health, anchor, roundToPixel(levelOffset.x or 0, scale), roundToPixel(levelOffset.y or 0, scale))
 		end
 		local justify = "CENTER"
 		if anchor and anchor:find("LEFT") then
@@ -6701,18 +6548,6 @@ function GF:LayoutButton(self)
 			justify = "RIGHT"
 		end
 		st.levelText:SetJustifyH(justify)
-		if GFH and GFH.SetCenteredFontStringAnchorState then
-			GFH.SetCenteredFontStringAnchorState(
-				st.levelText,
-				anchor,
-				st.health,
-				anchor,
-				levelX,
-				levelY,
-				justify == "CENTER" and GFH.IsCenteredHorizontalAnchor and GFH.IsCenteredHorizontalAnchor(anchor)
-			)
-		end
-		if GFH and GFH.ApplyCenteredFontStringNudge then GFH.ApplyCenteredFontStringNudge(st.levelText) end
 	end
 
 	if st.raidIcon then
@@ -8756,7 +8591,6 @@ function GF:UpdateName(self)
 		fs:SetText(displayName)
 		st._lastName = displayName
 	end
-	if fs == st.nameText and GF.ApplyCenteredNameTextNudge then GF.ApplyCenteredNameTextNudge(st) end
 
 	local r, g, b, a = 1, 1, 1, 1
 	local nameMode = sc.nameColorMode
@@ -8934,7 +8768,6 @@ function GF:UpdateStatusText(self)
 			applyStatusTextAnchor(st, style.anchor, GF.ScaleOffset(style.offset, contentScale), scale, GF.GetLayoutAnchorFrame(st, self) or self, statusFs)
 			local r, g, b, a = unpackColor(style.color, GFH.COLOR_WHITE)
 			statusFs:SetText(statusTag)
-			if GFH and GFH.ApplyCenteredFontStringNudge then GFH.ApplyCenteredFontStringNudge(statusFs) end
 			statusFs:SetTextColor(r, g, b, a)
 			statusFs:Show()
 		else
@@ -8950,7 +8783,6 @@ function GF:UpdateStatusText(self)
 			applyStatusTextAnchor(st, style.anchor, style.offset, scale, GF.GetLayoutAnchorFrame(st, self) or self, groupFs)
 			local r, g, b, a = unpackColor(style.color, GFH.COLOR_WHITE)
 			groupFs:SetText(groupTag)
-			if GFH and GFH.ApplyCenteredFontStringNudge then GFH.ApplyCenteredFontStringNudge(groupFs) end
 			groupFs:SetTextColor(r, g, b, a)
 			groupFs:Show()
 		else
@@ -9129,7 +8961,6 @@ local function updateGroupIndicatorsForFrames(container, frames, cfg, def, isPre
 				applyGroupIndicatorAnchor(fs, style.anchor, style.offset, scale, anchorTarget)
 				local r, g, b, a = unpackColor(style.color, GFH.COLOR_WHITE)
 				fs:SetText(formatGroupNumber(subgroup, format))
-				if GFH and GFH.ApplyCenteredFontStringNudge then GFH.ApplyCenteredFontStringNudge(fs) end
 				fs:SetTextColor(r, g, b, a)
 				fs:Show()
 				used[subgroup] = true
@@ -10146,6 +9977,7 @@ function GF:UnitButton_SetUnit(self, unit)
 		clearDispelAuraState(st)
 	end
 	GF:CacheUnitStatic(self)
+	if self._eqolUFState then GF:LayoutButton(self) end
 
 	GF:UnitButton_RegisterUnitEvents(self, unit)
 	GF:UpdatePrivateAuras(self)
@@ -11379,16 +11211,10 @@ end
 local function syncHeaderChild(child, kind, cfg, frameW, frameH)
 	if not (child and cfg) then return end
 
-	local parent = child.GetParent and child:GetParent() or nil
-	local fitScale = tonumber(child._eqolFitScale)
-	if not (fitScale and fitScale > 0) then fitScale = tonumber(parent and parent._eqolFitScale) or 1 end
-	if fitScale <= 0 then fitScale = 1 end
 	child._eqolGroupKind = kind
 	child._eqolUseSecureUnitAttribute = true
 	child._eqolCfg = cfg
-	child._eqolFitScale = fitScale
-	child._eqolExpectedWidth = tonumber(frameW) or child._eqolExpectedWidth
-	child._eqolExpectedHeight = tonumber(frameH) or child._eqolExpectedHeight
+	child._eqolFitScale = nil
 	updateButtonConfig(child, cfg)
 	if frameW and frameH and child.SetSize then
 		local inCombat = InCombatLockdown and InCombatLockdown()
@@ -11396,12 +11222,15 @@ local function syncHeaderChild(child, kind, cfg, frameW, frameH)
 			local w = tonumber(frameW) or 0
 			local h = tonumber(frameH) or 0
 			if w > 0 and h > 0 then
-				local cw, ch = child:GetSize()
-				if abs((cw or 0) - w) > 0.01 or abs((ch or 0) - h) > 0.01 then
-					if Pixel and Pixel.SetSize then
-						Pixel.SetSize(child, w, h, 1, 1)
-					else
-						child:SetSize(w, h)
+				local forceLiveSize = GF.ForceLiveGroupButtonSize(child, kind, cfg, w, h)
+				if not forceLiveSize then
+					local cw, ch = child:GetSize()
+					if abs((cw or 0) - w) > 0.01 or abs((ch or 0) - h) > 0.01 then
+						if Pixel and Pixel.SetSize then
+							Pixel.SetSize(child, w, h, 1, 1)
+						else
+							child:SetSize(w, h)
+						end
 					end
 				end
 			end
@@ -11877,7 +11706,11 @@ function GF:RefreshCustomSortNameList(kind)
 			local rp = GF.GetPartyCenterGrowthRelativePoint(growthDir)
 			local x, y = GF.ComputePartyCenterGrowthAnchorOffset(cfg, growthDir)
 			header:ClearAllPoints()
-			header:SetPoint(p, GF.anchors.party, rp, x, y)
+			if Pixel and Pixel.SetPoint then
+				Pixel.SetPoint(header, p, GF.anchors.party, rp, x, y)
+			else
+				header:SetPoint(p, GF.anchors.party, rp, x, y)
+			end
 			if header.IsShown and header:IsShown() then
 				nudgeHeaderLayout(header)
 			else
@@ -11963,8 +11796,6 @@ local function applyRaidGroupHeaders(cfg, layout, groupSpecs, forceShow, forceHi
 				local function setAttr(key, value) GF:SetHeaderAttributeIfChanged(header, key, value) end
 				local specSortMethod = tostring(spec.sortMethod or "INDEX"):upper()
 				header._eqolDisplayGroup = tonumber(spec.group) or i
-				header._eqolExpectedChildWidth = tonumber(layout and layout.w) or nil
-				header._eqolExpectedChildHeight = tonumber(layout and layout.h) or nil
 				setAttr("showParty", false)
 				setAttr("showRaid", true)
 				setAttr("showPlayer", true)
@@ -12059,10 +11890,6 @@ local function applyRaidGroupHeaders(cfg, layout, groupSpecs, forceShow, forceHi
 						end
 					end
 				end
-			end
-			if not active then
-				header._eqolExpectedChildWidth = nil
-				header._eqolExpectedChildHeight = nil
 			end
 			header._eqolFitScale = groupScale
 			if header.SetScale then header:SetScale(groupScale) end
@@ -12310,8 +12137,6 @@ function GF:ApplyHeaderAttributes(kind, options)
 
 	local wStr = ("%.3f"):format(renderW)
 	local hStr = ("%.3f"):format(renderH)
-	header._eqolExpectedChildWidth = renderW
-	header._eqolExpectedChildHeight = renderH
 
 	local initConfigFunction = string.format(
 		[[
@@ -12757,10 +12582,12 @@ function GF:RefreshChangedUnitButtons()
 
 		local st = getState(child)
 		if not st then return end
+		local useSecureUnitAttribute = child._eqolUseSecureUnitAttribute == true
 
 		local unit = getUnit(child)
 		if unit == nil or unit == "" then
 			if child.unit then
+				if useSecureUnitAttribute then return end
 				GF:UnitButton_ClearUnit(child)
 				GF:UpdateAll(child)
 				updated = updated + 1
@@ -12789,6 +12616,7 @@ function GF:RefreshChangedUnitButtons()
 		end
 
 		if child.unit ~= unit then
+			if useSecureUnitAttribute then return end
 			GF:UnitButton_SetUnit(child, unit)
 			updated = updated + 1
 			return
@@ -27139,7 +26967,7 @@ do
 			local cfg = getCfg("raid")
 			local custom = cfg and GFH and GFH.EnsureCustomSortConfig and GFH.EnsureCustomSortConfig(cfg)
 			local sortMethod = cfg and resolveSortMethod(cfg) or "INDEX"
-			local updatedCount = GF:RefreshChangedUnitButtons() or 0
+			local updatedCount = 0
 			if headerStateChanged then
 				if InCombatLockdown and InCombatLockdown() then
 					GF:MarkPendingHeaderRefresh("party")
@@ -27147,9 +26975,9 @@ do
 				else
 					GF:ApplyHeaderAttributes("party")
 					GF:ApplyHeaderAttributes("raid")
-					updatedCount = updatedCount + (GF:RefreshChangedUnitButtons() or 0)
 				end
 			end
+			updatedCount = updatedCount + (GF:RefreshChangedUnitButtons() or 0)
 			GF:RefreshGroupIcons()
 			if headerStateChanged or updatedCount > 0 then
 				GF:RefreshStatusIcons()

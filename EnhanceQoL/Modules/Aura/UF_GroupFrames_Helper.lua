@@ -540,101 +540,30 @@ function H.RoundToPixel(value, scale)
 	return Pixel.Round(value, scale)
 end
 
-function H.SnapPointOffsets(relativeFrame, relativePoint, x, y, scale)
-	scale = scale or relativeFrame
-	return Pixel.RoundPoint(x, y, scale)
-end
-
-function H.IsCenteredHorizontalAnchor(point)
-	local p = tostring(point or "CENTER"):upper()
-	return p:find("LEFT", 1, true) == nil and p:find("RIGHT", 1, true) == nil
-end
-
-function H.GetCenteredFontStringHalfPixelOffset(fs)
-	if not (fs and fs.GetStringWidth and Pixel and Pixel.GetPixelToUIUnitFactor) then return 0 end
-	local width = fs:GetStringWidth()
-	if isSecretValue(width) then return nil, true end
-	width = tonumber(width) or 0
-	if width <= 0 then return 0, false end
-	local scale = (Pixel.GetScale and Pixel.GetScale(fs)) or (fs.GetEffectiveScale and fs:GetEffectiveScale()) or 1
-	scale = tonumber(scale) or 1
-	if scale <= 0 then scale = 1 end
-	local factor = Pixel.GetPixelToUIUnitFactor()
-	local widthPixels = floor(((width * scale) / factor) + 0.5)
-	if widthPixels <= 0 or (widthPixels % 2) == 0 then return 0, false end
-	return (factor / scale) * 0.5, false
-end
-
-function H.SetCenteredFontStringAnchorState(fs, point, relativeTo, relativePoint, x, y, centered)
-	if not fs then return end
-	if centered ~= true or not relativeTo then
-		fs._eqolCenteredTextAnchor = nil
-		fs._eqolCenteredTextNudgeX = nil
-		return
-	end
-	fs._eqolCenteredTextAnchor = {
-		centered = true,
-		point = point,
-		relativeTo = relativeTo,
-		relativePoint = relativePoint,
-		x = x,
-		y = y,
-	}
-end
-
-function H.ApplyCenteredFontStringNudge(fs)
-	if not fs then return end
-	local anchor = fs._eqolCenteredTextAnchor
-	if not (anchor and anchor.centered and anchor.relativeTo) then
-		fs._eqolCenteredTextNudgeX = nil
-		return
-	end
-	-- Use our own snapped anchor + half-pixel correction; engine pixel snapping can cause 1px oscillation.
-	if Pixel and Pixel.DisableSnap then Pixel.DisableSnap(fs) end
-	local nudgeX, bypassNudge = H.GetCenteredFontStringHalfPixelOffset(fs)
-	if bypassNudge then
-		if fs._eqolCenteredTextNudgeX == nil then return end
-		fs._eqolCenteredTextNudgeX = nil
-		fs:ClearAllPoints()
-		fs:SetPoint(anchor.point, anchor.relativeTo, anchor.relativePoint, anchor.x, anchor.y)
-		return
-	end
-	if fs._eqolCenteredTextNudgeX == nudgeX then return end
-	fs._eqolCenteredTextNudgeX = nudgeX
-	fs:ClearAllPoints()
-	fs:SetPoint(anchor.point, anchor.relativeTo, anchor.relativePoint, anchor.x + nudgeX, anchor.y)
-end
-
 function H.LayoutTexts(bar, leftFS, centerFS, rightFS, cfg, scale, anchorFrame)
 	if not bar then return end
 	anchorFrame = anchorFrame or bar
 	local leftCfg = (cfg and cfg.offsetLeft) or { x = 6, y = 0 }
 	local centerCfg = (cfg and cfg.offsetCenter) or { x = 0, y = 0 }
 	local rightCfg = (cfg and cfg.offsetRight) or { x = -6, y = 0 }
-	local lx = H.RoundToPixel(leftCfg.x or 0, scale)
-	local ly = H.RoundToPixel(leftCfg.y or 0, scale)
-	local cx = H.RoundToPixel(centerCfg.x or 0, scale)
-	local cy = H.RoundToPixel(centerCfg.y or 0, scale)
-	local rx = H.RoundToPixel(rightCfg.x or 0, scale)
-	local ry = H.RoundToPixel(rightCfg.y or 0, scale)
+	local function setTextPoint(fs, point, x, y, justify)
+		if not fs then return end
+		fs:ClearAllPoints()
+		if Pixel and Pixel.SetPoint then
+			Pixel.SetPoint(fs, point, anchorFrame, point, x or 0, y or 0)
+		else
+			fs:SetPoint(point, anchorFrame, point, H.RoundToPixel(x or 0, scale), H.RoundToPixel(y or 0, scale))
+		end
+		if justify and fs.SetJustifyH then fs:SetJustifyH(justify) end
+	end
 	if leftFS then
-		leftFS:ClearAllPoints()
-		leftFS:SetPoint("LEFT", anchorFrame, "LEFT", lx, ly)
-		leftFS:SetJustifyH("LEFT")
-		H.SetCenteredFontStringAnchorState(leftFS, nil, nil, nil, 0, 0, false)
+		setTextPoint(leftFS, "LEFT", leftCfg.x, leftCfg.y, "LEFT")
 	end
 	if centerFS then
-		centerFS:ClearAllPoints()
-		centerFS:SetPoint("CENTER", anchorFrame, "CENTER", cx, cy)
-		centerFS:SetJustifyH("CENTER")
-		H.SetCenteredFontStringAnchorState(centerFS, "CENTER", anchorFrame, "CENTER", cx, cy, true)
-		H.ApplyCenteredFontStringNudge(centerFS)
+		setTextPoint(centerFS, "CENTER", centerCfg.x, centerCfg.y, "CENTER")
 	end
 	if rightFS then
-		rightFS:ClearAllPoints()
-		rightFS:SetPoint("RIGHT", anchorFrame, "RIGHT", rx, ry)
-		rightFS:SetJustifyH("RIGHT")
-		H.SetCenteredFontStringAnchorState(rightFS, nil, nil, nil, 0, 0, false)
+		setTextPoint(rightFS, "RIGHT", rightCfg.x, rightCfg.y, "RIGHT")
 	end
 end
 
