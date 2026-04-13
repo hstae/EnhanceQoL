@@ -230,6 +230,40 @@ local function getNormalizedFocusInterruptSoundValue()
 	return ""
 end
 
+local function suppressEventToastFrame(frame)
+	if not frame then return end
+	if frame.currentDisplayingToast and C_EventToastManager and C_EventToastManager.RemoveCurrentToast then pcall(C_EventToastManager.RemoveCurrentToast) end
+	if frame.ReleaseToasts then pcall(frame.ReleaseToasts, frame) end
+	frame.currentDisplayingToast = nil
+	if frame.StopToasting then
+		pcall(frame.StopToasting, frame)
+	elseif frame.Hide then
+		pcall(frame.Hide, frame)
+	end
+end
+
+local function ensureEventToastVisibilityHooks()
+	local frame = _G.EventToastManagerFrame
+	if not frame or frame._eqolEventToastVisibilityHooked then return frame end
+	frame._eqolEventToastVisibilityHooked = true
+	hooksecurefunc(frame, "DisplayToast", function(self)
+		if addon.db and addon.db.hideEventToasts == true then suppressEventToastFrame(self) end
+	end)
+	return frame
+end
+
+function addon.functions.ApplyEventToastVisibility()
+	local frame = ensureEventToastVisibilityHooks()
+	if not frame then return end
+
+	if addon.db and addon.db.hideEventToasts == true then
+		if frame.IsEventRegistered and frame:IsEventRegistered("DISPLAY_EVENT_TOASTS") then frame:UnregisterEvent("DISPLAY_EVENT_TOASTS") end
+		suppressEventToastFrame(frame)
+	else
+		if frame.RegisterEvent and frame.IsEventRegistered and not frame:IsEventRegistered("DISPLAY_EVENT_TOASTS") then frame:RegisterEvent("DISPLAY_EVENT_TOASTS") end
+	end
+end
+
 local function createActionBarVisibility(category, expandable)
 	if #ACTIONBAR_RULE_OPTIONS == 0 then return end
 
@@ -1156,7 +1190,7 @@ local function createCooldownViewerDropdowns(category, expandable)
 		{ value = COOLDOWN_VIEWER_VISIBILITY_MODES.MOUSEOVER, text = L["cooldownManagerShowMouseover"] or "On mouseover" },
 		{
 			value = COOLDOWN_VIEWER_VISIBILITY_MODES.PLAYER_HAS_TARGET,
-				text = L["When I have a target"] or "When I have a target",
+			text = L["When I have a target"] or "When I have a target",
 		},
 		{
 			value = COOLDOWN_VIEWER_VISIBILITY_MODES.ALWAYS_HIDDEN,
@@ -1253,7 +1287,7 @@ local function createSpellActivationOverlayDropdown(category, expandable)
 		{ value = COOLDOWN_VIEWER_VISIBILITY_MODES.PLAYER_CASTING, text = L["Player is casting"] or "Player is casting" },
 		{
 			value = COOLDOWN_VIEWER_VISIBILITY_MODES.PLAYER_HAS_TARGET,
-				text = L["When I have a target"] or "When I have a target",
+			text = L["When I have a target"] or "When I have a target",
 		},
 	}
 
@@ -1413,11 +1447,27 @@ local function createFrameCategory()
 		end,
 		parentSection = expandable,
 	})
+
+	addon.functions.SettingsCreateHeadline(category, L["Event Toasts"] or "Event Toasts", {
+		parentSection = expandable,
+	})
+	addon.functions.SettingsCreateCheckbox(category, {
+		var = "hideEventToasts",
+		text = L["hideEventToasts"] or "Hide Event Toasts",
+		desc = L["hideEventToastsDesc"] or "Suppresses Blizzard event toasts such as scenario and activity banners.",
+		func = function(value)
+			addon.db["hideEventToasts"] = value and true or false
+			if addon.functions.ApplyEventToastVisibility then addon.functions.ApplyEventToastVisibility() end
+		end,
+		parentSection = expandable,
+	})
 end
 
 function addon.functions.initUIOptions()
 	local defaults = (addon.GCDBar and addon.GCDBar.defaults) or {}
 	local xpDefaults = (addon.Aura and addon.Aura.ExperienceBar and addon.Aura.ExperienceBar.defaults) or {}
+	addon.functions.InitDBValue("hideEventToasts", false)
+	if addon.functions.ApplyEventToastVisibility then addon.functions.ApplyEventToastVisibility() end
 	addon.functions.InitDBValue("gcdBarEnabled", false)
 	addon.functions.InitDBValue("gcdBarWidth", defaults.width or 200)
 	addon.functions.InitDBValue("gcdBarHeight", defaults.height or 18)
@@ -1753,8 +1803,7 @@ local function createCastbarCategory()
 	local focusInterruptSound = addon.functions.SettingsCreateCheckbox(category, {
 		var = "focusInterruptTrackerSoundEnabled",
 		text = L["focusInterruptTrackerSoundEnabled"] or "Play sound on focus cast",
-		desc = L["focusInterruptTrackerSoundEnabledDesc"]
-			or "Plays a sound when your focus starts casting while your interrupt is ready.",
+		desc = L["focusInterruptTrackerSoundEnabledDesc"] or "Plays a sound when your focus starts casting while your interrupt is ready.",
 		get = function()
 			local cfg = addon.db and addon.db.focusInterruptTracker
 			local sound = cfg and cfg.sound
@@ -1780,17 +1829,13 @@ local function createCastbarCategory()
 		listFunc = buildFocusInterruptSoundDropdown,
 		order = focusInterruptSoundOrder,
 		default = "",
-		get = function()
-			return getNormalizedFocusInterruptSoundValue()
-		end,
+		get = function() return getNormalizedFocusInterruptSoundValue() end,
 		set = function(value)
 			addon.db.focusInterruptTracker = type(addon.db.focusInterruptTracker) == "table" and addon.db.focusInterruptTracker or {}
 			addon.db.focusInterruptTracker.sound = type(addon.db.focusInterruptTracker.sound) == "table" and addon.db.focusInterruptTracker.sound or {}
 			addon.db.focusInterruptTracker.sound.file = type(value) == "string" and value or ""
 		end,
-		callback = function(value)
-			previewFocusInterruptSound(value)
-		end,
+		callback = function(value) previewFocusInterruptSound(value) end,
 		parent = true,
 		element = focusInterruptSound and focusInterruptSound.element,
 		parentCheck = function()
@@ -1805,9 +1850,13 @@ local function createCastbarCategory()
 	addon.functions.SettingsCreateText(category, "|cffffd700" .. (L["focusInterruptTrackerEditModeHint"] or "Configure display mode, icon, font, anchor, and border in Edit Mode.") .. "|r", {
 		parentSection = expandable,
 	})
-	addon.functions.SettingsCreateText(category, "|cffffd700" .. (L["focusInterruptTrackerSoundWarning"] or "Sound also plays for non-interruptible casts because the interruptibility flag is secret.") .. "|r", {
-		parentSection = expandable,
-	})
+	addon.functions.SettingsCreateText(
+		category,
+		"|cffffd700" .. (L["focusInterruptTrackerSoundWarning"] or "Sound also plays for non-interruptible casts because the interruptibility flag is secret.") .. "|r",
+		{
+			parentSection = expandable,
+		}
+	)
 
 	addon.functions.SettingsCreateHeadline(category, L["CombatText"] or "Combat text", {
 		parentSection = expandable,

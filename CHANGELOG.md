@@ -1,5 +1,13 @@
 # Changelog
 
+## [10.3.0] - 2026-04-13
+
+### ✨ Added
+
+- UI / Visibility & Fading (Frames): Added a `Hide Event Toasts` option to suppress Blizzard event toasts such as scenario and activity banners.
+
+---
+
 ## [10.2.0] - 2026-04-13
 
 ### ✨ Added
