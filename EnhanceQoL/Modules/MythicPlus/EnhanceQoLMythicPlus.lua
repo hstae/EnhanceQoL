@@ -1474,7 +1474,7 @@ local function ensureBRAnchor()
 			},
 			legacyKeys = {
 				point = "mythicPlusBRTrackerPoint",
-				relativePoint = "mythicPlusBRTrackerPoint",
+				relativePoint = "mythicPlusBRTrackerRelativePoint",
 				x = "mythicPlusBRTrackerX",
 				y = "mythicPlusBRTrackerY",
 				size = "mythicPlusBRButtonSize",
@@ -2630,7 +2630,7 @@ local function ensureBloodlustAnchor()
 			},
 			legacyKeys = {
 				point = "mythicPlusBloodlustTrackerPoint",
-				relativePoint = "mythicPlusBloodlustTrackerPoint",
+				relativePoint = "mythicPlusBloodlustTrackerRelativePoint",
 				x = "mythicPlusBloodlustTrackerX",
 				y = "mythicPlusBloodlustTrackerY",
 				size = "mythicPlusBloodlustButtonSize",
