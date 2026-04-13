@@ -2820,9 +2820,9 @@ L["uiScaleCustomValue"] = "Пользовательский масштаб"
 L["uiScaleCustomValueDesc"] = "Введите любое число от 0,1 до 2."
 L["uiScalePreset"] = "Масштаб интерфейса при входе"
 L["uiScalePresetCustom"] = "Пользовательский"
-L["uiScalePresetDesc"] = "Автоматически применяет предустановленный масштаб интерфейса при входе.\
+L["uiScalePresetDesc"] = "Определяет, как обрабатывается масштаб интерфейса при входе.\
 |cffff0000Внимание:|r Изменение перезагрузит интерфейс."
-L["uiScalePresetNone"] = "Без масштабирования"
+L["uiScalePresetNone"] = "Использовать масштаб Blizzard"
 L["UIUtilities"] = "Инструменты интерфейса"
 L["unclampMinimapCluster"] = "Unclamp minimap cluster"
 L["unclampMinimapClusterDesc"] = "Allow the minimap to be moved closer to the screen edge in Edit Mode."

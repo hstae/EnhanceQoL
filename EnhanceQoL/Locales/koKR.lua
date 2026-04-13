@@ -2820,9 +2820,9 @@ L["uiScaleCustomValue"] = "사용자 지정 배율"
 L["uiScaleCustomValueDesc"] = "0.1에서 2 사이의 숫자를 입력하세요."
 L["uiScalePreset"] = "로그인 시 UI 크기 조절"
 L["uiScalePresetCustom"] = "사용자 지정"
-L["uiScalePresetDesc"] = "로그인 시 미리 설정된 UI 크기를 자동으로 적용합니다.\
+L["uiScalePresetDesc"] = "로그인 시 UI 크기 조절을 어떻게 처리할지 설정합니다.\
 |cffff0000경고:|r 변경하면 UI가 다시 로드됩니다."
-L["uiScalePresetNone"] = "크기 조절 없음"
+L["uiScalePresetNone"] = "블리자드 크기 조절 사용"
 L["UIUtilities"] = "UI 유틸리티"
 L["unclampMinimapCluster"] = "Unclamp minimap cluster"
 L["unclampMinimapClusterDesc"] = "Allow the minimap to be moved closer to the screen edge in Edit Mode."

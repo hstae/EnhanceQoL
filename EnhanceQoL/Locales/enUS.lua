@@ -2827,9 +2827,9 @@ L["uiScaleCustomValue"] = "Custom scale"
 L["uiScaleCustomValueDesc"] = "Enter any number between 0.1 and 2."
 L["uiScalePreset"] = "Login UI scaling"
 L["uiScalePresetCustom"] = "Custom"
-L["uiScalePresetDesc"] = "Automatically applies a preset UI scale when you log in.\
+L["uiScalePresetDesc"] = "Controls how UI scaling is handled when you log in.\
 |cffff0000Warning:|r Changing this will reload your UI."
-L["uiScalePresetNone"] = "No scaling"
+L["uiScalePresetNone"] = "Use Blizzard Scaling"
 L["UIUtilities"] = "UI Utilities"
 L["unclampMinimapCluster"] = "Unclamp minimap cluster"
 L["unclampMinimapClusterDesc"] = "Allow the minimap to be moved closer to the screen edge in Edit Mode."

@@ -2820,9 +2820,9 @@ L["uiScaleCustomValue"] = "Échelle personnalisée"
 L["uiScaleCustomValueDesc"] = "Saisissez n'importe quel nombre entre 0,1 et 2."
 L["uiScalePreset"] = "Mise à l'échelle de l'IU à la connexion"
 L["uiScalePresetCustom"] = "Personnalisé"
-L["uiScalePresetDesc"] = "Applique automatiquement une échelle d'IU prédéfinie à la connexion.\
+L["uiScalePresetDesc"] = "Définit comment la mise à l'échelle de l'IU est gérée à la connexion.\
 |cffff0000Attention:|r Modifier ceci rechargera votre IU."
-L["uiScalePresetNone"] = "Aucune mise à l'échelle"
+L["uiScalePresetNone"] = "Utiliser l'échelle Blizzard"
 L["UIUtilities"] = "Utilitaires d’interface"
 L["unclampMinimapCluster"] = "Unclamp minimap cluster"
 L["unclampMinimapClusterDesc"] = "Allow the minimap to be moved closer to the screen edge in Edit Mode."

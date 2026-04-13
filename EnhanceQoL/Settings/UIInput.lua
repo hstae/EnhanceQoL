@@ -218,14 +218,7 @@ local function applyUIScalePreset()
 	local db = addon.db
 	if not db then return end
 
-	if db.uiScalePreset == "NoScaling" then
-		if addon.functions and addon.functions.setCVarValue then
-			addon.functions.setCVarValue("useUiScale", "0")
-		elseif C_CVar and C_CVar.SetCVar then
-			C_CVar.SetCVar("useUiScale", "0")
-		end
-		return
-	end
+	if db.uiScalePreset == "NoScaling" then return end
 
 	local scale = getSelectedUIScaleValue()
 	if not scale then return end
@@ -499,7 +492,7 @@ local interfaceExpandable = addon.functions.SettingsCreateExpandableSection(cUII
 })
 
 local uiScaleOptions = {
-	NoScaling = L["uiScalePresetNone"] or "No scaling",
+	NoScaling = L["uiScalePresetNone"] or "Use Blizzard Scaling",
 	Custom = L["uiScalePresetCustom"] or _G.CUSTOM or "Custom",
 	Scale4K = "0.3556 (4K)",
 	Scale1080p = "0.7111 (1080p)",
@@ -525,7 +518,7 @@ local uiScaleDropdown = addon.functions.SettingsCreateDropdown(cUIInput, {
 		addon.db.uiScalePreset = v
 		if v ~= "Custom" then markUIScaleReloadRequired() end
 	end,
-	desc = L["uiScalePresetDesc"] or "Automatically applies a preset UI scale when you log in.\n|cffff0000Warning:|r Changing this will reload your UI.",
+	desc = L["uiScalePresetDesc"] or "Controls how UI scaling is handled when you log in.\n|cffff0000Warning:|r Changing this will reload your UI.",
 	parentSection = interfaceExpandable,
 })
 

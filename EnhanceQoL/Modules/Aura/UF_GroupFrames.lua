@@ -829,8 +829,13 @@ end
 
 local function getEffectiveBarTexture(cfg, barCfg)
 	local tex = cfg and cfg.barTexture
-	if tex == nil or tex == "" then tex = barCfg and barCfg.texture end
+	if tex == nil or tex == "" or tex == BAR_TEX_INHERIT then tex = barCfg and barCfg.texture end
 	return tex
+end
+
+local function usesPerBarTextureSelection(cfg)
+	local tex = cfg and cfg.barTexture
+	return tex == nil or tex == "" or tex == BAR_TEX_INHERIT
 end
 
 function GF.ResolveGroupPortraitConfig(cfg, kind)
@@ -15208,14 +15213,14 @@ local function buildEditModeSettings(kind, editModeId)
 			get = function()
 				local cfg = getCfg(kind)
 				local tex = cfg and cfg.barTexture
-				if not tex or tex == "" then return BAR_TEX_INHERIT end
+				if not tex or tex == "" or tex == BAR_TEX_INHERIT then return BAR_TEX_INHERIT end
 				return tex
 			end,
 			set = function(_, value)
 				local cfg = getCfg(kind)
 				if not cfg then return end
 				if value == BAR_TEX_INHERIT then
-					cfg.barTexture = nil
+					cfg.barTexture = BAR_TEX_INHERIT
 				else
 					cfg.barTexture = value
 				end
@@ -15225,11 +15230,11 @@ local function buildEditModeSettings(kind, editModeId)
 			generator = function(_, root)
 				root:CreateRadio(L["Use health/power textures"] or "Use health/power textures", function()
 					local cfg = getCfg(kind)
-					return not (cfg and cfg.barTexture)
+					return usesPerBarTextureSelection(cfg)
 				end, function()
 					local cfg = getCfg(kind)
 					if not cfg then return end
-					cfg.barTexture = nil
+					cfg.barTexture = BAR_TEX_INHERIT
 					if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "barTexture", BAR_TEX_INHERIT, nil, true) end
 					GF:ApplyHeaderAttributes(kind)
 				end)
@@ -17385,7 +17390,7 @@ local function buildEditModeSettings(kind, editModeId)
 			end,
 			isEnabled = function()
 				local cfg = getCfg(kind)
-				return not (cfg and cfg.barTexture)
+				return usesPerBarTextureSelection(cfg)
 			end,
 		},
 		{
@@ -21213,7 +21218,7 @@ local function buildEditModeSettings(kind, editModeId)
 			end,
 			isEnabled = function()
 				local cfg = getCfg(kind)
-				return not (cfg and cfg.barTexture)
+				return usesPerBarTextureSelection(cfg)
 			end,
 		},
 		{
@@ -25049,7 +25054,7 @@ local function applyEditModeData(kind, data)
 	end
 	if data.barTexture ~= nil then
 		if data.barTexture == BAR_TEX_INHERIT then
-			cfg.barTexture = nil
+			cfg.barTexture = BAR_TEX_INHERIT
 		else
 			cfg.barTexture = data.barTexture
 		end
@@ -26159,7 +26164,7 @@ function GF:EnsureEditMode()
 					resolvedGrowth,
 					DEFAULTS and DEFAULTS.raid and DEFAULTS.raid.groupGrowth
 				)) or ((GFH.NormalizeGrowthDirection and GFH.NormalizeGrowthDirection(cfg.groupGrowth, nil)) or ((resolvedGrowth == "RIGHT" or resolvedGrowth == "LEFT") and "DOWN" or "RIGHT"))) or nil,
-				barTexture = cfg.barTexture or BAR_TEX_INHERIT,
+				barTexture = usesPerBarTextureSelection(cfg) and BAR_TEX_INHERIT or cfg.barTexture,
 				borderEnabled = (cfg.border and cfg.border.enabled) ~= false,
 				borderColor = (cfg.border and cfg.border.color) or (DEFAULTS[kind] and DEFAULTS[kind].border and DEFAULTS[kind].border.color) or { 0, 0, 0, 0.8 },
 				borderTexture = (cfg.border and cfg.border.texture) or (DEFAULTS[kind] and DEFAULTS[kind].border and DEFAULTS[kind].border.texture) or "DEFAULT",

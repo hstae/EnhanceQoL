@@ -2820,9 +2820,9 @@ L["uiScaleCustomValue"] = "Scala personalizzata"
 L["uiScaleCustomValueDesc"] = "Inserisci qualsiasi numero tra 0,1 e 2."
 L["uiScalePreset"] = "Scala UI all'accesso"
 L["uiScalePresetCustom"] = "Personalizzato"
-L["uiScalePresetDesc"] = "Applica automaticamente una scala UI predefinita all'accesso.\
+L["uiScalePresetDesc"] = "Definisce come viene gestita la scala dell'interfaccia all'accesso.\
 |cffff0000Avviso:|r Modificare questa opzione ricaricherà la UI."
-L["uiScalePresetNone"] = "Nessuna scala"
+L["uiScalePresetNone"] = "Usa la scala di Blizzard"
 L["UIUtilities"] = "Utilità UI"
 L["unclampMinimapCluster"] = "Unclamp minimap cluster"
 L["unclampMinimapClusterDesc"] = "Allow the minimap to be moved closer to the screen edge in Edit Mode."

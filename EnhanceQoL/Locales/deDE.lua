@@ -2820,9 +2820,9 @@ L["uiScaleCustomValue"] = "Benutzerdefinierte Skalierung"
 L["uiScaleCustomValueDesc"] = "Gib eine beliebige Zahl zwischen 0,1 und 2 ein."
 L["uiScalePreset"] = "UI-Skalierung beim Login"
 L["uiScalePresetCustom"] = "Benutzerdefiniert"
-L["uiScalePresetDesc"] = "Wendet beim Einloggen automatisch eine vordefinierte UI-Skalierung an.\
+L["uiScalePresetDesc"] = "Legt fest, wie die UI-Skalierung beim Einloggen behandelt wird.\
 |cffff0000Warnung:|r Eine Änderung lädt dein UI neu."
-L["uiScalePresetNone"] = "Keine Skalierung"
+L["uiScalePresetNone"] = "Blizzard-Skalierung verwenden"
 L["UIUtilities"] = "UI-Hilfsfunktionen"
 L["unclampMinimapCluster"] = "Unclamp minimap cluster"
 L["unclampMinimapClusterDesc"] = "Allow the minimap to be moved closer to the screen edge in Edit Mode."

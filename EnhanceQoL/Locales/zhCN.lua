@@ -2819,9 +2819,9 @@ L["uiScaleCustomValue"] = "自定义缩放"
 L["uiScaleCustomValueDesc"] = "输入 0.1 到 2 之间的任意数字。"
 L["uiScalePreset"] = "登录时UI缩放"
 L["uiScalePresetCustom"] = "自定义"
-L["uiScalePresetDesc"] = "登录时自动应用预设的UI缩放。\
+L["uiScalePresetDesc"] = "控制登录时如何处理UI缩放。\
 |cffff0000警告:|r 更改将重新载入界面。"
-L["uiScalePresetNone"] = "不缩放"
+L["uiScalePresetNone"] = "使用暴雪缩放"
 L["UIUtilities"] = "界面工具"
 L["unclampMinimapCluster"] = "Unclamp minimap cluster"
 L["unclampMinimapClusterDesc"] = "Allow the minimap to be moved closer to the screen edge in Edit Mode."
