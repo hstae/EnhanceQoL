@@ -365,7 +365,7 @@ local classResourceFramesByClass = {
 		{ id = "runes", frameName = "RuneFrame", labelKey = "RUNES", label = "Runes" },
 	},
 	DRUID = {
-		{ id = "comboPoints", frameName = "DruidComboPointBarFrame", labelKey = "COMBO_POINTS", label = "Combo Points" },
+		{ id = "druidComboPoints", legacyIds = { "comboPoints" }, frameName = "DruidComboPointBarFrame", labelKey = "COMBO_POINTS", label = "Combo Points" },
 	},
 	EVOKER = {
 		{ id = "essence", frameName = "EssencePlayerFrame", labelKey = "ESSENCE", label = "Essence" },
@@ -380,7 +380,7 @@ local classResourceFramesByClass = {
 		{ id = "holyPower", frameName = "PaladinPowerBarFrame", labelKey = "HOLY_POWER", label = "Holy Power" },
 	},
 	ROGUE = {
-		{ id = "comboPoints", frameName = "RogueComboPointBarFrame", labelKey = "COMBO_POINTS", label = "Combo Points" },
+		{ id = "rogueComboPoints", legacyIds = { "comboPoints" }, frameName = "RogueComboPointBarFrame", labelKey = "COMBO_POINTS", label = "Combo Points" },
 	},
 	SHAMAN = {
 		{ id = "maelstromWeapon", frameName = "ShamanMaelstromWeaponBarFrame", labelKey = "MAELSTROM_WEAPON", label = "Maelstrom Weapon" },
@@ -402,6 +402,17 @@ local totemFrameClasses = {
 local classResourceOriginalLayouts = {}
 local classResourceManagedFrames = {}
 local classResourceHooks = {}
+
+local function copyClassResourceConfigValue(value)
+	if type(value) ~= "table" then return value end
+	if addon.functions and addon.functions.copyTable then return addon.functions.copyTable(value) end
+	if CopyTable then return CopyTable(value) end
+	local out = {}
+	for k, v in pairs(value) do
+		out[k] = copyClassResourceConfigValue(v)
+	end
+	return out
+end
 
 UF.Profiles = UF.Profiles or {}
 local UFProfileManager = UF.Profiles
@@ -2007,6 +2018,9 @@ local function ensureDB(unit)
 	end
 	db[key] = db[key] or {}
 	local udb = db[key]
+	if (key == UNIT.PLAYER or key == "player") and ClassResourceUtil and ClassResourceUtil.MigrateLegacyConfig then
+		ClassResourceUtil.MigrateLegacyConfig(udb.classResource, addon.variables and addon.variables.unitClass)
+	end
 	UF._defaultsMerged = UF._defaultsMerged or setmetatable({}, { __mode = "k" })
 	if UF._defaultsMerged[udb] then return udb end
 	local def = defaultsFor(unit)
@@ -2022,6 +2036,9 @@ local function ensureDB(unit)
 				udb[k] = v
 			end
 		end
+	end
+	if (key == UNIT.PLAYER or key == "player") and ClassResourceUtil and ClassResourceUtil.MigrateLegacyConfig then
+		ClassResourceUtil.MigrateLegacyConfig(udb.classResource, addon.variables and addon.variables.unitClass)
 	end
 	UF._defaultsMerged[udb] = true
 	return udb
@@ -2418,6 +2435,67 @@ function ClassResourceUtil.getClassResourceDescriptors(classTag)
 	return descriptors
 end
 
+function ClassResourceUtil.findClassResourceDescriptor(classTag, resourceId)
+	if type(resourceId) ~= "string" or resourceId == "" then return nil end
+	local descriptors = ClassResourceUtil.getClassResourceDescriptors(classTag)
+	if type(descriptors) ~= "table" then return nil end
+	for _, descriptor in ipairs(descriptors) do
+		if descriptor and descriptor.id == resourceId then return descriptor end
+		local legacyIds = descriptor and descriptor.legacyIds
+		if type(legacyIds) == "table" then
+			for i = 1, #legacyIds do
+				if legacyIds[i] == resourceId then return descriptor end
+			end
+		end
+	end
+	return nil
+end
+
+function ClassResourceUtil.getClassResourceConfigIDs(classTag, resourceId)
+	if type(classTag) ~= "string" or classTag == "" then classTag = addon.variables and addon.variables.unitClass end
+	local ids = {}
+	local seen = {}
+	local function appendID(value)
+		if type(value) ~= "string" or value == "" or seen[value] then return end
+		seen[value] = true
+		ids[#ids + 1] = value
+	end
+	local descriptor = ClassResourceUtil.findClassResourceDescriptor(classTag, resourceId)
+	if descriptor then
+		appendID(descriptor.id)
+		if type(descriptor.legacyIds) == "table" then
+			for i = 1, #descriptor.legacyIds do
+				appendID(descriptor.legacyIds[i])
+			end
+		end
+	else
+		appendID(resourceId)
+	end
+	return ids
+end
+
+function ClassResourceUtil.MigrateLegacyConfig(cfg, classTag)
+	if type(cfg) ~= "table" or type(cfg.resources) ~= "table" then return false end
+	local descriptors = ClassResourceUtil.getClassResourceDescriptors(classTag)
+	if type(descriptors) ~= "table" then return false end
+	local migrated = false
+	for _, descriptor in ipairs(descriptors) do
+		local resourceId = descriptor and descriptor.id
+		if type(resourceId) == "string" and resourceId ~= "" and cfg.resources[resourceId] == nil and type(descriptor.legacyIds) == "table" then
+			for i = 1, #descriptor.legacyIds do
+				local legacyId = descriptor.legacyIds[i]
+				local legacyConfig = legacyId and cfg.resources[legacyId]
+				if type(legacyConfig) == "table" then
+					cfg.resources[resourceId] = copyClassResourceConfigValue(legacyConfig)
+					migrated = true
+					break
+				end
+			end
+		end
+	end
+	return migrated
+end
+
 function ClassResourceUtil.getClassResourceOptions(classTag)
 	local options = {}
 	local seen = {}
@@ -2563,14 +2641,20 @@ function ClassResourceUtil.GetNestedConfigValue(root, path)
 end
 
 function ClassResourceUtil.ResolveClassResourceConfigValue(cfg, def, resourceId, path, fallback)
-	local resourceCfg = type(cfg) == "table" and type(cfg.resources) == "table" and cfg.resources[resourceId] or nil
-	local resourceDef = type(def) == "table" and type(def.resources) == "table" and def.resources[resourceId] or nil
-	local value = ClassResourceUtil.GetNestedConfigValue(resourceCfg, path)
-	if value ~= nil then return value end
+	local resourceIDs = ClassResourceUtil.getClassResourceConfigIDs(nil, resourceId)
+	for i = 1, #resourceIDs do
+		local resourceCfg = type(cfg) == "table" and type(cfg.resources) == "table" and cfg.resources[resourceIDs[i]] or nil
+		local value = ClassResourceUtil.GetNestedConfigValue(resourceCfg, path)
+		if value ~= nil then return value end
+	end
+	local value = nil
 	value = ClassResourceUtil.GetNestedConfigValue(cfg, path)
 	if value ~= nil then return value end
-	value = ClassResourceUtil.GetNestedConfigValue(resourceDef, path)
-	if value ~= nil then return value end
+	for i = 1, #resourceIDs do
+		local resourceDef = type(def) == "table" and type(def.resources) == "table" and def.resources[resourceIDs[i]] or nil
+		value = ClassResourceUtil.GetNestedConfigValue(resourceDef, path)
+		if value ~= nil then return value end
+	end
 	value = ClassResourceUtil.GetNestedConfigValue(def, path)
 	if value ~= nil then return value end
 	return fallback

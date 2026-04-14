@@ -5418,6 +5418,16 @@ local function buildUnitSettings(unit)
 			end
 			return false
 		end
+		local function getClassResourceConfigIDs(resourceID)
+			local util = UF and UF.ClassResourceUtil
+			if util and util.getClassResourceConfigIDs then
+				local classToken = addon.variables and addon.variables.unitClass
+				local ids = util.getClassResourceConfigIDs(classToken, resourceID)
+				if type(ids) == "table" and #ids > 0 then return ids end
+			end
+			if type(resourceID) == "string" and resourceID ~= "" then return { resourceID } end
+			return {}
+		end
 		local function buildClassResourcePath(resourceID, suffix)
 			local path = { "classResource" }
 			if type(resourceID) == "string" and resourceID ~= "" then
@@ -5431,14 +5441,22 @@ local function buildUnitSettings(unit)
 		end
 		local function getClassResourceValueFor(resourceID, suffix, fallback)
 			if type(resourceID) == "string" and resourceID ~= "" then
-				local scopedValue = getValue(unit, buildClassResourcePath(resourceID, suffix), nil)
-				if scopedValue ~= nil then return scopedValue end
+				local configIDs = getClassResourceConfigIDs(resourceID)
+				for i = 1, #configIDs do
+					local scopedValue = getValue(unit, buildClassResourcePath(configIDs[i], suffix), nil)
+					if scopedValue ~= nil then return scopedValue end
+				end
 			end
 			local globalValue = getValue(unit, buildClassResourcePath(nil, suffix), nil)
 			if globalValue ~= nil then return globalValue end
-			local resourceDef = type(crDef.resources) == "table" and type(resourceID) == "string" and crDef.resources[resourceID] or nil
-			local resourceDefault = getPathValue(resourceDef, suffix)
-			if resourceDefault ~= nil then return resourceDefault end
+			if type(resourceID) == "string" and resourceID ~= "" and type(crDef.resources) == "table" then
+				local configIDs = getClassResourceConfigIDs(resourceID)
+				for i = 1, #configIDs do
+					local resourceDef = crDef.resources[configIDs[i]]
+					local resourceDefault = getPathValue(resourceDef, suffix)
+					if resourceDefault ~= nil then return resourceDefault end
+				end
+			end
 			local globalDefault = getPathValue(crDef, suffix)
 			if globalDefault ~= nil then return globalDefault end
 			return fallback
