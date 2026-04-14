@@ -13,6 +13,11 @@
 - UI / Visibility & Fading (Frames): Added a `Hide Event Toasts` option to suppress Blizzard event toasts such as scenario and activity banners.
 - Unit Frames / Health Text: Added `Absorb`, `Current (Absorb)`, `Current | Absorb`, and `Current + Absorb` health-text modes using total damage absorbs.
 
+### 🐛 Fixed
+
+- Unit Frames / Cast Bar: Fixed cast icon borders sometimes triggering a `Backdrop.lua` secret-number taint error..
+- Unit Frames / Cast Bar: Fixed cast icon borders rendering behind the cast icon because of incorrect frame layering.
+
 ---
 
 ## [10.2.0] - 2026-04-13

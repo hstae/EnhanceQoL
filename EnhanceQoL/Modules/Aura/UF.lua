@@ -5361,8 +5361,8 @@ function UF._ensureCastIconBorderFrame(st)
 		st.castIconBorder = border
 	end
 	border:SetFrameStrata(st.castBar:GetFrameStrata())
-	local baseLevel = st.castBar:GetFrameLevel() or 0
-	border:SetFrameLevel(baseLevel + 4)
+	local baseLevel = (st.castIconHolder.GetFrameLevel and st.castIconHolder:GetFrameLevel()) or (st.castBar:GetFrameLevel() or 0)
+	border:SetFrameLevel(baseLevel + 1)
 	return border
 end
 
@@ -7174,6 +7174,7 @@ local function syncTextFrameLevels(st)
 	if st.castTextLayer then setFrameLevelAbove(st.castTextLayer, st.castBar, 5) end
 	if st.castIconLayer then setFrameLevelAbove(st.castIconLayer, st.castBar, 4) end
 	if st.castIconHolder and st.castIconLayer then setFrameLevelAbove(st.castIconHolder, st.castIconLayer, 0) end
+	if st.castIconBorder and st.castIconHolder then setFrameLevelAbove(st.castIconBorder, st.castIconHolder, 1) end
 	if UFHelper and UFHelper.syncCombatFeedbackLayer then UFHelper.syncCombatFeedbackLayer(st) end
 end
 
