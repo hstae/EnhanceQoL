@@ -561,6 +561,7 @@ globals = {
 	"BNSetSelectedFriend",
 	"BNSummonFriendByIndex",
 	"BNTokenFindName",
+	"C_EventToastManager",
 	"SettingsPanel",
 	"MainStatusTrackingBarContainer",
 	"SecondaryStatusTrackingBarContainer",
