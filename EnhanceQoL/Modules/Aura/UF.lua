@@ -11670,6 +11670,16 @@ onEvent = function(self, event, unit, ...)
 			if bossCfg.enabled then updateHealth(bossCfg, unit) end
 		end
 	elseif event == "UNIT_THREAT_SITUATION_UPDATE" or event == "UNIT_THREAT_LIST_UPDATE" then
+		if event == "UNIT_THREAT_LIST_UPDATE" and (unit == UNIT.TARGET or unit == UNIT.FOCUS) then
+			local st = states[unit];
+			if st and st.cfg and st.cfg.health then
+				updateNameAndLevel(st.cfg, unit);
+				if not st.cfg.health.usePercentColorCurve then
+					st._healthColorGuid = nil
+					updateHealth(st.cfg, unit)
+				end
+			end
+		end
 		if unit ~= "player" and unit ~= "pet" then return end
 		UFHelper.updateHighlight(states[UNIT.PLAYER], UNIT.PLAYER, UNIT.PLAYER)
 		UFHelper.updateHighlight(states[UNIT.PET], UNIT.PET, UNIT.PLAYER)
