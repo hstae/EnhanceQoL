@@ -116,6 +116,112 @@ end
 H.absorbFullCurve = absorbFullCurve
 H.absorbNotFullCurve = absorbNotFullCurve
 
+function H.IsNPCFollowerUnit(unit)
+    return (UnitInPartyIsAI and UnitInPartyIsAI(unit))
+        and ((C_LFGInfo and C_LFGInfo.IsInLFGFollowerDungeon())
+        or (C_PartyInfo and C_PartyInfo.IsPartyWalkIn())
+    )
+end
+
+function H.IsNPCPetOrGuardianUnit(unit)
+    return (UnitIsOwnerOrControllerOfUnit and UnitIsOwnerOrControllerOfUnit("player", unit))
+        or (UnitIsOtherPlayersPet and UnitIsOtherPlayersPet(unit)
+    )
+end
+
+H.npcCreatureOwnerClass = {
+      [1] = "HUNTER",      -- Wolf
+      [2] = "HUNTER",      -- Cat
+      [3] = "HUNTER",      -- Spider
+      [4] = "HUNTER",      -- Bear
+      [5] = "HUNTER",      -- Boar
+      [6] = "HUNTER",      -- Crocolisk
+      [7] = "HUNTER",      -- CarrionBird
+      [8] = "HUNTER",      -- Crab
+      [9] = "HUNTER",      -- Gorilla
+     [11] = "HUNTER",      -- Raptor
+     [12] = "HUNTER",      -- Tallstrider
+     [15] = "WARLOCK",     -- Felhunter
+     [16] = "WARLOCK",     -- Voidwalker
+     [17] = "WARLOCK",     -- Succubus
+     [19] = "WARLOCK",     -- Doomguard
+     [20] = "HUNTER",      -- Scorpid
+     [21] = "HUNTER",      -- Turtle
+     [23] = "WARLOCK",     -- Imp
+     [24] = "HUNTER",      -- Bat
+     [25] = "HUNTER",      -- Hyena
+     [26] = "HUNTER",      -- BirdOfPrey
+     [27] = "HUNTER",      -- WindSerpent
+     [28] = "PRIEST",      -- RemoteControl
+     [29] = "WARLOCK",     -- Felguard
+     [30] = "HUNTER",      -- Dragonhawk
+     [31] = "HUNTER",      -- Ravager
+     [32] = "HUNTER",      -- WarpStalker
+     [33] = "HUNTER",      -- Sporebat
+     [34] = "HUNTER",      -- Ray
+     [35] = "HUNTER",      -- Serpent
+     [37] = "HUNTER",      -- Moth
+     [38] = "HUNTER",      -- Chimaera
+     [39] = "HUNTER",      -- Devilsaur
+     [40] = "DEATHKNIGHT", -- Ghoul
+     [41] = "HUNTER",      -- Aqiri
+     [42] = "HUNTER",      -- Worm
+     [43] = "HUNTER",      -- Clefthoof
+     [44] = "HUNTER",      -- Wasp
+     [45] = "HUNTER",      -- CoreHound
+     [46] = "HUNTER",      -- SpiritBeast
+     [49] = "MAGE",        -- WaterElemental
+     [50] = "HUNTER",      -- Fox
+     [51] =	"HUNTER",      -- Monkey
+     [52] =	"HUNTER",      -- Hound
+     [53] =	"HUNTER",      -- Beetle
+     [55] =	"HUNTER",      -- ShaleBeast
+     [56] =	"DEATHKNIGHT", -- Zombie
+     [68] = "HUNTER",      -- Hydra
+    [100] = "WARLOCK",     -- FelImp
+    [101] = "WARLOCK",     -- Voidlord
+    [102] = "WARLOCK",     -- Shivarra
+    [103] = "WARLOCK",     -- Observer
+    [104] = "WARLOCK",     -- Wrathguard
+    [108] = "WARLOCK",     -- Infernal
+    [116] =	"SHAMAN",      -- FireElemental
+    [117] =	"SHAMAN",      -- EarthElemental
+    [125] =	"HUNTER",      -- Waterfowl
+    [126] =	"HUNTER",      -- WaterStrider
+    [127] =	"HUNTER",      -- Rodent
+    [128] =	"HUNTER",      -- StoneHound
+    [129] =	"HUNTER",      -- Gruffhorn
+    [130] =	"HUNTER",      -- Basilisk
+    [138] =	"HUNTER",      -- Direhorn
+    [145] = "SHAMAN",      -- StormElemental
+    [147] = "WARLOCK",     -- Terrorguard
+    [148] = "WARLOCK",     -- Abyssal
+    [150] = "HUNTER",      -- Riverbeast
+    [151] = "HUNTER",      -- Stag
+    [154] = "HUNTER",      -- Mechanical
+    [155] = "DEATHKNIGHT", -- Abomination
+    [156] = "HUNTER",      -- Scalehide
+    [157] = "HUNTER",      -- Oxen
+    [160] = "HUNTER",      -- Feathermane
+    [288] = "HUNTER",      -- Lizard
+    [290] = "HUNTER",      -- Pterrordax
+    [291] = "HUNTER",      -- Hopper
+    [292] = "HUNTER",      -- Carapid
+    [296] = "HUNTER",      -- Blood
+    [298] = "HUNTER",      -- Camel
+    [299] = "HUNTER",      -- Courser
+    [300] = "HUNTER",      -- Mammoth
+    [302] = "WARLOCK",     -- Incubus
+    [303] =	"HUNTER",      -- LesserDragonkin
+    [315] = "HUNTER",      -- Whiptail
+}
+
+function H.getNPCCreatureOwnerClass(unit)
+	if issecretvalue and issecretvalue(unit) then return nil end
+	local family = UnitCreatureFamily and select(2, UnitCreatureFamily(unit))
+    return H.npcCreatureOwnerClass[family] or nil
+end
+
 local npcColorUnits = {
 	target = true,
 	targettarget = true,

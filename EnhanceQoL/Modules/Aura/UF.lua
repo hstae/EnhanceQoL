@@ -6574,10 +6574,12 @@ function UF.resolveHealthBaseColor(unit, hc, defH)
 		end
 	elseif hc.useClassColor then
 		local class
-		if isPlayerUnit then
+		if isPlayerUnit or UFHelper.IsNPCFollowerUnit(unit) then
 			class = select(2, UnitClass(unit))
 		elseif unit == UNIT.PET then
 			class = (addon.variables and addon.variables.unitClass) or select(2, UnitClass(UNIT.PLAYER))
+        elseif UFHelper.IsNPCPetOrGuardianUnit(unit) then
+				class = UFHelper.getNPCCreatureOwnerClass(unit)
 		end
 		local cr, cg, cb, ca = getClassColor(class)
 		if cr then
@@ -8600,6 +8602,7 @@ local function updateNameAndLevel(cfg, unit, levelOverride)
 			return
 		end
 	end
+	local isPetOrGuardianUnit = UFHelper.IsNPCPetOrGuardianUnit(unit)
 	if st.nameText then
 		local scfg = cfg.status or {}
 		local defStatus = (defaultsFor(unit) and defaultsFor(unit).status) or {}
@@ -8610,8 +8613,8 @@ local function updateNameAndLevel(cfg, unit, levelOverride)
 			nc = scfg.nameColor or { 1, 1, 1, 1 }
 			nr, ng, nb, na = nc[1] or 1, nc[2] or 1, nc[3] or 1, nc[4] or 1
 		else
-			if isPlayerUnit then
-				local class = select(2, UnitClass(unit))
+			if isPlayerUnit or isPetOrGuardianUnit or UFHelper.IsNPCFollowerUnit(unit) then
+				local class = isPetOrGuardianUnit and UFHelper.getNPCCreatureOwnerClass(unit) or select(2, UnitClass(unit))
 				local cr, cg, cb, ca = getClassColor(class)
 				if cr then
 					nr, ng, nb, na = cr, cg, cb, ca
@@ -8647,7 +8650,7 @@ local function updateNameAndLevel(cfg, unit, levelOverride)
 			if scfg.levelColorMode == "CUSTOM" then
 				lc = scfg.levelColor or { 1, 0.85, 0, 1 }
 			else
-				local class = select(2, UnitClass(unit))
+				local class = isPetOrGuardianUnit and UFHelper.getNPCCreatureOwnerClass(unit) or select(2, UnitClass(unit))
 				local cr, cg, cb, ca = getClassColor(class)
 				if cr then
 					lc = { cr, cg, cb, ca }
