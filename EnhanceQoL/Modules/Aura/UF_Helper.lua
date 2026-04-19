@@ -136,9 +136,10 @@ local selectionKeyByType = {
 function H.getNPCSelectionKey(unit)
 	if not npcColorUnits[unit] then return nil end
 	if UnitIsPlayer and UnitIsPlayer(unit) then return nil end
-	local t = UnitSelectionType and UnitSelectionType(unit)
-	if issecretvalue and issecretvalue(t) then t = nil end
-	local key = selectionKeyByType[t]
+
+	if UnitThreatSituation and UnitThreatSituation("player", unit) then
+		return "enemy"
+	end
 
 	local reaction = UnitReaction and UnitReaction(unit, "player")
 	if issecretvalue and issecretvalue(reaction) then reaction = nil end
@@ -148,6 +149,9 @@ function H.getNPCSelectionKey(unit)
 		return "friendly"
 	end
 
+	local t = UnitSelectionType and UnitSelectionType(unit)
+	if issecretvalue and issecretvalue(t) then t = nil end
+	local key = selectionKeyByType[t]
 	if key == "friendly" and UnitCanAttack and UnitCanAttack("player", unit) then
 		if UnitIsEnemy and UnitIsEnemy("player", unit) then return "enemy" end
 		return "neutral"
