@@ -1,5 +1,13 @@
 # Changelog
 
+## [10.3.1] - 2026-04-19
+
+### 🐛 Fixed
+
+- Unit Frames / Status Text: Fixed `Ghost` showing twice on unit frames when both health text and status text were enabled.
+
+---
+
 ## [10.3.0] - 2026-04-19
 
 ### ✨ Added

@@ -68,7 +68,7 @@ end
 local function disableBlizzBossSubFrame(frame)
 	if not frame then return end
 	if frame.UnregisterAllEvents then frame:UnregisterAllEvents() end
-	if (not InCombatLockdown()) or (not frame.IsProtected) or (not frame:IsProtected()) then
+	if (not InCombatLockdown()) or not frame.IsProtected or (not frame:IsProtected()) then
 		if frame.Hide then frame:Hide() end
 	end
 end
@@ -77,7 +77,7 @@ local function disableBlizzBossFrame(frame, doNotReparent)
 	if not frame then return end
 	if frame.UnregisterAllEvents then frame:UnregisterAllEvents() end
 	if frame.SetAlpha then frame:SetAlpha(0) end
-	if (not InCombatLockdown()) or (not frame.IsProtected) or (not frame:IsProtected()) then
+	if (not InCombatLockdown()) or not frame.IsProtected or (not frame:IsProtected()) then
 		if frame.Hide then frame:Hide() end
 	end
 	if not doNotReparent and frame.SetParent then
@@ -91,8 +91,21 @@ local function disableBlizzBossFrame(frame, doNotReparent)
 			blizzBossKill.parentHooks[frame] = true
 		end
 	end
-	disableBlizzBossSubFrame(frame.healthBar or frame.healthbar or frame.HealthBar or (frame.HealthBarsContainer and frame.HealthBarsContainer.healthBar) or (frame.TargetFrameContent and frame.TargetFrameContent.TargetFrameContentMain and frame.TargetFrameContent.TargetFrameContentMain.HealthBarsContainer and frame.TargetFrameContent.TargetFrameContentMain.HealthBarsContainer.HealthBar))
-	disableBlizzBossSubFrame(frame.manabar or frame.ManaBar or (frame.TargetFrameContent and frame.TargetFrameContent.TargetFrameContentMain and frame.TargetFrameContent.TargetFrameContentMain.ManaBar))
+	disableBlizzBossSubFrame(
+		frame.healthBar
+			or frame.healthbar
+			or frame.HealthBar
+			or (frame.HealthBarsContainer and frame.HealthBarsContainer.healthBar)
+			or (
+				frame.TargetFrameContent
+				and frame.TargetFrameContent.TargetFrameContentMain
+				and frame.TargetFrameContent.TargetFrameContentMain.HealthBarsContainer
+				and frame.TargetFrameContent.TargetFrameContentMain.HealthBarsContainer.HealthBar
+			)
+	)
+	disableBlizzBossSubFrame(
+		frame.manabar or frame.ManaBar or (frame.TargetFrameContent and frame.TargetFrameContent.TargetFrameContentMain and frame.TargetFrameContent.TargetFrameContentMain.ManaBar)
+	)
 	disableBlizzBossSubFrame(frame.castBar or frame.spellbar or frame.CastingBarFrame)
 	disableBlizzBossSubFrame(frame.powerBarAlt or frame.PowerBarAlt)
 	disableBlizzBossSubFrame(frame.BuffFrame or frame.AurasFrame)
@@ -107,9 +120,7 @@ local function DisableBossFrames()
 	disableBlizzBossFrame(BossTargetFrameContainer)
 	if BossTargetFrameContainer.Selection then
 		BossTargetFrameContainer.Selection:SetAlpha(0)
-		if (not InCombatLockdown()) or (not BossTargetFrameContainer.Selection.IsProtected) or (not BossTargetFrameContainer.Selection:IsProtected()) then
-			BossTargetFrameContainer.Selection:Hide()
-		end
+		if (not InCombatLockdown()) or not BossTargetFrameContainer.Selection.IsProtected or (not BossTargetFrameContainer.Selection:IsProtected()) then BossTargetFrameContainer.Selection:Hide() end
 	end
 	for i = 1, (_G.MAX_BOSS_FRAMES or 5) do
 		disableBlizzBossFrame(_G["Boss" .. i .. "TargetFrame"], true)
@@ -340,7 +351,9 @@ end
 local function resolveRelativeAnchorFrame(relativeName, ownerFrameName)
 	if type(relativeName) ~= "string" or relativeName == "" or relativeName == "UIParent" then return UIParent end
 	local looped, culprit = RelativeAnchor.WouldLoop(relativeName, ownerFrameName)
-	if not looped then looped, culprit = RelativeAnchor.WouldLiveFrameLoop(relativeName, ownerFrameName) end
+	if not looped then
+		looped, culprit = RelativeAnchor.WouldLiveFrameLoop(relativeName, ownerFrameName)
+	end
 	if looped then
 		print("|cff00ff98Enhance QoL|r: " .. (L["AnchorLoop"] or 'Anchor loop detected for "%s". Resetting to UIParent.'):format(culprit or relativeName))
 		return UIParent
@@ -881,12 +894,7 @@ function UFProfileManager._ensureUFProfileEvents()
 		if event == "PLAYER_SPECIALIZATION_CHANGED" and unit and unit ~= "player" then return end
 		local ok = UFProfileManager.Initialize()
 		if not ok then return end
-		if
-			event == "PLAYER_LOGIN"
-			or event == "PLAYER_SPECIALIZATION_CHANGED"
-			or event == "ACTIVE_PLAYER_SPECIALIZATION_CHANGED"
-			or event == "ACTIVE_TALENT_GROUP_CHANGED"
-		then
+		if event == "PLAYER_LOGIN" or event == "PLAYER_SPECIALIZATION_CHANGED" or event == "ACTIVE_PLAYER_SPECIALIZATION_CHANGED" or event == "ACTIVE_TALENT_GROUP_CHANGED" then
 			UFProfileManager.ApplySpecMapping(event)
 		end
 	end)
@@ -1835,9 +1843,7 @@ function AuraUtil.buildSingleAuraRuntimeConfig(ac, defAc)
 	end
 
 	local enemyHarmfulFilter = AURA_FILTER_HARMFUL
-	if AuraUtil.normalizeEnemyDebuffFilterMode(debuff.enemyDebuffFilterMode) == ENEMY_DEBUFF_FILTER_MODE_ALL then
-		enemyHarmfulFilter = AURA_FILTER_HARMFUL_ALL
-	end
+	if AuraUtil.normalizeEnemyDebuffFilterMode(debuff.enemyDebuffFilterMode) == ENEMY_DEBUFF_FILTER_MODE_ALL then enemyHarmfulFilter = AURA_FILTER_HARMFUL_ALL end
 
 	return {
 		ac = ac,
@@ -2191,17 +2197,9 @@ function UF.BuildTargetRangeFadeSnapshot(cfg, def)
 	end
 	local specId = UFHelper and UFHelper.RangeFadeGetCurrentSpecId and UFHelper.RangeFadeGetCurrentSpecId() or nil
 	local spellList
-	if UFHelper and UFHelper.RangeFadeBuildSpellListForConfig then
-		spellList = UFHelper.RangeFadeBuildSpellListForConfig(rcfg, specId)
-	end
+	if UFHelper and UFHelper.RangeFadeBuildSpellListForConfig then spellList = UFHelper.RangeFadeBuildSpellListForConfig(rcfg, specId) end
 	local spellListKey = UF.BuildTargetRangeFadeSpellListKey(spellList)
-	local configKey = (enabled == true and "1" or "0")
-		.. "|"
-		.. (blockedByVisibility == true and "1" or "0")
-		.. "|"
-		.. tostring(alpha)
-		.. "|"
-		.. (ignoreUnlimited == true and "1" or "0")
+	local configKey = (enabled == true and "1" or "0") .. "|" .. (blockedByVisibility == true and "1" or "0") .. "|" .. tostring(alpha) .. "|" .. (ignoreUnlimited == true and "1" or "0")
 	return {
 		enabled = enabled == true,
 		blockedByVisibility = blockedByVisibility == true,
@@ -3337,7 +3335,13 @@ local function anchorBossContainer(cfg)
 	local def = defaultsFor("boss")
 	local anchor = (cfg and cfg.anchor) or (def and def.anchor) or { point = "CENTER", relativeTo = "UIParent", relativePoint = "CENTER", x = 0, y = 0 }
 	bossContainer:ClearAllPoints()
-	bossContainer:SetPoint(anchor.point or "CENTER", resolveRelativeAnchorFrame(anchor.relativeTo or anchor.relativeFrame, RelativeAnchor.bossFrameName), anchor.relativePoint or anchor.point or "CENTER", anchor.x or 0, anchor.y or 0)
+	bossContainer:SetPoint(
+		anchor.point or "CENTER",
+		resolveRelativeAnchorFrame(anchor.relativeTo or anchor.relativeFrame, RelativeAnchor.bossFrameName),
+		anchor.relativePoint or anchor.point or "CENTER",
+		anchor.x or 0,
+		anchor.y or 0
+	)
 end
 
 local function ensureBossContainer()
@@ -4648,9 +4652,7 @@ local function applyVisibilityDriver(unit, enabled)
 	local NormalizeVisibilityConfig = addon.functions and addon.functions.NormalizeUnitFrameVisibilityConfig
 	local BuildVisibilityDriverExpression = addon.functions and addon.functions.BuildUnitFrameDriverExpression
 	local visibilityConfig = nil
-	if enabled and not inEdit and NormalizeVisibilityConfig then
-		visibilityConfig = NormalizeVisibilityConfig(nil, cfg and cfg.visibility, { skipSave = true, ignoreOverride = true })
-	end
+	if enabled and not inEdit and NormalizeVisibilityConfig then visibilityConfig = NormalizeVisibilityConfig(nil, cfg and cfg.visibility, { skipSave = true, ignoreOverride = true }) end
 	local visibilityNeedsManualHandling = visibilityConfig and (visibilityConfig.MOUSEOVER or visibilityConfig.PLAYER_CASTING)
 	if isBossUnit(unit) and _G.RegisterUnitWatch and _G.UnregisterUnitWatch then
 		local hideInClientScene = UFHelper and UFHelper.shouldHideInClientScene and UFHelper.shouldHideInClientScene(cfg, def)
@@ -5535,11 +5537,7 @@ local function applyCastBorder(st, ccfg, defc)
 		local edgeFile = UFHelper.resolveBorderTexture(borderCfg.texture)
 		local cache = border._ufCastBorderCache
 		local styleChanged = not cache or cache.edgeFile ~= edgeFile or cache.edgeSize ~= size
-		local colorChanged = not cache
-			or cache.colorR ~= colorR
-			or cache.colorG ~= colorG
-			or cache.colorB ~= colorB
-			or cache.colorA ~= colorA
+		local colorChanged = not cache or cache.colorR ~= colorR or cache.colorG ~= colorG or cache.colorB ~= colorB or cache.colorA ~= colorA
 
 		border:ClearAllPoints()
 		border:SetPoint("TOPLEFT", st.castBar, "TOPLEFT", -offset, offset)
@@ -5627,11 +5625,7 @@ function UF._applyCastIconBorder(st, ccfg, defc)
 		local colorR, colorG, colorB, colorA = unpackColor(color, 0, 0, 0, 0.8)
 		local cache = border._ufCastIconBorderCache
 		local styleChanged = not cache or cache.edgeFile ~= edgeFile or cache.edgeSize ~= size
-		local colorChanged = not cache
-			or cache.colorR ~= colorR
-			or cache.colorG ~= colorG
-			or cache.colorB ~= colorB
-			or cache.colorA ~= colorA
+		local colorChanged = not cache or cache.colorR ~= colorR or cache.colorG ~= colorG or cache.colorB ~= colorB or cache.colorA ~= colorA
 
 		border:ClearAllPoints()
 		border:SetPoint("TOPLEFT", iconAnchor, "TOPLEFT", -offset, offset)
@@ -5741,9 +5735,7 @@ function UF.CacheHealthTextAbsorbAmount(st, unit, maxv, fallbackAbsorb, calc)
 	local hasVisibleAbsorb = amount and (not issecretvalue or not issecretvalue(amount)) and amount > 0
 	if shouldShowSampleAbsorb(unit) and not hasVisibleAbsorb and (not issecretvalue or not issecretvalue(maxForValue)) then amount = (maxForValue or 1) * 0.6 end
 
-	if st then
-		st._healthTextAbsorbAmount = amount
-	end
+	if st then st._healthTextAbsorbAmount = amount end
 	return amount
 end
 
@@ -7470,6 +7462,17 @@ local function formatGroupNumber(subgroup, format)
 	return string.format(GROUP_NUMBER or "Group %d", num)
 end
 
+local function shouldUseUnitStatusText(cfg, unit, st, def)
+	if not st or not st.unitStatusText then return false end
+	if not cfg or cfg.enabled == false then return false end
+	def = def or defaultsFor(unit) or {}
+	local scfg = cfg.status or {}
+	local defStatus = def.status or {}
+	local usDef = defStatus.unitStatus or {}
+	local usCfg = scfg.unitStatus or usDef or {}
+	return usCfg.enabled == true
+end
+
 local function updateUnitStatusIndicator(cfg, unit)
 	cfg = cfg or (states[unit] and states[unit].cfg) or ensureDB(unit)
 	local st = states[unit]
@@ -8165,9 +8168,7 @@ local function layoutFrame(cfg, unit)
 		if st.dispelTint.SetFrameLevel and st.healthTextLayer then st.dispelTint:SetFrameLevel(st.healthTextLayer:GetFrameLevel() or 0) end
 		st.dispelTint:SetAllPoints(st.health)
 		local dispelOrientation = AuraUtil.GetSingleDispelOverlayOrientation()
-		if st.dispelTint.SetOrientation and dispelOrientation then
-			st.dispelTint:SetOrientation(dispelOrientation.VerticalTopToBottom, 0, 0)
-		end
+		if st.dispelTint.SetOrientation and dispelOrientation then st.dispelTint:SetOrientation(dispelOrientation.VerticalTopToBottom, 0, 0) end
 	end
 
 	local totalHeight = statusHeight + barsHeight
@@ -9794,9 +9795,7 @@ function UF.BuildPlayerDisplayPowerSignature(cfg)
 		mainEnum, mainToken = getMainPower(UNIT.PLAYER)
 	end
 	local primaryEnabled = trackPrimary
-	if primaryEnabled and UFHelper and UFHelper.IsPrimaryPowerAllowed then
-		primaryEnabled = UFHelper.IsPrimaryPowerAllowed(pcfg, powerDef, mainToken, mainEnum, UNIT.PLAYER) ~= false
-	end
+	if primaryEnabled and UFHelper and UFHelper.IsPrimaryPowerAllowed then primaryEnabled = UFHelper.IsPrimaryPowerAllowed(pcfg, powerDef, mainToken, mainEnum, UNIT.PLAYER) ~= false end
 	local primaryDetached = primaryEnabled and pcfg.detached == true
 	local secondaryToken
 	if trackSecondary and UFHelper and UFHelper.ResolveSecondaryPowerToken then
@@ -9811,9 +9810,7 @@ function UF.BuildPlayerDisplayPowerSignature(cfg)
 	end
 	if secondaryEnabled then secondaryResolvedToken = secondaryResolvedToken or secondaryToken end
 	local classResourceMode
-	if (trackClassResource or trackTotem) and addon.variables and addon.variables.unitClass == "DRUID" then
-		classResourceMode = mainToken == "ENERGY" and "CAT_LIKE" or "NON_CAT"
-	end
+	if (trackClassResource or trackTotem) and addon.variables and addon.variables.unitClass == "DRUID" then classResourceMode = mainToken == "ENERGY" and "CAT_LIKE" or "NON_CAT" end
 	local key = (primaryEnabled and "1" or "0")
 		.. "|"
 		.. (primaryDetached and "1" or "0")
@@ -10152,6 +10149,7 @@ function UF.UpdateUnitTexts(unit, force)
 		local rightMode = hc.textRight or "CURMAX"
 		local cur = UnitHealth(unit)
 		local maxv = UnitHealthMax(unit)
+		local useStatusText = shouldUseUnitStatusText(cfg, unit, st, def)
 		local lifeStatusTag
 		local isDead = UnitIsDead and UnitIsDead(unit)
 		if issecretvalue and issecretvalue(isDead) then isDead = nil end
@@ -10162,7 +10160,7 @@ function UF.UpdateUnitTexts(unit, force)
 			if issecretvalue and issecretvalue(isGhost) then isGhost = nil end
 			if isGhost then lifeStatusTag = GHOST or "Ghost" end
 		end
-		if lifeStatusTag then
+		if lifeStatusTag and not useStatusText then
 			local hasRenderedStatusText
 			local function setLifeStatusText(fontString, mode)
 				if not fontString then return end
@@ -10181,6 +10179,10 @@ function UF.UpdateUnitTexts(unit, force)
 			setLifeStatusText(st.healthTextLeft, leftMode)
 			setLifeStatusText(st.healthTextCenter, centerMode)
 			setLifeStatusText(st.healthTextRight, rightMode)
+		elseif lifeStatusTag then
+			if st.healthTextLeft then st.healthTextLeft:SetText("") end
+			if st.healthTextCenter then st.healthTextCenter:SetText("") end
+			if st.healthTextRight then st.healthTextRight:SetText("") end
 		else
 			local percentVal
 			if addon.variables and addon.variables.isMidnight then
@@ -10221,7 +10223,22 @@ function UF.UpdateUnitTexts(unit, force)
 					st.healthTextLeft:SetText("")
 				else
 					st.healthTextLeft:SetText(
-						UFHelper.formatText(leftMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, nil, roundPercent, true, absorbTextAmount)
+						UFHelper.formatText(
+							leftMode,
+							cur,
+							maxv,
+							hc.useShortNumbers ~= false,
+							percentVal,
+							delimiter,
+							delimiter2,
+							delimiter3,
+							hidePercentSymbol,
+							levelText,
+							nil,
+							roundPercent,
+							true,
+							absorbTextAmount
+						)
 					)
 				end
 			end
@@ -10230,7 +10247,22 @@ function UF.UpdateUnitTexts(unit, force)
 					st.healthTextCenter:SetText("")
 				else
 					st.healthTextCenter:SetText(
-						UFHelper.formatText(centerMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, nil, roundPercent, true, absorbTextAmount)
+						UFHelper.formatText(
+							centerMode,
+							cur,
+							maxv,
+							hc.useShortNumbers ~= false,
+							percentVal,
+							delimiter,
+							delimiter2,
+							delimiter3,
+							hidePercentSymbol,
+							levelText,
+							nil,
+							roundPercent,
+							true,
+							absorbTextAmount
+						)
 					)
 				end
 			end
@@ -10239,7 +10271,22 @@ function UF.UpdateUnitTexts(unit, force)
 					st.healthTextRight:SetText("")
 				else
 					st.healthTextRight:SetText(
-						UFHelper.formatText(rightMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, nil, roundPercent, true, absorbTextAmount)
+						UFHelper.formatText(
+							rightMode,
+							cur,
+							maxv,
+							hc.useShortNumbers ~= false,
+							percentVal,
+							delimiter,
+							delimiter2,
+							delimiter3,
+							hidePercentSymbol,
+							levelText,
+							nil,
+							roundPercent,
+							true,
+							absorbTextAmount
+						)
 					)
 				end
 			end
