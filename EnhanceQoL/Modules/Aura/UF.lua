@@ -466,6 +466,117 @@ function UFProfileManager._getCurrentSpecID()
 	return specID
 end
 
+function UFProfileManager._getCurrentClassSpecIDs()
+	local classID = UnitClass and select(3, UnitClass("player")) or nil
+	if issecretvalue and issecretvalue(classID) then classID = nil end
+	local specIDs
+	if type(classID) == "number" and classID > 0 and GetNumSpecializationsForClassID and GetSpecializationInfoForClassID then
+		local numSpecs = GetNumSpecializationsForClassID(classID)
+		if type(numSpecs) == "number" and numSpecs > 0 then
+			for index = 1, numSpecs do
+				local specID = select(1, GetSpecializationInfoForClassID(classID, index))
+				if type(specID) == "number" and specID > 0 then
+					specIDs = specIDs or {}
+					specIDs[specID] = true
+				end
+			end
+		end
+	end
+	local currentSpecID = UFProfileManager._getCurrentSpecID()
+	if not specIDs and currentSpecID then specIDs = { [currentSpecID] = true } end
+	return specIDs, currentSpecID
+end
+
+function UFProfileManager._copyUFSpecMappings(map, profiles)
+	if type(map) ~= "table" then return nil end
+	local copy = {}
+	for specKey, profileName in pairs(map) do
+		local specID = tonumber(specKey)
+		local normalizedName = UFProfileManager._trimProfileName(profileName)
+		if specID and specID > 0 and normalizedName and (not profiles or profiles[normalizedName]) then copy[specID] = normalizedName end
+	end
+	if not next(copy) then return nil end
+	return copy
+end
+
+function UFProfileManager._scoreUFSpecMappings(map, profiles, classSpecIDs, currentSpecID)
+	if type(map) ~= "table" or type(profiles) ~= "table" then return nil end
+	local overlap = 0
+	local foreign = 0
+	local score = 0
+	local hasAny = false
+	for specKey, profileName in pairs(map) do
+		local specID = tonumber(specKey)
+		local normalizedName = UFProfileManager._trimProfileName(profileName)
+		if specID and specID > 0 and normalizedName and profiles[normalizedName] then
+			hasAny = true
+			if classSpecIDs and classSpecIDs[specID] then
+				overlap = overlap + 1
+				score = score + 10
+				if currentSpecID and specID == currentSpecID then score = score + 100 end
+			elseif classSpecIDs then
+				foreign = foreign + 1
+				score = score - 5
+			end
+		end
+	end
+	if not hasAny then return nil end
+	if classSpecIDs and overlap == 0 then return nil end
+	return score, overlap, foreign
+end
+
+function UFProfileManager._resolveUFSpecMappingsForGUID(profiles, guid, adopt)
+	if type(profiles) ~= "table" or type(guid) ~= "string" or guid == "" then return nil end
+	local mappings = addon.db and addon.db.ufProfileSpecKeys
+	if type(mappings) ~= "table" then return nil end
+
+	local classSpecIDs, currentSpecID = UFProfileManager._getCurrentClassSpecIDs()
+	local currentMap = type(mappings[guid]) == "table" and mappings[guid] or nil
+	local bestMap = currentMap
+	local bestSourceGuid = guid
+	local bestScore, bestOverlap, bestForeign = UFProfileManager._scoreUFSpecMappings(currentMap, profiles, classSpecIDs, currentSpecID)
+
+	for sourceGuid, candidateMap in pairs(mappings) do
+		if sourceGuid ~= guid and type(candidateMap) == "table" then
+			local score, overlap, foreign = UFProfileManager._scoreUFSpecMappings(candidateMap, profiles, classSpecIDs, currentSpecID)
+			if score ~= nil then
+				local isBetter = bestScore == nil
+					or score > bestScore
+					or (score == bestScore and (overlap or 0) > (bestOverlap or 0))
+					or (score == bestScore and (overlap or 0) == (bestOverlap or 0) and (foreign or math.huge) < (bestForeign or math.huge))
+				if isBetter then
+					bestMap = candidateMap
+					bestSourceGuid = sourceGuid
+					bestScore = score
+					bestOverlap = overlap
+					bestForeign = foreign
+				end
+			end
+		end
+	end
+
+	if type(bestMap) ~= "table" then return nil end
+	if adopt and bestSourceGuid ~= guid then
+		bestMap = UFProfileManager._copyUFSpecMappings(bestMap, profiles)
+		if not bestMap then return nil end
+		mappings[guid] = bestMap
+		UFProfileManager.Debug("adopted UF spec mappings %s -> %s", tostring(bestSourceGuid), tostring(guid))
+		UFProfileManager.Trace("SPEC_MAP_ADOPT", string.format("%s->%s", tostring(bestSourceGuid), tostring(guid)))
+		return bestMap
+	end
+	return bestMap
+end
+
+function UFProfileManager._resolveUFSpecMappedProfileFromMappings(profiles, byGuid, specID)
+	if type(profiles) ~= "table" or type(byGuid) ~= "table" then return nil end
+	if type(specID) ~= "number" or specID <= 0 then return nil end
+	local mapped = byGuid[specID]
+	if type(mapped) ~= "string" or mapped == "" then mapped = byGuid[tostring(specID)] end
+	mapped = UFProfileManager._trimProfileName(mapped)
+	if not mapped or not profiles[mapped] then return nil end
+	return mapped
+end
+
 function UFProfileManager._ensureUFProfilePayload(profile)
 	if type(profile) ~= "table" then profile = {} end
 	profile.ufFrames = type(profile.ufFrames) == "table" and profile.ufFrames or {}
@@ -648,15 +759,10 @@ end
 
 function UFProfileManager._resolveUFSpecMappedProfileName(profiles, guid)
 	if type(profiles) ~= "table" or type(guid) ~= "string" or guid == "" then return nil end
-	local byGuid = addon.db and addon.db.ufProfileSpecKeys and addon.db.ufProfileSpecKeys[guid]
+	local byGuid = UFProfileManager._resolveUFSpecMappingsForGUID(profiles, guid, true)
 	if type(byGuid) ~= "table" then return nil end
 	local specID = UFProfileManager._getCurrentSpecID()
-	if not specID then return nil end
-	local mapped = byGuid[specID]
-	if type(mapped) ~= "string" or mapped == "" then mapped = byGuid[tostring(specID)] end
-	mapped = UFProfileManager._trimProfileName(mapped)
-	if not mapped or not profiles[mapped] then return nil end
-	return mapped
+	return UFProfileManager._resolveUFSpecMappedProfileFromMappings(profiles, byGuid, specID)
 end
 
 function UFProfileManager._resolveUFActiveProfileName(profiles)
@@ -929,15 +1035,11 @@ function UFProfileManager.GetSpecMapping(specID)
 	if not UFProfileManager.Initialize() then return nil end
 	local guid = UFProfileManager._getCurrentPlayerGUID()
 	if not guid then return nil end
-	local byGuid = addon.db.ufProfileSpecKeys and addon.db.ufProfileSpecKeys[guid]
+	local byGuid = UFProfileManager._resolveUFSpecMappingsForGUID(addon.db.ufProfiles, guid, true)
 	if type(byGuid) ~= "table" then return nil end
 	local key = tonumber(specID)
 	if not key then return nil end
-	local mapped = byGuid[key]
-	if type(mapped) ~= "string" or mapped == "" then mapped = byGuid[tostring(key)] end
-	if type(mapped) ~= "string" or mapped == "" then return nil end
-	if not addon.db.ufProfiles[mapped] then return nil end
-	return mapped
+	return UFProfileManager._resolveUFSpecMappedProfileFromMappings(addon.db.ufProfiles, byGuid, key)
 end
 
 function UFProfileManager.SetSpecMapping(specID, profileName)
@@ -2062,13 +2164,17 @@ local function hasVisibilityRules(cfg)
 	return type(raw) == "table" and next(raw) ~= nil
 end
 
-local function syncTargetRangeFadeConfig(cfg, def)
-	local st = states[UNIT.TARGET]
-	if not st then
-		st = {}
-		states[UNIT.TARGET] = st
+function UF.BuildTargetRangeFadeSpellListKey(spellList)
+	if type(spellList) ~= "table" or #spellList == 0 then return "" end
+	local parts = {}
+	for i = 1, #spellList do
+		parts[i] = tostring(tonumber(spellList[i]) or 0)
 	end
-	cfg = cfg or st.cfg or ensureDB(UNIT.TARGET)
+	return table.concat(parts, ",")
+end
+
+function UF.BuildTargetRangeFadeSnapshot(cfg, def)
+	cfg = cfg or ensureDB(UNIT.TARGET)
 	def = def or defaultsFor(UNIT.TARGET)
 	local rcfg = (cfg and cfg.rangeFade) or (def and def.rangeFade) or {}
 	local blockedByVisibility = hasVisibilityRules(cfg) == true
@@ -2083,15 +2189,47 @@ local function syncTargetRangeFadeConfig(cfg, def)
 	else
 		ignoreUnlimited = ignoreUnlimited == true
 	end
-	st._rangeFadeEnabledCfg = enabled == true
-	st._rangeFadeBlockedByVisibility = blockedByVisibility
-	st._rangeFadeAlphaCfg = alpha
-	st._rangeFadeIgnoreUnlimited = ignoreUnlimited
+	local specId = UFHelper and UFHelper.RangeFadeGetCurrentSpecId and UFHelper.RangeFadeGetCurrentSpecId() or nil
+	local spellList
 	if UFHelper and UFHelper.RangeFadeBuildSpellListForConfig then
-		st._rangeFadeSpellListCfg = UFHelper.RangeFadeBuildSpellListForConfig(rcfg, UFHelper.RangeFadeGetCurrentSpecId and UFHelper.RangeFadeGetCurrentSpecId() or nil)
-	else
-		st._rangeFadeSpellListCfg = nil
+		spellList = UFHelper.RangeFadeBuildSpellListForConfig(rcfg, specId)
 	end
+	local spellListKey = UF.BuildTargetRangeFadeSpellListKey(spellList)
+	local configKey = (enabled == true and "1" or "0")
+		.. "|"
+		.. (blockedByVisibility == true and "1" or "0")
+		.. "|"
+		.. tostring(alpha)
+		.. "|"
+		.. (ignoreUnlimited == true and "1" or "0")
+	return {
+		enabled = enabled == true,
+		blockedByVisibility = blockedByVisibility == true,
+		alpha = alpha,
+		ignoreUnlimited = ignoreUnlimited == true,
+		spellList = spellList,
+		spellListKey = spellListKey,
+		configKey = configKey,
+	}
+end
+
+local function syncTargetRangeFadeConfig(cfg, def)
+	local st = states[UNIT.TARGET]
+	if not st then
+		st = {}
+		states[UNIT.TARGET] = st
+	end
+	local snapshot = UF.BuildTargetRangeFadeSnapshot(cfg or st.cfg or ensureDB(UNIT.TARGET), def)
+	local configChanged = st._rangeFadeConfigKey ~= snapshot.configKey
+	local spellListChanged = st._rangeFadeSpellListKey ~= snapshot.spellListKey
+	st._rangeFadeEnabledCfg = snapshot.enabled
+	st._rangeFadeBlockedByVisibility = snapshot.blockedByVisibility
+	st._rangeFadeAlphaCfg = snapshot.alpha
+	st._rangeFadeIgnoreUnlimited = snapshot.ignoreUnlimited
+	st._rangeFadeSpellListCfg = snapshot.spellList
+	st._rangeFadeConfigKey = snapshot.configKey
+	st._rangeFadeSpellListKey = snapshot.spellListKey
+	return configChanged, spellListChanged
 end
 
 if UFHelper and UFHelper.RangeFadeRegister then
@@ -2124,12 +2262,33 @@ if UFHelper and UFHelper.RangeFadeRegister then
 	end)
 end
 
-local function refreshRangeFadeSpells(rebuildSpellList)
+function UF.RefreshRangeFadeSpellsNow(rebuildSpellList)
 	if not UFHelper then return end
-	syncTargetRangeFadeConfig(ensureDB(UNIT.TARGET), defaultsFor(UNIT.TARGET))
-	if UFHelper.RangeFadeMarkConfigDirty then UFHelper.RangeFadeMarkConfigDirty() end
-	if rebuildSpellList and UFHelper.RangeFadeMarkSpellListDirty then UFHelper.RangeFadeMarkSpellListDirty() end
+	local configChanged, spellListChanged = syncTargetRangeFadeConfig(ensureDB(UNIT.TARGET), defaultsFor(UNIT.TARGET))
+	local wantsSpellListRefresh = rebuildSpellList == true or spellListChanged == true
+	if not configChanged and not wantsSpellListRefresh then return false end
+	if configChanged and UFHelper.RangeFadeMarkConfigDirty then UFHelper.RangeFadeMarkConfigDirty() end
+	if wantsSpellListRefresh and UFHelper.RangeFadeMarkSpellListDirty then UFHelper.RangeFadeMarkSpellListDirty() end
 	if UFHelper.RangeFadeUpdateSpells then UFHelper.RangeFadeUpdateSpells() end
+	return true
+end
+
+function UF.ScheduleRangeFadeRefresh(rebuildSpellList)
+	if not UFHelper then return end
+	if rebuildSpellList == true then UF._rangeFadeRefreshNeedsSpellList = true end
+	if UF._rangeFadeRefreshScheduled then return end
+	UF._rangeFadeRefreshScheduled = true
+	local function run()
+		UF._rangeFadeRefreshScheduled = nil
+		local wantsSpellListRefresh = UF._rangeFadeRefreshNeedsSpellList == true
+		UF._rangeFadeRefreshNeedsSpellList = nil
+		UF.RefreshRangeFadeSpellsNow(wantsSpellListRefresh)
+	end
+	if After then
+		After(0, run)
+	else
+		run()
+	end
 end
 
 local function copySettings(fromUnit, toUnit, opts)
@@ -4538,7 +4697,7 @@ local function applyVisibilityDriver(unit, enabled)
 	end
 	if not RegisterStateDriver then return end
 	local hideInVehicle = enabled and shouldHideInVehicle(cfg, def)
-	local hideInPetBattle = enabled and unit ~= UNIT.PLAYER and shouldHideInPetBattle(cfg, def)
+	local hideInPetBattle = enabled and shouldHideInPetBattle(cfg, def)
 	local cond
 	local baseCond
 	local showPrefix
@@ -6943,11 +7102,12 @@ local function updateHealth(cfg, unit)
 	st._healthTextDirty = true
 end
 
-local function updatePower(cfg, unit)
+local function updatePower(cfg, unit, allowVisibilityChanges)
 	cfg = cfg or (states[unit] and states[unit].cfg) or ensureDB(unit)
 	if cfg and cfg.enabled == false then return end
 	local st = states[unit]
 	if not st then return end
+	if allowVisibilityChanges == nil then allowVisibilityChanges = true end
 	if addon.EditModeLib and addon.EditModeLib.IsInEditMode and addon.EditModeLib:IsInEditMode() and isBossUnit(unit) then
 		local idx = tonumber(type(unit) == "string" and unit:match("^boss(%d+)$") or nil)
 		if idx then
@@ -6973,14 +7133,14 @@ local function updatePower(cfg, unit)
 	local powerDetached = powerEnabled and pcfg.detached == true
 	if bar then
 		if not powerEnabled then
-			bar:Hide()
+			if allowVisibilityChanges then bar:Hide() end
 			bar:SetValue(0, interpolation)
 			if st.powerTextLeft then st.powerTextLeft:SetText("") end
 			if st.powerTextCenter then st.powerTextCenter:SetText("") end
 			if st.powerTextRight then st.powerTextRight:SetText("") end
 			st._powerTextDirty = nil
 		else
-			bar:Show()
+			if allowVisibilityChanges then bar:Show() end
 			powerEnum = powerEnum or 0
 			local cur = UnitPower(unit, powerEnum)
 			local maxv = UnitPowerMax(unit, powerEnum)
@@ -7026,7 +7186,7 @@ local function updatePower(cfg, unit)
 		local secondaryEnabled = unit == UNIT.PLAYER and secondaryCfg.enabled ~= false and secondaryToken ~= nil
 		local secondaryDetached = secondaryEnabled and secondaryCfg.detached == true
 		if not secondaryEnabled then
-			secondaryBar:Hide()
+			if allowVisibilityChanges then secondaryBar:Hide() end
 			secondaryBar:SetValue(0, interpolation)
 			if st.secondaryPowerTextLeft then st.secondaryPowerTextLeft:SetText("") end
 			if st.secondaryPowerTextCenter then st.secondaryPowerTextCenter:SetText("") end
@@ -7035,7 +7195,7 @@ local function updatePower(cfg, unit)
 			st._secondaryPowerToken = nil
 			st._secondaryPowerTextDirty = nil
 		else
-			secondaryBar:Show()
+			if allowVisibilityChanges then secondaryBar:Show() end
 			local cur, maxv, enumId, resolvedToken
 			if UFHelper and UFHelper.GetPowerValuesForToken then
 				cur, maxv, enumId, resolvedToken = UFHelper.GetPowerValuesForToken(unit, secondaryToken)
@@ -7216,6 +7376,8 @@ function AuraUtil.syncAuraButtonLayer(btn, container, ac)
 		if targetStrata and btn.foreground.SetFrameStrata and btn.foreground:GetFrameStrata() ~= targetStrata then btn.foreground:SetFrameStrata(targetStrata) end
 		if btn.foreground.SetFrameLevel and btn.foreground:GetFrameLevel() ~= foregroundLevel then btn.foreground:SetFrameLevel(foregroundLevel) end
 	end
+
+	if UFHelper and UFHelper.syncAuraBorderFrameLayer then UFHelper.syncAuraBorderFrameLayer(btn) end
 end
 
 local function syncTextFrameLevels(st)
@@ -8004,8 +8166,7 @@ local function layoutFrame(cfg, unit)
 		st.dispelTint:SetAllPoints(st.health)
 		local dispelOrientation = AuraUtil.GetSingleDispelOverlayOrientation()
 		if st.dispelTint.SetOrientation and dispelOrientation then
-			AuraUtil._singleDispelOverlaySetupFrame = AuraUtil._singleDispelOverlaySetupFrame or { powerBarUsedHeight = 0 }
-			st.dispelTint:SetOrientation(AuraUtil._singleDispelOverlaySetupFrame, dispelOrientation.VerticalTopToBottom, 0, 0)
+			st.dispelTint:SetOrientation(dispelOrientation.VerticalTopToBottom, 0, 0)
 		end
 	end
 
@@ -8116,10 +8277,6 @@ local function layoutFrame(cfg, unit)
 				if btn then AuraUtil.syncAuraButtonLayer(btn, st.debuffContainer, debuffAura) end
 			end
 		end
-	end
-	if unit == UNIT.PLAYER then
-		if ClassResourceUtil.ApplyLayout then ClassResourceUtil.ApplyLayout(cfg) end
-		if TotemFrameUtil.ApplyLayout then TotemFrameUtil.ApplyLayout(cfg) end
 	end
 	syncTextFrameLevels(st)
 end
@@ -8295,10 +8452,9 @@ local function ensureFrames(unit)
 	st.levelTextLayer = st.levelTextLayer or CreateFrame("Frame", nil, st.status)
 	st.levelTextLayer:SetAllPoints(st.status)
 	if (unit == UNIT.PLAYER or unit == UNIT.TARGET or unit == UNIT.FOCUS) and not st.dispelTint then
-		st.dispelTint = CreateFrame("Frame", nil, st.healthTextLayer or st.health, "CompactUnitFrameDispelOverlayTemplate")
+		st.dispelTint = UFHelper.CreateDispelOverlay(st.healthTextLayer or st.health)
 		st.dispelTint:SetAllPoints(st.health)
 		st.dispelTint:Hide()
-		if st.dispelTint.SetDispelType then st.dispelTint.SetDispelType = nil end
 	end
 	if not st.privateAuras then
 		st.privateAuras = CreateFrame("Frame", nil, st.frame)
@@ -8672,8 +8828,19 @@ refreshNameAndLevelSoon = function(unit)
 		updateNameAndLevel(cfg, unit)
 	end
 
+	local st = states[unit]
+	if st and st._nameLevelRefreshPending then return end
 	refresh()
-	if After then After(0, function() refresh() end) end
+	if After then
+		st = states[unit]
+		if not st then return end
+		st._nameLevelRefreshPending = true
+		After(0, function()
+			local delayedState = states[unit]
+			if delayedState then delayedState._nameLevelRefreshPending = nil end
+			refresh()
+		end)
+	end
 end
 
 local function applyConfig(unit)
@@ -8702,7 +8869,10 @@ local function applyConfig(unit)
 			if st._highlightFrame then st._highlightFrame:Hide() end
 			st._hovered = false
 		end
-		if st then st._highlightCfg = nil end
+		if st then
+			st._highlightCfg = nil
+			st._displayPowerStructureKey = nil
+		end
 		if UFHelper and UFHelper.updateCombatFeedback then UFHelper.updateCombatFeedback(st, unit, cfg, def) end
 		applyVisibilityDriver(unit, false)
 		if unit == UNIT.PLAYER then applyFrameRuleOverride(BLIZZ_FRAME_NAMES.player, false) end
@@ -8777,11 +8947,16 @@ local function applyConfig(unit)
 	else
 		UFHelper.applyHighlightStyle(st, st._highlightCfg)
 	end
+	if unit == UNIT.PLAYER then UF.ApplyPlayerDisplayPowerManagedLayouts(cfg) end
 	updateStatus(cfg, unit)
 	if UFHelper and UFHelper.updateCombatFeedback then UFHelper.updateCombatFeedback(st, unit, cfg, def) end
 	updateNameAndLevel(cfg, unit)
 	updateHealth(cfg, unit)
 	updatePower(cfg, unit)
+	if unit == UNIT.PLAYER then
+		local sig = UF.BuildPlayerDisplayPowerSignature(cfg)
+		st._displayPowerStructureKey = sig and sig.key or nil
+	end
 	updatePortrait(cfg, unit)
 	AuraUtil.UpdateSingleDispelIndicator(unit, addon.EditModeLib and addon.EditModeLib:IsInEditMode())
 	checkRaidTargetIcon(unit, st)
@@ -9322,14 +9497,64 @@ local eventFrame
 UF._unitEventFrames = UF._unitEventFrames or {}
 local onEvent
 
-local function anyUFEnabled()
+function UF.RecomputeAnyUFEnabled()
 	local p = ensureDB("player").enabled
 	local t = ensureDB("target").enabled
 	local tt = ensureDB(UNIT.TARGET_TARGET).enabled
 	local pet = ensureDB(UNIT.PET).enabled
 	local focus = ensureDB(UNIT.FOCUS).enabled
 	local boss = ensureDB("boss").enabled
-	return p or t or tt or pet or focus or boss
+	UF._anyUFEnabledCached = (p or t or tt or pet or focus or boss) and true or false
+	return UF._anyUFEnabledCached
+end
+
+local function anyUFEnabled()
+	if UF._anyUFEnabledCached == nil then return UF.RecomputeAnyUFEnabled() end
+	return UF._anyUFEnabledCached == true
+end
+
+function UF.UnitHasDirtyTexts(unit)
+	local st = states[unit]
+	return st and (st._healthTextDirty or st._powerTextDirty or st._secondaryPowerTextDirty) and true or false
+end
+
+function UF.UpdateTextUnits(force, dirtyOnly)
+	if not dirtyOnly then
+		UF.UpdateUnitTexts(UNIT.PLAYER, force)
+		UF.UpdateUnitTexts(UNIT.TARGET, force)
+		UF.UpdateUnitTexts(UNIT.TARGET_TARGET, force)
+		UF.UpdateUnitTexts(UNIT.FOCUS, force)
+		UF.UpdateUnitTexts(UNIT.PET, force)
+		local bossCount = UF.GetBossFrameCount()
+		for i = 1, bossCount do
+			UF.UpdateUnitTexts("boss" .. i, force)
+		end
+		return
+	end
+
+	if UF.UnitHasDirtyTexts(UNIT.PLAYER) then UF.UpdateUnitTexts(UNIT.PLAYER, force) end
+	if UF.UnitHasDirtyTexts(UNIT.TARGET) then UF.UpdateUnitTexts(UNIT.TARGET, force) end
+	if UF.UnitHasDirtyTexts(UNIT.TARGET_TARGET) then UF.UpdateUnitTexts(UNIT.TARGET_TARGET, force) end
+	if UF.UnitHasDirtyTexts(UNIT.FOCUS) then UF.UpdateUnitTexts(UNIT.FOCUS, force) end
+	if UF.UnitHasDirtyTexts(UNIT.PET) then UF.UpdateUnitTexts(UNIT.PET, force) end
+	local bossCount = UF.GetBossFrameCount()
+	for i = 1, bossCount do
+		local unit = "boss" .. i
+		if UF.UnitHasDirtyTexts(unit) then UF.UpdateUnitTexts(unit, force) end
+	end
+end
+
+function UF.HasDirtyTexts()
+	if UF.UnitHasDirtyTexts(UNIT.PLAYER) then return true end
+	if UF.UnitHasDirtyTexts(UNIT.TARGET) then return true end
+	if UF.UnitHasDirtyTexts(UNIT.TARGET_TARGET) then return true end
+	if UF.UnitHasDirtyTexts(UNIT.FOCUS) then return true end
+	if UF.UnitHasDirtyTexts(UNIT.PET) then return true end
+	local bossCount = UF.GetBossFrameCount()
+	for i = 1, bossCount do
+		if UF.UnitHasDirtyTexts("boss" .. i) then return true end
+	end
+	return false
 end
 
 local function portraitEnabledFor(unit)
@@ -9533,6 +9758,225 @@ end
 local function reapplyPlayerFrameAfterSpecChange()
 	refreshMainPower(UNIT.PLAYER)
 	applyConfig(UNIT.PLAYER)
+end
+
+function UF.BuildPlayerDisplayPowerSignature(cfg)
+	local def = defaultsFor(UNIT.PLAYER) or {}
+	local pcfg = cfg.power or {}
+	local powerDef = def.power or {}
+	local secondaryCfg = cfg.secondaryPower or {}
+	local secondaryDef = def.secondaryPower or {}
+	local rcfg = cfg.classResource or {}
+	local resourceDef = def.classResource or {}
+	local trackPrimary = pcfg.enabled ~= false
+	local trackSecondary = secondaryCfg.enabled ~= false
+	local classKey = addon.variables and addon.variables.unitClass
+	local trackClassResource = classKey and classResourceFramesByClass[classKey] and rcfg.enabled ~= false
+	local tcfg = normalizeTotemFrameConfig(rcfg.totemFrame)
+	local tdef = normalizeTotemFrameConfig(resourceDef.totemFrame)
+	local trackTotem = classKey and totemFrameClasses[classKey] and ((tcfg.enabled == true) or (tcfg.enabled == nil and tdef.enabled == true))
+	local tracked = trackPrimary or trackSecondary or trackClassResource or trackTotem
+	if not tracked then
+		return {
+			key = "0|0|0|0|-|-",
+			tracked = false,
+			needsBarLayout = false,
+			needsAuxLayouts = false,
+			trackPrimary = false,
+			trackSecondary = false,
+			trackClassResource = false,
+			trackTotem = false,
+		}
+	end
+	local mainEnum, mainToken
+	if trackPrimary or trackClassResource or trackTotem then
+		refreshMainPower(UNIT.PLAYER)
+		mainEnum, mainToken = getMainPower(UNIT.PLAYER)
+	end
+	local primaryEnabled = trackPrimary
+	if primaryEnabled and UFHelper and UFHelper.IsPrimaryPowerAllowed then
+		primaryEnabled = UFHelper.IsPrimaryPowerAllowed(pcfg, powerDef, mainToken, mainEnum, UNIT.PLAYER) ~= false
+	end
+	local primaryDetached = primaryEnabled and pcfg.detached == true
+	local secondaryToken
+	if trackSecondary and UFHelper and UFHelper.ResolveSecondaryPowerToken then
+		secondaryToken = UFHelper.ResolveSecondaryPowerToken(secondaryCfg, secondaryDef, addon.variables and addon.variables.unitClass, addon.variables and addon.variables.unitSpec)
+	end
+	local secondaryEnabled = trackSecondary and secondaryToken ~= nil
+	local secondaryDetached = secondaryEnabled and secondaryCfg.detached == true
+	local secondaryEnum, secondaryResolvedToken
+	if secondaryEnabled and UFHelper and UFHelper.GetPowerValuesForToken then
+		local _, _, enumId, tokenId = UFHelper.GetPowerValuesForToken(UNIT.PLAYER, secondaryToken)
+		secondaryEnum, secondaryResolvedToken = enumId, tokenId
+	end
+	if secondaryEnabled then secondaryResolvedToken = secondaryResolvedToken or secondaryToken end
+	local classResourceMode
+	if (trackClassResource or trackTotem) and addon.variables and addon.variables.unitClass == "DRUID" then
+		classResourceMode = mainToken == "ENERGY" and "CAT_LIKE" or "NON_CAT"
+	end
+	local key = (primaryEnabled and "1" or "0")
+		.. "|"
+		.. (primaryDetached and "1" or "0")
+		.. "|"
+		.. (secondaryEnabled and "1" or "0")
+		.. "|"
+		.. (secondaryDetached and "1" or "0")
+		.. "|"
+		.. (secondaryToken or "-")
+		.. "|"
+		.. (classResourceMode or "-")
+	return {
+		key = key,
+		tracked = true,
+		needsBarLayout = trackPrimary or trackSecondary,
+		needsAuxLayouts = trackClassResource or trackTotem,
+		trackPrimary = trackPrimary,
+		trackSecondary = trackSecondary,
+		trackClassResource = trackClassResource == true,
+		trackTotem = trackTotem == true,
+		mainEnum = mainEnum,
+		mainToken = mainToken,
+		primaryEnabled = primaryEnabled,
+		secondaryEnabled = secondaryEnabled,
+		secondaryToken = secondaryToken,
+		secondaryEnum = secondaryEnum,
+		secondaryResolvedToken = secondaryResolvedToken,
+	}
+end
+
+function UF.ApplyPlayerDisplayPowerVisuals(cfg, sig, st)
+	st = st or states[UNIT.PLAYER]
+	if not st then return end
+	local pcfg = cfg.power or {}
+	local secondaryCfg = cfg.secondaryPower or {}
+	if st.power and sig.trackPrimary and sig.primaryEnabled and UFHelper and UFHelper.configureSpecialTexture then
+		UFHelper.configureSpecialTexture(st.power, sig.mainToken, pcfg.texture, pcfg, sig.mainEnum)
+	end
+	if st.secondaryPower and sig.trackSecondary and sig.secondaryEnabled and UFHelper and UFHelper.configureSpecialTexture then
+		UFHelper.configureSpecialTexture(st.secondaryPower, sig.secondaryResolvedToken or sig.secondaryToken, secondaryCfg.texture, secondaryCfg, sig.secondaryEnum)
+	end
+	if sig.trackPrimary then st._powerColorDirty = true end
+	if sig.trackSecondary then st._secondaryPowerColorDirty = true end
+end
+
+function UF.ApplyPlayerDisplayPowerManagedLayouts(cfg, sig)
+	if sig and sig.needsAuxLayouts == false then return end
+	if ClassResourceUtil.ApplyLayout then ClassResourceUtil.ApplyLayout(cfg) end
+	if TotemFrameUtil.ApplyLayout then TotemFrameUtil.ApplyLayout(cfg) end
+end
+
+function UF.SchedulePlayerDisplayPowerFlush(reason, wantFullRebuild)
+	if wantFullRebuild then UF._playerDPWantFull = true end
+	UF._playerDPPending = true
+	if InCombatLockdown and InCombatLockdown() then
+		UF._playerDisplayPowerLayoutPending = true
+		return
+	end
+	if UF._playerDPScheduled then return end
+	UF._playerDPScheduled = true
+	local function runner()
+		UF._playerDPScheduled = nil
+		if InCombatLockdown and InCombatLockdown() then
+			UF._playerDisplayPowerLayoutPending = true
+			return
+		end
+		UF.FlushPlayerDisplayPower(reason)
+	end
+	if After then
+		After(0, runner)
+	else
+		runner()
+	end
+end
+
+function UF.FlushPlayerDisplayPower(reason)
+	if UF._playerDPBusy then
+		UF._playerDPPending = true
+		return
+	end
+	UF._playerDPBusy = true
+	UF._playerDPPending = nil
+	local ok = xpcall(function()
+		local cfg = ensureDB(UNIT.PLAYER)
+		if not cfg or cfg.enabled == false then
+			UF._playerDPWantFull = nil
+			return
+		end
+		local st = states[UNIT.PLAYER]
+		if not st or not st.frame or not st.power then UF._playerDPWantFull = true end
+		if UF._playerDPWantFull then
+			UF._playerDPWantFull = nil
+			reapplyPlayerFrameAfterSpecChange()
+			st = states[UNIT.PLAYER]
+			if st then
+				local rebuiltSig = UF.BuildPlayerDisplayPowerSignature(cfg)
+				st._displayPowerStructureKey = rebuiltSig and rebuiltSig.key or nil
+			end
+			return
+		end
+		local sig = UF.BuildPlayerDisplayPowerSignature(cfg)
+		if not sig.tracked then
+			st._displayPowerStructureKey = sig.key
+			return
+		end
+		if sig.needsBarLayout and (not st._displayPowerStructureKey or st._displayPowerStructureKey ~= sig.key) then
+			applyBars(cfg, UNIT.PLAYER)
+			layoutFrame(cfg, UNIT.PLAYER)
+		end
+		if sig.needsAuxLayouts then UF.ApplyPlayerDisplayPowerManagedLayouts(cfg, sig) end
+		st._displayPowerStructureKey = sig.key
+		UF.ApplyPlayerDisplayPowerVisuals(cfg, sig, st)
+		if sig.trackPrimary or sig.trackSecondary then updatePower(cfg, UNIT.PLAYER) end
+		UF.UpdateUnitTexts(UNIT.PLAYER, true)
+	end, geterrorhandler())
+	UF._playerDPBusy = nil
+	if not ok then
+		UF._playerDPWantFull = true
+		UF.SchedulePlayerDisplayPowerFlush(reason or "DISPLAYPOWER_ERROR", true)
+		return
+	end
+	if UF._playerDPPending then
+		local wantFull = UF._playerDPWantFull == true
+		UF._playerDPPending = nil
+		UF.SchedulePlayerDisplayPowerFlush(reason or "DISPLAYPOWER_DRAIN", wantFull)
+	end
+end
+
+function UF.ApplyPlayerDisplayPowerChange()
+	local cfg = ensureDB(UNIT.PLAYER)
+	if not cfg or cfg.enabled == false then return end
+	local st = states[UNIT.PLAYER]
+	if not st or not st.frame or not st.power then
+		UF.SchedulePlayerDisplayPowerFlush("DISPLAYPOWER_MISSING", true)
+		return
+	end
+	if UF._playerDPBusy then
+		UF._playerDPPending = true
+		if InCombatLockdown and InCombatLockdown() then UF._playerDisplayPowerLayoutPending = true end
+		return
+	end
+	UF._playerDPBusy = true
+	local ok = xpcall(function()
+		local sig = UF.BuildPlayerDisplayPowerSignature(cfg)
+		if not sig.tracked then
+			st._displayPowerStructureKey = sig.key
+			return
+		end
+		UF.ApplyPlayerDisplayPowerVisuals(cfg, sig, st)
+		if sig.trackPrimary or sig.trackSecondary then updatePower(cfg, UNIT.PLAYER, false) end
+		if st._displayPowerStructureKey ~= sig.key then UF.SchedulePlayerDisplayPowerFlush("UNIT_DISPLAYPOWER", false) end
+	end, geterrorhandler())
+	UF._playerDPBusy = nil
+	if not ok then
+		UF._playerDPWantFull = true
+		UF.SchedulePlayerDisplayPowerFlush("DISPLAYPOWER_IMMEDIATE_ERROR", true)
+		return
+	end
+	if UF._playerDPPending then
+		local wantFull = UF._playerDPWantFull == true
+		UF._playerDPPending = nil
+		UF.SchedulePlayerDisplayPowerFlush("UNIT_DISPLAYPOWER_DRAIN", wantFull)
+	end
 end
 
 local function updateTargetTargetFrame(cfg, forceApply)
@@ -10019,22 +10463,20 @@ function UF.UpdateUnitTexts(unit, force)
 end
 
 function UF.UpdateAllTexts(force)
-	UF.UpdateUnitTexts(UNIT.PLAYER, force)
-	UF.UpdateUnitTexts(UNIT.TARGET, force)
-	UF.UpdateUnitTexts(UNIT.TARGET_TARGET, force)
-	UF.UpdateUnitTexts(UNIT.FOCUS, force)
-	UF.UpdateUnitTexts(UNIT.PET, force)
-	local bossCount = UF.GetBossFrameCount()
-	for i = 1, bossCount do
-		UF.UpdateUnitTexts("boss" .. i, force)
+	if force then
+		UF.UpdateTextUnits(true, false)
+		return
 	end
+	if not UF.HasDirtyTexts() then return end
+	UF.UpdateTextUnits(false, true)
 end
 
 function UF.EnsureTextTicker()
 	if UF._textTicker or not NewTicker then return end
 	UF._textTicker = NewTicker(TEXT_UPDATE_INTERVAL, function()
 		if not anyUFEnabled() then return end
-		UF.UpdateAllTexts(false)
+		if not UF.HasDirtyTexts() then return end
+		UF.UpdateTextUnits(false, true)
 	end)
 end
 
@@ -10089,7 +10531,7 @@ onEvent = function(self, event, unit, ...)
 		or event == "ACTIVE_TALENT_GROUP_CHANGED"
 		or event == "TRAIT_CONFIG_UPDATED"
 	then
-		refreshRangeFadeSpells(true)
+		UF.ScheduleRangeFadeRefresh(true)
 		if
 			event == "PLAYER_SPECIALIZATION_CHANGED"
 			or event == "PLAYER_TALENT_UPDATE"
@@ -10111,7 +10553,7 @@ onEvent = function(self, event, unit, ...)
 		local petCfg = getCfg(UNIT.PET)
 		local focusCfg = getCfg(UNIT.FOCUS)
 		local bossCfg = getCfg("boss")
-		refreshRangeFadeSpells(true)
+		UF.ScheduleRangeFadeRefresh(true)
 		refreshMainPower(UNIT.PLAYER)
 		applyConfig("player")
 		refreshNameAndLevelSoon(UNIT.PLAYER)
@@ -10172,9 +10614,9 @@ onEvent = function(self, event, unit, ...)
 			if bossHidePending then hideBossFrames(true) end
 			if bossShowPending or bossInitPending then updateBossFrames(true) end
 			bossLayoutDirty, bossHidePending, bossShowPending, bossInitPending = nil, nil, nil, nil
-			if UF._playerDisplayPowerLayoutPending then
+			if UF._playerDisplayPowerLayoutPending or UF._playerDPPending or UF._playerDPWantFull then
 				UF._playerDisplayPowerLayoutPending = nil
-				reapplyPlayerFrameAfterSpecChange()
+				UF.SchedulePlayerDisplayPowerFlush("PLAYER_REGEN_ENABLED", UF._playerDPWantFull == true)
 			end
 			if UF._pendingProfileApply and UFProfileManager and UFProfileManager.ApplyCurrent then UFProfileManager.ApplyCurrent(UF._pendingProfileApplyReason or "PLAYER_REGEN_ENABLED") end
 		end
@@ -10452,22 +10894,7 @@ onEvent = function(self, event, unit, ...)
 		if unit == UNIT.PLAYER then
 			local playerCfg = getCfg(UNIT.PLAYER)
 			if playerCfg.enabled == false then return end
-			if InCombatLockdown() then
-				refreshMainPower(unit)
-				local st = states[unit]
-				local pcfg = playerCfg.power or {}
-				if st and st.power and pcfg.enabled ~= false then
-					local powerEnum, powerToken = getMainPower(unit)
-					UFHelper.configureSpecialTexture(st.power, powerToken, (playerCfg.power or {}).texture, playerCfg.power, powerEnum)
-				elseif st and st.power then
-					st.power:Hide()
-				end
-				updatePower(playerCfg, UNIT.PLAYER)
-				UF._playerDisplayPowerLayoutPending = true
-			else
-				UF._playerDisplayPowerLayoutPending = nil
-				reapplyPlayerFrameAfterSpecChange()
-			end
+			UF.ApplyPlayerDisplayPowerChange()
 		elseif unit == UNIT.TARGET then
 			local targetCfg = getCfg(UNIT.TARGET)
 			if targetCfg.enabled == false then return end
@@ -10728,9 +11155,10 @@ end
 
 local function ensureEventHandling()
 	rebuildAllowedEventUnits()
+	UF.RecomputeAnyUFEnabled()
 	if not anyUFEnabled() then
 		hideBossFrames()
-		refreshRangeFadeSpells(true)
+		UF.ScheduleRangeFadeRefresh(true)
 		UF.CancelTextTicker()
 		if UFHelper and UFHelper.disableCombatFeedbackAll then UFHelper.disableCombatFeedbackAll(states) end
 		if eventFrame and eventFrame.UnregisterAllEvents then eventFrame:UnregisterAllEvents() end
@@ -10758,7 +11186,7 @@ local function ensureEventHandling()
 				if states[UNIT.PLAYER] and states[UNIT.PLAYER].castBar then setCastInfoFromUnit(UNIT.PLAYER) end
 				if states[UNIT.TARGET] and states[UNIT.TARGET].castBar then setCastInfoFromUnit(UNIT.TARGET) end
 				if states[UNIT.FOCUS] and states[UNIT.FOCUS].castBar then setCastInfoFromUnit(UNIT.FOCUS) end
-				refreshRangeFadeSpells(false)
+				UF.ScheduleRangeFadeRefresh(false)
 			end)
 
 			addon.EditModeLib:RegisterCallback("exit", function()
@@ -10776,7 +11204,7 @@ local function ensureEventHandling()
 				if states[UNIT.PLAYER] and states[UNIT.PLAYER].castBar then setCastInfoFromUnit(UNIT.PLAYER) end
 				if states[UNIT.TARGET] and states[UNIT.TARGET].castBar then setCastInfoFromUnit(UNIT.TARGET) end
 				if states[UNIT.FOCUS] and states[UNIT.FOCUS].castBar then setCastInfoFromUnit(UNIT.FOCUS) end
-				refreshRangeFadeSpells(false)
+				UF.ScheduleRangeFadeRefresh(false)
 				if UFHelper and UFHelper.stopCombatFeedbackSample then
 					for _, st in pairs(states) do
 						UFHelper.stopCombatFeedbackSample(st)
@@ -10802,7 +11230,7 @@ local function ensureEventHandling()
 	end
 	UF._registerUnitScopedEvents(anyPortraitEnabled())
 	syncTargetRangeFadeConfig(ensureDB(UNIT.TARGET), defaultsFor(UNIT.TARGET))
-	refreshRangeFadeSpells(false)
+	UF.ScheduleRangeFadeRefresh(false)
 	UF.EnsureTextTicker()
 	UF.UpdateAllTexts(true)
 end

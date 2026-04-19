@@ -2086,19 +2086,69 @@ end
 
 function addon.functions.registerWayCommand()
 	if SlashCmdList["WAY"] or _G.SLASH_WAY1 then return end
-	SLASH_EQOLWAY1 = "/way"
+	addon.functions.SetSlashCommandAlias("EQOLWAY", 1, "/way")
 	SlashCmdList["EQOLWAY"] = handleWayCommand
 end
 
-local function isSlashCommandRegistered(command)
-	if not command then return false end
+local slashCommandRegistry
+
+local function normalizeSlashCommand(command)
+	if type(command) ~= "string" then return nil end
 	command = command:lower()
+	if command == "" then return nil end
+	return command
+end
+
+local function updateSlashCommandRegistryCount(command, delta)
+	local normalized = normalizeSlashCommand(command)
+	if not (normalized and slashCommandRegistry) then return normalized end
+	local nextCount = (slashCommandRegistry[normalized] or 0) + (delta or 0)
+	if nextCount > 0 then
+		slashCommandRegistry[normalized] = nextCount
+	else
+		slashCommandRegistry[normalized] = nil
+	end
+	return normalized
+end
+
+local function rebuildSlashCommandRegistry()
+	local registry = {}
 	for key, value in pairs(_G) do
 		if type(key) == "string" and key:match("^SLASH_") and type(value) == "string" then
-			if value:lower() == command then return true end
+			local normalized = normalizeSlashCommand(value)
+			if normalized then registry[normalized] = (registry[normalized] or 0) + 1 end
 		end
 	end
-	return false
+	slashCommandRegistry = registry
+	return registry
+end
+
+local function getSlashCommandRegistry()
+	if slashCommandRegistry then return slashCommandRegistry end
+	return rebuildSlashCommandRegistry()
+end
+
+function addon.functions.IsSlashCommandRegistered(command)
+	local normalized = normalizeSlashCommand(command)
+	if not normalized then return false end
+	return getSlashCommandRegistry()[normalized] ~= nil
+end
+
+function addon.functions.SetSlashCommandAlias(prefix, index, command)
+	if type(prefix) ~= "string" or prefix == "" then return nil end
+	local key = "SLASH_" .. prefix .. tostring(index)
+	local previous = normalizeSlashCommand(_G[key])
+	local normalized = normalizeSlashCommand(command)
+	_G[key] = normalized
+	if previous ~= normalized then
+		updateSlashCommandRegistryCount(previous, -1)
+		updateSlashCommandRegistryCount(normalized, 1)
+	end
+	return normalized
+end
+
+local function isSlashCommandRegistered(command)
+	return addon.functions.IsSlashCommandRegistered(command)
 end
 
 local function isSlashCommandOwnedByEQOL(command, listName, prefix, maxIndex)
@@ -2205,8 +2255,8 @@ function addon.functions.registerCooldownManagerSlashCommand()
 	if not waLoaded and canClaim("/wa") then commands[#commands + 1] = "/wa" end
 
 	if #commands == 0 then return end
-	_G.SLASH_EQOLCDMSC1 = commands[1]
-	_G.SLASH_EQOLCDMSC2 = commands[2]
+	addon.functions.SetSlashCommandAlias("EQOLCDMSC", 1, commands[1])
+	addon.functions.SetSlashCommandAlias("EQOLCDMSC", 2, commands[2])
 	SlashCmdList["EQOLCDMSC"] = function() toggleCooldownViewerSettings() end
 end
 
@@ -2214,7 +2264,7 @@ function addon.functions.registerPullTimerSlashCommand()
 	if not SlashCmdList then return end
 	local function canClaim(command) return isSlashCommandOwnedByEQOL(command, "EQOLPULL", "EQOLPULL", 1) or not isSlashCommandRegistered(command) end
 	if not canClaim("/pull") then return end
-	_G.SLASH_EQOLPULL1 = "/pull"
+	addon.functions.SetSlashCommandAlias("EQOLPULL", 1, "/pull")
 	SlashCmdList["EQOLPULL"] = function(msg)
 		local seconds = getPullCountdownSeconds(msg)
 		if InCombatLockdown and InCombatLockdown() then
@@ -2233,9 +2283,9 @@ function addon.functions.registerEditModeSlashCommand()
 	if canClaim("/edit") then commands[#commands + 1] = "/edit" end
 	if canClaim("/editmode") then commands[#commands + 1] = "/editmode" end
 	if #commands == 0 then return end
-	_G.SLASH_EQOLEM1 = commands[1]
-	_G.SLASH_EQOLEM2 = commands[2]
-	_G.SLASH_EQOLEM3 = commands[3]
+	addon.functions.SetSlashCommandAlias("EQOLEM", 1, commands[1])
+	addon.functions.SetSlashCommandAlias("EQOLEM", 2, commands[2])
+	addon.functions.SetSlashCommandAlias("EQOLEM", 3, commands[3])
 	SlashCmdList["EQOLEM"] = function() toggleEditMode() end
 end
 
@@ -2243,7 +2293,7 @@ function addon.functions.registerQuickKeybindSlashCommand()
 	if not SlashCmdList then return end
 	local function canClaim(command) return isSlashCommandOwnedByEQOL(command, "EQOLKB", "EQOLKB", 1) or not isSlashCommandRegistered(command) end
 	if not canClaim("/kb") then return end
-	_G.SLASH_EQOLKB1 = "/kb"
+	addon.functions.SetSlashCommandAlias("EQOLKB", 1, "/kb")
 	SlashCmdList["EQOLKB"] = function() toggleQuickKeybindMode() end
 end
 
@@ -2254,8 +2304,8 @@ function addon.functions.registerClickCastSlashCommand()
 	if canClaim("/ccb") then commands[#commands + 1] = "/ccb" end
 	if canClaim("/clickcast") then commands[#commands + 1] = "/clickcast" end
 	if #commands == 0 then return end
-	_G.SLASH_EQOLCCB1 = commands[1]
-	_G.SLASH_EQOLCCB2 = commands[2]
+	addon.functions.SetSlashCommandAlias("EQOLCCB", 1, commands[1])
+	addon.functions.SetSlashCommandAlias("EQOLCCB", 2, commands[2])
 	SlashCmdList["EQOLCCB"] = function() toggleClickCastBindings() end
 end
 
@@ -2263,7 +2313,7 @@ function addon.functions.registerReloadUISlashCommand()
 	if not SlashCmdList then return end
 	local function canClaim(command) return isSlashCommandOwnedByEQOL(command, "EQOLRL", "EQOLRL", 1) or not isSlashCommandRegistered(command) end
 	if not canClaim("/rl") then return end
-	_G.SLASH_EQOLRL1 = "/rl"
+	addon.functions.SetSlashCommandAlias("EQOLRL", 1, "/rl")
 	SlashCmdList["EQOLRL"] = function()
 		if ReloadUI then ReloadUI() end
 	end

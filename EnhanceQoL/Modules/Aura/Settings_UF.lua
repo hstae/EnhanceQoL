@@ -820,8 +820,8 @@ local function appendUnitAuraSettings(list, unit, def, refreshSelf)
 			list[#list].isEnabled = isSectionEnabled
 		end
 
-		list[#list + 1] = slider(labelPrefix .. " " .. (L["Size"] or "size"), 12, 48, 1, function() return getAuraSectionValue(sectionKey, { "size" }, auraDef.size or 24) end, function(val)
-			setAuraSectionValue(sectionKey, { "size" }, val or auraDef.size or 24)
+		list[#list + 1] = slider(labelPrefix .. " " .. (L["Size"] or "size"), 12, 120, 1, function() return getAuraSectionValue(sectionKey, { "size" }, auraDef.size or 24) end, function(val)
+			setAuraSectionValue(sectionKey, { "size" }, clampNumber(val, 12, 120, auraDef.size or 24))
 			refreshSelf()
 		end, auraDef.size or 24, parentId, true)
 		list[#list].isEnabled = isSectionEnabled
@@ -3397,7 +3397,7 @@ local function buildUnitSettings(unit)
 		isTooltipEnabled
 	)
 	list[#list + 1] = checkbox(L["Hide in vehicles"] or "Hide in vehicles", isHideInVehicleEnabled, setHideInVehicleEnabled, def.hideInVehicle == true, "frame")
-	if not isPlayer then list[#list + 1] = checkbox(L["Hide in pet battles"] or "Hide in pet battles", isHideInPetBattleEnabled, setHideInPetBattleEnabled, def.hideInPetBattle == true, "frame") end
+	list[#list + 1] = checkbox(L["Hide in pet battles"] or "Hide in pet battles", isHideInPetBattleEnabled, setHideInPetBattleEnabled, def.hideInPetBattle == true, "frame")
 	list[#list + 1] = checkbox(L["Hide in client scenes"] or "Hide in client scenes", isHideInClientSceneEnabled, setHideInClientSceneEnabled, hideInClientSceneDefault(), "frame")
 
 	if #visibilityOptions > 0 then
@@ -6323,7 +6323,11 @@ local function buildUnitSettings(unit)
 		list[#list + 1] = { name = "", kind = UF.ui.settingType.Divider, parentId = "cast" }
 
 		local function isCastClassColorEnabled() return getValue(unit, { "cast", "useClassColor" }, castDef.useClassColor == true) == true end
-		local function isCastColorEnabled() return isCastEnabled() and not isCastClassColorEnabled() end
+		local function isCastGradientEnabled()
+			if unit ~= "player" then return false end
+			return isCastEnabled() and not isCastClassColorEnabled() and getValue(unit, { "cast", "useGradient" }, castDef.useGradient == true) == true
+		end
+		local function isCastColorEnabled() return isCastEnabled() and not isCastClassColorEnabled() and not isCastGradientEnabled() end
 
 		list[#list + 1] = {
 			name = L["Cast color"] or "Cast color",
@@ -6358,7 +6362,6 @@ local function buildUnitSettings(unit)
 		end, castDef.useClassColor == true, "cast", isCastEnabled)
 
 		if unit == "player" then
-			local function isCastGradientEnabled() return isCastEnabled() and not isCastClassColorEnabled() and getValue(unit, { "cast", "useGradient" }, castDef.useGradient == true) == true end
 			list[#list + 1] = checkbox(L["Use gradient"] or "Use gradient", isCastGradientEnabled, function(val)
 				local useGradient = val and true or false
 				setValue(unit, { "cast", "useGradient" }, useGradient)
@@ -6440,7 +6443,7 @@ local function buildUnitSettings(unit)
 			name = L["Not interruptible color"] or "Not interruptible color",
 			kind = UF.ui.settingType.Color,
 			parentId = "cast",
-			isEnabled = isCastEnabled,
+			isEnabled = function() return isCastEnabled() and not isCastGradientEnabled() end,
 			get = function() return getValue(unit, { "cast", "notInterruptibleColor" }, castDef.notInterruptibleColor or { 204 / 255, 204 / 255, 204 / 255, 1 }) end,
 			set = function(_, color)
 				setColor(unit, { "cast", "notInterruptibleColor" }, color.r, color.g, color.b, color.a)
@@ -7723,11 +7726,11 @@ local function buildUnitSettings(unit)
 		list[#list + 1] = slider(
 			L["UFPrivateAurasSize"] or "Private aura size",
 			8,
-			100,
+			120,
 			1,
 			function() return getValue(unit, { "privateAuras", "icon", "size" }, (paDef.icon and paDef.icon.size) or 24) end,
 			function(val)
-				setValue(unit, { "privateAuras", "icon", "size" }, clampNumber(val or 24, 8, 100, 24))
+				setValue(unit, { "privateAuras", "icon", "size" }, clampNumber(val or 24, 8, 120, 24))
 				refresh()
 			end,
 			(paDef.icon and paDef.icon.size) or 24,
@@ -8233,6 +8236,7 @@ local function registerSettingsUI()
 	if not expandable then
 		expandable = addon.functions.SettingsCreateExpandableSection(cUF, {
 			name = L["CustomUnitFrames"] or "EQoL Unit Frames",
+			newTagID = "CustomUnitFrames",
 			expanded = false,
 			colorizeTitle = false,
 		})
