@@ -14438,8 +14438,7 @@ function CooldownPanels:RefreshEditor()
 	editor.selectedPanelId = panelId
 	root.selectedPanel = panelId
 
-	local panel = panelId and root.panels and root.panels[panelId] or nil
-	if panel then Helper.NormalizePanel(panel, root.defaults) end
+	local panel = panelId and self:GetPanel(panelId) or nil
 
 	if editor.filterButton and editor.filterButton.icon then
 		if filterByClass or filterBySpec or hideEmptyGroups then
@@ -14522,7 +14521,6 @@ end
 function CooldownPanels:OpenEditor()
 	local editor = ensureEditor()
 	if not editor then return end
-	self:NormalizeAll()
 	editor.frame:Show()
 end
 
