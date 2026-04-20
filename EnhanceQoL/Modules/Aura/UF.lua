@@ -21,6 +21,49 @@ local TotemFrameUtil = UF.TotemFrameUtil
 addon.variables = addon.variables or {}
 addon.variables.ufSampleAbsorb = addon.variables.ufSampleAbsorb or {}
 addon.variables.ufSampleHealAbsorb = addon.variables.ufSampleHealAbsorb or {}
+UF._editModeSample = UF._editModeSample or {}
+
+function UF.GetEditModeSampleKey(unit)
+	if type(unit) ~= "string" then return nil end
+	if unit == "boss" or unit:match("^boss%d+$") then return "boss" end
+	return unit
+end
+
+function UF.IsEditModeSampleEnabled(unit)
+	if not (addon.EditModeLib and addon.EditModeLib.IsInEditMode and addon.EditModeLib:IsInEditMode()) then return false end
+	unit = UF.GetEditModeSampleKey(unit)
+	return unit and UF._editModeSample and UF._editModeSample[unit] == true or false
+end
+
+function UF.SetEditModeSampleEnabled(unit, enabled)
+	unit = UF.GetEditModeSampleKey(unit)
+	if not unit then return end
+	UF._editModeSample = UF._editModeSample or {}
+	enabled = enabled == true
+	if (UF._editModeSample[unit] == true) == enabled then return end
+	if enabled then
+		UF._editModeSample[unit] = true
+	else
+		UF._editModeSample[unit] = nil
+	end
+	if unit == "boss" then
+		if UF.UpdateBossFrames then
+			UF.UpdateBossFrames(true)
+		elseif UF.Refresh then
+			UF.Refresh()
+		end
+	elseif UF.RefreshUnit then
+		UF.RefreshUnit(unit)
+	elseif UF.Refresh then
+		UF.Refresh()
+	end
+end
+
+function UF.ToggleEditModeSample(unit)
+	unit = UF.GetEditModeSampleKey(unit)
+	if not unit then return end
+	UF.SetEditModeSampleEnabled(unit, not (UF._editModeSample and UF._editModeSample[unit] == true))
+end
 local maxBossFrames = 8
 local UF_PROFILE_SHARE_KIND = "EQOL_UF_PROFILE"
 local smoothFill = Enum.StatusBarInterpolation.ExponentialEaseOut
@@ -54,6 +97,43 @@ local function getSmoothInterpolation(cfg, def)
 	if flag == nil and def then flag = def.smoothFill end
 	if flag == true then return smoothFill end
 	return nil
+end
+
+function UF.SetStatusBarValue(bar, value, smooth, forceImmediate)
+	if not bar or value == nil then return end
+	local helper = UF.GroupFramesHelper
+	local pixelHelper = helper and helper.Pixel
+	if pixelHelper and pixelHelper.SetStatusBarValue then
+		pixelHelper.SetStatusBarValue(bar, value, smooth, forceImmediate)
+		return
+	end
+	if smooth and Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.ExponentialEaseOut then
+		bar:SetValue(value, Enum.StatusBarInterpolation.ExponentialEaseOut)
+	else
+		bar:SetValue(value)
+	end
+end
+
+function UF.EnsureOverlayClipFrame(anchor, key)
+	if not anchor then return nil end
+	key = key or "_eqolOverlayClip"
+	local clip = anchor[key]
+	if not clip then
+		clip = CreateFrame("Frame", nil, anchor)
+		clip:SetClipsChildren(true)
+		anchor[key] = clip
+	end
+	clip:ClearAllPoints()
+	clip:SetAllPoints(anchor)
+	if clip.SetFrameStrata and anchor.GetFrameStrata then
+		local anchorStrata = anchor:GetFrameStrata()
+		if anchorStrata and clip:GetFrameStrata() ~= anchorStrata then clip:SetFrameStrata(anchorStrata) end
+	end
+	if clip.SetFrameLevel and anchor.GetFrameLevel then
+		local desiredLevel = (anchor:GetFrameLevel() or 0) + 1
+		if clip:GetFrameLevel() ~= desiredLevel then clip:SetFrameLevel(desiredLevel) end
+	end
+	return clip
 end
 
 local function resetBlizzBossParent(self, parent)
@@ -470,6 +550,28 @@ function UFProfileManager._getCurrentPlayerGUID()
 end
 
 function UFProfileManager._getCurrentSpecID()
+	if C_ClassTalents and C_ClassTalents.GetActiveConfigID and C_ClassTalents.GetConfigIDsBySpecID then
+		local activeConfigID = C_ClassTalents.GetActiveConfigID()
+		local classID = UnitClass and select(3, UnitClass("player")) or nil
+		if issecretvalue and issecretvalue(classID) then classID = nil end
+		if type(activeConfigID) == "number" and activeConfigID > 0 and type(classID) == "number" and classID > 0 and GetNumSpecializationsForClassID and GetSpecializationInfoForClassID then
+			local numSpecs = GetNumSpecializationsForClassID(classID)
+			if type(numSpecs) == "number" and numSpecs > 0 then
+				for index = 1, numSpecs do
+					local specID = select(1, GetSpecializationInfoForClassID(classID, index))
+					if type(specID) == "number" and specID > 0 then
+						local configIDs = C_ClassTalents.GetConfigIDsBySpecID(specID)
+						if type(configIDs) == "table" then
+							for _, configID in ipairs(configIDs) do
+								if configID == activeConfigID then return specID end
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+
 	if not (C_SpecializationInfo and C_SpecializationInfo.GetSpecialization and C_SpecializationInfo.GetSpecializationInfo) then return nil end
 	local specIndex = C_SpecializationInfo.GetSpecialization()
 	if type(specIndex) ~= "number" or specIndex <= 0 then return nil end
@@ -874,12 +976,26 @@ function UFProfileManager._isUFProfileBound(profileName)
 	return true
 end
 
+function UFProfileManager.ScheduleSpecMappingRetry(source, immediate)
+	UFProfileManager._specMappingRetrySource = tostring(source or "UNKNOWN")
+	if immediate ~= false then UFProfileManager.ApplySpecMapping(UFProfileManager._specMappingRetrySource .. ":Immediate") end
+	if UFProfileManager._specMappingRetryPending or not After then return end
+	UFProfileManager._specMappingRetryPending = true
+	After(1, function()
+		UFProfileManager._specMappingRetryPending = nil
+		local retrySource = UFProfileManager._specMappingRetrySource or tostring(source or "UNKNOWN")
+		UFProfileManager._specMappingRetrySource = nil
+		UFProfileManager.ApplySpecMapping(retrySource .. ":Delayed")
+	end)
+end
+
 function UFProfileManager._ensureUFProfileEvents()
 	if UFProfileManager._eventFrame then return end
 	local frame = CreateFrame("Frame")
 	frame:RegisterEvent("PLAYER_LOGIN")
 	frame:RegisterEvent("ACTIVE_PLAYER_SPECIALIZATION_CHANGED")
 	frame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
+	frame:RegisterEvent("PLAYER_ROLES_ASSIGNED")
 	frame:RegisterEvent("PLAYER_REGEN_ENABLED")
 	if frame.RegisterUnitEvent then
 		frame:RegisterUnitEvent("PLAYER_SPECIALIZATION_CHANGED", "player")
@@ -894,8 +1010,8 @@ function UFProfileManager._ensureUFProfileEvents()
 		if event == "PLAYER_SPECIALIZATION_CHANGED" and unit and unit ~= "player" then return end
 		local ok = UFProfileManager.Initialize()
 		if not ok then return end
-		if event == "PLAYER_LOGIN" or event == "PLAYER_SPECIALIZATION_CHANGED" or event == "ACTIVE_PLAYER_SPECIALIZATION_CHANGED" or event == "ACTIVE_TALENT_GROUP_CHANGED" then
-			UFProfileManager.ApplySpecMapping(event)
+		if event == "PLAYER_LOGIN" or event == "PLAYER_SPECIALIZATION_CHANGED" or event == "ACTIVE_PLAYER_SPECIALIZATION_CHANGED" or event == "ACTIVE_TALENT_GROUP_CHANGED" or event == "PLAYER_ROLES_ASSIGNED" then
+			UFProfileManager.ScheduleSpecMappingRetry(event, true)
 		end
 	end)
 	UFProfileManager._eventFrame = frame
@@ -4323,7 +4439,7 @@ function AuraUtil.updateTargetAuraIcons(startIndex, unit)
 	unit = unit or "target"
 	local st = states[unit]
 	if not st or not st.auraContainer or not st.frame then return end
-	local allowSample = addon.EditModeLib and addon.EditModeLib:IsInEditMode()
+	local allowSample = UF.IsEditModeSampleEnabled and UF.IsEditModeSampleEnabled(unit)
 	local cfg = st.cfg or ensureDB(unit)
 	local def = defaultsFor(unit)
 	local ac = cfg.auraIcons or (def and def.auraIcons) or defaults.target.auraIcons or { size = 24, padding = 2, max = 16, showCooldown = true }
@@ -4591,7 +4707,7 @@ function AuraUtil.fullScanTargetAuras(unit)
 		AuraUtil.updateTargetAuraIcons(nil, unit)
 		return
 	end
-	if addon.EditModeLib and addon.EditModeLib:IsInEditMode() then
+	if UF.IsEditModeSampleEnabled and UF.IsEditModeSampleEnabled(unit) then
 		if st then st._sampleAurasActive = true end
 		AuraUtil.fillSampleAuras(unit, ac)
 		AuraUtil.updateTargetAuraIcons(nil, unit)
@@ -5742,6 +5858,7 @@ end
 local function applyIncomingHealBar(st, hc, healthHeight, reverseHealth, interpolation)
 	if not (st and st.health and st.incomingHeal) then return end
 	local incomingHealTextureKey = hc.incomingHealTexture or hc.texture
+	local overlayClip = UF.EnsureOverlayClipFrame and UF.EnsureOverlayClipFrame(st.health, "_eqolDirectOverlayClip")
 	st.incomingHeal:SetStatusBarTexture(UFHelper.resolveTexture(incomingHealTextureKey))
 	if st.incomingHeal.SetStatusBarDesaturated then st.incomingHeal:SetStatusBarDesaturated(false) end
 	UFHelper.configureSpecialTexture(st.incomingHeal, "HEALTH", incomingHealTextureKey, hc)
@@ -5751,6 +5868,7 @@ local function applyIncomingHealBar(st, hc, healthHeight, reverseHealth, interpo
 		UFHelper.setupAbsorbClamp(st.health, st.incomingHeal)
 		if UFHelper.applyStatusBarReverseFill then UFHelper.applyStatusBarReverseFill(st.incomingHeal, reverseHealth) end
 	end
+	if overlayClip and st.incomingHeal.GetParent and st.incomingHeal:GetParent() ~= overlayClip then st.incomingHeal:SetParent(overlayClip) end
 	if UFHelper and UFHelper.applyAbsorbClampLayout then
 		UFHelper.applyAbsorbClampLayout(st.incomingHeal, st.health, healthHeight, healthHeight, reverseHealth)
 	else
@@ -5758,7 +5876,7 @@ local function applyIncomingHealBar(st, hc, healthHeight, reverseHealth, interpo
 	end
 	setFrameLevelAbove(st.incomingHeal, st.health, 1)
 	st.incomingHeal:SetMinMaxValues(0, 1)
-	st.incomingHeal:SetValue(0, interpolation)
+	UF.SetStatusBarValue(st.incomingHeal, 0, false, true)
 	st.incomingHeal:Hide()
 end
 
@@ -5813,7 +5931,7 @@ local function updateIncomingHeal(st, unit, hc, defH, cur, maxv, interpolation, 
 	end
 
 	bar:SetMinMaxValues(0, maxForValue or 1)
-	bar:SetValue(incomingHealValue or 0, interpolation)
+	UF.SetStatusBarValue(bar, incomingHealValue or 0, false, true)
 
 	local color = hc.incomingHealColor or defH.incomingHealColor or { 0.2, 0.85, 0.35, 0.45 }
 	bar:SetStatusBarColor(color.r or color[1] or 0.2, color.g or color[2] or 0.85, color.b or color[3] or 0.35, color.a or color[4] or 0.45)
@@ -6277,7 +6395,7 @@ function UF.OnCastInterruptAnimFinished(self)
 	if UF.ShouldShowSampleCast(unit) then UF.SetSampleCast(unit) end
 end
 
-function UF.ShouldShowSampleCast(unit) return addon.EditModeLib and addon.EditModeLib:IsInEditMode() end
+function UF.ShouldShowSampleCast(unit) return UF.IsEditModeSampleEnabled and UF.IsEditModeSampleEnabled(unit) end
 
 function UF.SetSampleCast(unit)
 	local key = isBossUnit(unit) and "boss" or unit
@@ -6296,6 +6414,17 @@ function UF.SetSampleCast(unit)
 	local resolvedCfg = ccfg or defc or {}
 	st.castCfg = resolvedCfg
 	local nowMs = GetTime() * 1000
+	if st.castInfo and st.castInfo.isSample == true and type(st.castInfo.endTime) == "number" and st.castInfo.endTime > nowMs then
+		applyCastLayout(cfg, unit)
+		configureCastStatic(unit, resolvedCfg, defc)
+		if not castOnUpdateHandlers[unit] then
+			st.castBar._eqolUFUnit = unit
+			st.castBar:SetScript("OnUpdate", UF.OnCastBarUpdate)
+			castOnUpdateHandlers[unit] = true
+		end
+		updateCastBar(unit)
+		return
+	end
 	st.castInfo = {
 		name = L["Sample Cast"] or "Sample Cast",
 		texture = 136235, -- lightning icon as placeholder
@@ -6303,6 +6432,7 @@ function UF.SetSampleCast(unit)
 		endTime = nowMs + 3000,
 		notInterruptible = false,
 		isChannel = false,
+		isSample = true,
 	}
 	applyCastLayout(cfg, unit)
 	configureCastStatic(unit, resolvedCfg, defc)
@@ -7266,30 +7396,30 @@ function UF.syncAbsorbFrameLevels(st)
 	if not st or not st.health then return end
 	local health = st.health
 	local healthLevel = (health.GetFrameLevel and health:GetFrameLevel()) or 0
-	local overlayLevel = max(0, healthLevel + 1)
+	local overlayClipLevel = max(0, healthLevel + 1)
+	local absorbLevel = max(0, healthLevel + 1)
+	local incomingHealLevel = max(0, healthLevel + 2)
+	local healAbsorbLevel = max(0, healthLevel + 3)
 	local healthStrata = health.GetFrameStrata and health:GetFrameStrata()
 	local borderFrame = st.barGroup and st.barGroup._ufBorder
-	if borderFrame and borderFrame.GetFrameLevel then
-		local borderLevel = borderFrame:GetFrameLevel() or (overlayLevel + 1)
-		if overlayLevel >= borderLevel then overlayLevel = max(0, borderLevel - 1) end
-	end
-	local function apply(frame)
+	local function apply(frame, level)
 		if not frame then return end
 		if healthStrata and frame.SetFrameStrata and frame:GetFrameStrata() ~= healthStrata then frame:SetFrameStrata(healthStrata) end
-		if frame.SetFrameLevel and frame:GetFrameLevel() ~= overlayLevel then frame:SetFrameLevel(overlayLevel) end
+		if frame.SetFrameLevel and frame:GetFrameLevel() ~= level then frame:SetFrameLevel(level) end
 	end
-	apply(health.absorbClip)
-	apply(health._healthFillClip)
-	apply(st.incomingHeal)
-	apply(st.absorb)
-	apply(st.absorb2)
-	apply(st.healAbsorb)
+	apply(health.absorbClip, overlayClipLevel)
+	apply(health._healthFillClip, overlayClipLevel)
+	apply(health._eqolDirectOverlayClip, overlayClipLevel)
+	apply(st.absorb, absorbLevel)
+	apply(st.absorb2, absorbLevel)
+	apply(st.incomingHeal, incomingHealLevel)
+	apply(st.healAbsorb, healAbsorbLevel)
 	if borderFrame and st.barGroup and borderFrame.SetFrameStrata and st.barGroup.GetFrameStrata then
 		local borderStrata = st.barGroup:GetFrameStrata()
 		if borderStrata and borderFrame:GetFrameStrata() ~= borderStrata then borderFrame:SetFrameStrata(borderStrata) end
 	end
 	if borderFrame and borderFrame.SetFrameLevel then
-		local desiredBorderLevel = overlayLevel + 1
+		local desiredBorderLevel = max(absorbLevel, incomingHealLevel, healAbsorbLevel) + 1
 		if borderFrame:GetFrameLevel() < desiredBorderLevel then borderFrame:SetFrameLevel(desiredBorderLevel) end
 	end
 end
@@ -8631,6 +8761,7 @@ local function applyBars(cfg, unit)
 		end
 	end
 	if allowAbsorb and st.absorb then
+		local overlayClip = UF.EnsureOverlayClipFrame and UF.EnsureOverlayClipFrame(st.health, "_eqolDirectOverlayClip")
 		local absorbTextureKey = hc.absorbTexture or hc.texture
 		st.absorb:SetStatusBarTexture(UFHelper.resolveTexture(absorbTextureKey))
 		if st.absorb.SetStatusBarDesaturated then st.absorb:SetStatusBarDesaturated(false) end
@@ -8647,6 +8778,7 @@ local function applyBars(cfg, unit)
 		elseif st.absorb2 then
 			st.absorb2:Hide()
 		end
+		if overlayClip and st.absorb.GetParent and st.absorb:GetParent() ~= overlayClip then st.absorb:SetParent(overlayClip) end
 		local absorbHeight = hc.absorbOverlayHeight
 		if absorbHeight == nil then absorbHeight = defH.absorbOverlayHeight end
 		applyOverlayHeight(st.absorb, st.health, absorbHeight, healthHeight)
@@ -8662,6 +8794,7 @@ local function applyBars(cfg, unit)
 					if UFHelper.setupAbsorbClamp then UFHelper.setupAbsorbClamp(st.health, st.absorb2) end
 					if not absorbDontOverflow and UFHelper.setupAbsorbOverShift then UFHelper.setupAbsorbOverShift(st.health, st.absorb, absorbHeight, healthHeight) end
 				end
+				if overlayClip and st.absorb2.GetParent and st.absorb2:GetParent() ~= overlayClip then st.absorb2:SetParent(overlayClip) end
 				UFHelper.applyAbsorbClampLayout(st.absorb2, st.health, absorbHeight, healthHeight, reverseHealth)
 				syncTextFrameLevels(st)
 			end
@@ -8670,8 +8803,7 @@ local function applyBars(cfg, unit)
 			st.absorb2:SetValue(0, interpolation)
 			st.absorb2:Hide()
 		end
-		local borderFrame = st.barGroup and st.barGroup._ufBorder
-		setFrameLevelAbove(st.absorb, st.incomingHeal or st.health, 1)
+		setFrameLevelAbove(st.absorb, st.health, 1)
 		st.absorb:SetMinMaxValues(0, 1)
 		st.absorb:SetValue(0, interpolation)
 		if st.overAbsorbGlow then
@@ -8690,7 +8822,11 @@ local function applyBars(cfg, unit)
 	elseif st.overAbsorbGlow then
 		st.overAbsorbGlow:Hide()
 	end
+	if st.incomingHeal then
+		setFrameLevelAbove(st.incomingHeal, st.absorb2 or st.absorb or st.health, 1)
+	end
 	if allowAbsorb and st.healAbsorb then
+		local overlayClip = UF.EnsureOverlayClipFrame and UF.EnsureOverlayClipFrame(st.health, "_eqolDirectOverlayClip")
 		local healAbsorbTextureKey = hc.healAbsorbTexture or hc.texture
 		st.healAbsorb:SetStatusBarTexture(UFHelper.resolveTexture(healAbsorbTextureKey))
 		if st.healAbsorb.SetStatusBarDesaturated then st.healAbsorb:SetStatusBarDesaturated(false) end
@@ -8698,10 +8834,11 @@ local function applyBars(cfg, unit)
 		local reverseHealAbsorb = hc.healAbsorbReverseFill
 		if reverseHealAbsorb == nil then reverseHealAbsorb = defH.healAbsorbReverseFill == true end
 		UFHelper.applyStatusBarReverseFill(st.healAbsorb, reverseHealAbsorb)
+		if overlayClip and st.healAbsorb.GetParent and st.healAbsorb:GetParent() ~= overlayClip then st.healAbsorb:SetParent(overlayClip) end
 		local healAbsorbHeight = hc.healAbsorbOverlayHeight
 		if healAbsorbHeight == nil then healAbsorbHeight = defH.healAbsorbOverlayHeight end
 		applyOverlayHeight(st.healAbsorb, st.health, healAbsorbHeight, healthHeight)
-		local anchorBar = st.absorb or st.incomingHeal or st.health
+		local anchorBar = st.incomingHeal or st.absorb2 or st.absorb or st.health
 		setFrameLevelAbove(st.healAbsorb, anchorBar, 1)
 		st.healAbsorb:SetMinMaxValues(0, 1)
 		st.healAbsorb:SetValue(0, interpolation)
@@ -8959,15 +9096,14 @@ local function applyConfig(unit)
 		st._displayPowerStructureKey = sig and sig.key or nil
 	end
 	updatePortrait(cfg, unit)
-	AuraUtil.UpdateSingleDispelIndicator(unit, addon.EditModeLib and addon.EditModeLib:IsInEditMode())
+	AuraUtil.UpdateSingleDispelIndicator(unit, UF.IsEditModeSampleEnabled and UF.IsEditModeSampleEnabled(unit))
 	checkRaidTargetIcon(unit, st)
 	UFHelper.updateLeaderIndicator(st, unit, cfg, defaultsFor(unit), false)
 	UFHelper.updatePvPIndicator(st, unit, cfg, defaultsFor(unit), false)
 	UFHelper.updateRoleIndicator(st, unit, cfg, defaultsFor(unit), false)
 	if st.privateAuras and UFHelper and UFHelper.ApplyPrivateAuras then
 		local pcfg = cfg.privateAuras or (def and def.privateAuras)
-		local inEditMode = addon.EditModeLib and addon.EditModeLib.IsInEditMode and addon.EditModeLib:IsInEditMode()
-		UFHelper.ApplyPrivateAuras(st.privateAuras, unit, pcfg, st.frame, st.statusTextLayer or st.frame, inEditMode == true, true)
+		UFHelper.ApplyPrivateAuras(st.privateAuras, unit, pcfg, st.frame, st.statusTextLayer or st.frame, UF.IsEditModeSampleEnabled and UF.IsEditModeSampleEnabled(unit), true)
 	end
 	if unit == UNIT.PLAYER then
 		updateCombatIndicator(cfg)
@@ -9304,7 +9440,14 @@ applyBossEditSample = function(idx, cfg)
 		st.levelText:SetText(sampleLevelText ~= "" and sampleLevelText or "??")
 		st.levelText:Show()
 	end
-	if st.castBar and cdef.enabled ~= false then UF.SetSampleCast(unit) end
+	if st.castBar then
+		if cdef.enabled ~= false and UF.ShouldShowSampleCast(unit) then
+			UF.SetSampleCast(unit)
+		else
+			stopCast(unit)
+			st.castBar:Hide()
+		end
+	end
 end
 
 function UF._setBossFrameInactive(unit)
@@ -10721,7 +10864,7 @@ onEvent = function(self, event, unit, ...)
 				local function applyPrivate()
 					if not states[unitToken] or states[unitToken] ~= st then return end
 					if not UnitExists(unitToken) then return end
-					UFHelper.ApplyPrivateAuras(st.privateAuras, unitToken, pcfg, st.frame, st.statusTextLayer or st.frame, addon.EditModeLib and addon.EditModeLib:IsInEditMode(), true)
+					UFHelper.ApplyPrivateAuras(st.privateAuras, unitToken, pcfg, st.frame, st.statusTextLayer or st.frame, UF.IsEditModeSampleEnabled and UF.IsEditModeSampleEnabled(unitToken), true)
 				end
 				if After then
 					After(0, applyPrivate)
@@ -10755,7 +10898,7 @@ onEvent = function(self, event, unit, ...)
 	elseif event == "UNIT_AURA" and (unit == "target" or unit == UNIT.PLAYER or unit == UNIT.FOCUS or isBossUnit(unit)) then
 		local cfg = getCfg(unit)
 		if not cfg or cfg.enabled == false then return end
-		local allowSample = addon.EditModeLib and addon.EditModeLib:IsInEditMode()
+		local allowSample = UF.IsEditModeSampleEnabled and UF.IsEditModeSampleEnabled(unit)
 		local def = defaultsFor(unit)
 		if unit == UNIT.PLAYER then
 			local secondaryCfg = cfg.secondaryPower or {}

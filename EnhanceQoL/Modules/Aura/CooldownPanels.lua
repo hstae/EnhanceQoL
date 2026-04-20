@@ -821,30 +821,44 @@ for index, strata in ipairs(Helper.STRATA_ORDER or {}) do
 	if type(strata) == "string" and strata ~= "" then STRATA_INDEX[strata] = index end
 end
 
+local function getLayoutEditPanelHandleStrata(strata)
+	local targetStrata = Helper.NormalizeStrata(strata, Helper.PANEL_LAYOUT_DEFAULTS.strata)
+	local overlayStrata = Helper.NormalizeStrata("TOOLTIP", targetStrata)
+	local targetIndex = STRATA_INDEX[targetStrata] or 0
+	local overlayIndex = STRATA_INDEX[overlayStrata] or targetIndex
+	if overlayIndex > targetIndex then return overlayStrata end
+	return targetStrata
+end
+
 local function syncEditModeSelectionStrata(frame)
 	if not (frame and frame.GetFrameStrata) then return end
 	local selection = frame.Selection
-	if not (selection and selection.SetFrameStrata) then return end
-	if not frame._eqolSelectionBaseStrata then
+	local supportsSelectionStrata = selection and selection.SetFrameStrata
+	if supportsSelectionStrata and not frame._eqolSelectionBaseStrata then
 		local baseStrata = Helper.NormalizeStrata((selection.GetFrameStrata and selection:GetFrameStrata()) or "MEDIUM", "MEDIUM")
 		frame._eqolSelectionBaseStrata = baseStrata
 		frame._eqolSelectionBaseStrataIndex = STRATA_INDEX[baseStrata] or STRATA_INDEX.MEDIUM or 3
 	end
-	local baseStrata = frame._eqolSelectionBaseStrata or "MEDIUM"
-	local baseIndex = frame._eqolSelectionBaseStrataIndex or STRATA_INDEX[baseStrata] or STRATA_INDEX.MEDIUM or 3
+	local baseStrata = frame._eqolSelectionBaseStrata
+	local baseIndex = frame._eqolSelectionBaseStrataIndex
+	if not (baseStrata and baseIndex) then
+		baseStrata = Helper.NormalizeStrata(frame:GetFrameStrata(), Helper.PANEL_LAYOUT_DEFAULTS.strata)
+		baseIndex = STRATA_INDEX[baseStrata] or STRATA_INDEX.MEDIUM or 3
+	end
 	local currentStrata = Helper.NormalizeStrata(frame:GetFrameStrata(), baseStrata)
 	local currentIndex = STRATA_INDEX[currentStrata]
 	local targetStrata = (currentIndex and currentIndex > baseIndex) and currentStrata or baseStrata
-	if selection.GetFrameStrata and selection:GetFrameStrata() ~= targetStrata then selection:SetFrameStrata(targetStrata) end
-	if frame.editMoveHandle then
+	local anchorLevel = (selection and selection.GetFrameLevel and selection:GetFrameLevel()) or frame:GetFrameLevel()
+	if supportsSelectionStrata and selection.GetFrameStrata and selection:GetFrameStrata() ~= targetStrata then selection:SetFrameStrata(targetStrata) end
+	if supportsSelectionStrata and frame.editMoveHandle then
 		frame.editMoveHandle:SetFrameStrata(targetStrata)
-		frame.editMoveHandle:SetFrameLevel((selection.GetFrameLevel and selection:GetFrameLevel() or frame:GetFrameLevel()) + 20)
+		frame.editMoveHandle:SetFrameLevel(anchorLevel + 20)
 	end
 	if frame.editPanelHandle then
-		frame.editPanelHandle:SetFrameStrata(targetStrata)
-		frame.editPanelHandle:SetFrameLevel((selection.GetFrameLevel and selection:GetFrameLevel() or frame:GetFrameLevel()) + 21)
+		frame.editPanelHandle:SetFrameStrata(getLayoutEditPanelHandleStrata(targetStrata))
+		frame.editPanelHandle:SetFrameLevel(anchorLevel + 21)
 	end
-	if frame.editDropZone then
+	if supportsSelectionStrata and frame.editDropZone then
 		frame.editDropZone:SetFrameStrata(frame:GetFrameStrata())
 		frame.editDropZone:SetFrameLevel(frame:GetFrameLevel())
 	end
@@ -1197,6 +1211,14 @@ local function clearRuntimeLayoutShapeCache(runtime)
 	runtime._eqolLayoutIconBorderColorA = nil
 end
 
+function CooldownPanels:InvalidateAllPanelLayoutShapeCaches()
+	local runtime = self.runtime
+	if not runtime then return end
+	for panelId, panelRuntime in pairs(runtime) do
+		if type(panelId) == "number" and type(panelRuntime) == "table" then clearRuntimeLayoutShapeCache(panelRuntime) end
+	end
+end
+
 CooldownPanels.ClearRuntimeResolvedLayoutCache = function(runtime)
 	if not runtime then return end
 	runtime._eqolResolvedRuntimeLayout = nil
@@ -1462,14 +1484,31 @@ end
 
 local function anchorUsesUIParent(anchor) return not anchor or (anchor.relativeFrame or "UIParent") == "UIParent" end
 
+local function isMappedUnitFrameEnabled(ufKey)
+	if type(ufKey) ~= "string" or ufKey == "" then return false end
+	local ufCfg = addon.db and addon.db.ufFrames
+	local ufEntry = ufCfg and ufCfg[ufKey]
+	if ufEntry and ufEntry.enabled == true then return true end
+	local groupCfg = addon.db and addon.db.ufGroupFrames
+	local groupEntry = groupCfg and groupCfg[ufKey]
+	return groupEntry and groupEntry.enabled == true
+end
+
+local function maybeEnsureGroupAnchorFrame(ufKey)
+	if ufKey ~= "party" and ufKey ~= "raid" and ufKey ~= "mt" and ufKey ~= "ma" then return end
+	if InCombatLockdown and InCombatLockdown() then return end
+	local groupFrames = addon.Aura and addon.Aura.UF and addon.Aura.UF.GroupFrames
+	if groupFrames and groupFrames.EnsureHeaders then groupFrames:EnsureHeaders() end
+end
+
 local function resolveAnchorFrame(anchor)
 	local relativeName = Helper.NormalizeRelativeFrameName(anchor and anchor.relativeFrame)
 	if relativeName == "UIParent" then return UIParent end
 	if relativeName == cdp.FAKE_CURSOR.FRAME_NAME then return ensureFakeCursorFrame() end
 	local generic = Helper.GENERIC_ANCHORS[relativeName]
 	if generic then
-		local ufCfg = addon.db and addon.db.ufFrames
-		if ufCfg and generic.ufKey and ufCfg[generic.ufKey] and ufCfg[generic.ufKey].enabled then
+		if generic.ufKey and isMappedUnitFrameEnabled(generic.ufKey) then
+			maybeEnsureGroupAnchorFrame(generic.ufKey)
 			local ufFrame = _G[generic.uf]
 			if ufFrame then return ufFrame end
 		end
@@ -16469,6 +16508,10 @@ function CooldownPanels:ApplyPanelPosition(panelId)
 	runtime._eqolAnchorY = y
 	frame:ClearAllPoints()
 	frame:SetPoint(point, relativeFrame, relativePoint, x, y)
+
+	local mythicPlus = addon and addon.MythicPlus
+	local reapplyTrackerAnchorsForTarget = mythicPlus and mythicPlus.functions and mythicPlus.functions.ReapplyTrackerAnchorsForTarget
+	if reapplyTrackerAnchorsForTarget and frame.GetName then reapplyTrackerAnchorsForTarget(frame:GetName()) end
 end
 
 function CooldownPanels:HandlePositionChanged(panelId, data)

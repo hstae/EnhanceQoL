@@ -6528,6 +6528,7 @@ local function setAllHooks()
 		if mediaType ~= "statusbar" and mediaType ~= "border" then return end
 		local panels = addon.Aura and addon.Aura.CooldownPanels
 		if not (panels and panels.RefreshAllPanels) then return end
+		if mediaType == "border" and panels.InvalidateAllPanelLayoutShapeCaches then panels:InvalidateAllPanelLayoutShapeCaches() end
 		panels:RefreshAllPanels()
 		if panels.IsEditorOpen and panels:IsEditorOpen() and panels.RefreshEditor then panels:RefreshEditor() end
 	end
