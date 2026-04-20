@@ -1,4 +1,4 @@
--- luacheck: globals MinimapCluster C_DelvesUI Minimap
+-- luacheck: globals MinimapCluster C_DelvesUI C_Timer Minimap
 local parentAddonName = "EnhanceQoL"
 local addonName, addon = ...
 if _G[parentAddonName] then
@@ -62,6 +62,15 @@ function InstanceDifficulty:ApplyTextStyle()
 	if ok == false then self.text:SetFont((addon.variables and addon.variables.defaultFont) or STANDARD_TEXT_FONT, fontSize, "OUTLINE") end
 end
 
+function InstanceDifficulty:DeferredUpdate()
+	if self.deferredUpdate then return end
+	self.deferredUpdate = true
+	C_Timer.After(0.25, function()
+		self.deferredUpdate = nil
+		self:Update()
+	end)
+end
+
 local nmNames = {
 	[RAID_DIFFICULTY1] = true,
 	[RAID_DIFFICULTY2] = true,
@@ -123,7 +132,7 @@ function InstanceDifficulty:Update()
 		return
 	end
 
-	local _, _, difficultyID, difficultyName, _, _, _, _, maxPlayers = GetInstanceInfo()
+	local _, _, difficultyID, difficultyName, _, _, _, _, instanceGroupSize = GetInstanceInfo()
 	local short = getShortLabel(difficultyID, difficultyName)
 	-- Stable code for color mapping
 	local code
@@ -142,8 +151,8 @@ function InstanceDifficulty:Update()
 	end
 
 	local text
-	if maxPlayers and maxPlayers > 0 then
-		text = string.format("%d (%s)", maxPlayers, short)
+	if instanceGroupSize and instanceGroupSize > 0 then
+		text = string.format("%d (%s)", instanceGroupSize, short)
 	else
 		text = short
 	end
@@ -196,6 +205,9 @@ function InstanceDifficulty:SetEnabled(value)
 		self.frame:RegisterEvent("PLAYER_ENTERING_WORLD")
 		self.frame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
 		self.frame:RegisterEvent("PLAYER_DIFFICULTY_CHANGED")
+		self.frame:RegisterEvent("GROUP_ROSTER_UPDATE")
+		self.frame:RegisterEvent("INSTANCE_GROUP_SIZE_CHANGED")
+		self.frame:RegisterEvent("UPDATE_INSTANCE_INFO")
 		self.frame:RegisterEvent("CHALLENGE_MODE_START")
 		self.frame:RegisterEvent("ACTIVE_DELVE_DATA_UPDATE")
 		self:Update()
@@ -203,6 +215,9 @@ function InstanceDifficulty:SetEnabled(value)
 		self.frame:UnregisterEvent("PLAYER_ENTERING_WORLD")
 		self.frame:UnregisterEvent("ZONE_CHANGED_NEW_AREA")
 		self.frame:UnregisterEvent("PLAYER_DIFFICULTY_CHANGED")
+		self.frame:UnregisterEvent("GROUP_ROSTER_UPDATE")
+		self.frame:UnregisterEvent("INSTANCE_GROUP_SIZE_CHANGED")
+		self.frame:UnregisterEvent("UPDATE_INSTANCE_INFO")
 		self.frame:UnregisterEvent("CHALLENGE_MODE_START")
 		self.frame:UnregisterEvent("ACTIVE_DELVE_DATA_UPDATE")
 		if self.text then self.text:Hide() end
@@ -224,4 +239,6 @@ function InstanceDifficulty:SetEnabled(value)
 	end
 end
 
-InstanceDifficulty.frame:SetScript("OnEvent", function(e) InstanceDifficulty:Update() end)
+InstanceDifficulty.frame:SetScript("OnEvent", function()
+	InstanceDifficulty:DeferredUpdate()
+end)

@@ -7729,7 +7729,8 @@ local function updateStatus(cfg, unit)
 	local showName = scfg.enabled ~= false
 	local showLevel = shouldShowLevel(scfg, unit)
 	local showUnitStatus = usCfg.enabled == true
-	local showStatus = showName or showLevel or showUnitStatus or (unit == UNIT.PLAYER and ciCfg.enabled ~= false)
+	local showCombatIndicator = (unit == UNIT.PLAYER or unit == UNIT.TARGET) and ciCfg.enabled ~= false
+	local showStatus = showName or showLevel or showUnitStatus or showCombatIndicator
 	local statusHeight = UF.ResolveStatusHeight(cfg, def, showStatus)
 	if statusHeight <= 0 then statusHeight = 0.001 end
 	st.status:SetHeight(statusHeight)
@@ -7779,11 +7780,15 @@ local function updateStatus(cfg, unit)
 	updateUnitStatusIndicator(cfg, unit)
 end
 
-local function updateCombatIndicator(cfg)
-	local st = states[UNIT.PLAYER]
+local function updateCombatIndicator(cfg, unit)
+	unit = unit or UNIT.PLAYER
+	if unit ~= UNIT.PLAYER and unit ~= UNIT.TARGET then return end
+	local st = states[unit]
 	if not st or not st.combatIcon or not st.status then return end
-	local scfg = (cfg and cfg.status) or (defaultsFor(UNIT.PLAYER) and defaultsFor(UNIT.PLAYER).status) or {}
-	local ccfg = scfg.combatIndicator or {}
+	local def = defaultsFor(unit)
+	local defStatus = (def and def.status) or {}
+	local scfg = (cfg and cfg.status) or defStatus
+	local ccfg = scfg.combatIndicator or defStatus.combatIndicator or {}
 	if ccfg.enabled == false then
 		st.combatIcon:Hide()
 		return
@@ -7792,7 +7797,8 @@ local function updateCombatIndicator(cfg)
 	st.combatIcon:SetSize(ccfg.size or 18, ccfg.size or 18)
 	st.combatIcon:ClearAllPoints()
 	st.combatIcon:SetPoint("TOP", st.status, "TOP", (ccfg.offset and ccfg.offset.x) or -8, (ccfg.offset and ccfg.offset.y) or 0)
-	if (UnitAffectingCombat and UnitAffectingCombat(UNIT.PLAYER)) or addon.EditModeLib:IsInEditMode() then
+	local inEditMode = addon.EditModeLib and addon.EditModeLib.IsInEditMode and addon.EditModeLib:IsInEditMode()
+	if inEditMode or (UnitExists and UnitExists(unit) and UnitAffectingCombat and UnitAffectingCombat(unit)) then
 		st.combatIcon:Show()
 	else
 		st.combatIcon:Hide()
@@ -7988,7 +7994,8 @@ local function layoutFrame(cfg, unit)
 	local showName = scfg.enabled ~= false
 	local showLevel = shouldShowLevel(scfg, unit)
 	local showUnitStatus = usCfg.enabled == true
-	local showStatus = showName or showLevel or showUnitStatus or (unit == UNIT.PLAYER and ciCfg.enabled ~= false)
+	local showCombatIndicator = (unit == UNIT.PLAYER or unit == UNIT.TARGET) and ciCfg.enabled ~= false
+	local showStatus = showName or showLevel or showUnitStatus or showCombatIndicator
 	local pcfg = cfg.power or {}
 	local powerDef = def.power or {}
 	local secondaryCfg = cfg.secondaryPower or {}
@@ -8634,8 +8641,11 @@ local function ensureFrames(unit)
 		st.classificationIcon:SetSize(16, 16)
 		st.classificationIcon:Hide()
 	end
+	if unit == UNIT.PLAYER or unit == UNIT.TARGET then
+		st.combatIcon = st.combatIcon or st.statusTextLayer:CreateTexture(nil, "OVERLAY")
+		if st.combatIcon.GetParent and st.combatIcon:GetParent() ~= st.statusTextLayer then st.combatIcon:SetParent(st.statusTextLayer) end
+	end
 	if unit == UNIT.PLAYER then
-		st.combatIcon = st.statusTextLayer:CreateTexture("EQOLUFPlayerCombatIcon", "OVERLAY")
 		ensureRestLoop(st)
 	end
 
@@ -9105,8 +9115,10 @@ local function applyConfig(unit)
 		local pcfg = cfg.privateAuras or (def and def.privateAuras)
 		UFHelper.ApplyPrivateAuras(st.privateAuras, unit, pcfg, st.frame, st.statusTextLayer or st.frame, UF.IsEditModeSampleEnabled and UF.IsEditModeSampleEnabled(unit), true)
 	end
+	if unit == UNIT.PLAYER or unit == UNIT.TARGET then
+		updateCombatIndicator(cfg, unit)
+	end
 	if unit == UNIT.PLAYER then
-		updateCombatIndicator(cfg)
 		updateRestingIndicator(cfg)
 	end
 	-- if unit == "target" then hideBlizzardTargetFrame() end
@@ -10751,7 +10763,7 @@ onEvent = function(self, event, unit, ...)
 		updateTargetTargetFrame(totCfg, true)
 		if focusCfg.enabled then updateFocusFrame(focusCfg, true) end
 		if petCfg.enabled then applyConfig(UNIT.PET) end
-		updateCombatIndicator(playerCfg)
+		updateCombatIndicator(playerCfg, UNIT.PLAYER)
 		updateRestingIndicator(playerCfg)
 		updateUnitStatusIndicator(playerCfg, UNIT.PLAYER)
 		updateUnitStatusIndicator(targetCfg, UNIT.TARGET)
@@ -10779,7 +10791,7 @@ onEvent = function(self, event, unit, ...)
 		refreshMainPower(UNIT.PLAYER)
 		updateHealth(playerCfg, UNIT.PLAYER)
 		updatePower(playerCfg, UNIT.PLAYER)
-		updateCombatIndicator(playerCfg)
+		updateCombatIndicator(playerCfg, UNIT.PLAYER)
 		updateRestingIndicator(playerCfg)
 		updateUnitStatusIndicator(playerCfg, UNIT.PLAYER)
 		applyVisibilityRulesAll()
@@ -10797,7 +10809,7 @@ onEvent = function(self, event, unit, ...)
 		applyVisibilityRulesAll()
 	elseif event == "PLAYER_REGEN_DISABLED" or event == "PLAYER_REGEN_ENABLED" then
 		local playerCfg = getCfg(UNIT.PLAYER)
-		updateCombatIndicator(playerCfg)
+		updateCombatIndicator(playerCfg, UNIT.PLAYER)
 		if UFHelper and UFHelper.updateAllHighlights then UFHelper.updateAllHighlights(states, UNIT, UF.GetBossFrameCount()) end
 		if event == "PLAYER_REGEN_ENABLED" then
 			if bossLayoutDirty then layoutBossFrames() end
@@ -10890,6 +10902,7 @@ onEvent = function(self, event, unit, ...)
 		if totCfg.enabled then updateTargetTargetFrame(totCfg) end
 		if focusCfg.enabled then updateFocusFrame(focusCfg) end
 		updateUnitStatusIndicator(targetCfg, UNIT.TARGET)
+		updateCombatIndicator(targetCfg, UNIT.TARGET)
 		UFHelper.updateLeaderIndicator(states[UNIT.TARGET], UNIT.TARGET, targetCfg, defaultsFor(UNIT.TARGET), true)
 		UFHelper.updatePvPIndicator(states[UNIT.TARGET], UNIT.TARGET, targetCfg, defaultsFor(UNIT.TARGET), true)
 		UFHelper.updateRoleIndicator(states[UNIT.TARGET], UNIT.TARGET, targetCfg, defaultsFor(UNIT.TARGET), true)
@@ -11170,6 +11183,7 @@ onEvent = function(self, event, unit, ...)
 		if unit and states[unit] then UFHelper.updateClassificationIndicator(states[unit], unit, getCfg(unit), defaultsFor(unit), true) end
 	elseif event == "UNIT_FLAGS" then
 		updateUnitStatusIndicator(getCfg(unit), unit)
+		if unit == UNIT.PLAYER or unit == UNIT.TARGET then updateCombatIndicator(getCfg(unit), unit) end
 		UFHelper.updateLeaderIndicator(states[unit], unit, getCfg(unit), defaultsFor(unit), true)
 		UFHelper.updatePvPIndicator(states[unit], unit, getCfg(unit), defaultsFor(unit), true)
 		if states[unit] then states[unit]._healthColorDirty = true end
@@ -11364,7 +11378,8 @@ local function ensureEventHandling()
 			editModeHooked = true
 
 			addon.EditModeLib:RegisterCallback("enter", function()
-				updateCombatIndicator(states[UNIT.PLAYER] and states[UNIT.PLAYER].cfg or ensureDB(UNIT.PLAYER))
+				updateCombatIndicator(states[UNIT.PLAYER] and states[UNIT.PLAYER].cfg or ensureDB(UNIT.PLAYER), UNIT.PLAYER)
+				updateCombatIndicator(states[UNIT.TARGET] and states[UNIT.TARGET].cfg or ensureDB(UNIT.TARGET), UNIT.TARGET)
 				ensureBossFramesReady(ensureDB("boss"))
 				updateBossFrames(true)
 				updateAllRaidTargetIcons()
@@ -11380,7 +11395,8 @@ local function ensureEventHandling()
 			end)
 
 			addon.EditModeLib:RegisterCallback("exit", function()
-				updateCombatIndicator(states[UNIT.PLAYER] and states[UNIT.PLAYER].cfg or ensureDB(UNIT.PLAYER))
+				updateCombatIndicator(states[UNIT.PLAYER] and states[UNIT.PLAYER].cfg or ensureDB(UNIT.PLAYER), UNIT.PLAYER)
+				updateCombatIndicator(states[UNIT.TARGET] and states[UNIT.TARGET].cfg or ensureDB(UNIT.TARGET), UNIT.TARGET)
 				hideBossFrames(true)
 				if ensureDB("boss").enabled then updateBossFrames(true) end
 				updateAllRaidTargetIcons()

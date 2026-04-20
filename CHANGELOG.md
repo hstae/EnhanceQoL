@@ -1,5 +1,16 @@
 # Changelog
 
+## [10.3.3] - 2026-04-20
+
+### 🐛 Fixed
+
+- Cooldown Panels / CDM Auras: Fixed Blizzard Cooldown Manager aura icons not always resyncing immediately after cooldown viewer frame reassignments, which could make tracked panel icons disappear until a later refresh event.
+- Unit Frames / Target: Fixed the combat icon missing on the target frame.
+- Mythic Plus / Teleport Compendium: Fixed the World Map Teleport Compendium tab sometimes disappearing after finishing a dungeon or raid until the UI was reloaded.
+- Minimap / Instance Difficulty: Fixed the instance difficulty indicator not always updating its displayed group size after raid members left a flex instance.
+
+---
+
 ## [10.3.2] - 2026-04-20
 
 ### 🐛 Fixed
