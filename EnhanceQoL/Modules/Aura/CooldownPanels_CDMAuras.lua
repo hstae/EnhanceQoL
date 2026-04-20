@@ -1839,7 +1839,7 @@ function CDMAuras:BuildRuntimeData(panelId, entryId, entry, entryLayout, alwaysS
 	if not next(availableSources) then availableSources[normalizeSourceType(entry.sourceType)] = true end
 
 	local preferredSource = normalizeSourceType(entry.sourceType)
-	local chosenFrame, chosenSource, preferredFrame, fallbackFrame = selectScanInfoFrame(scanInfo, preferredSource, resolvedCooldownID)
+	local chosenFrame, chosenSource, _, fallbackFrame = selectScanInfoFrame(scanInfo, preferredSource, resolvedCooldownID)
 	local trackedUnit = getEntryTrackedUnit(scanInfo, state, chosenFrame or fallbackFrame, resolvedCooldownID or entry.cooldownID, preferredSource)
 
 	if state.lastActive == true and chosenFrame then
@@ -1867,7 +1867,8 @@ function CDMAuras:BuildRuntimeData(panelId, entryId, entry, entryLayout, alwaysS
 				state.cachedScanInfo = nil
 				state.cachedResolvedCooldownID = nil
 			end
-			chosenFrame, chosenSource, preferredFrame, fallbackFrame = selectScanInfoFrame(scanInfo, preferredSource, resolvedCooldownID)
+			local reacquiredChosenFrame, reacquiredChosenSource, _, reacquiredFallbackFrame = selectScanInfoFrame(scanInfo, preferredSource, resolvedCooldownID)
+			chosenFrame, chosenSource, fallbackFrame = reacquiredChosenFrame, reacquiredChosenSource, reacquiredFallbackFrame
 			trackedUnit = getEntryTrackedUnit(scanInfo, state, chosenFrame or fallbackFrame, resolvedCooldownID or entry.cooldownID, preferredSource)
 			if runtimePass then state.frameReacquirePass = runtimePass end
 		end
@@ -2060,8 +2061,9 @@ end
 function CDMAuras:EnsureCooldownViewerHooks()
 	local runtime = getRuntime()
 	local installed = false
-	if CooldownViewerItemDataMixin and CooldownViewerItemDataMixin.SetCooldownID and not runtime.cooldownViewerSetHookInstalled then
-		hooksecurefunc(CooldownViewerItemDataMixin, "SetCooldownID", function(itemFrame, cooldownID)
+	local cooldownViewerItemDataMixin = _G.CooldownViewerItemDataMixin
+	if cooldownViewerItemDataMixin and cooldownViewerItemDataMixin.SetCooldownID and not runtime.cooldownViewerSetHookInstalled then
+		hooksecurefunc(cooldownViewerItemDataMixin, "SetCooldownID", function(itemFrame, cooldownID)
 			local previousCooldownID = itemFrame and itemFrame._eqolLastTrackedCooldownID or nil
 			itemFrame._eqolLastTrackedCooldownID = cooldownID
 			if not self:HasActiveTrackedPanels() then return end
@@ -2071,8 +2073,8 @@ function CDMAuras:EnsureCooldownViewerHooks()
 		runtime.cooldownViewerSetHookInstalled = true
 		installed = true
 	end
-	if CooldownViewerItemDataMixin and CooldownViewerItemDataMixin.ClearCooldownID and not runtime.cooldownViewerClearHookInstalled then
-		hooksecurefunc(CooldownViewerItemDataMixin, "ClearCooldownID", function(itemFrame)
+	if cooldownViewerItemDataMixin and cooldownViewerItemDataMixin.ClearCooldownID and not runtime.cooldownViewerClearHookInstalled then
+		hooksecurefunc(cooldownViewerItemDataMixin, "ClearCooldownID", function(itemFrame)
 			local previousCooldownID = itemFrame and itemFrame._eqolLastTrackedCooldownID or itemFrame and itemFrame.cooldownID or nil
 			if itemFrame then itemFrame._eqolLastTrackedCooldownID = nil end
 			if not self:HasActiveTrackedPanels() then return end
