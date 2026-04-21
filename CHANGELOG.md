@@ -10,6 +10,7 @@
 
 - Unit Frames / Boss Frames: Fixed the Edit Mode preview so boss resource bars and cast bars show reliably again, including after a reload.
 - Unit Frames: Fixed frame highlights sometimes no longer being visible after dungeon or raid transitions.
+- Cooldown Panels / Bars: Fixed separated stack bars so separated offset creates real bordered segments, matching Resource Bars segment rendering.
 
 ---
 

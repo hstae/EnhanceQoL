@@ -106,6 +106,7 @@ Bars.DEFAULTS = Bars.DEFAULTS
 		barChargesSegmented = false,
 		barChargesGap = 2,
 		barStacksSegmented = false,
+		barStackSeparatedOffset = 0,
 		barStackDividerColor = { 0.10, 0.10, 0.10, 0.95 },
 		barStackDividerThickness = 1,
 		barStackMax = 10,
@@ -481,6 +482,7 @@ Bars.ApplyNewBarStyleDefaults = function(entry)
 	if entry.barStacksSegmented == nil then entry.barStacksSegmented = Bars.DEFAULTS.barStacksSegmented end
 	if entry.barStackDividerColor == nil then entry.barStackDividerColor = Bars.DEFAULTS.barStackDividerColor end
 	if entry.barStackDividerThickness == nil then entry.barStackDividerThickness = Bars.DEFAULTS.barStackDividerThickness end
+	if entry.barStackSeparatedOffset == nil then entry.barStackSeparatedOffset = Bars.DEFAULTS.barStackSeparatedOffset end
 	if entry.barStackMax == nil then entry.barStackMax = Bars.DEFAULTS.barStackMax end
 	if entry.barStackAnchor == nil then entry.barStackAnchor = Bars.DEFAULTS.barStackAnchor end
 	if entry.barStackOffsetX == nil then entry.barStackOffsetX = Bars.DEFAULTS.barStackOffsetX end
@@ -736,6 +738,7 @@ normalizeBarEntry = function(entry)
 	entry.barChargesSegmented = getStoredBoolean(entry, "barChargesSegmented", Bars.DEFAULTS.barChargesSegmented)
 	entry.barChargesGap = normalizeBarChargesGap(entry.barChargesGap, Bars.DEFAULTS.barChargesGap)
 	entry.barStacksSegmented = getStoredBoolean(entry, "barStacksSegmented", Bars.DEFAULTS.barStacksSegmented)
+	entry.barStackSeparatedOffset = normalizeBarChargesGap(entry.barStackSeparatedOffset, Bars.DEFAULTS.barStackSeparatedOffset)
 	entry.barStackDividerColor = Helper.NormalizeColor(entry.barStackDividerColor, Bars.DEFAULTS.barStackDividerColor)
 	entry.barStackDividerThickness = normalizeBarStackDividerThickness(entry.barStackDividerThickness, Bars.DEFAULTS.barStackDividerThickness)
 	entry.barStackMax = Bars.NormalizeBarStackMax(entry.barStackMax, Bars.DEFAULTS.barStackMax)
@@ -2440,6 +2443,7 @@ buildBarState = function(panelId, entryId, entry, icon, preview, runtimeDataOver
 		segmentedCharges = mode == Bars.BAR_MODE.CHARGES and getStoredBoolean(entry, "barChargesSegmented", Bars.DEFAULTS.barChargesSegmented),
 		chargesGap = normalizeBarChargesGap(entry.barChargesGap, Bars.DEFAULTS.barChargesGap),
 		segmentedStacks = mode == Bars.BAR_MODE.STACKS and getStoredBoolean(entry, "barStacksSegmented", Bars.DEFAULTS.barStacksSegmented),
+		stackSeparatedOffset = normalizeBarChargesGap(entry.barStackSeparatedOffset, Bars.DEFAULTS.barStackSeparatedOffset),
 		stackDividerColor = Helper.NormalizeColor(entry.barStackDividerColor, Bars.DEFAULTS.barStackDividerColor),
 		stackDividerThickness = normalizeBarStackDividerThickness(entry.barStackDividerThickness, Bars.DEFAULTS.barStackDividerThickness),
 		stackMax = Bars.NormalizeBarStackMax(entry.barStackMax, Bars.DEFAULTS.barStackMax),
@@ -2831,6 +2835,141 @@ local function layoutChargeSegmentsIntoBar(
 	end
 end
 
+Bars.LayoutStackSegmentsIntoBar = function(
+	barFrame,
+	icon,
+	state,
+	segmentCount,
+	gap,
+	segmentDirection,
+	bodyWidth,
+	bodyHeight,
+	borderTexturePath,
+	borderSize,
+	borderOffset,
+	borderColor,
+	backgroundColor,
+	fillTexturePath,
+	fillColor,
+	orientation,
+	effectiveScale
+)
+	segmentCount = Bars.NormalizeBarStackMax(segmentCount, Bars.DEFAULTS.barStackMax)
+	gap = normalizeBarChargesGap(gap, Bars.DEFAULTS.barStackSeparatedOffset)
+	local segmentAxisSize = segmentDirection == BAR_ORIENTATION_VERTICAL and bodyHeight or bodyWidth
+	if segmentCount < 2 then
+		gap = 0
+	else
+		local maxGap = max(0, floor((segmentAxisSize - segmentCount) / (segmentCount - 1)))
+		if gap > maxGap then gap = maxGap end
+	end
+	local totalGapSize = max(segmentCount - 1, 0) * gap
+	local segmentPrimarySize = max(1, floor((segmentAxisSize - totalGapSize) / segmentCount))
+	local remainingPixels = max(0, segmentAxisSize - ((segmentPrimarySize * segmentCount) + totalGapSize))
+	Bars.HideForwardHitHandle(barFrame.hitHandle)
+	barFrame.fill:Hide()
+	barFrame.fillBg:Hide()
+	if barFrame.borderOverlay then barFrame.borderOverlay:Hide() end
+
+	local stackValue = state and state.stackFillValue
+	if not isSecretValue(stackValue) then
+		stackValue = safeNumber(stackValue)
+		if stackValue == nil then stackValue = (safeNumber(state and state.progress) or 0) * segmentCount end
+	end
+
+	for index = 1, segmentCount do
+		local segment = ensureBarSegment(barFrame, index)
+		local extraPixel = index <= remainingPixels and 1 or 0
+		local primarySize = segmentPrimarySize + extraPixel
+		local primaryOffset = (index - 1) * (segmentPrimarySize + gap) + min(index - 1, remainingPixels)
+		segment:ClearAllPoints()
+		if segmentDirection == BAR_ORIENTATION_VERTICAL then
+			segment:SetPoint("TOPLEFT", barFrame.body, "TOPLEFT", 0, -primaryOffset)
+			segment:SetSize(bodyWidth, primarySize)
+		else
+			segment:SetPoint("TOPLEFT", barFrame.body, "TOPLEFT", primaryOffset, 0)
+			segment:SetSize(primarySize, bodyHeight)
+		end
+		segment:SetFrameStrata(barFrame:GetFrameStrata())
+		segment:SetFrameLevel((barFrame.body and barFrame.body:GetFrameLevel() or barFrame:GetFrameLevel()) + 1)
+		applyBackdropFrame(segment, borderTexturePath, borderSize)
+		segment:SetBackdropColor(0, 0, 0, 0)
+		segment:SetBackdropBorderColor(0, 0, 0, 0)
+		applyStatusBarTexture(segment.fill, fillTexturePath)
+		applyStatusBarOrientation(segment.fill, orientation)
+		segment.fill:SetFrameLevel(segment:GetFrameLevel() + 1)
+		segment.fill:ClearAllPoints()
+		segment.fill:SetPoint("TOPLEFT", segment, "TOPLEFT", 0, 0)
+		segment.fill:SetPoint("BOTTOMRIGHT", segment, "BOTTOMRIGHT", 0, 0)
+		segment.fillBg:SetTexture(fillTexturePath)
+		segment.fillBg:SetVertexColor(backgroundColor[1], backgroundColor[2], backgroundColor[3], backgroundColor[4])
+		segment.fillBg:Show()
+		segment.fill:SetStatusBarColor(fillColor[1], fillColor[2], fillColor[3], fillColor[4])
+		segment.fill:SetMinMaxValues(index - 1, index, cdp.BAR_STATUS_INTERPOLATION_IMMEDIATE)
+		segment.fill:SetValue(stackValue or 0, cdp.BAR_STATUS_INTERPOLATION_IMMEDIATE)
+		if segment.fill.SetToTargetValue then segment.fill:SetToTargetValue() end
+		segment.fill._eqolTimerDurationObject = nil
+		segment.fill._eqolTimerDurationKey = nil
+		segment.fill._eqolTimerDirection = nil
+		segment.fill:Show()
+		local fillTexture = segment.fill.GetStatusBarTexture and segment.fill:GetStatusBarTexture() or nil
+		if fillTexture and fillTexture.SetAlpha then fillTexture:SetAlpha(1) end
+		if segment.borderOverlay then
+			segment.borderOverlay:SetFrameStrata(barFrame:GetFrameStrata())
+			segment.borderOverlay:SetFrameLevel(segment:GetFrameLevel() + 2)
+			if borderSize > 0 then
+				segment.borderOverlay:ClearAllPoints()
+				segment.borderOverlay:SetPoint("TOPLEFT", segment, "TOPLEFT", -borderOffset, borderOffset)
+				segment.borderOverlay:SetPoint("BOTTOMRIGHT", segment, "BOTTOMRIGHT", borderOffset, -borderOffset)
+				applyBackdropFrame(segment.borderOverlay, borderTexturePath, borderSize)
+				segment.borderOverlay:SetBackdropColor(0, 0, 0, 0)
+				segment.borderOverlay:SetBackdropBorderColor(borderColor[1], borderColor[2], borderColor[3], borderColor[4] or 1)
+				segment.borderOverlay:Show()
+			else
+				segment.borderOverlay:Hide()
+			end
+		end
+		Bars.ConfigureForwardHitHandle(segment.hitHandle, segment, icon and icon.layoutHandle or nil)
+		Bars.ConfigureFreeMoveHandle(segment.hitHandle, barFrame, icon)
+		segment:Show()
+	end
+
+	local visibleDividerIndex = 1
+	if barFrame.dividerOverlay and gap > 0 and segmentCount > 1 then
+		local dividerColor = Helper.NormalizeColor(state and state.stackDividerColor, Bars.DEFAULTS.barStackDividerColor)
+		local dividerAlpha = min(1, max(dividerColor[4] or 1, 0))
+		local requestedThickness = normalizeBarStackDividerThickness(state and state.stackDividerThickness, Bars.DEFAULTS.barStackDividerThickness)
+		local dividerThicknessPixels = min(gap, max(pixelSnap(requestedThickness, effectiveScale), 1))
+		if dividerThicknessPixels > 0 then
+			local markOffset = floor((gap - dividerThicknessPixels) * 0.5)
+			for index = 1, segmentCount - 1 do
+				local segment = barFrame.segments and barFrame.segments[index] or nil
+				if segment then
+					local divider = Bars.EnsureBarDivider(barFrame, visibleDividerIndex)
+					divider:ClearAllPoints()
+					divider:SetColorTexture(dividerColor[1], dividerColor[2], dividerColor[3], dividerAlpha)
+					if segmentDirection == BAR_ORIENTATION_VERTICAL then
+						divider:SetPoint("TOPLEFT", segment, "BOTTOMLEFT", 0, -markOffset)
+						divider:SetPoint("TOPRIGHT", segment, "BOTTOMRIGHT", 0, -markOffset)
+						divider:SetHeight(dividerThicknessPixels)
+					else
+						divider:SetPoint("TOPLEFT", segment, "TOPRIGHT", markOffset, 0)
+						divider:SetPoint("BOTTOMLEFT", segment, "BOTTOMRIGHT", markOffset, 0)
+						divider:SetWidth(dividerThicknessPixels)
+					end
+					divider:Show()
+					visibleDividerIndex = visibleDividerIndex + 1
+				end
+			end
+		end
+	end
+	Bars.HideUnusedBarDividers(barFrame, visibleDividerIndex)
+	if visibleDividerIndex > 1 and barFrame.dividerOverlay then barFrame.dividerOverlay:Show() end
+
+	hideUnusedBarSegments(barFrame, segmentCount + 1)
+	barFrame._eqolSegmentCount = segmentCount
+end
+
 local function layoutBarTextElement(
 	barFrame,
 	orientation,
@@ -2907,11 +3046,14 @@ layoutBarFrame = function(barFrame, icon, span, layout, state)
 	local offsetY = pixelSnap(normalizeBarOffset(state and state.barOffsetY, Bars.DEFAULTS.barOffsetY), effectiveScale)
 	local orientation = normalizeBarOrientation(state and state.orientation, Bars.DEFAULTS.barOrientation)
 	local useChargeSegments = state.mode == Bars.BAR_MODE.CHARGES and state.segmentedCharges == true and safeNumber(state.maxCharges) == 2
-	local useStackDividers = state.mode == Bars.BAR_MODE.STACKS and state.segmentedStacks == true
+	local stackSeparatedOffset = normalizeBarChargesGap(state and state.stackSeparatedOffset, Bars.DEFAULTS.barStackSeparatedOffset)
+	local useStackSegments = state.mode == Bars.BAR_MODE.STACKS and state.segmentedStacks == true and stackSeparatedOffset > 0
+	local useStackDividers = state.mode == Bars.BAR_MODE.STACKS and state.segmentedStacks == true and not useStackSegments
 	local segmentCount = useChargeSegments and 2 or 0
 	local gap = useChargeSegments and normalizeBarChargesGap(state.chargesGap, Bars.DEFAULTS.barChargesGap) or 0
 	local segmentDirection = useChargeSegments and normalizeBarSegmentDirection(state.segmentDirection, Bars.DEFAULTS.barSegmentDirection) or BAR_ORIENTATION_HORIZONTAL
 	local segmentReverse = useChargeSegments and state.segmentReverse == true or false
+	local stackSegmentCount = useStackSegments and Bars.NormalizeBarStackMax(state.stackFillMax or state.stackMax, Bars.DEFAULTS.barStackMax) or 0
 
 	local borderEnabled = state and state.borderEnabled == true
 	local borderSize = borderEnabled and normalizeBarBorderSize(state and state.borderSize, Bars.DEFAULTS.barBorderSize) or 0
@@ -3104,6 +3246,26 @@ layoutBarFrame = function(barFrame, icon, span, layout, state)
 			fillTexturePath,
 			fillColor,
 			orientation
+		)
+	elseif useStackSegments then
+		Bars.LayoutStackSegmentsIntoBar(
+			barFrame,
+			icon,
+			state,
+			stackSegmentCount,
+			stackSeparatedOffset,
+			orientation,
+			bodyWidth,
+			bodyHeight,
+			borderTexturePath,
+			borderSize,
+			borderOffset,
+			borderColor,
+			backgroundColor,
+			fillTexturePath,
+			fillColor,
+			orientation,
+			effectiveScale
 		)
 	else
 		hideUnusedBarSegments(barFrame, 1)
@@ -3880,7 +4042,7 @@ local function appendBarStandaloneAppearanceSettings(settings, ctx)
 		set = function(_, value) setEntryBarBoolean(panelId, entryId, "barChargesSegmented", value) end,
 	}
 	settings[#settings + 1] = {
-		name = L["CooldownPanelBarChargesGap"] or "Charges gap",
+		name = L["Separated offset"] or L["CooldownPanelBarChargesGap"] or "Separated offset",
 		kind = SettingType.Slider,
 		parentId = "eqolCooldownPanelStandaloneBarCharges",
 		minValue = BAR_CHARGES_GAP_MIN,
@@ -4379,6 +4541,29 @@ local function appendBarStandaloneTextSettings(settings, ctx)
 			return getStoredBoolean(currentEntry, "barStacksSegmented", Bars.DEFAULTS.barStacksSegmented)
 		end,
 		set = function(_, value) setEntryBarBoolean(panelId, entryId, "barStacksSegmented", value) end,
+	}
+	settings[#settings + 1] = {
+		name = L["Separated offset"] or "Separated offset",
+		kind = SettingType.Slider,
+		parentId = "eqolCooldownPanelStandaloneBarStacks",
+		minValue = BAR_CHARGES_GAP_MIN,
+		maxValue = BAR_CHARGES_GAP_MAX,
+		valueStep = 1,
+		allowInput = true,
+		isShown = function()
+			local currentEntry = getStandaloneBarContextEntry(ctx)
+			return normalizeBarMode(currentEntry and currentEntry.barMode, Bars.DEFAULTS.barMode) == Bars.BAR_MODE.STACKS
+		end,
+		disabled = function()
+			local currentEntry = getStandaloneBarContextEntry(ctx)
+			return not getStoredBoolean(currentEntry, "barStacksSegmented", Bars.DEFAULTS.barStacksSegmented)
+		end,
+		get = function()
+			local currentEntry = getStandaloneBarContextEntry(ctx)
+			return normalizeBarChargesGap(currentEntry and currentEntry.barStackSeparatedOffset, Bars.DEFAULTS.barStackSeparatedOffset)
+		end,
+		set = function(_, value) setEntryBarField(panelId, entryId, "barStackSeparatedOffset", normalizeBarChargesGap(value, Bars.DEFAULTS.barStackSeparatedOffset)) end,
+		formatter = function(value) return tostring(normalizeBarChargesGap(value, Bars.DEFAULTS.barStackSeparatedOffset)) end,
 	}
 	settings[#settings + 1] = {
 		name = L["CooldownPanelBarStackDividerColor"] or "Divider color",
