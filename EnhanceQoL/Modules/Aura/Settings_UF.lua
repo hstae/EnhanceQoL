@@ -8571,7 +8571,7 @@ local function registerSettingsUI()
 	)
 	addon.functions.SettingsCreateButton(cUF, {
 		var = "ufStandalonePrivateAurasEditMode",
-		text = _G.HUD_EDIT_MODE_MENU or L["CooldownPanelEditModeButton"] or "Edit Mode",
+		text = _G.HUD_EDIT_MODE_MENU or "Edit Mode",
 		func = function()
 			if EditModeManagerFrame and ShowUIPanel then
 				ShowUIPanel(EditModeManagerFrame)
