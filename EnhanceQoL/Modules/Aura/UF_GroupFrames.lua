@@ -68,9 +68,7 @@ GF.splitRoleViewerRoleOptions = {
 local function textureOptions() return GFH.TextureOptions(LSM) end
 local function fontOptions() return GFH.FontOptions(LSM) end
 local function normalizeFontStyleChoice(value, fallback)
-	if addon.functions and addon.functions.NormalizeFontStyleChoice then
-		return addon.functions.NormalizeFontStyleChoice(value, fallback, true)
-	end
+	if addon.functions and addon.functions.NormalizeFontStyleChoice then return addon.functions.NormalizeFontStyleChoice(value, fallback, true) end
 	if value ~= nil then return value end
 	return fallback or "OUTLINE"
 end
@@ -2174,6 +2172,10 @@ local DEFAULTS = {
 					y = -2,
 				},
 				enabled = true,
+				glowColor = { 1, 0.25, 0.25, 1 },
+				glowEnabled = false,
+				glowInset = 0,
+				glowStyle = "MARCHING_ANTS",
 				growth = "RIGHTDOWN",
 				growthX = "RIGHT",
 				growthY = "DOWN",
@@ -2951,6 +2953,10 @@ local DEFAULTS = {
 					y = -2,
 				},
 				enabled = true,
+				glowColor = { 1, 0.25, 0.25, 1 },
+				glowEnabled = false,
+				glowInset = 0,
+				glowStyle = "MARCHING_ANTS",
 				growth = "RIGHTDOWN",
 				growthX = "RIGHT",
 				growthY = "DOWN",
@@ -3703,6 +3709,10 @@ local DEFAULTS = {
 					y = -2,
 				},
 				enabled = false,
+				glowColor = { 1, 0.25, 0.25, 1 },
+				glowEnabled = false,
+				glowInset = 0,
+				glowStyle = "MARCHING_ANTS",
 				growth = "RIGHTDOWN",
 				growthX = "RIGHT",
 				growthY = "DOWN",
@@ -4329,6 +4339,10 @@ local DEFAULTS = {
 					y = -2,
 				},
 				enabled = false,
+				glowColor = { 1, 0.25, 0.25, 1 },
+				glowEnabled = false,
+				glowInset = 0,
+				glowStyle = "MARCHING_ANTS",
 				growth = "RIGHTDOWN",
 				growthX = "RIGHT",
 				growthY = "DOWN",
@@ -6432,9 +6446,7 @@ function GF:LayoutButton(self)
 			st.absorb2:Hide()
 		end
 	end
-	if st.incomingHeal then
-		setFrameLevelAbove(st.incomingHeal, st.absorb2 or st.absorb or st.health, 1)
-	end
+	if st.incomingHeal then setFrameLevelAbove(st.incomingHeal, st.absorb2 or st.absorb or st.health, 1) end
 	if st.healAbsorb then
 		local healAbsorbTextureKey = hc.healAbsorbTexture or healthTexKey
 		if st.healAbsorb.SetStatusBarTexture and UFHelper and UFHelper.resolveTexture then
@@ -6914,9 +6926,7 @@ function GF.ResolveAuraContainerBoundaryPoint(anchorPoint, anchorOutside, primar
 	local anchor = tostring(anchorPoint or "TOPLEFT"):upper()
 	if anchorOutside ~= true then return anchor end
 	if owner and owner._eqolGroupKind == "party" and primary and secondary then
-		if anchor == "TOPLEFT" or anchor == "TOPRIGHT" or anchor == "BOTTOMLEFT" or anchor == "BOTTOMRIGHT" then
-			return GF.GetAuraGridBasePoint(primary, secondary)
-		end
+		if anchor == "TOPLEFT" or anchor == "TOPRIGHT" or anchor == "BOTTOMLEFT" or anchor == "BOTTOMRIGHT" then return GF.GetAuraGridBasePoint(primary, secondary) end
 	end
 	return (GF._oppositeAuraAnchorPoints and GF._oppositeAuraAnchorPoints[anchor]) or anchor
 end
@@ -6967,6 +6977,74 @@ local function ensureAuraContainer(st, key)
 	return st[key]
 end
 
+GF.EXTERNAL_GLOW_KEY = GF.EXTERNAL_GLOW_KEY or "EQOL_EXTERNAL"
+GF.EXTERNAL_GLOW_STYLE_OPTIONS = GF.EXTERNAL_GLOW_STYLE_OPTIONS
+	or {
+		{ value = "MARCHING_ANTS", label = "Marching ants" },
+		{ value = "FLASH", label = "Flash" },
+		{ value = "BLIZZARD", label = "Blizzard" },
+	}
+
+function GF.NormalizeExternalGlowStyle(style, fallback)
+	local normalized = type(style) == "string" and string.upper(style) or nil
+	if normalized == "BLIZZARD" then return "BLIZZARD" end
+	if normalized == "FLASH" then return "FLASH" end
+	if normalized == "MARCHING_ANTS" or normalized == "MARCHINGANTS" or normalized == "ANTS" then return "MARCHING_ANTS" end
+
+	normalized = type(fallback) == "string" and string.upper(fallback) or nil
+	if normalized == "BLIZZARD" then return "BLIZZARD" end
+	if normalized == "FLASH" then return "FLASH" end
+	if normalized == "MARCHING_ANTS" or normalized == "MARCHINGANTS" or normalized == "ANTS" then return "MARCHING_ANTS" end
+	return "MARCHING_ANTS"
+end
+
+function GF.NormalizeExternalGlowInset(value, fallback) return clampNumber(value, -20, 20, fallback or 0) end
+
+function GF.GetExternalGlowColor(typeCfg, defaultCfg)
+	typeCfg = typeCfg or EMPTY
+	defaultCfg = defaultCfg or EMPTY
+	return typeCfg.glowColor or typeCfg.borderColor or defaultCfg.glowColor or defaultCfg.borderColor or { 1, 0.25, 0.25, 1 }
+end
+
+function GF.StopExternalGlow(btn)
+	if not btn then return end
+	if btn._eqolExternalGlowManaged and addon.Glow and addon.Glow.Stop then addon.Glow.Stop(btn, GF.EXTERNAL_GLOW_KEY) end
+	btn._eqolExternalGlowManaged = nil
+	btn._eqolExternalGlowState = nil
+end
+
+function GF.ApplyExternalGlow(btn, style)
+	if not btn then return end
+	local Glow = addon.Glow
+	if not (Glow and Glow.Start and Glow.Stop) then return end
+	if not (style and style.externalGlowEnabled == true) then
+		GF.StopExternalGlow(btn)
+		return
+	end
+
+	local glowStyle = GF.NormalizeExternalGlowStyle(style.externalGlowStyle, "MARCHING_ANTS")
+	local glowInset = GF.NormalizeExternalGlowInset(style.externalGlowInset, 0)
+	local r, g, b, a = unpackColor(style.externalGlowColor, { 1, 0.25, 0.25, 1 })
+	local state = btn._eqolExternalGlowState
+	if state and state.style == glowStyle and state.inset == glowInset and state.r == r and state.g == g and state.b == b and state.a == a then return end
+
+	Glow.Start(btn, GF.EXTERNAL_GLOW_KEY, glowStyle, {
+		color = { r, g, b, a },
+		cooldown = btn.cd,
+		inset = glowInset,
+	})
+
+	state = state or {}
+	state.style = glowStyle
+	state.inset = glowInset
+	state.r = r
+	state.g = g
+	state.b = b
+	state.a = a
+	btn._eqolExternalGlowManaged = true
+	btn._eqolExternalGlowState = state
+end
+
 local function hideAuraButtons(buttons, startIndex)
 	if not buttons then return end
 	for i = startIndex, #buttons do
@@ -6988,6 +7066,7 @@ local function hideAuraButtons(buttons, startIndex)
 				btn._eqolAuraMouseEnabled = false
 			end
 			if GameTooltip and GameTooltip.IsOwned and GameTooltip.Hide and GameTooltip:IsOwned(btn) then GameTooltip:Hide() end
+			if btn._eqolExternalGlowManaged then GF.StopExternalGlow(btn) end
 			btn:Hide()
 		end
 	end
@@ -7866,7 +7945,8 @@ end
 function GF:LayoutAuras(self)
 	local st = getState(self)
 	if not st then return end
-	local cfg = self._eqolCfg or getCfg(self._eqolGroupKind or "party")
+	local groupKind = self._eqolGroupKind or "party"
+	local cfg = self._eqolCfg or getCfg(groupKind)
 	local ac = cfg and cfg.auras
 	if not ac then return end
 	local contentScale = GF.GetDynamicContentScale(self, cfg)
@@ -7998,6 +8078,18 @@ function GF:LayoutAuras(self)
 			style.drFontSize = GF.ScaleContentValue(self, typeCfg.drFontSize, cfg, 1)
 			style.drFontOutline = typeCfg.drFontOutline
 			style.drColor = typeCfg.drColor
+			if kindKey == "externals" then
+				local def = (DEFAULTS[groupKind] and DEFAULTS[groupKind].auras and DEFAULTS[groupKind].auras.externals) or EMPTY
+				local glowEnabled = typeCfg.glowEnabled
+				if glowEnabled == nil then glowEnabled = def.glowEnabled == true end
+				style.externalGlowEnabled = glowEnabled == true
+				style.externalGlowStyle = GF.NormalizeExternalGlowStyle(typeCfg.glowStyle, def.glowStyle or "MARCHING_ANTS")
+				style.externalGlowInset = GF.ScaleContentValue(self, GF.NormalizeExternalGlowInset(typeCfg.glowInset, def.glowInset or 0), cfg, 0)
+				local r, g, b, a = unpackColor(GF.GetExternalGlowColor(typeCfg, def), { 1, 0.25, 0.25, 1 })
+				local glowColor = style.externalGlowColor or {}
+				glowColor[1], glowColor[2], glowColor[3], glowColor[4] = r, g, b, a
+				style.externalGlowColor = glowColor
+			end
 			st._auraStyle[kindKey] = style
 		end
 	end
@@ -8073,6 +8165,7 @@ local function updateAuraType(self, unit, st, ac, kindKey, cache, changed, heale
 				if btn.unitToken ~= unit or btn.auraInstanceID ~= auraIdForBtn or (changed and auraIdForBtn and changed[auraIdForBtn]) then
 					AuraUtil.applyAuraToButton(btn, aura, style, meta.isDebuff, unit)
 				end
+				if kindKey == "externals" then GF.ApplyExternalGlow(btn, style) end
 				setAuraTooltipState(btn, style)
 				if btn._auraLayoutKey ~= layout.key then
 					positionAuraButton(btn, container, layout.primary, layout.secondary, shown, layout.perRow, layout.size, layout.spacing)
@@ -8566,6 +8659,7 @@ function GF:UpdateSampleAuras(self)
 			local aura = getSampleAuraData(kindKey, i, now)
 			local btn = AuraUtil.ensureAuraButton(container, buttons, i, sampleStyle)
 			AuraUtil.applyAuraToButton(btn, aura, sampleStyle, meta.isDebuff, unitToken)
+			if kindKey == "externals" then GF.ApplyExternalGlow(btn, sampleStyle) end
 			setAuraTooltipState(btn, sampleStyle)
 			if btn._auraLayoutKey ~= layout.key then
 				positionAuraButton(btn, container, layout.primary, layout.secondary, i, layout.perRow, layout.size, layout.spacing)
@@ -14738,6 +14832,14 @@ local function buildEditModeSettings(kind, editModeId)
 		local cfg = getCfg(kind)
 		local ac = ensureAuraConfig(cfg)
 		return ac.externals and ac.externals.showDR == true
+	end
+	local function isExternalGlowShown()
+		local cfg = getCfg(kind)
+		local ac = ensureAuraConfig(cfg)
+		local def = (DEFAULTS[kind] and DEFAULTS[kind].auras and DEFAULTS[kind].auras.externals) or EMPTY
+		local enabled = ac.externals and ac.externals.glowEnabled
+		if enabled == nil then enabled = def.glowEnabled == true end
+		return enabled == true
 	end
 	local portraitSideOptions = {
 		{ value = "LEFT", label = "Left", text = "Left" },
@@ -23268,6 +23370,101 @@ local function buildEditModeSettings(kind, editModeId)
 			end,
 		},
 		{
+			name = _G.GLOW or "Glow",
+			kind = SettingType.Checkbox,
+			field = "externalGlowEnabled",
+			parentId = "externals",
+			default = false,
+			get = function() return isExternalGlowShown() end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				local ac = ensureAuraConfig(cfg)
+				ac.externals.glowEnabled = value and true or false
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "externalGlowEnabled", ac.externals.glowEnabled, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+				requestEditModeSettingsRefresh()
+			end,
+		},
+		{
+			name = _G.STYLE or "Style",
+			kind = SettingType.Dropdown,
+			field = "externalGlowStyle",
+			parentId = "externals",
+			default = "MARCHING_ANTS",
+			get = function()
+				local cfg = getCfg(kind)
+				local ac = ensureAuraConfig(cfg)
+				local def = (DEFAULTS[kind] and DEFAULTS[kind].auras and DEFAULTS[kind].auras.externals) or {}
+				return GF.NormalizeExternalGlowStyle(ac.externals.glowStyle, def.glowStyle or "MARCHING_ANTS")
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				local ac = ensureAuraConfig(cfg)
+				ac.externals.glowStyle = GF.NormalizeExternalGlowStyle(value, ac.externals.glowStyle or "MARCHING_ANTS")
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "externalGlowStyle", ac.externals.glowStyle, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			generator = function(_, root, data)
+				for _, option in ipairs(GF.EXTERNAL_GLOW_STYLE_OPTIONS) do
+					root:CreateRadio(option.label, function() return data.get and data.get() == option.value end, function()
+						if data.set then data.set(nil, option.value) end
+						data.customDefaultText = option.label
+						requestEditModeSettingsRefresh()
+					end)
+				end
+			end,
+			isEnabled = isExternalGlowShown,
+		},
+		{
+			name = _G.COLOR or "Color",
+			kind = SettingType.Color,
+			field = "externalGlowColor",
+			parentId = "externals",
+			hasOpacity = true,
+			default = { 1, 0.25, 0.25, 1 },
+			get = function()
+				local cfg = getCfg(kind)
+				local ac = ensureAuraConfig(cfg)
+				local def = (DEFAULTS[kind] and DEFAULTS[kind].auras and DEFAULTS[kind].auras.externals) or {}
+				local r, g, b, a = unpackColor(GF.GetExternalGlowColor(ac.externals, def), { 1, 0.25, 0.25, 1 })
+				return { r = r, g = g, b = b, a = a }
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not (cfg and value) then return end
+				local ac = ensureAuraConfig(cfg)
+				ac.externals.glowColor = { value.r or 1, value.g or 0.25, value.b or 0.25, value.a or 1 }
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "externalGlowColor", ac.externals.glowColor, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			isEnabled = isExternalGlowShown,
+		},
+		{
+			name = _G.OFFSET or "Offset",
+			kind = SettingType.Slider,
+			allowInput = true,
+			field = "externalGlowInset",
+			parentId = "externals",
+			minValue = -20,
+			maxValue = 20,
+			valueStep = 1,
+			default = 0,
+			get = function()
+				local cfg = getCfg(kind)
+				local ac = ensureAuraConfig(cfg)
+				local def = (DEFAULTS[kind] and DEFAULTS[kind].auras and DEFAULTS[kind].auras.externals) or {}
+				return GF.NormalizeExternalGlowInset(ac.externals.glowInset, def.glowInset or 0)
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				local ac = ensureAuraConfig(cfg)
+				ac.externals.glowInset = GF.NormalizeExternalGlowInset(value, ac.externals.glowInset or 0)
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "externalGlowInset", ac.externals.glowInset, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			isEnabled = isExternalGlowShown,
+		},
+		{
 			name = "",
 			kind = SettingType.Divider,
 			parentId = "externals",
@@ -26102,6 +26299,10 @@ local function applyEditModeData(kind, data)
 	if data.externalPerRow ~= nil then ac.externals.perRow = data.externalPerRow end
 	if data.externalMax ~= nil then ac.externals.max = GF.ClampAuraCount(data.externalMax, ac.externals.max or 4) or ac.externals.max or 4 end
 	if data.externalSpacing ~= nil then ac.externals.spacing = data.externalSpacing end
+	if data.externalGlowEnabled ~= nil then ac.externals.glowEnabled = data.externalGlowEnabled and true or false end
+	if data.externalGlowColor ~= nil then ac.externals.glowColor = data.externalGlowColor end
+	if data.externalGlowStyle ~= nil then ac.externals.glowStyle = GF.NormalizeExternalGlowStyle(data.externalGlowStyle, ac.externals.glowStyle or "MARCHING_ANTS") end
+	if data.externalGlowInset ~= nil then ac.externals.glowInset = GF.NormalizeExternalGlowInset(data.externalGlowInset, ac.externals.glowInset or 0) end
 	if data.externalBorderTexture ~= nil then ac.externals.borderTexture = data.externalBorderTexture end
 	if data.externalBorderSize ~= nil then ac.externals.borderSize = clampNumber(data.externalBorderSize, 1, 64, ac.externals.borderSize or 2) end
 	if data.externalBorderColor ~= nil then ac.externals.borderColor = data.externalBorderColor end
@@ -26851,6 +27052,10 @@ function GF:EnsureEditMode()
 				externalPerRow = ac.externals.perRow or 6,
 				externalMax = GF.ClampAuraCount(ac.externals.max, 4) or 4,
 				externalSpacing = ac.externals.spacing or 2,
+				externalGlowEnabled = (ac.externals.glowEnabled ~= nil and ac.externals.glowEnabled == true) or (ac.externals.glowEnabled == nil and defExt.glowEnabled == true),
+				externalGlowColor = GF.GetExternalGlowColor(ac.externals, defExt),
+				externalGlowStyle = GF.NormalizeExternalGlowStyle(ac.externals.glowStyle, defExt.glowStyle or "MARCHING_ANTS"),
+				externalGlowInset = GF.NormalizeExternalGlowInset(ac.externals.glowInset, defExt.glowInset or 0),
 				externalBorderTexture = ac.externals.borderTexture or defExt.borderTexture or "DEFAULT",
 				externalBorderSize = ac.externals.borderSize or defExt.borderSize or 2,
 				externalBorderColor = ac.externals.borderColor or defExt.borderColor or { 1, 0.25, 0.25, 1 },

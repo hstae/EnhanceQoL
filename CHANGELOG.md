@@ -1,5 +1,13 @@
 # Changelog
 
+## [10.5.0-beta1] - 2026-04-21
+
+### ✨ Added
+
+- Group Frames / Externals: External cooldown icons can now show a glow, with color, style, and offset controls to make important external defensives easier to spot.
+
+---
+
 ## [10.4.0] - 2026-04-21
 
 ### ✨ Added
