@@ -1,5 +1,14 @@
 # Changelog
 
+## [10.5.1] - 2026-04-22
+
+### 🐛 Fixed
+
+- Minimap / Instance Difficulty: Read Delve tier text from Scenario Header widgets when Blizzard's Gossip tier API is absent, restoring normal Delve tiers and Nemesis Delve `?` / `??` labels.
+- Unit Frames: Raised the default render strata for detached Power and Secondary Power bars so the health-frame border no longer overlaps them.
+
+---
+
 ## [10.5.0] - 2026-04-22
 
 ### ✨ Added

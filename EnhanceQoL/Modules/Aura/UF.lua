@@ -7455,6 +7455,12 @@ normalizeStrataToken = function(value)
 	return nil
 end
 
+function AuraUtil.getRaisedStrataToken(baseStrata)
+	local token = normalizeStrataToken(baseStrata) or "LOW"
+	local index = STRATA_INDEX[token] or STRATA_INDEX.LOW
+	return STRATA_ORDER[index + 1] or STRATA_ORDER[index] or "MEDIUM"
+end
+
 function AuraUtil.syncAuraContainerLayer(container, parent)
 	if not (container and parent) then return end
 	container._eqolAuraLayerParent = parent
@@ -8215,7 +8221,7 @@ local function layoutFrame(cfg, unit)
 		local detachedStrata = pcfg.detachedStrata
 		if detachedStrata == nil then detachedStrata = powerDef.detachedStrata end
 		detachedStrata = normalizeStrataToken(detachedStrata)
-		if detachedStrata then powerStrata = detachedStrata end
+		powerStrata = detachedStrata or AuraUtil.getRaisedStrataToken(frameStrata)
 	end
 	if st.power.SetFrameStrata and st.power:GetFrameStrata() ~= powerStrata then st.power:SetFrameStrata(powerStrata) end
 	if st.powerGroup and st.powerGroup.SetFrameStrata and st.powerGroup:GetFrameStrata() ~= powerStrata then st.powerGroup:SetFrameStrata(powerStrata) end
@@ -8224,7 +8230,7 @@ local function layoutFrame(cfg, unit)
 		local detachedStrata = secondaryCfg.detachedStrata
 		if detachedStrata == nil then detachedStrata = secondaryDef.detachedStrata end
 		detachedStrata = normalizeStrataToken(detachedStrata)
-		if detachedStrata then secondaryPowerStrata = detachedStrata end
+		secondaryPowerStrata = detachedStrata or AuraUtil.getRaisedStrataToken(frameStrata)
 	end
 	if st.secondaryPower and st.secondaryPower.SetFrameStrata and st.secondaryPower:GetFrameStrata() ~= secondaryPowerStrata then st.secondaryPower:SetFrameStrata(secondaryPowerStrata) end
 	if st.secondaryPowerGroup and st.secondaryPowerGroup.SetFrameStrata and st.secondaryPowerGroup:GetFrameStrata() ~= secondaryPowerStrata then
