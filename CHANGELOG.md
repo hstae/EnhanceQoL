@@ -1,10 +1,14 @@
 # Changelog
 
-## [10.5.3] - 2026-04-22
+## [10.6.0] - 2026-04-22
+
+### ✨ Added
+
+- Cooldown Panels: Added an Original Blizzard icon border option, matching the rounded Cooldown Manager look for panel icons.
 
 ### 🐛 Fixed
 
-- Cooldown Panels: Fixed spec-filtered panels staying visible after switching back and forth between specializations by refreshing only the previously active panels that are no longer enabled for the new spec.
+- Cooldown Panels: Fixed panels for other specializations sometimes staying visible after switching specs.
 
 ---
 

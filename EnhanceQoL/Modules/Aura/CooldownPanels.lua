@@ -1094,7 +1094,17 @@ end
 
 function CooldownPanels:GetGlowStyleOptions(panelId) return Helper.GLOW_STYLE_OPTIONS or {} end
 
-local ICON_BORDER_TEXTURE_DEFAULT = "DEFAULT"
+cdp.ICON_BORDER = cdp.ICON_BORDER or {
+	DEFAULT = "DEFAULT",
+	BLIZZARD = "BLIZZARD",
+	BLIZZARD_ALIAS = "ORIGINAL_BLIZZARD",
+	OVERLAY_ATLAS = "UI-HUD-CoolDownManager-IconOverlay",
+	MASK_ATLAS = "UI-HUD-CoolDownManager-Mask",
+	OVERLAY_OFFSET_X_RATIO = 0.17,
+	OVERLAY_OFFSET_Y_RATIO = 0.15,
+	COOLDOWN_INSET_RATIO = 0.055,
+	ICON_BOTTOM_INSET = 2,
+}
 
 local function iconBorderOptions()
 	local list = {}
@@ -1105,7 +1115,8 @@ local function iconBorderOptions()
 		seen[lv] = true
 		list[#list + 1] = { value = value, label = label or value }
 	end
-	add(ICON_BORDER_TEXTURE_DEFAULT, _G.DEFAULT or (L and L["Default"]) or "Default")
+	add(cdp.ICON_BORDER.DEFAULT, _G.DEFAULT or (L and L["Default"]) or "Default")
+	add(cdp.ICON_BORDER.BLIZZARD, L["CooldownPanelIconBorderBlizzard"] or "Original Blizzard")
 	local names = addon.functions and addon.functions.GetLSMMediaNames and addon.functions.GetLSMMediaNames("border") or {}
 	local hash = addon.functions and addon.functions.GetLSMMediaHash and addon.functions.GetLSMMediaHash("border") or {}
 	for i = 1, #names do
@@ -1117,16 +1128,24 @@ local function iconBorderOptions()
 end
 
 local function normalizeIconBorderTexture(value, fallback)
-	if type(value) == "string" and value ~= "" then return value end
+	if type(value) == "string" and value ~= "" then
+		local upperValue = strupper(value)
+		if upperValue == cdp.ICON_BORDER.BLIZZARD or upperValue == cdp.ICON_BORDER.BLIZZARD_ALIAS then return cdp.ICON_BORDER.BLIZZARD end
+		return value
+	end
 	if type(fallback) == "string" and fallback ~= "" then return fallback end
-	return ICON_BORDER_TEXTURE_DEFAULT
+	return cdp.ICON_BORDER.DEFAULT
+end
+
+function cdp.ENTRY.IsBlizzardIconBorderTexture(value)
+	return normalizeIconBorderTexture(value, cdp.ICON_BORDER.DEFAULT) == cdp.ICON_BORDER.BLIZZARD
 end
 
 local function resolveIconBorderTexture(value)
-	local key = normalizeIconBorderTexture(value, ICON_BORDER_TEXTURE_DEFAULT)
+	local key = normalizeIconBorderTexture(value, cdp.ICON_BORDER.DEFAULT)
 	local ufHelper = addon.Aura and addon.Aura.UFHelper
 	if ufHelper and ufHelper.resolveBorderTexture then return ufHelper.resolveBorderTexture(key) end
-	if not key or key == "" or key == ICON_BORDER_TEXTURE_DEFAULT then return "Interface\\Buttons\\WHITE8x8" end
+	if not key or key == "" or key == cdp.ICON_BORDER.DEFAULT then return "Interface\\Buttons\\WHITE8x8" end
 	if LSM and LSM.Fetch then
 		local tex = LSM:Fetch("border", key)
 		if type(tex) == "string" and tex ~= "" then return tex end
@@ -7796,19 +7815,112 @@ local function setCooldownDrawState(cooldown, drawEdge, drawBling, drawSwipe)
 	end
 end
 
+function cdp.ENTRY.EnsureBlizzardIconOverlay(icon)
+	if not icon then return nil end
+	local overlay = icon.blizzardIconOverlay
+	if not overlay then
+		overlay = icon:CreateTexture(nil, "OVERLAY", nil, 2)
+		overlay:SetAtlas(cdp.ICON_BORDER.OVERLAY_ATLAS, false)
+		overlay:Hide()
+		icon.blizzardIconOverlay = overlay
+	end
+	return overlay
+end
+
+function cdp.ENTRY.ClearBlizzardIconSkin(icon)
+	if not icon then return end
+	if icon.blizzardIconOverlay then icon.blizzardIconOverlay:Hide() end
+	if icon._eqolBlizzardMaskApplied and icon.texture and icon.blizzardIconMask and icon.texture.RemoveMaskTexture then
+		pcall(icon.texture.RemoveMaskTexture, icon.texture, icon.blizzardIconMask)
+	end
+	icon._eqolBlizzardMaskApplied = nil
+	if icon._eqolBlizzardIconTextureInsetApplied and icon.texture then
+		icon.texture:ClearAllPoints()
+		icon.texture:SetAllPoints(icon)
+	end
+	icon._eqolBlizzardIconTextureInsetApplied = nil
+	icon._eqolBlizzardIconBottomInset = nil
+	if icon._eqolBlizzardCooldownInsetApplied and icon.cooldown then
+		icon.cooldown:ClearAllPoints()
+		icon.cooldown:SetAllPoints(icon)
+	end
+	icon._eqolBlizzardCooldownInsetApplied = nil
+	icon._eqolBlizzardCooldownInset = nil
+end
+
+function cdp.ENTRY.ApplyBlizzardIconSkin(icon)
+	if not icon then return end
+	local overlay = cdp.ENTRY.EnsureBlizzardIconOverlay(icon)
+	if overlay then
+		local size = tonumber(icon:GetWidth()) or 0
+		if size <= 0 then size = tonumber(icon._eqolBaseSlotSize) or Helper.PANEL_LAYOUT_DEFAULTS.iconSize or 36 end
+		local offsetX = math.max(1, math.floor((size * cdp.ICON_BORDER.OVERLAY_OFFSET_X_RATIO) + 0.5))
+		local offsetY = math.max(1, math.floor((size * cdp.ICON_BORDER.OVERLAY_OFFSET_Y_RATIO) + 0.5))
+		overlay:ClearAllPoints()
+		overlay:SetPoint("TOPLEFT", icon, "TOPLEFT", -offsetX, offsetY)
+		overlay:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", offsetX, -offsetY)
+		overlay:Show()
+	end
+
+	if icon.texture then
+		local iconBottomInset = cdp.ICON_BORDER.ICON_BOTTOM_INSET
+		if icon._eqolBlizzardIconBottomInset ~= iconBottomInset then
+			icon.texture:ClearAllPoints()
+			icon.texture:SetPoint("TOPLEFT", icon, "TOPLEFT", 0, 0)
+			icon.texture:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", 0, iconBottomInset)
+			icon._eqolBlizzardIconBottomInset = iconBottomInset
+			icon._eqolBlizzardIconTextureInsetApplied = true
+		end
+	end
+
+	if icon.texture and icon.texture.AddMaskTexture and icon.CreateMaskTexture then
+		if not icon.blizzardIconMask then
+			local mask = icon:CreateMaskTexture(nil, "ARTWORK")
+			mask:SetAtlas(cdp.ICON_BORDER.MASK_ATLAS, false)
+			mask:SetAllPoints(icon)
+			icon.blizzardIconMask = mask
+		end
+		if not icon._eqolBlizzardMaskApplied then
+			local ok = pcall(icon.texture.AddMaskTexture, icon.texture, icon.blizzardIconMask)
+			icon._eqolBlizzardMaskApplied = ok == true
+		end
+	end
+
+	if icon.cooldown then
+		local size = tonumber(icon:GetWidth()) or 0
+		if size <= 0 then size = tonumber(icon._eqolBaseSlotSize) or Helper.PANEL_LAYOUT_DEFAULTS.iconSize or 36 end
+		local inset = math.max(1, math.floor((size * cdp.ICON_BORDER.COOLDOWN_INSET_RATIO) + 0.5))
+		if icon._eqolBlizzardCooldownInset ~= inset then
+			icon.cooldown:ClearAllPoints()
+			icon.cooldown:SetPoint("TOPLEFT", icon, "TOPLEFT", inset, -inset)
+			icon.cooldown:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", -inset, inset)
+			icon._eqolBlizzardCooldownInset = inset
+			icon._eqolBlizzardCooldownInsetApplied = true
+		end
+	end
+end
+
 local function applyIconBorder(icon, layout)
 	if not icon or not icon.border then return end
 	local border = icon.border
 	local defaults = Helper.PANEL_LAYOUT_DEFAULTS
 	local enabled = layout and layout.iconBorderEnabled == true
 	if not enabled then
+		cdp.ENTRY.ClearBlizzardIconSkin(icon)
 		border:Hide()
 		return
 	end
 
+	local textureKey = normalizeIconBorderTexture(layout.iconBorderTexture, defaults.iconBorderTexture)
+	if cdp.ENTRY.IsBlizzardIconBorderTexture(textureKey) then
+		border:Hide()
+		cdp.ENTRY.ApplyBlizzardIconSkin(icon)
+		return
+	end
+
+	cdp.ENTRY.ClearBlizzardIconSkin(icon)
 	local edgeSize = Helper.ClampInt(layout.iconBorderSize, 1, 64, defaults.iconBorderSize or 1)
 	local offset = Helper.ClampInt(layout.iconBorderOffset, -64, 64, defaults.iconBorderOffset or 0)
-	local textureKey = normalizeIconBorderTexture(layout.iconBorderTexture, defaults.iconBorderTexture)
 	local edgeFile = resolveIconBorderTexture(textureKey)
 	local color = Helper.NormalizeColor(layout.iconBorderColor, defaults.iconBorderColor)
 
@@ -17698,7 +17810,7 @@ function CooldownPanels:PrepareLayoutPanelStandaloneSettings(panelId)
 				set = function(_, value) applyEditLayout(panelId, "showIconTexture", value) end,
 			},
 			{
-				name = "Icon border",
+				name = L["CooldownPanelIconBorder"] or "Icon border",
 				kind = SettingType.CheckboxColor,
 				field = "iconBorderEnabled",
 				parentId = "cooldownPanelDisplay",
@@ -17740,7 +17852,7 @@ function CooldownPanels:PrepareLayoutPanelStandaloneSettings(panelId)
 				maxValue = 64,
 				valueStep = 1,
 				allowInput = true,
-				disabled = function() return layout.iconBorderEnabled ~= true end,
+				disabled = function() return layout.iconBorderEnabled ~= true or cdp.ENTRY.IsBlizzardIconBorderTexture(layout.iconBorderTexture) end,
 				get = function() return Helper.ClampInt(layout.iconBorderSize, 1, 64, Helper.PANEL_LAYOUT_DEFAULTS.iconBorderSize) end,
 				set = function(_, value) applyEditLayout(panelId, "iconBorderSize", value) end,
 				formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
@@ -17755,7 +17867,7 @@ function CooldownPanels:PrepareLayoutPanelStandaloneSettings(panelId)
 				maxValue = 64,
 				valueStep = 1,
 				allowInput = true,
-				disabled = function() return layout.iconBorderEnabled ~= true end,
+				disabled = function() return layout.iconBorderEnabled ~= true or cdp.ENTRY.IsBlizzardIconBorderTexture(layout.iconBorderTexture) end,
 				get = function() return Helper.ClampInt(layout.iconBorderOffset, -64, 64, Helper.PANEL_LAYOUT_DEFAULTS.iconBorderOffset) end,
 				set = function(_, value) applyEditLayout(panelId, "iconBorderOffset", value) end,
 				formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
