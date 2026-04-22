@@ -2395,10 +2395,12 @@ local DEFAULTS = {
 				1,
 			},
 			absorbEnabled = true,
+			absorbDontOverflowHealthBar = false,
 			absorbOverlayHeight = 300,
 			absorbReverseFill = true,
 			absorbTexture = "EQOL: Absorb",
 			absorbUseCustomColor = true,
+			useAbsorbGlow = false,
 			backdrop = {
 				clampToFill = false,
 				color = {
@@ -2426,6 +2428,7 @@ local DEFAULTS = {
 				0.7,
 			},
 			healAbsorbEnabled = true,
+			healAbsorbDontOverflowHealthBar = true,
 			healAbsorbOverlayHeight = 158,
 			healAbsorbReverseFill = false,
 			healAbsorbTexture = "EQOL: Absorb",
@@ -3183,9 +3186,11 @@ local DEFAULTS = {
 				1,
 			},
 			absorbEnabled = true,
+			absorbDontOverflowHealthBar = false,
 			absorbReverseFill = true,
 			absorbTexture = "EQOL: Absorb",
 			absorbUseCustomColor = true,
+			useAbsorbGlow = false,
 			backdrop = {
 				clampToFill = false,
 				color = {
@@ -3212,6 +3217,7 @@ local DEFAULTS = {
 				0.7,
 			},
 			healAbsorbEnabled = true,
+			healAbsorbDontOverflowHealthBar = true,
 			healAbsorbReverseFill = false,
 			healAbsorbTexture = "EQOL: Absorb",
 			healAbsorbUseCustomColor = false,
@@ -3815,9 +3821,11 @@ local DEFAULTS = {
 				0.7,
 			},
 			absorbEnabled = true,
+			absorbDontOverflowHealthBar = false,
 			absorbReverseFill = false,
 			absorbTexture = "SOLID",
 			absorbUseCustomColor = false,
+			useAbsorbGlow = false,
 			backdrop = {
 				clampToFill = false,
 				color = {
@@ -3844,6 +3852,7 @@ local DEFAULTS = {
 				0.7,
 			},
 			healAbsorbEnabled = true,
+			healAbsorbDontOverflowHealthBar = true,
 			healAbsorbReverseFill = true,
 			healAbsorbTexture = "SOLID",
 			healAbsorbUseCustomColor = false,
@@ -4445,9 +4454,11 @@ local DEFAULTS = {
 				0.7,
 			},
 			absorbEnabled = true,
+			absorbDontOverflowHealthBar = false,
 			absorbReverseFill = false,
 			absorbTexture = "SOLID",
 			absorbUseCustomColor = false,
+			useAbsorbGlow = false,
 			backdrop = {
 				clampToFill = false,
 				color = {
@@ -4474,6 +4485,7 @@ local DEFAULTS = {
 				0.7,
 			},
 			healAbsorbEnabled = true,
+			healAbsorbDontOverflowHealthBar = true,
 			healAbsorbReverseFill = true,
 			healAbsorbTexture = "SOLID",
 			healAbsorbUseCustomColor = false,
@@ -5912,6 +5924,18 @@ function GF:BuildButton(self)
 		if st.absorb.SetStatusBarDesaturated then st.absorb:SetStatusBarDesaturated(false) end
 		st.absorb:Hide()
 	end
+	if not st.overAbsorbGlow then
+		st.overAbsorbGlow = st.health:CreateTexture(nil, "ARTWORK", "OverAbsorbGlowTemplate")
+		if st.absorb then st.absorb.overAbsorbGlow = st.overAbsorbGlow end
+		if not st.overAbsorbGlow then st.overAbsorbGlow = st.health:CreateTexture(nil, "ARTWORK") end
+		if st.overAbsorbGlow then
+			st.overAbsorbGlow:SetTexture(798066)
+			st.overAbsorbGlow:SetBlendMode("ADD")
+			if st.overAbsorbGlow.SetDrawLayer then st.overAbsorbGlow:SetDrawLayer("OVERLAY", 7) end
+			st.overAbsorbGlow:SetAlpha(0.8)
+			st.overAbsorbGlow:Hide()
+		end
+	end
 	if not st.healAbsorb then
 		st.healAbsorb = CreateFrame("StatusBar", nil, st.health, "BackdropTemplate")
 		st.healAbsorb:SetMinMaxValues(0, 1)
@@ -6401,6 +6425,11 @@ function GF:LayoutButton(self)
 		if st.absorb.SetStatusBarDesaturated then st.absorb:SetStatusBarDesaturated(false) end
 		local reverseAbsorb = hc.absorbReverseFill
 		if reverseAbsorb == nil then reverseAbsorb = defH.absorbReverseFill == true end
+		local absorbDontOverflow = hc.absorbDontOverflowHealthBar
+		if absorbDontOverflow == nil then absorbDontOverflow = defH.absorbDontOverflowHealthBar == true end
+		absorbDontOverflow = absorbDontOverflow == true and reverseAbsorb == true
+		local reverseHealth = hc.reverseFill
+		if reverseHealth == nil then reverseHealth = defH.reverseFill == true end
 		if UFHelper and UFHelper.applyStatusBarReverseFill then UFHelper.applyStatusBarReverseFill(st.absorb, reverseAbsorb) end
 		if reverseAbsorb then
 			st.absorb2 = st.absorb2 or CreateFrame("StatusBar", nil, st.health, "BackdropTemplate")
@@ -6427,13 +6456,11 @@ function GF:LayoutButton(self)
 			if st.absorb2.SetStatusBarDesaturated then st.absorb2:SetStatusBarDesaturated(false) end
 			if st.absorb2.SetOrientation then st.absorb2:SetOrientation("HORIZONTAL") end
 			if UFHelper and UFHelper.applyAbsorbClampLayout then
-				local reverseHealth = hc.reverseFill
-				if reverseHealth == nil then reverseHealth = defH.reverseFill == true end
 				if reverseHealth then
 					if UFHelper.setupAbsorbClampReverseAware then UFHelper.setupAbsorbClampReverseAware(st.health, st.absorb2) end
 				else
 					if UFHelper.setupAbsorbClamp then UFHelper.setupAbsorbClamp(st.health, st.absorb2) end
-					if UFHelper.setupAbsorbOverShift then UFHelper.setupAbsorbOverShift(st.health, st.absorb, absorbHeight, healthHeight) end
+					if not absorbDontOverflow and UFHelper.setupAbsorbOverShift then UFHelper.setupAbsorbOverShift(st.health, st.absorb, absorbHeight, healthHeight) end
 				end
 				if overlayClip and st.absorb2.GetParent and st.absorb2:GetParent() ~= overlayClip then st.absorb2:SetParent(overlayClip) end
 				UFHelper.applyAbsorbClampLayout(st.absorb2, st.health, absorbHeight, healthHeight, reverseHealth)
@@ -6444,6 +6471,19 @@ function GF:LayoutButton(self)
 			st.absorb2:SetMinMaxValues(0, 1)
 			GF.SetStatusBarValue(st.absorb2, 0, false, true)
 			st.absorb2:Hide()
+		end
+		if st.overAbsorbGlow then
+			st.overAbsorbGlow:ClearAllPoints()
+			local glowParent = overlayClip or st.health
+			if glowParent and st.overAbsorbGlow.GetParent and st.overAbsorbGlow:GetParent() ~= glowParent then st.overAbsorbGlow:SetParent(glowParent) end
+			if reverseHealth then
+				st.overAbsorbGlow:SetPoint("TOPRIGHT", st.health, "TOPLEFT", 7, 0)
+				st.overAbsorbGlow:SetPoint("BOTTOMRIGHT", st.health, "BOTTOMLEFT", 7, 0)
+			else
+				st.overAbsorbGlow:SetPoint("TOPLEFT", st.health, "TOPRIGHT", -7, 0)
+				st.overAbsorbGlow:SetPoint("BOTTOMLEFT", st.health, "BOTTOMRIGHT", -7, 0)
+			end
+			st.overAbsorbGlow:Hide()
 		end
 	end
 	if st.incomingHeal then setFrameLevelAbove(st.incomingHeal, st.absorb2 or st.absorb or st.health, 1) end
@@ -6458,7 +6498,9 @@ function GF:LayoutButton(self)
 			if UFHelper.configureSpecialTexture then UFHelper.configureSpecialTexture(st.healAbsorb, "HEALTH", healAbsorbTextureKey, hc) end
 		end
 		if st.healAbsorb.SetStatusBarDesaturated then st.healAbsorb:SetStatusBarDesaturated(false) end
-		if UFHelper and UFHelper.applyStatusBarReverseFill then UFHelper.applyStatusBarReverseFill(st.healAbsorb, hc.healAbsorbReverseFill == true) end
+		local reverseHealAbsorb = hc.healAbsorbReverseFill
+		if reverseHealAbsorb == nil then reverseHealAbsorb = defH.healAbsorbReverseFill == true end
+		if UFHelper and UFHelper.applyStatusBarReverseFill then UFHelper.applyStatusBarReverseFill(st.healAbsorb, reverseHealAbsorb) end
 		stabilizeStatusBarTexture(st.healAbsorb)
 		local healAbsorbClip = overlayClip
 		if healAbsorbClip and st.healAbsorb.GetParent and st.healAbsorb:GetParent() ~= healAbsorbClip then st.healAbsorb:SetParent(healAbsorbClip) end
@@ -9408,11 +9450,38 @@ function GF:UpdateHealthValue(self, unit, st)
 		if st.incomingHeal then st.incomingHeal:Hide() end
 		if st.absorb then st.absorb:Hide() end
 		if st.absorb2 then st.absorb2:Hide() end
+		if st.overAbsorbGlow then st.overAbsorbGlow:Hide() end
 		if st.healAbsorb then st.healAbsorb:Hide() end
 		return
 	end
 
+	local kind = self._eqolGroupKind or "party"
+	local cfg = self._eqolCfg or getCfg(kind)
+	local hc = cfg and cfg.health or {}
+	local defH = (DEFAULTS[kind] and DEFAULTS[kind].health) or {}
+	local reverseAbsorb = hc.absorbReverseFill
+	if reverseAbsorb == nil then reverseAbsorb = defH.absorbReverseFill == true end
+	local absorbDontOverflow = hc.absorbDontOverflowHealthBar
+	if absorbDontOverflow == nil then absorbDontOverflow = defH.absorbDontOverflowHealthBar == true end
+	absorbDontOverflow = absorbDontOverflow == true and reverseAbsorb == true
+	local reverseHealAbsorb = hc.healAbsorbReverseFill
+	if reverseHealAbsorb == nil then reverseHealAbsorb = defH.healAbsorbReverseFill == true end
+	local healAbsorbDontOverflow = hc.healAbsorbDontOverflowHealthBar
+	if healAbsorbDontOverflow == nil then healAbsorbDontOverflow = defH.healAbsorbDontOverflowHealthBar ~= false end
+	healAbsorbDontOverflow = healAbsorbDontOverflow == true and reverseHealAbsorb ~= true
 	local calc = GF.EnsureHealPredictionCalculator(st)
+	if calc and Enum then
+		if calc.SetDamageAbsorbClampMode and Enum.UnitDamageAbsorbClampMode then
+			local modes = Enum.UnitDamageAbsorbClampMode
+			local mode = absorbDontOverflow and modes.MissingHealthWithoutIncomingHeals or modes.MaximumHealth
+			if mode ~= nil then calc:SetDamageAbsorbClampMode(mode) end
+		end
+		if calc.SetHealAbsorbClampMode and Enum.UnitHealAbsorbClampMode then
+			local modes = Enum.UnitHealAbsorbClampMode
+			local mode = healAbsorbDontOverflow and modes.CurrentHealth or modes.MaximumHealth
+			if mode ~= nil then calc:SetHealAbsorbClampMode(mode) end
+		end
+	end
 	if calc and UnitGetDetailedHealPrediction then UnitGetDetailedHealPrediction(unit, "player", calc) end
 
 	local cur = calc and calc.GetCurrentHealth and calc:GetCurrentHealth() or (UnitHealth and UnitHealth(unit))
@@ -9431,10 +9500,6 @@ function GF:UpdateHealthValue(self, unit, st)
 	local isGhost = unit and UnitIsGhost and GFH.UnsecretBool(UnitIsGhost(unit)) or nil
 	local deadOrGhost = (isDead == true) or (isGhost == true)
 	local suppressAuxHealthBars = (connected == false) or deadOrGhost
-	local cfg = self._eqolCfg or getCfg(self._eqolGroupKind or "party")
-	local kind = self._eqolGroupKind or "party"
-	local hc = cfg and cfg.health or {}
-	local defH = (DEFAULTS[kind] and DEFAULTS[kind].health) or {}
 	local smoothHealth = (hc.smoothFill ~= nil) and (hc.smoothFill == true) or (defH.smoothFill == true)
 	st.health:SetMinMaxValues(0, maxForValue)
 	if connected == false then
@@ -9462,6 +9527,7 @@ function GF:UpdateHealthValue(self, unit, st)
 		if st.incomingHeal then st.incomingHeal:Hide() end
 		if st.absorb then st.absorb:Hide() end
 		if st.absorb2 then st.absorb2:Hide() end
+		if st.overAbsorbGlow then st.overAbsorbGlow:Hide() end
 		if st.healAbsorb then st.healAbsorb:Hide() end
 	elseif incomingHealEnabled and st.incomingHeal then
 		local incomingHeal = 0
@@ -9512,13 +9578,20 @@ function GF:UpdateHealthValue(self, unit, st)
 	end
 	if not suppressAuxHealthBars and absorbEnabled and st.absorb then
 		local abs = 0
-		if calc and calc.GetTotalDamageAbsorbs then
-			abs = calc:GetTotalDamageAbsorbs() or 0
+		local totalAbs
+		if calc and calc.GetTotalDamageAbsorbs then totalAbs = calc:GetTotalDamageAbsorbs() end
+		if absorbDontOverflow and calc and calc.GetDamageAbsorbs then
+			abs = calc:GetDamageAbsorbs() or 0
+		elseif totalAbs ~= nil then
+			abs = totalAbs or 0
 		elseif UnitGetTotalAbsorbs then
 			abs = UnitGetTotalAbsorbs(unit) or 0
+			totalAbs = abs
 		end
 		local absSecret = issecretvalue and issecretvalue(abs)
 		local absValue = abs
+		local glowAbsorbValue = totalAbs ~= nil and totalAbs or abs
+		local glowAbsorbSecret = issecretvalue and issecretvalue(glowAbsorbValue)
 		if sampleAbsorb then
 			local useSample = false
 			if absSecret then
@@ -9529,16 +9602,22 @@ function GF:UpdateHealthValue(self, unit, st)
 			end
 			if useSample then
 				absValue = (sampleMax or 1) * 0.6
+				glowAbsorbValue = absValue
 				absSecret = false
+				glowAbsorbSecret = false
 			end
 		else
 			if not absSecret then absValue = tonumber(abs) or 0 end
+			if not glowAbsorbSecret then glowAbsorbValue = tonumber(glowAbsorbValue) or 0 end
+		end
+		if absorbDontOverflow and not absSecret and not curSecret then
+			local missingHealth = (tonumber(maxForValue) or 0) - (tonumber(cur) or 0)
+			if missingHealth < 0 then missingHealth = 0 end
+			if (absValue or 0) > missingHealth then absValue = missingHealth end
 		end
 		local absorbMax = (sampleAbsorb and sampleMax) or maxForValue or 1
 		st.absorb:SetMinMaxValues(0, absorbMax)
 		GF.SetStatusBarValue(st.absorb, absValue or 0, false, true)
-		local reverseAbsorb = hc.absorbReverseFill
-		if reverseAbsorb == nil then reverseAbsorb = defH.absorbReverseFill == true end
 		if reverseAbsorb and st.absorb2 then
 			local _, maxHealth = st.health:GetMinMaxValues()
 			if maxHealth == nil then maxHealth = absorbMax end
@@ -9548,7 +9627,15 @@ function GF:UpdateHealthValue(self, unit, st)
 		if reverseAbsorb and st.absorb2 then
 			st.absorb2:SetAlpha(1)
 			st.absorb2:Show()
-			if st.absorb then st.absorb:Show() end
+			if st.absorb then
+				if absorbDontOverflow then
+					st.absorb:SetAlpha(0)
+					st.absorb:Hide()
+				else
+					st.absorb:SetAlpha(1)
+					st.absorb:Show()
+				end
+			end
 		elseif st.absorb then
 			st.absorb:SetAlpha(1)
 			st.absorb:Show()
@@ -9568,17 +9655,29 @@ function GF:UpdateHealthValue(self, unit, st)
 			st.absorb:SetStatusBarColor(ar or 0.85, ag or 0.95, ab or 1, aa or 0.7)
 		end
 		if reverseAbsorb and st.absorb2 then st.absorb2:SetStatusBarColor(ar or 0.85, ag or 0.95, ab or 1, aa or 0.7) end
+		if st.overAbsorbGlow then
+			local useAbsorbGlow = hc.useAbsorbGlow
+			if useAbsorbGlow == nil then useAbsorbGlow = defH.useAbsorbGlow == true end
+			if useAbsorbGlow then
+				st.overAbsorbGlow:SetAlpha(glowAbsorbValue or 0)
+				st.overAbsorbGlow:Show()
+			else
+				st.overAbsorbGlow:SetAlpha(0)
+				st.overAbsorbGlow:Hide()
+			end
+		end
 	elseif st.absorb then
 		st.absorb:Hide()
 		if st.absorb2 then st.absorb2:Hide() end
+		if st.overAbsorbGlow then st.overAbsorbGlow:Hide() end
 	end
 
 	if not suppressAuxHealthBars and healAbsorbEnabled and st.healAbsorb then
 		local healAbs = 0
-		if UnitGetTotalHealAbsorbs then
-			healAbs = UnitGetTotalHealAbsorbs(unit) or 0
-		elseif calc and calc.GetHealAbsorbs then
+		if calc and calc.GetHealAbsorbs then
 			healAbs = calc:GetHealAbsorbs() or 0
+		elseif UnitGetTotalHealAbsorbs then
+			healAbs = UnitGetTotalHealAbsorbs(unit) or 0
 		end
 		local healSecret = issecretvalue and issecretvalue(healAbs)
 		local healValue = healAbs
@@ -9598,7 +9697,7 @@ function GF:UpdateHealthValue(self, unit, st)
 			if not healSecret then healValue = tonumber(healAbs) or 0 end
 		end
 		st.healAbsorb:SetMinMaxValues(0, (sampleHealAbsorb and sampleMax) or maxForValue or 1)
-		if not healSecret and not curSecret then
+		if healAbsorbDontOverflow and not healSecret and not curSecret then
 			if (cur or 0) < (healValue or 0) then healValue = cur or 0 end
 		end
 		GF.SetStatusBarValue(st.healAbsorb, healValue or 0, false, true)
@@ -13092,15 +13191,18 @@ GF._groupCopySectionRules = {
 		{ "health", "showSampleAbsorb" },
 		{ "health", "absorbTexture" },
 		{ "health", "absorbReverseFill" },
+		{ "health", "absorbDontOverflowHealthBar" },
 		{ "health", "absorbOverlayHeight" },
 		{ "health", "absorbUseCustomColor" },
 		{ "health", "absorbColor" },
+		{ "health", "useAbsorbGlow" },
 	},
 	healabsorb = {
 		{ "health", "healAbsorbEnabled" },
 		{ "health", "showSampleHealAbsorb" },
 		{ "health", "healAbsorbTexture" },
 		{ "health", "healAbsorbReverseFill" },
+		{ "health", "healAbsorbDontOverflowHealthBar" },
 		{ "health", "healAbsorbOverlayHeight" },
 		{ "health", "healAbsorbUseCustomColor" },
 		{ "health", "healAbsorbColor" },
@@ -13796,7 +13898,17 @@ function GF._copyUnitSourceSectionToGroup(sectionId, src, dest)
 		if type(hc) ~= "table" then return false end
 		dest.health = dest.health or {}
 		local copied = false
-		for _, field in ipairs({ "absorbEnabled", "showSampleAbsorb", "absorbTexture", "absorbReverseFill", "absorbOverlayHeight", "absorbUseCustomColor", "absorbColor" }) do
+		for _, field in ipairs({
+			"absorbEnabled",
+			"showSampleAbsorb",
+			"absorbTexture",
+			"absorbReverseFill",
+			"absorbDontOverflowHealthBar",
+			"absorbOverlayHeight",
+			"absorbUseCustomColor",
+			"absorbColor",
+			"useAbsorbGlow",
+		}) do
 			if hc[field] ~= nil then
 				dest.health[field] = GF._groupCopyCloneValue(hc[field])
 				copied = true
@@ -13813,6 +13925,7 @@ function GF._copyUnitSourceSectionToGroup(sectionId, src, dest)
 			"showSampleHealAbsorb",
 			"healAbsorbTexture",
 			"healAbsorbReverseFill",
+			"healAbsorbDontOverflowHealthBar",
 			"healAbsorbOverlayHeight",
 			"healAbsorbUseCustomColor",
 			"healAbsorbColor",
@@ -18027,13 +18140,20 @@ local function buildEditModeSettings(kind, editModeId)
 			get = function()
 				local cfg = getCfg(kind)
 				local hc = cfg and cfg.health or {}
-				return hc.absorbReverseFill == true
+				local defH = (DEFAULTS[kind] and DEFAULTS[kind].health) or {}
+				local value = hc.absorbReverseFill
+				if value == nil then value = defH.absorbReverseFill == true end
+				return value == true
 			end,
 			set = function(_, value)
 				local cfg = getCfg(kind)
 				if not cfg then return end
 				cfg.health = cfg.health or {}
 				cfg.health.absorbReverseFill = value and true or false
+				if not cfg.health.absorbReverseFill then
+					cfg.health.absorbDontOverflowHealthBar = false
+					if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "absorbDontOverflow", false, nil, true) end
+				end
 				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "absorbReverse", cfg.health.absorbReverseFill, nil, true) end
 				GF:ApplyHeaderAttributes(kind)
 			end,
@@ -18041,6 +18161,41 @@ local function buildEditModeSettings(kind, editModeId)
 				local cfg = getCfg(kind)
 				local hc = cfg and cfg.health or {}
 				return hc.absorbEnabled ~= false
+			end,
+		},
+		{
+			name = L["Don't overflow health bar"] or "Don't overflow health bar",
+			kind = SettingType.Checkbox,
+			field = "absorbDontOverflow",
+			parentId = "absorb",
+			get = function()
+				local cfg = getCfg(kind)
+				local hc = cfg and cfg.health or {}
+				local defH = (DEFAULTS[kind] and DEFAULTS[kind].health) or {}
+				local reverseAbsorb = hc.absorbReverseFill
+				if reverseAbsorb == nil then reverseAbsorb = defH.absorbReverseFill == true end
+				local value = hc.absorbDontOverflowHealthBar
+				if value == nil then value = defH.absorbDontOverflowHealthBar == true end
+				return value == true and reverseAbsorb == true
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.health = cfg.health or {}
+				local defH = (DEFAULTS[kind] and DEFAULTS[kind].health) or {}
+				local reverseAbsorb = cfg.health.absorbReverseFill
+				if reverseAbsorb == nil then reverseAbsorb = defH.absorbReverseFill == true end
+				cfg.health.absorbDontOverflowHealthBar = (value and reverseAbsorb == true) and true or false
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "absorbDontOverflow", cfg.health.absorbDontOverflowHealthBar, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			isEnabled = function()
+				local cfg = getCfg(kind)
+				local hc = cfg and cfg.health or {}
+				local defH = (DEFAULTS[kind] and DEFAULTS[kind].health) or {}
+				local reverseAbsorb = hc.absorbReverseFill
+				if reverseAbsorb == nil then reverseAbsorb = defH.absorbReverseFill == true end
+				return hc.absorbEnabled ~= false and reverseAbsorb == true
 			end,
 		},
 		{
@@ -18134,6 +18289,33 @@ local function buildEditModeSettings(kind, editModeId)
 				local cfg = getCfg(kind)
 				local hc = cfg and cfg.health or {}
 				return hc.absorbEnabled ~= false and hc.absorbUseCustomColor == true
+			end,
+		},
+		{
+			name = L["Use absorb glow"] or "Use absorb glow",
+			kind = SettingType.Checkbox,
+			field = "absorbGlow",
+			parentId = "absorb",
+			get = function()
+				local cfg = getCfg(kind)
+				local hc = cfg and cfg.health or {}
+				local defH = (DEFAULTS[kind] and DEFAULTS[kind].health) or {}
+				local value = hc.useAbsorbGlow
+				if value == nil then value = defH.useAbsorbGlow == true end
+				return value == true
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.health = cfg.health or {}
+				cfg.health.useAbsorbGlow = value and true or false
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "absorbGlow", cfg.health.useAbsorbGlow, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			isEnabled = function()
+				local cfg = getCfg(kind)
+				local hc = cfg and cfg.health or {}
+				return hc.absorbEnabled ~= false
 			end,
 		},
 		{
@@ -18234,13 +18416,20 @@ local function buildEditModeSettings(kind, editModeId)
 			get = function()
 				local cfg = getCfg(kind)
 				local hc = cfg and cfg.health or {}
-				return hc.healAbsorbReverseFill == true
+				local defH = (DEFAULTS[kind] and DEFAULTS[kind].health) or {}
+				local value = hc.healAbsorbReverseFill
+				if value == nil then value = defH.healAbsorbReverseFill == true end
+				return value == true
 			end,
 			set = function(_, value)
 				local cfg = getCfg(kind)
 				if not cfg then return end
 				cfg.health = cfg.health or {}
 				cfg.health.healAbsorbReverseFill = value and true or false
+				if cfg.health.healAbsorbReverseFill then
+					cfg.health.healAbsorbDontOverflowHealthBar = false
+					if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "healAbsorbDontOverflow", false, nil, true) end
+				end
 				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "healAbsorbReverse", cfg.health.healAbsorbReverseFill, nil, true) end
 				GF:ApplyHeaderAttributes(kind)
 			end,
@@ -18248,6 +18437,41 @@ local function buildEditModeSettings(kind, editModeId)
 				local cfg = getCfg(kind)
 				local hc = cfg and cfg.health or {}
 				return hc.healAbsorbEnabled ~= false
+			end,
+		},
+		{
+			name = L["Don't overflow health bar"] or "Don't overflow health bar",
+			kind = SettingType.Checkbox,
+			field = "healAbsorbDontOverflow",
+			parentId = "healabsorb",
+			get = function()
+				local cfg = getCfg(kind)
+				local hc = cfg and cfg.health or {}
+				local defH = (DEFAULTS[kind] and DEFAULTS[kind].health) or {}
+				local reverseHealAbsorb = hc.healAbsorbReverseFill
+				if reverseHealAbsorb == nil then reverseHealAbsorb = defH.healAbsorbReverseFill == true end
+				local value = hc.healAbsorbDontOverflowHealthBar
+				if value == nil then value = defH.healAbsorbDontOverflowHealthBar ~= false end
+				return value == true and reverseHealAbsorb ~= true
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.health = cfg.health or {}
+				local defH = (DEFAULTS[kind] and DEFAULTS[kind].health) or {}
+				local reverseHealAbsorb = cfg.health.healAbsorbReverseFill
+				if reverseHealAbsorb == nil then reverseHealAbsorb = defH.healAbsorbReverseFill == true end
+				cfg.health.healAbsorbDontOverflowHealthBar = (value and reverseHealAbsorb ~= true) and true or false
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "healAbsorbDontOverflow", cfg.health.healAbsorbDontOverflowHealthBar, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			isEnabled = function()
+				local cfg = getCfg(kind)
+				local hc = cfg and cfg.health or {}
+				local defH = (DEFAULTS[kind] and DEFAULTS[kind].health) or {}
+				local reverseHealAbsorb = hc.healAbsorbReverseFill
+				if reverseHealAbsorb == nil then reverseHealAbsorb = defH.healAbsorbReverseFill == true end
+				return hc.healAbsorbEnabled ~= false and reverseHealAbsorb ~= true
 			end,
 		},
 		{
@@ -25760,6 +25984,14 @@ local function applyEditModeData(kind, data)
 	if data.absorbReverse ~= nil then
 		cfg.health = cfg.health or {}
 		cfg.health.absorbReverseFill = data.absorbReverse and true or false
+		if not cfg.health.absorbReverseFill then cfg.health.absorbDontOverflowHealthBar = false end
+	end
+	if data.absorbDontOverflow ~= nil then
+		cfg.health = cfg.health or {}
+		local defH = (DEFAULTS[kind] and DEFAULTS[kind].health) or {}
+		local reverseAbsorb = cfg.health.absorbReverseFill
+		if reverseAbsorb == nil then reverseAbsorb = defH.absorbReverseFill == true end
+		cfg.health.absorbDontOverflowHealthBar = (data.absorbDontOverflow and reverseAbsorb == true) and true or false
 	end
 	if data.absorbOverlayHeight ~= nil then
 		cfg.health = cfg.health or {}
@@ -25773,6 +26005,10 @@ local function applyEditModeData(kind, data)
 	if data.absorbColor ~= nil then
 		cfg.health = cfg.health or {}
 		cfg.health.absorbColor = data.absorbColor
+	end
+	if data.absorbGlow ~= nil then
+		cfg.health = cfg.health or {}
+		cfg.health.useAbsorbGlow = data.absorbGlow and true or false
 	end
 	if data.healAbsorbEnabled ~= nil then
 		cfg.health = cfg.health or {}
@@ -25789,6 +26025,14 @@ local function applyEditModeData(kind, data)
 	if data.healAbsorbReverse ~= nil then
 		cfg.health = cfg.health or {}
 		cfg.health.healAbsorbReverseFill = data.healAbsorbReverse and true or false
+		if cfg.health.healAbsorbReverseFill then cfg.health.healAbsorbDontOverflowHealthBar = false end
+	end
+	if data.healAbsorbDontOverflow ~= nil then
+		cfg.health = cfg.health or {}
+		local defH = (DEFAULTS[kind] and DEFAULTS[kind].health) or {}
+		local reverseHealAbsorb = cfg.health.healAbsorbReverseFill
+		if reverseHealAbsorb == nil then reverseHealAbsorb = defH.healAbsorbReverseFill == true end
+		cfg.health.healAbsorbDontOverflowHealthBar = (data.healAbsorbDontOverflow and reverseHealAbsorb ~= true) and true or false
 	end
 	if data.healAbsorbOverlayHeight ~= nil then
 		cfg.health = cfg.health or {}
@@ -26580,6 +26824,18 @@ function GF:EnsureEditMode()
 			local absorbOverlayHeightValue = GF._resolveOverlayHeightSetting(hc.absorbOverlayHeight ~= nil and hc.absorbOverlayHeight or defH.absorbOverlayHeight, overlayHeightFallback)
 			local healAbsorbOverlayHeightValue =
 				GF._resolveOverlayHeightSetting(hc.healAbsorbOverlayHeight ~= nil and hc.healAbsorbOverlayHeight or defH.healAbsorbOverlayHeight, overlayHeightFallback)
+			local absorbReverseValue = hc.absorbReverseFill
+			if absorbReverseValue == nil then absorbReverseValue = defH.absorbReverseFill == true end
+			local absorbDontOverflowValue = hc.absorbDontOverflowHealthBar
+			if absorbDontOverflowValue == nil then absorbDontOverflowValue = defH.absorbDontOverflowHealthBar == true end
+			absorbDontOverflowValue = absorbDontOverflowValue == true and absorbReverseValue == true
+			local absorbGlowValue = hc.useAbsorbGlow
+			if absorbGlowValue == nil then absorbGlowValue = defH.useAbsorbGlow == true end
+			local healAbsorbReverseValue = hc.healAbsorbReverseFill
+			if healAbsorbReverseValue == nil then healAbsorbReverseValue = defH.healAbsorbReverseFill == true end
+			local healAbsorbDontOverflowValue = hc.healAbsorbDontOverflowHealthBar
+			if healAbsorbDontOverflowValue == nil then healAbsorbDontOverflowValue = defH.healAbsorbDontOverflowHealthBar ~= false end
+			healAbsorbDontOverflowValue = healAbsorbDontOverflowValue == true and healAbsorbReverseValue ~= true
 			local _, resolvedGrowth = GF.ResolveUnitGrowthDirection(cfg.growth, "DOWN")
 			local defaults = {
 				point = cfg.point or "CENTER",
@@ -26734,14 +26990,17 @@ function GF:EnsureEditMode()
 				absorbEnabled = (cfg.health and cfg.health.absorbEnabled) ~= false,
 				absorbSample = hc.showSampleAbsorb == true,
 				absorbTexture = (cfg.health and cfg.health.absorbTexture) or "SOLID",
-				absorbReverse = (cfg.health and cfg.health.absorbReverseFill) == true,
+				absorbReverse = absorbReverseValue == true,
+				absorbDontOverflow = absorbDontOverflowValue == true,
 				absorbOverlayHeight = absorbOverlayHeightValue,
 				absorbUseCustomColor = (cfg.health and cfg.health.absorbUseCustomColor) == true,
 				absorbColor = (cfg.health and cfg.health.absorbColor) or { 0.85, 0.95, 1, 0.7 },
+				absorbGlow = absorbGlowValue == true,
 				healAbsorbEnabled = (cfg.health and cfg.health.healAbsorbEnabled) ~= false,
 				healAbsorbSample = hc.showSampleHealAbsorb == true,
 				healAbsorbTexture = (cfg.health and cfg.health.healAbsorbTexture) or "SOLID",
-				healAbsorbReverse = (cfg.health and cfg.health.healAbsorbReverseFill) == true,
+				healAbsorbReverse = healAbsorbReverseValue == true,
+				healAbsorbDontOverflow = healAbsorbDontOverflowValue == true,
 				healAbsorbOverlayHeight = healAbsorbOverlayHeightValue,
 				healAbsorbUseCustomColor = (cfg.health and cfg.health.healAbsorbUseCustomColor) == true,
 				healAbsorbColor = (cfg.health and cfg.health.healAbsorbColor) or { 1, 0.3, 0.3, 0.7 },

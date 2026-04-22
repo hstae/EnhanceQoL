@@ -7510,34 +7510,61 @@ function AuraUtil.syncAuraButtonLayer(btn, container, ac)
 	if UFHelper and UFHelper.syncAuraBorderFrameLayer then UFHelper.syncAuraBorderFrameLayer(btn) end
 end
 
+function AuraUtil.getFrameZOrder(frame)
+	if not frame then return 0, 0 end
+	local strataToken = frame.GetFrameStrata and frame:GetFrameStrata() or "MEDIUM"
+	local strata = STRATA_INDEX[strataToken] or STRATA_INDEX.MEDIUM or 3
+	local level = frame.GetFrameLevel and frame:GetFrameLevel() or 0
+	return strata, level
+end
+
+function AuraUtil.getTopTextAnchor(...)
+	local topFrame
+	local topStrata = -1
+	local topLevel = -1
+	for i = 1, select("#", ...) do
+		local frame = select(i, ...)
+		if frame and (not frame.IsShown or frame:IsShown()) then
+			local strata, level = AuraUtil.getFrameZOrder(frame)
+			if strata > topStrata or (strata == topStrata and level > topLevel) then
+				topFrame = frame
+				topStrata = strata
+				topLevel = level
+			end
+		end
+	end
+	return topFrame
+end
+
 local function syncTextFrameLevels(st)
 	if not st then return end
 	local scfg = (st.cfg and st.cfg.status) or {}
 	local healthAnchor = getHealthTextAnchor(st) or st.health
 	local statusAnchor = getHealthTextAnchor(st, true) or st.status or healthAnchor
-	setFrameLevelAbove(st.healthTextLayer, healthAnchor, 5)
+	local textAnchor = AuraUtil.getTopTextAnchor(healthAnchor, statusAnchor, st.power, st.powerGroup, st.secondaryPower, st.secondaryPowerGroup) or statusAnchor or healthAnchor
+	setFrameLevelAbove(st.healthTextLayer, textAnchor, 5)
 	setFrameLevelAbove(st.powerTextLayer, st.power, 5)
 	if st.secondaryPowerTextLayer and st.secondaryPower then setFrameLevelAbove(st.secondaryPowerTextLayer, st.secondaryPower, 5) end
-	setFrameLevelAbove(st.statusTextLayer, statusAnchor, 5)
+	setFrameLevelAbove(st.statusTextLayer, textAnchor, 5)
 	local nameLayer = st.nameTextLayer or st.statusTextLayer
 	local nameLevelOffset = tonumber(scfg.nameFrameLevelOffset)
 	if nameLevelOffset == nil then nameLevelOffset = 5 end
-	setFrameLevelAbove(nameLayer, statusAnchor, nameLevelOffset)
+	setFrameLevelAbove(nameLayer, textAnchor, nameLevelOffset)
 	if nameLayer and nameLayer.SetFrameStrata then
 		local nameStrata = normalizeStrataToken(scfg.nameStrata)
 		local fallbackStrata
-		if statusAnchor and statusAnchor.GetFrameStrata then fallbackStrata = statusAnchor:GetFrameStrata() end
+		if textAnchor and textAnchor.GetFrameStrata then fallbackStrata = textAnchor:GetFrameStrata() end
 		if not fallbackStrata and st.status and st.status.GetFrameStrata then fallbackStrata = st.status:GetFrameStrata() end
 		if nameStrata or fallbackStrata then nameLayer:SetFrameStrata(nameStrata or fallbackStrata) end
 	end
 	local levelLayer = st.levelTextLayer or st.statusTextLayer
 	local levelOffset = tonumber(scfg.levelFrameLevelOffset)
 	if levelOffset == nil then levelOffset = 5 end
-	setFrameLevelAbove(levelLayer, statusAnchor, levelOffset)
+	setFrameLevelAbove(levelLayer, textAnchor, levelOffset)
 	if levelLayer and levelLayer.SetFrameStrata then
 		local levelStrata = normalizeStrataToken(scfg.levelStrata)
 		local fallbackStrata
-		if statusAnchor and statusAnchor.GetFrameStrata then fallbackStrata = statusAnchor:GetFrameStrata() end
+		if textAnchor and textAnchor.GetFrameStrata then fallbackStrata = textAnchor:GetFrameStrata() end
 		if not fallbackStrata and st.status and st.status.GetFrameStrata then fallbackStrata = st.status:GetFrameStrata() end
 		if levelStrata or fallbackStrata then levelLayer:SetFrameStrata(levelStrata or fallbackStrata) end
 	end

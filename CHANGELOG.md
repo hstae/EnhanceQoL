@@ -2,6 +2,10 @@
 
 ## [10.6.0-beta2] - 2026-04-22
 
+### ✨ Added
+
+- Group Frames: Added "Don't overflow health bar" controls for Absorb and Heal Absorb bars in the Party/Raid panels, plus an optional Absorb glow indicator. Absorb no-overflow is available with reverse fill; Heal Absorb no-overflow is available without reverse fill.
+
 ### 🐛 Fixed
 
 - Cooldown Panels: Polished the Original Blizzard icon border so the frame, icon, and cooldown swipe line up more cleanly.
