@@ -1,5 +1,13 @@
 # Changelog
 
+## [10.5.3] - 2026-04-22
+
+### 🐛 Fixed
+
+- Cooldown Panels: Fixed spec-filtered panels staying visible after switching back and forth between specializations by refreshing only the previously active panels that are no longer enabled for the new spec.
+
+---
+
 ## [10.5.2] - 2026-04-22
 
 ### 🐛 Fixed

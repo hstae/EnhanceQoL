@@ -20464,8 +20464,39 @@ local function setRangeOverlayForSpell(spellIdentifier, isInRange, checksRange)
 	return true
 end
 
+local function refreshPanelsDisabledBySpecChange(previousEnabledPanels)
+	if type(previousEnabledPanels) ~= "table" then return false end
+	local runtime = CooldownPanels.runtime
+	local enabledPanels = runtime and runtime.enabledPanels
+	local root = ensureRoot()
+	if not root or not root.panels then return false end
+
+	local refreshed = false
+	CooldownPanels:BeginRuntimeQueryBatch()
+	for panelId in pairs(previousEnabledPanels) do
+		if panelId and root.panels[panelId] and not (enabledPanels and enabledPanels[panelId]) then
+			CooldownPanels:RefreshPanel(panelId)
+			refreshed = true
+		end
+	end
+	CooldownPanels:EndRuntimeQueryBatch()
+
+	local disabledPanelIds = runtime and runtime.disabledPanelIds
+	if disabledPanelIds then
+		for i = 1, #disabledPanelIds do
+			disabledPanelIds[i] = nil
+		end
+	end
+	return refreshed
+end
+
 local function performSpecAwareRebuild(cause)
+	local runtime = CooldownPanels.runtime
+	local previousSpecId = runtime and runtime.activeSpecId
+	local previousEnabledPanels = runtime and runtime.enabledPanels
 	CooldownPanels:RebuildSpellIndex()
+	local currentSpecId = CooldownPanels.runtime and CooldownPanels.runtime.activeSpecId
+	if previousSpecId ~= nil and previousSpecId ~= currentSpecId then refreshPanelsDisabledBySpecChange(previousEnabledPanels) end
 	Keybinds.InvalidateCache()
 	CooldownPanels:RequestUpdate({
 		cause = cause,
