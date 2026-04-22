@@ -1100,8 +1100,10 @@ cdp.ICON_BORDER = cdp.ICON_BORDER or {
 	BLIZZARD_ALIAS = "ORIGINAL_BLIZZARD",
 	OVERLAY_ATLAS = "UI-HUD-CoolDownManager-IconOverlay",
 	MASK_ATLAS = "UI-HUD-CoolDownManager-Mask",
-	OVERLAY_OFFSET_X_RATIO = 0.17,
-	OVERLAY_OFFSET_Y_RATIO = 0.15,
+	SWIPE_TEXTURE = "Interface\\HUD\\UI-HUD-CoolDownManager-Icon-Swipe",
+	OVERLAY_OFFSET_X_RATIO = 0.175,
+	OVERLAY_OFFSET_Y_RATIO = 0.175,
+	OVERLAY_OFFSET_X_NUDGE = 0,
 	COOLDOWN_INSET_RATIO = 0.055,
 	ICON_BOTTOM_INSET = 2,
 }
@@ -7834,31 +7836,40 @@ function cdp.ENTRY.ClearBlizzardIconSkin(icon)
 		pcall(icon.texture.RemoveMaskTexture, icon.texture, icon.blizzardIconMask)
 	end
 	icon._eqolBlizzardMaskApplied = nil
-	if icon._eqolBlizzardIconTextureInsetApplied and icon.texture then
+	if (icon._eqolBlizzardIconTextureInsetApplied or icon._eqolBlizzardIconTextureAnchored) and icon.texture then
 		icon.texture:ClearAllPoints()
 		icon.texture:SetAllPoints(icon)
 	end
 	icon._eqolBlizzardIconTextureInsetApplied = nil
+	icon._eqolBlizzardIconTextureAnchored = nil
 	icon._eqolBlizzardIconBottomInset = nil
-	if icon._eqolBlizzardCooldownInsetApplied and icon.cooldown then
+	if (icon._eqolBlizzardCooldownInsetApplied or icon._eqolBlizzardCooldownAnchored) and icon.cooldown then
 		icon.cooldown:ClearAllPoints()
 		icon.cooldown:SetAllPoints(icon)
 	end
 	icon._eqolBlizzardCooldownInsetApplied = nil
+	icon._eqolBlizzardCooldownAnchored = nil
 	icon._eqolBlizzardCooldownInset = nil
+	icon._eqolBlizzardCooldownWidth = nil
+	icon._eqolBlizzardCooldownHeight = nil
+	icon._eqolBlizzardSwipeTextureApplied = nil
 end
 
 function cdp.ENTRY.ApplyBlizzardIconSkin(icon)
 	if not icon then return end
 	local overlay = cdp.ENTRY.EnsureBlizzardIconOverlay(icon)
+	local width = tonumber(icon:GetWidth()) or 0
+	local height = tonumber(icon:GetHeight()) or 0
+	if width <= 0 then width = tonumber(icon._eqolBaseSlotSize) or Helper.PANEL_LAYOUT_DEFAULTS.iconSize or 36 end
+	if height <= 0 then height = width end
 	if overlay then
-		local size = tonumber(icon:GetWidth()) or 0
-		if size <= 0 then size = tonumber(icon._eqolBaseSlotSize) or Helper.PANEL_LAYOUT_DEFAULTS.iconSize or 36 end
-		local offsetX = math.max(1, math.floor((size * cdp.ICON_BORDER.OVERLAY_OFFSET_X_RATIO) + 0.5))
-		local offsetY = math.max(1, math.floor((size * cdp.ICON_BORDER.OVERLAY_OFFSET_Y_RATIO) + 0.5))
+		local offsetX = math.max(1, math.floor((width * cdp.ICON_BORDER.OVERLAY_OFFSET_X_RATIO) + 0.5))
+		local offsetY = math.max(1, math.floor((height * cdp.ICON_BORDER.OVERLAY_OFFSET_Y_RATIO) + 0.5))
+		local offsetXNudge = cdp.ICON_BORDER.OVERLAY_OFFSET_X_NUDGE or 0
 		overlay:ClearAllPoints()
-		overlay:SetPoint("TOPLEFT", icon, "TOPLEFT", -offsetX, offsetY)
-		overlay:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", offsetX, -offsetY)
+		overlay:SetPoint("TOPLEFT", icon, "TOPLEFT", -offsetX + offsetXNudge, offsetY)
+		overlay:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", offsetX + offsetXNudge, -offsetY)
+		overlay:SetAlpha(1)
 		overlay:Show()
 	end
 
@@ -7870,6 +7881,7 @@ function cdp.ENTRY.ApplyBlizzardIconSkin(icon)
 			icon.texture:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", 0, iconBottomInset)
 			icon._eqolBlizzardIconBottomInset = iconBottomInset
 			icon._eqolBlizzardIconTextureInsetApplied = true
+			icon._eqolBlizzardIconTextureAnchored = nil
 		end
 	end
 
@@ -7887,8 +7899,7 @@ function cdp.ENTRY.ApplyBlizzardIconSkin(icon)
 	end
 
 	if icon.cooldown then
-		local size = tonumber(icon:GetWidth()) or 0
-		if size <= 0 then size = tonumber(icon._eqolBaseSlotSize) or Helper.PANEL_LAYOUT_DEFAULTS.iconSize or 36 end
+		local size = math.min(width, height)
 		local inset = math.max(1, math.floor((size * cdp.ICON_BORDER.COOLDOWN_INSET_RATIO) + 0.5))
 		if icon._eqolBlizzardCooldownInset ~= inset then
 			icon.cooldown:ClearAllPoints()
@@ -7896,6 +7907,24 @@ function cdp.ENTRY.ApplyBlizzardIconSkin(icon)
 			icon.cooldown:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", -inset, inset)
 			icon._eqolBlizzardCooldownInset = inset
 			icon._eqolBlizzardCooldownInsetApplied = true
+			icon._eqolBlizzardCooldownAnchored = nil
+			icon._eqolBlizzardCooldownWidth = nil
+			icon._eqolBlizzardCooldownHeight = nil
+		end
+		if icon.cooldown.SetSwipeTexture then
+			local runtimeData = icon._eqolRuntimeData
+			local auraSwipe = runtimeData and runtimeData.resolvedType == "CDM_AURA"
+			local r, g, b, a = 1, 1, 1, 1
+			if auraSwipe then r, g, b, a = 0, 0, 0, 0.7 end
+			local ok = pcall(icon.cooldown.SetSwipeTexture, icon.cooldown, cdp.ICON_BORDER.SWIPE_TEXTURE, r, g, b, a)
+			if ok then icon._eqolBlizzardSwipeTextureApplied = true end
+		elseif icon.cooldown.SetSwipeColor then
+			local runtimeData = icon._eqolRuntimeData
+			if runtimeData and runtimeData.resolvedType == "CDM_AURA" then
+				icon.cooldown:SetSwipeColor(0, 0, 0, 0.7)
+			else
+				icon.cooldown:SetSwipeColor(1, 1, 1, 1)
+			end
 		end
 	end
 end

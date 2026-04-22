@@ -1,5 +1,13 @@
 # Changelog
 
+## [10.6.0-beta2] - 2026-04-22
+
+### 🐛 Fixed
+
+- Cooldown Panels: Polished the Original Blizzard icon border so the frame, icon, and cooldown swipe line up more cleanly.
+
+---
+
 ## [10.6.0] - 2026-04-22
 
 ### ✨ Added
