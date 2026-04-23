@@ -1,5 +1,13 @@
 # Changelog
 
+## [10.6.2] - 2026-04-23
+
+### 🐛 Fixed
+
+- Resource Bars: Fixed the Devorer Void Meta bar so it now fills correctly while in Void Meta and no longer looks empty after you go past the cast threshold.
+
+---
+
 ## [10.6.1] - 2026-04-23
 
 ### 🐛 Fixed

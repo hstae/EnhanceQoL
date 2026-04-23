@@ -567,10 +567,11 @@ RB.AURA_POWER_CONFIG = {
 		spellIds = { RB.VOID_METAMORPHOSIS_SPELL_ID, RB.COLLAPSING_STAR_SPELL_ID },
 		maxStacks = 50,
 		maxStacksBySpellId = {
-			[RB.COLLAPSING_STAR_SPELL_ID] = 30,
+			[RB.COLLAPSING_STAR_SPELL_ID] = 40,
 		},
 		maxStacksTalent = { spellId = RB.VOID_META_TALENT_SOUL_GLUTTON_SPELL_ID, value = 35 },
 		visualSegments = 0,
+		clampOverflowToMax = true,
 		defaultColor = { 0.35, 0.25, 0.73, 1 }, -- #5940BA (Blizzard voidMetamorphosisProgess)
 		useMaxColorDefault = true,
 		defaultShowSeparator = false,
@@ -5011,7 +5012,16 @@ function updatePowerBar(type, runeSlot)
 
 		local style = bar._style or "CURMAX"
 		local smooth = cfg.smoothFill == true
-		local shownStacks = (visualMax and visualMax > 0) and ((stacks <= 0) and 0 or (((stacks - 1) % visualMax) + 1)) or stacks
+		local shownStacks = stacks
+		if visualMax and visualMax > 0 then
+			if stacks <= 0 then
+				shownStacks = 0
+			elseif cfgDef.clampOverflowToMax or cfg.clampOverflowToMax then
+				shownStacks = min(stacks, visualMax)
+			else
+				shownStacks = (((stacks - 1) % visualMax) + 1)
+			end
+		end
 		setBarValue(bar, shownStacks, smooth)
 		bar._lastVal = shownStacks
 
