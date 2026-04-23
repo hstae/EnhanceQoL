@@ -1,5 +1,14 @@
 # Changelog
 
+## [10.6.3] - 2026-04-23
+
+### 🐛 Fixed
+
+- Cooldown Panels: Fixed some passive talent entries being treated like swappable talent-choice spells, which could incorrectly replace them with active spells such as `Temporal Anomaly`.
+- Cooldown Panels / Keybinds: Fixed spell keybind resolution so talent and capstone entries no longer inherit bindings from unrelated spells through fuzzy spell lookups.
+
+---
+
 ## [10.6.2] - 2026-04-23
 
 ### 🐛 Fixed

@@ -620,7 +620,20 @@ function cdp.RUNTIME.GetTalentEntrySpellID(configID, entryID)
 	if not definitionID then return nil end
 	local definitionInfo = Api.GetTraitDefinitionInfo and Api.GetTraitDefinitionInfo(definitionID) or nil
 	local spellID = definitionInfo and tonumber(definitionInfo.spellID) or nil
-	return spellID and spellID > 0 and spellID or nil
+	local overriddenSpellID = definitionInfo and tonumber(definitionInfo.overriddenSpellID) or nil
+
+	local function pickTrackableSpellID(...)
+		for i = 1, select("#", ...) do
+			local candidateValue = select(i, ...)
+			local candidateID = tonumber(candidateValue)
+			if candidateID and candidateID > 0 then
+				if not (Api.IsSpellPassiveFn and Api.IsSpellPassiveFn(candidateID)) then return candidateID end
+			end
+		end
+		return nil
+	end
+
+	return pickTrackableSpellID(spellID, overriddenSpellID)
 end
 
 function cdp.RUNTIME.AddTalentChoiceGroupLookupID(ctx, group, spellID)

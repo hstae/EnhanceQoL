@@ -2934,6 +2934,14 @@ local function buildKeybindLookup()
 				local macroName = GetMacroInfo(actionId)
 				if type(macroName) == "string" and macroName ~= "" and not lookup.macroName[macroName] then lookup.macroName[macroName] = keyText end
 			end
+			if Api.GetMacroSpell then
+				local macroSpell = Api.GetMacroSpell(actionId)
+				local macroSpellId = tonumber(macroSpell)
+				if macroSpellId then
+					addSpellBindingLookup(lookup, macroSpellId, keyText)
+					addSpellBindingLookup(lookup, getEffectiveSpellId(macroSpellId), keyText)
+				end
+			end
 			if getMacroItem then
 				local macroItem = getMacroItem(actionId)
 				if macroItem then
@@ -3081,8 +3089,12 @@ function Keybinds.GetEntryKeybindText(entry, layout)
 	runtime._eqolKeybindCache = runtime._eqolKeybindCache or {}
 	local slotItemId
 	if entry.type == "SLOT" and entry.slotID then slotItemId = GetInventoryItemID and GetInventoryItemID("player", entry.slotID) end
-	local effectiveSpellId = entry.type == "SPELL" and getEffectiveSpellId(entry.spellID) or nil
-	local cacheValue = effectiveSpellId or entry.spellID or entry.itemID or entry.slotID or entry.macroID or entry.macroName or ""
+	local resolvedEffectiveSpellId, resolvedSpellId, storedBaseSpellId
+	if entry.type == "SPELL" and entry.spellID and CooldownPanels and CooldownPanels.ResolveTrackedSpellID then
+		resolvedEffectiveSpellId, resolvedSpellId, storedBaseSpellId = CooldownPanels:ResolveTrackedSpellID(entry.spellID)
+	end
+	local effectiveSpellId = resolvedEffectiveSpellId or (entry.type == "SPELL" and getEffectiveSpellId(entry.spellID) or nil)
+	local cacheValue = effectiveSpellId or resolvedSpellId or storedBaseSpellId or entry.spellID or entry.itemID or entry.slotID or entry.macroID or entry.macroName or ""
 	local cacheKey = tostring(entry.type) .. ":" .. tostring(cacheValue) .. ":" .. tostring(slotItemId or "")
 	local cached = runtime._eqolKeybindCache[cacheKey]
 	if cached ~= nil then return cached or nil end
@@ -3090,11 +3102,17 @@ function Keybinds.GetEntryKeybindText(entry, layout)
 	local text = nil
 	if entry.type == "SPELL" and entry.spellID then
 		local lookup = buildKeybindLookup()
-		local spellId = effectiveSpellId or entry.spellID
-		text = getLookupSpellBindingText(lookup, spellId)
-		if not text and effectiveSpellId and effectiveSpellId ~= entry.spellID then text = getLookupSpellBindingText(lookup, entry.spellID) end
-		if not text then text = getBindingTextForSpell(spellId) end
-		if not text and effectiveSpellId and effectiveSpellId ~= entry.spellID then text = getBindingTextForSpell(entry.spellID) end
+		local seenSpellIds = {}
+		local function trySpellId(spellId)
+			local numericSpellId = tonumber(spellId)
+			if not numericSpellId or seenSpellIds[numericSpellId] then return nil end
+			seenSpellIds[numericSpellId] = true
+			return getLookupSpellBindingText(lookup, numericSpellId)
+		end
+		text = trySpellId(effectiveSpellId)
+			or trySpellId(resolvedSpellId)
+			or trySpellId(storedBaseSpellId)
+			or trySpellId(entry.spellID)
 	elseif entry.type == "ITEM" and entry.itemID then
 		local lookup = buildKeybindLookup()
 		text = lookup.item and lookup.item[entry.itemID]
