@@ -956,6 +956,26 @@ local function roundToEvenPixel(value, scale)
 	return roundToPixel(value * 0.5, scale) * 2
 end
 
+function GF.SetRegionWidth(region, width, scale)
+	if not region then return end
+	width = max(1, tonumber(width) or 1)
+	if Pixel and Pixel.SetWidth then
+		Pixel.SetWidth(region, width, 1)
+	else
+		region:SetWidth(roundToPixel(width, scale))
+	end
+end
+
+function GF.SetRegionHeight(region, height, scale)
+	if not region then return end
+	height = max(1, tonumber(height) or 1)
+	if Pixel and Pixel.SetHeight then
+		Pixel.SetHeight(region, height, 1)
+	else
+		region:SetHeight(roundToPixel(height, scale))
+	end
+end
+
 function GF.ShouldForceLiveGroupButtonSize(kind) return kind == "party" or kind == "mt" or kind == "ma" end
 
 function GF.ForceLiveGroupButtonSize(self, kind, cfg, width, height)
@@ -6558,7 +6578,11 @@ function GF:LayoutButton(self)
 		if st.nameText.SetWordWrap then st.nameText:SetWordWrap(false) end
 		if st.nameText.SetNonSpaceWrap then st.nameText:SetNonSpaceWrap(false) end
 		if st.nameText.SetMaxLines then st.nameText:SetMaxLines(1) end
-		GF.ApplyScaledFont(self, st.nameText, tc.font or hc.font, tc.fontSize or hc.fontSize or 12, tc.fontOutline or hc.fontOutline, cfg)
+		local nameFont = tc.font or hc.font
+		local nameFontSize = tc.fontSize or hc.fontSize or 12
+		local nameFontOutline = tc.fontOutline or hc.fontOutline
+		local scaledNameFontSize = GF.ScaleContentValue(self, nameFontSize, cfg, 1)
+		if UFHelper and UFHelper.applyFont then UFHelper.applyFont(st.nameText, nameFont, scaledNameFontSize, nameFontOutline) end
 		local nameAnchor = tc.nameAnchor or "LEFT"
 		local baseOffset = (cfg.health and cfg.health.offsetLeft) or {}
 		if nameAnchor and nameAnchor:find("RIGHT") then
@@ -6573,6 +6597,14 @@ function GF:LayoutButton(self)
 		local nameAnchorFrame = layoutAnchor or st.health
 		if nameAnchor and nameAnchor:find("BOTTOM") then nameAnchorFrame = st.health or nameAnchorFrame end
 		local nameMaxChars = tonumber(tc.nameMaxChars) or 0
+		local nameFrameWidth = nameAnchorFrame and nameAnchorFrame.GetWidth and nameAnchorFrame:GetWidth() or 0
+		if not nameFrameWidth or nameFrameWidth <= 1 then
+			if nameAnchorFrame == st.health then
+				nameFrameWidth = max(1, (tonumber(w) or 1) - (tonumber(contentOffsetLeft) or 0) - (tonumber(contentOffsetRight) or 0))
+			else
+				nameFrameWidth = max(1, (tonumber(w) or 1) + (tonumber(layoutOffsetLeft) or 0) + (tonumber(layoutOffsetRight) or 0))
+			end
+		end
 		st.nameText:ClearAllPoints()
 		if nameMaxChars <= 0 then
 			local vert = "CENTER"
@@ -6582,14 +6614,15 @@ function GF:LayoutButton(self)
 				vert = "BOTTOM"
 			end
 			local leftPoint = (vert == "CENTER") and "LEFT" or (vert .. "LEFT")
-			local rightPoint = (vert == "CENTER") and "RIGHT" or (vert .. "RIGHT")
+			local rightPad = 4 * contentScale
+			local nameWidth = max(1, nameFrameWidth - nameX - rightPad)
 			if Pixel and Pixel.SetPoint then
 				Pixel.SetPoint(st.nameText, leftPoint, nameAnchorFrame, leftPoint, nameX, nameY)
-				Pixel.SetPoint(st.nameText, rightPoint, nameAnchorFrame, rightPoint, -4 * contentScale, nameY)
 			else
 				st.nameText:SetPoint(leftPoint, nameAnchorFrame, leftPoint, roundToPixel(nameX, scale), roundToPixel(nameY, scale))
-				st.nameText:SetPoint(rightPoint, nameAnchorFrame, rightPoint, roundToPixel(-4 * contentScale, scale), roundToPixel(nameY, scale))
 			end
+			GF.SetRegionWidth(st.nameText, nameWidth, scale)
+			st._eqolNameTextWidth = nil
 		else
 			if Pixel and Pixel.SetPoint then
 				Pixel.SetPoint(st.nameText, nameAnchor, nameAnchorFrame, nameAnchor, nameX, nameY)
@@ -6597,6 +6630,7 @@ function GF:LayoutButton(self)
 				st.nameText:SetPoint(nameAnchor, nameAnchorFrame, nameAnchor, roundToPixel(nameX, scale), roundToPixel(nameY, scale))
 			end
 		end
+		GF.SetRegionHeight(st.nameText, scaledNameFontSize + 2, scale)
 		local justify = "CENTER"
 		if nameAnchor and nameAnchor:find("LEFT") then
 			justify = "LEFT"
@@ -6613,11 +6647,11 @@ function GF:LayoutButton(self)
 		if UFHelper and UFHelper.applyNameCharLimit then
 			local nameCfg = st._nameLimitCfg or {}
 			nameCfg.nameMaxChars = tc.nameMaxChars
-			nameCfg.font = tc.font or hc.font
-			nameCfg.fontSize = GF.ScaleContentValue(self, tc.fontSize or hc.fontSize or 12, cfg, 1)
-			nameCfg.fontOutline = tc.fontOutline or hc.fontOutline
+			nameCfg.font = nameFont
+			nameCfg.fontSize = scaledNameFontSize
+			nameCfg.fontOutline = nameFontOutline
 			st._nameLimitCfg = nameCfg
-			UFHelper.applyNameCharLimit(st, nameCfg, nil)
+			if nameMaxChars > 0 then UFHelper.applyNameCharLimit(st, nameCfg, nil) end
 		end
 	end
 
@@ -8769,7 +8803,7 @@ function GF:UpdateName(self)
 	if noEllipsis and maxChars > 0 and UFHelper and UFHelper.getNameLimitWidth and UFHelper.truncateTextToWidth then
 		local hc = cfg and cfg.health or {}
 		local font = tc.font or hc.font
-		local fontSize = tc.fontSize or hc.fontSize or 12
+		local fontSize = GF.ScaleContentValue(self, tc.fontSize or hc.fontSize or 12, cfg, 1)
 		local fontOutline = tc.fontOutline or hc.fontOutline or "OUTLINE"
 		local maxWidth = UFHelper.getNameLimitWidth(font, fontSize, fontOutline, maxChars)
 		if maxWidth and maxWidth > 0 then displayName = UFHelper.truncateTextToWidth(font, fontSize, fontOutline, displayName, maxWidth) end

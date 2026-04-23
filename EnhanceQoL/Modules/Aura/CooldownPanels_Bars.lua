@@ -1224,6 +1224,15 @@ Bars.GetBarIconBorderOutset = function(borderSize, borderOffset)
 	return size + offset
 end
 
+Bars.GetBarFillInset = function(borderSize, effectiveScale, width, height)
+	local size = max(tonumber(borderSize) or 0, 0)
+	if size <= 0 then return 0 end
+	local inset = max(1, pixelSnap(size, effectiveScale))
+	local shortestSide = min(max(tonumber(width) or 0, 0), max(tonumber(height) or 0, 0))
+	if shortestSide > 0 then inset = min(inset, max(0, floor((shortestSide - 1) * 0.5))) end
+	return inset
+end
+
 Bars.ApplyBarIconBorder = function(barFrame, showIcon, borderTexturePath, borderSize, borderOffset, borderColor)
 	if not (barFrame and barFrame.iconBorder and barFrame.iconHolder) then return end
 	if showIcon and borderSize > 0 and barFrame.iconHolder:IsShown() then
@@ -1248,6 +1257,9 @@ local function ensureBarSegment(frame, index)
 	segment:SetClampedToScreen(false)
 	segment:SetMovable(false)
 	segment:EnableMouse(false)
+	if segment.SetClipsChildren then
+		segment:SetClipsChildren(true)
+	end
 	segment.fill = CreateFrame("StatusBar", nil, segment)
 	segment.fill:SetPoint("TOPLEFT", segment, "TOPLEFT", 0, 0)
 	segment.fill:SetPoint("BOTTOMRIGHT", segment, "BOTTOMRIGHT", 0, 0)
@@ -1491,6 +1503,9 @@ local function ensureBarFrame(icon)
 	frame.body = CreateFrame("Frame", nil, frame, "BackdropTemplate")
 	frame.body:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
 	frame.body:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
+	if frame.body.SetClipsChildren then
+		frame.body:SetClipsChildren(true)
+	end
 	applyBackdropFrame(frame.body, "Interface\\Buttons\\WHITE8x8", 1)
 	frame.body:SetBackdropColor(unpack(Bars.COLORS.Background))
 	frame.body:SetBackdropBorderColor(unpack(Bars.COLORS.Border))
@@ -2994,7 +3009,8 @@ local function layoutChargeSegmentsIntoBar(
 	backgroundColor,
 	fillTexturePath,
 	fillColor,
-	orientation
+	orientation,
+	effectiveScale
 )
 	Bars.HideUnusedBarDividers(barFrame, 1)
 	local segmentAxisSize = segmentDirection == BAR_ORIENTATION_VERTICAL and bodyHeight or bodyWidth
@@ -3020,6 +3036,7 @@ local function layoutChargeSegmentsIntoBar(
 			segment:SetPoint("TOPLEFT", barFrame.body, "TOPLEFT", primaryOffset, 0)
 			segment:SetSize(primarySize, bodyHeight)
 		end
+		local fillInset = Bars.GetBarFillInset(borderSize, effectiveScale, segmentDirection == BAR_ORIENTATION_VERTICAL and bodyWidth or primarySize, segmentDirection == BAR_ORIENTATION_VERTICAL and primarySize or bodyHeight)
 		segment:SetFrameStrata(barFrame:GetFrameStrata())
 		segment:SetFrameLevel((barFrame.body and barFrame.body:GetFrameLevel() or barFrame:GetFrameLevel()) + 1)
 		applyBackdropFrame(segment, borderTexturePath, borderSize)
@@ -3029,8 +3046,8 @@ local function layoutChargeSegmentsIntoBar(
 		applyStatusBarOrientation(segment.fill, orientation)
 		segment.fill:SetFrameLevel(segment:GetFrameLevel() + 1)
 		segment.fill:ClearAllPoints()
-		segment.fill:SetPoint("TOPLEFT", segment, "TOPLEFT", 0, 0)
-		segment.fill:SetPoint("BOTTOMRIGHT", segment, "BOTTOMRIGHT", 0, 0)
+		segment.fill:SetPoint("TOPLEFT", segment, "TOPLEFT", fillInset, -fillInset)
+		segment.fill:SetPoint("BOTTOMRIGHT", segment, "BOTTOMRIGHT", -fillInset, fillInset)
 		segment.fillBg:SetTexture(fillTexturePath)
 		segment.fillBg:SetVertexColor(backgroundColor[1], backgroundColor[2], backgroundColor[3], backgroundColor[4])
 		segment.fill:SetStatusBarColor(fillColor[1], fillColor[2], fillColor[3], fillColor[4])
@@ -3206,6 +3223,7 @@ Bars.LayoutStackSegmentsIntoBar = function(
 			segment:SetPoint("TOPLEFT", barFrame.body, "TOPLEFT", primaryOffset, 0)
 			segment:SetSize(primarySize, bodyHeight)
 		end
+		local fillInset = Bars.GetBarFillInset(borderSize, effectiveScale, segmentDirection == BAR_ORIENTATION_VERTICAL and bodyWidth or primarySize, segmentDirection == BAR_ORIENTATION_VERTICAL and primarySize or bodyHeight)
 		segment:SetFrameStrata(barFrame:GetFrameStrata())
 		segment:SetFrameLevel((barFrame.body and barFrame.body:GetFrameLevel() or barFrame:GetFrameLevel()) + 1)
 		applyBackdropFrame(segment, borderTexturePath, borderSize)
@@ -3215,8 +3233,8 @@ Bars.LayoutStackSegmentsIntoBar = function(
 		applyStatusBarOrientation(segment.fill, orientation)
 		segment.fill:SetFrameLevel(segment:GetFrameLevel() + 1)
 		segment.fill:ClearAllPoints()
-		segment.fill:SetPoint("TOPLEFT", segment, "TOPLEFT", 0, 0)
-		segment.fill:SetPoint("BOTTOMRIGHT", segment, "BOTTOMRIGHT", 0, 0)
+		segment.fill:SetPoint("TOPLEFT", segment, "TOPLEFT", fillInset, -fillInset)
+		segment.fill:SetPoint("BOTTOMRIGHT", segment, "BOTTOMRIGHT", -fillInset, fillInset)
 		segment.fillBg:SetTexture(fillTexturePath)
 		segment.fillBg:SetVertexColor(backgroundColor[1], backgroundColor[2], backgroundColor[3], backgroundColor[4])
 		segment.fillBg:Show()
@@ -3491,9 +3509,10 @@ layoutBarFrame = function(barFrame, icon, span, layout, state)
 	barFrame.body:SetBackdropBorderColor(0, 0, 0, 0)
 	barFrame.fillBg:SetVertexColor(backgroundColor[1], backgroundColor[2], backgroundColor[3], backgroundColor[4])
 	local borderOffset = pixelSnap(normalizeBarBorderOffset(state and state.borderOffset, Bars.DEFAULTS.barBorderOffset), effectiveScale)
+	local fillInset = Bars.GetBarFillInset(borderSize, effectiveScale, bodyWidth, bodyHeight)
 	barFrame.fill:ClearAllPoints()
-	barFrame.fill:SetPoint("TOPLEFT", barFrame.body, "TOPLEFT", 0, 0)
-	barFrame.fill:SetPoint("BOTTOMRIGHT", barFrame.body, "BOTTOMRIGHT", 0, 0)
+	barFrame.fill:SetPoint("TOPLEFT", barFrame.body, "TOPLEFT", fillInset, -fillInset)
+	barFrame.fill:SetPoint("BOTTOMRIGHT", barFrame.body, "BOTTOMRIGHT", -fillInset, fillInset)
 	if barFrame.dividerOverlay then
 		barFrame.dividerOverlay:ClearAllPoints()
 		barFrame.dividerOverlay:SetPoint("TOPLEFT", barFrame.body, "TOPLEFT", 0, 0)
@@ -3563,7 +3582,8 @@ layoutBarFrame = function(barFrame, icon, span, layout, state)
 			backgroundColor,
 			fillTexturePath,
 			fillColor,
-			orientation
+			orientation,
+			effectiveScale
 		)
 	elseif useStackSegments then
 		Bars.LayoutStackSegmentsIntoBar(

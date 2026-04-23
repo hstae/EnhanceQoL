@@ -1,5 +1,14 @@
 # Changelog
 
+## [10.6.4-beta1] - 2026-04-23
+
+### 🐛 Fixed
+
+- Cooldown Panels / Bars: Fixed bar fills sometimes drawing slightly outside their border.
+- Group Frames: Improved name text stability on party and raid frames, reducing visible shaking when frames update, resize, or refresh their layout.
+
+---
+
 ## [10.6.3] - 2026-04-23
 
 ### 🐛 Fixed
