@@ -1,36 +1,19 @@
 # Changelog
 
-## [10.6.0-beta3] - 2026-04-23
-
-### 🐛 Fixed
-
-- Cooldown Panels: Fixed Ready Glow sometimes disappearing or failing to appear after a cooldown finished, especially when the global cooldown briefly overlapped the spell.
-- Cooldown Panels: Fixed "Require resource for ready glow" so Ready Glow no longer appears while a spell is not currently usable, such as `Rampage` without enough Rage or `Execute` outside its usable conditions.
-- Party/Raid Frames: Fixed the Dispel indicator highlight so it now covers the full frame, including the resource bar, and the Edit Mode sample stays visible.
-- Party Frames: Fixed role-based Power Bar visibility in solo scenarios so the current specialization role is used when no party role is assigned.
-
----
-
-## [10.6.0-beta2] - 2026-04-22
+## [10.6.0] - 2026-04-23
 
 ### ✨ Added
 
 - Group Frames: Added "Don't overflow health bar" controls for Absorb and Heal Absorb bars in the Party/Raid panels, plus an optional Absorb glow indicator. Absorb no-overflow is available with reverse fill; Heal Absorb no-overflow is available without reverse fill.
-
-### 🐛 Fixed
-
-- Cooldown Panels: Polished the Original Blizzard icon border so the frame, icon, and cooldown swipe line up more cleanly.
-
----
-
-## [10.6.0] - 2026-04-22
-
-### ✨ Added
-
 - Cooldown Panels: Added an Original Blizzard icon border option, matching the rounded Cooldown Manager look for panel icons.
 
 ### 🐛 Fixed
 
+- Cooldown Panels: Polished the Original Blizzard icon border so the frame, icon, and cooldown swipe line up more cleanly.
+- Cooldown Panels: Fixed Ready Glow sometimes disappearing or failing to appear after a cooldown finished, especially when the global cooldown briefly overlapped the spell.
+- Cooldown Panels: Fixed "Require resource for ready glow" so Ready Glow no longer appears while a spell is not currently usable, such as `Rampage` without enough Rage or `Execute` outside its usable conditions.
+- Party/Raid Frames: Fixed the Dispel indicator highlight so it now covers the full frame, including the resource bar, and the Edit Mode sample stays visible.
+- Party Frames: Fixed role-based Power Bar visibility in solo scenarios so the current specialization role is used when no party role is assigned.
 - Cooldown Panels: Fixed panels for other specializations sometimes staying visible after switching specs.
 
 ---
