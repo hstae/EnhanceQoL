@@ -3014,7 +3014,11 @@ local function refreshPanelKeybindsOnly(panelId)
 		local keybind = icon and icon.keybind or nil
 		local data = visible[i]
 		if keybind then
-			local show = data and data.layout and data.layout.keybindsEnabled == true and data.entry ~= nil
+			local entry = data and data.entry or nil
+			local bars = CooldownPanels and CooldownPanels.Bars or nil
+			local barDisplayMode = type(bars) == "table" and type(bars.DISPLAY_MODE) == "table" and bars.DISPLAY_MODE.BAR or "BAR"
+			local suppressForBarMode = type(entry) == "table" and type(entry.displayMode) == "string" and string.upper(entry.displayMode) == barDisplayMode
+			local show = data and data.layout and data.layout.keybindsEnabled == true and entry ~= nil and not suppressForBarMode
 			local text = show and Keybinds.GetEntryKeybindText(data.entry, data.layout) or nil
 			if data then
 				data.showKeybinds = show == true

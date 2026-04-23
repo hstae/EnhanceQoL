@@ -5,6 +5,7 @@
 ### 🐛 Fixed
 
 - Resource Bars: Fixed the Devorer Void Meta bar so it now fills correctly while in Void Meta and no longer looks empty after you go past the cast threshold.
+- Cooldown Panels / Bars: Fixed BAR-mode entries in keybind-enabled panels so hidden source icons no longer leave behind floating keybind.
 
 ---
 
