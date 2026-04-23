@@ -1,5 +1,13 @@
 # Changelog
 
+## [10.6.0-beta3] - 2026-04-23
+
+### 🐛 Fixed
+
+- Cooldown Panels: Fixed Ready Glow sometimes disappearing or failing to appear after cooldowns finished by refreshing spell cooldown caches per query pass, invalidating cooldown aliases more reliably, and treating ignored global cooldown states from `isOnGCD` as ready instead of a real cooldown.
+
+---
+
 ## [10.6.0-beta2] - 2026-04-22
 
 ### ✨ Added

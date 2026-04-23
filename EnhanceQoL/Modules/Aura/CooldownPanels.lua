@@ -6887,6 +6887,9 @@ local function updateCooldownDoneContext(cooldown, panelId, entryId, data)
 	cooldown._eqolPanelId = panelId
 	cooldown._eqolEntryId = entryId
 	cooldown._eqolCooldownIsGCD = data.cooldownGCD == true
+	cooldown._eqolSpellId = data.spellId
+	cooldown._eqolBaseSpellId = data.baseSpellId
+	cooldown._eqolEffectiveSpellId = data.effectiveSpellId
 	cooldown._eqolSoundName = data.soundName
 	if armReadySound then
 		cooldown._eqolSoundReady = true
@@ -6919,11 +6922,21 @@ local function onCooldownDone(self)
 	end
 
 	if not isGCD then
+		if CooldownPanels and CooldownPanels.InvalidateSpellCooldownCachesForAliases then
+			CooldownPanels:InvalidateSpellCooldownCachesForAliases(self._eqolSpellId)
+			CooldownPanels:InvalidateSpellCooldownCachesForAliases(self._eqolBaseSpellId)
+			CooldownPanels:InvalidateSpellCooldownCachesForAliases(self._eqolEffectiveSpellId)
+		end
+
 		-- Glow trigger is purely event-driven (robust in secret environments).
 		if self._eqolGlowReady then triggerReadyGlow(self._eqolPanelId, self._eqolEntryId, self._eqolGlowDuration) end
 	end
 
-	if CooldownPanels and CooldownPanels.RefreshPanel then CooldownPanels:RequestPanelRefresh(self._eqolPanelId) end
+	if CooldownPanels and CooldownPanels.RequestPanelRefresh then
+		CooldownPanels:RequestPanelRefresh(self._eqolPanelId)
+	elseif CooldownPanels and CooldownPanels.RefreshPanel and self._eqolPanelId then
+		CooldownPanels:RefreshPanel(self._eqolPanelId)
+	end
 	-- if CooldownPanels and CooldownPanels.RequestUpdate then CooldownPanels:RequestUpdate() end
 end
 
@@ -7137,6 +7150,21 @@ function CooldownPanels:InvalidateSpellQueryCaches(kind, spellId)
 	end
 end
 
+function CooldownPanels:InvalidateSpellCooldownCachesForAliases(spellId)
+	local id = tonumber(spellId)
+	if not (id and self.runtime) then return false end
+	local ids = self:GetSpellAliasIDs(id, {}, {})
+	if not ids or #ids == 0 then return false end
+	for i = 1, #ids do
+		local aliasId = ids[i]
+		self:InvalidateSpellQueryCaches("duration", aliasId)
+		self:InvalidateSpellQueryCaches("info", aliasId)
+		self:InvalidateSpellQueryCaches("charges", aliasId)
+		self:InvalidateSpellQueryCaches("chargeDuration", aliasId)
+	end
+	return true
+end
+
 function CooldownPanels:GetCachedSpellCooldownDurationObject(spellId, ignoreGCD)
 	if not spellId then return nil end
 	local runtime = self:EnsureSpellQueryCaches()
@@ -7161,6 +7189,8 @@ end
 function CooldownPanels:GetCachedSpellCooldownInfo(spellId, ignoreGCD)
 	if not spellId then return 0, 0, false, 1, nil, false end
 	local runtime = self:EnsureSpellQueryCaches()
+	local pass = runtime.spellQueryPass
+	if not pass then return getSpellCooldownInfo(spellId) end
 	local cache = runtime.spellCooldownInfoCache
 	local useIgnoreGCD = ignoreGCD == true and CooldownPanels._eqolSpellCooldownIgnoreGCDSupported == true
 	local mode = useIgnoreGCD == true and "ignoreGCD" or "default"
@@ -7170,19 +7200,17 @@ function CooldownPanels:GetCachedSpellCooldownInfo(spellId, ignoreGCD)
 		cache[spellId] = cachedByMode
 	end
 	local cached = cachedByMode[mode]
-	if cached then return cached.startTime, cached.duration, cached.enabled, cached.modRate, cached.isOnGCD, cached.isActive end
+	if cached and cached.pass == pass then return cached.startTime, cached.duration, cached.enabled, cached.modRate, cached.isOnGCD, cached.isActive end
 	cached = cached or {}
 	cachedByMode[mode] = cached
+	cached.pass = pass
 	if useIgnoreGCD == true then
 		cached.startTime, cached.duration, cached.enabled, cached.modRate, cached.isOnGCD, cached.isActive =
 			self:GetCachedSpellCooldownInfo(spellId, false)
 		if cached.isOnGCD == true then
-			local nonGCDDurationObject = self:GetCachedSpellCooldownDurationObject(spellId, true)
-			if nonGCDDurationObject == nil then
-				cached.startTime = 0
-				cached.duration = 0
-				cached.isActive = false
-			end
+			cached.startTime = 0
+			cached.duration = 0
+			cached.isActive = false
 			cached.isOnGCD = false
 		end
 	else
@@ -7194,11 +7222,14 @@ end
 function CooldownPanels:GetCachedSpellChargesInfo(spellId)
 	if not spellId or not Api.GetSpellChargesInfo then return nil end
 	local runtime = self:EnsureSpellQueryCaches()
+	local pass = runtime.spellQueryPass
+	if not pass then return Api.GetSpellChargesInfo(spellId) end
 	local cache = runtime.spellChargesInfoCache
 	local cached = cache[spellId]
-	if cached then return cached.value end
+	if cached and cached.pass == pass then return cached.value end
 	cached = cached or {}
 	cache[spellId] = cached
+	cached.pass = pass
 	cached.value = Api.GetSpellChargesInfo(spellId)
 	return cached.value
 end
@@ -15553,6 +15584,10 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 				data.hideOnCooldown = entryHideOnCooldown == true
 				data.showOnCooldown = entryShowOnCooldown == true
 				data.resolvedType = resolvedType
+				data.spellId = spellId
+				data.baseSpellId = baseSpellId
+				data.effectiveSpellId = effectiveSpellId
+				data.resolvedSpellId = resolvedSpellId
 				data.overlayGlow = overlayGlow
 				data.overlayGlowColor = nil
 				data.overlayGlowStyle = procGlowStyle
@@ -15750,6 +15785,9 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 				icon.cooldown._eqolSoundName = nil
 				icon.cooldown._eqolGlowReady = nil
 				icon.cooldown._eqolGlowDuration = nil
+				icon.cooldown._eqolSpellId = nil
+				icon.cooldown._eqolBaseSpellId = nil
+				icon.cooldown._eqolEffectiveSpellId = nil
 				if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", nil) end
 				if icon.cooldown.Resume then icon.cooldown:Resume() end
 				icon.count:Hide()
@@ -19599,6 +19637,10 @@ function cdp.ENTRY.TryRefreshVisibleSpellEntry(panelId, entryId, mode)
 	data.chargesInfo = chargesInfo
 	data.chargeDurationObject = chargeDurationObject
 	data.cooldownDurationObject = cooldownDurationObject
+	data.spellId = spellId
+	data.baseSpellId = baseSpellId
+	data.effectiveSpellId = effectiveSpellId
+	data.resolvedSpellId = resolvedSpellId
 	if data.glowReady and showCooldown then
 		if cooldownGCD then
 			data.spellReadyCondition = true
@@ -20132,19 +20174,7 @@ function CooldownPanels:HandleReadySoundSpellEvent(spellId, baseSpellId, fallbac
 end
 
 CooldownPanels.InvalidateChargeCachesForSpell = function(spellId)
-	local numericSpellId = tonumber(spellId)
-	local baseId = numericSpellId and getBaseSpellId(numericSpellId) or nil
-	local effectiveId = numericSpellId and getEffectiveSpellId(numericSpellId) or nil
-	local function invalidateForId(id)
-		if not id then return end
-		CooldownPanels:InvalidateSpellQueryCaches("charges", id)
-		CooldownPanels:InvalidateSpellQueryCaches("chargeDuration", id)
-		CooldownPanels:InvalidateSpellQueryCaches("duration", id)
-		CooldownPanels:InvalidateSpellQueryCaches("info", id)
-	end
-	invalidateForId(numericSpellId)
-	if baseId and baseId ~= numericSpellId then invalidateForId(baseId) end
-	if effectiveId and effectiveId ~= numericSpellId and effectiveId ~= baseId then invalidateForId(effectiveId) end
+	return CooldownPanels:InvalidateSpellCooldownCachesForAliases(spellId)
 end
 
 refreshPanelsForCharges = function()
@@ -20398,7 +20428,18 @@ local function clearReadyGlowForSpell(spellId)
 	local id = tonumber(spellId)
 	if not id then return false end
 	local index = CooldownPanels.runtime and CooldownPanels.runtime.spellIndex
-	local panels = index and index[id]
+	if not index then return false end
+	local panels
+	local aliasIDs = CooldownPanels:GetSpellAliasIDs(id, {}, {})
+	for i = 1, #aliasIDs do
+		local aliasPanels = index[aliasIDs[i]]
+		if aliasPanels then
+			panels = panels or {}
+			for panelId in pairs(aliasPanels) do
+				panels[panelId] = true
+			end
+		end
+	end
 	if not panels then return false end
 	for panelId in pairs(panels) do
 		local runtime = getRuntime(panelId)
@@ -20406,6 +20447,7 @@ local function clearReadyGlowForSpell(spellId)
 		if runtime and panel and panel.entries then
 			runtime.readyAt = runtime.readyAt or {}
 			runtime.glowTimers = runtime.glowTimers or {}
+			local primed = CooldownPanels.GetReadyGlowPrimedState(runtime)
 			for entryId, entry in pairs(panel.entries) do
 				if entry then
 					local entrySpellId
@@ -20420,6 +20462,7 @@ local function clearReadyGlowForSpell(spellId)
 						local t = runtime.glowTimers[entryId]
 						if t and t.Cancel then t:Cancel() end
 						runtime.glowTimers[entryId] = nil
+						if primed then primed[entryId] = nil end
 					end
 				end
 			end
@@ -20835,7 +20878,7 @@ function CooldownPanels.SetUpdateFrameEnabled(frame, enabled)
 		for _, event in ipairs(CooldownPanels.UPDATE_FRAME_EVENTS or {}) do
 			frame:RegisterEvent(event)
 		end
-		-- frame:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
+		frame:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
 		-- frame:RegisterUnitEvent("UNIT_SPELLCAST_START", "player")
 		-- frame:RegisterUnitEvent("UNIT_SPELLCAST_STOP", "player")
 		-- frame:RegisterUnitEvent("UNIT_SPELLCAST_FAILED", "player")
@@ -21095,8 +21138,7 @@ function CooldownPanels.EnsureUpdateFrame()
 			local runtime = CooldownPanels.runtime
 			local enabledPanels = runtime and runtime.enabledPanels
 			if enabledPanels and not next(enabledPanels) then return end
-			local spellIndex = runtime and runtime.spellIndex
-			if not (spellIndex and spellIndex[spellId]) then return end
+			CooldownPanels:InvalidateSpellCooldownCachesForAliases(spellId)
 			clearReadyGlowForSpell(spellId)
 			refreshPanelsForSpell(spellId)
 			return
@@ -21104,18 +21146,8 @@ function CooldownPanels.EnsureUpdateFrame()
 		if event == "SPELL_UPDATE_COOLDOWN" then
 			local spellId, baseSpellId = ...
 			if spellId ~= nil or baseSpellId ~= nil then
-				local function invalidateCooldownCachesForId(id)
-					if id == nil then return end
-					CooldownPanels:InvalidateSpellQueryCaches("duration", id)
-					CooldownPanels:InvalidateSpellQueryCaches("info", id)
-					local effectiveId = getEffectiveSpellId(id)
-					if effectiveId and effectiveId ~= id then
-						CooldownPanels:InvalidateSpellQueryCaches("duration", effectiveId)
-						CooldownPanels:InvalidateSpellQueryCaches("info", effectiveId)
-					end
-				end
-				invalidateCooldownCachesForId(spellId)
-				if baseSpellId ~= spellId then invalidateCooldownCachesForId(baseSpellId) end
+				CooldownPanels:InvalidateSpellCooldownCachesForAliases(spellId)
+				if baseSpellId ~= spellId then CooldownPanels:InvalidateSpellCooldownCachesForAliases(baseSpellId) end
 				local gcdChanged = CooldownPanels:UpdateGlobalGCDState()
 				if gcdChanged then
 					CooldownPanels:InvalidateSpellQueryCaches("duration")
@@ -21131,8 +21163,7 @@ function CooldownPanels.EnsureUpdateFrame()
 				end
 				return
 			end
-			CooldownPanels:InvalidateSpellQueryCaches("duration")
-			CooldownPanels:InvalidateSpellQueryCaches("info")
+			CooldownPanels:InvalidateSpellQueryCaches()
 			CooldownPanels:HandleReadySoundSpellEvent(nil, nil, true)
 			if not CooldownPanels.RequestEnabledPanelRefreshes() then CooldownPanels:RefreshAllPanels() end
 			return
@@ -21144,8 +21175,9 @@ function CooldownPanels.EnsureUpdateFrame()
 		end
 		if event == "SPELL_UPDATE_CHARGES" then
 			local spellId, baseSpellId = ...
-			if spellId ~= nil then
+			if spellId ~= nil or baseSpellId ~= nil then
 				CooldownPanels.InvalidateChargeCachesForSpell(spellId)
+				if baseSpellId ~= spellId then CooldownPanels.InvalidateChargeCachesForSpell(baseSpellId) end
 				CooldownPanels:HandleReadySoundSpellEvent(spellId, baseSpellId, true)
 			else
 				CooldownPanels:InvalidateSpellQueryCaches("charges")
