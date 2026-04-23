@@ -4,7 +4,8 @@
 
 ### 🐛 Fixed
 
-- Cooldown Panels: Fixed Ready Glow sometimes disappearing or failing to appear after cooldowns finished by refreshing spell cooldown caches per query pass, invalidating cooldown aliases more reliably, and treating ignored global cooldown states from `isOnGCD` as ready instead of a real cooldown.
+- Cooldown Panels: Fixed Ready Glow sometimes disappearing or failing to appear after a cooldown finished, especially when the global cooldown briefly overlapped the spell.
+- Cooldown Panels: Fixed "Require resource for ready glow" so Ready Glow no longer appears while a spell is not currently usable, such as `Rampage` without enough Rage or `Execute` outside its usable conditions.
 
 ---
 

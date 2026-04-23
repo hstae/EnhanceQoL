@@ -692,26 +692,16 @@ local function setPowerInsufficient(runtime, spellId, isUsable, insufficientPowe
 	local usable = isUsable == true
 	local powerValue = (insufficientPower == true) and true or nil
 	local unusableValue = (not usable and insufficientPower ~= true) and true or nil
-	local baseId = getBaseSpellId(spellId)
-	local effectiveId = getEffectiveSpellId(spellId)
 	local changed = false
-	if baseId then
-		if runtime.powerInsufficient[baseId] ~= powerValue then
-			runtime.powerInsufficient[baseId] = powerValue
+	local ids = CooldownPanels:GetSpellAliasIDs(spellId, {}, {})
+	for i = 1, #ids do
+		local id = ids[i]
+		if runtime.powerInsufficient[id] ~= powerValue then
+			runtime.powerInsufficient[id] = powerValue
 			changed = true
 		end
-		if runtime.spellUnusable[baseId] ~= unusableValue then
-			runtime.spellUnusable[baseId] = unusableValue
-			changed = true
-		end
-	end
-	if effectiveId and effectiveId ~= baseId then
-		if runtime.powerInsufficient[effectiveId] ~= powerValue then
-			runtime.powerInsufficient[effectiveId] = powerValue
-			changed = true
-		end
-		if runtime.spellUnusable[effectiveId] ~= unusableValue then
-			runtime.spellUnusable[effectiveId] = unusableValue
+		if runtime.spellUnusable[id] ~= unusableValue then
+			runtime.spellUnusable[id] = unusableValue
 			changed = true
 		end
 	end
@@ -15450,7 +15440,8 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 				local procActive = resolvedType == "SPELL" and isSpellFlagged(overlayGlowSpells, baseSpellId, effectiveSpellId)
 				local overlayGlow = procActive and procGlowEnabled
 				local resourceInsufficient = resolvedType == "SPELL" and isSpellFlagged(powerInsufficientSpells, baseSpellId, effectiveSpellId)
-				local readyGlowResourceBlocked = resolvedType == "SPELL" and readyGlowCheckPower and resourceInsufficient
+				local unusableForReadyGlow = resolvedType == "SPELL" and isSpellFlagged(spellUnusableSpells, baseSpellId, effectiveSpellId)
+				local readyGlowResourceBlocked = resolvedType == "SPELL" and readyGlowCheckPower and (resourceInsufficient or unusableForReadyGlow)
 				local powerInsufficient = resolvedType == "SPELL" and entryCheckPower and resourceInsufficient
 				local spellUnusable = resolvedType == "SPELL" and entryCheckPower and isSpellFlagged(spellUnusableSpells, baseSpellId, effectiveSpellId)
 				local rangeOverlay = rangeOverlayEnabled and resolvedType == "SPELL" and isSpellFlagged(rangeOverlaySpells, baseSpellId, effectiveSpellId)
