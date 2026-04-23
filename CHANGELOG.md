@@ -1,5 +1,14 @@
 # Changelog
 
+## [10.6.1] - 2026-04-23
+
+### 🐛 Fixed
+
+- Cooldown Panels: Fixed shared panels with talent-choice spells so entries like `Divine Toll` / `Holy Prism` or `Tremor Totem` / `Poison Cleansing Totem` now switch to the correct spell for the current spec and talent choice without disappearing or getting stuck on the wrong icon.
+- Profiles: Fixed profile export/import so the Mover on/off setting is now included.
+
+---
+
 ## [10.6.0] - 2026-04-23
 
 ### ✨ Added

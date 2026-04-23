@@ -87,7 +87,8 @@ CooldownPanels.itemHighestRankByID = CooldownPanels.itemHighestRankByID
 		[241300] = { 241301, 241300 },
 	}
 
-CooldownPanels.spellVariantGroupByID = CooldownPanels.spellVariantGroupByID or {}
+CooldownPanels.staticSpellVariantGroupByID = CooldownPanels.staticSpellVariantGroupByID or {}
+CooldownPanels.spellVariantGroupByID = CooldownPanels.staticSpellVariantGroupByID
 
 CooldownPanels.staticSpellVariantGroups = CooldownPanels.staticSpellVariantGroups
 	or {
@@ -118,7 +119,7 @@ function CooldownPanels:RegisterItemRankGroup(rankList)
 	return true
 end
 
-function CooldownPanels:RegisterSpellVariantGroup(variantList, options)
+function cdp.RUNTIME.RegisterSpellVariantGroupIntoMap(groupMap, variantList, options)
 	if type(variantList) ~= "table" then return false end
 	local ids = {}
 	local seen = {}
@@ -131,10 +132,8 @@ function CooldownPanels:RegisterSpellVariantGroup(variantList, options)
 		end
 	end
 	if #ids < 2 then return false end
-	local groupMap = self.spellVariantGroupByID
 	if type(groupMap) ~= "table" then
-		groupMap = {}
-		self.spellVariantGroupByID = groupMap
+		return false
 	end
 	for i = 1, #ids do
 		local spellID = ids[i]
@@ -145,6 +144,20 @@ function CooldownPanels:RegisterSpellVariantGroup(variantList, options)
 		end
 	end
 	return true
+end
+
+function CooldownPanels:RegisterStaticSpellVariantGroup(variantList, options)
+	local groupMap = self.staticSpellVariantGroupByID
+	if type(groupMap) ~= "table" then
+		groupMap = {}
+		self.staticSpellVariantGroupByID = groupMap
+		self.spellVariantGroupByID = groupMap
+	end
+	return cdp.RUNTIME.RegisterSpellVariantGroupIntoMap(groupMap, variantList, options)
+end
+
+function CooldownPanels:RegisterSpellVariantGroup(variantList, options)
+	return self:RegisterStaticSpellVariantGroup(variantList, options)
 end
 
 local function shouldShowEntryStacks(entry, resolvedType)
@@ -533,68 +546,261 @@ function CooldownPanels:EnsureStaticSpellVariantGroupsLoaded()
 	if self.runtime.staticSpellVariantGroupsLoaded == true then return end
 	local groups = self.staticSpellVariantGroups
 	for i = 1, #(groups or {}) do
-		self:RegisterSpellVariantGroup(groups[i], { mapBaseSpellIDs = true })
+		self:RegisterStaticSpellVariantGroup(groups[i], { mapBaseSpellIDs = true })
 	end
 	self.runtime.staticSpellVariantGroupsLoaded = true
 end
 
+local function queryPlayerSpecId()
+	if not (C_SpecializationInfo and C_SpecializationInfo.GetSpecialization) then return nil end
+	local specIndex = C_SpecializationInfo.GetSpecialization()
+	if not specIndex then return nil end
+	if C_SpecializationInfo and C_SpecializationInfo.GetSpecializationInfo then
+		local specId = C_SpecializationInfo.GetSpecializationInfo(specIndex)
+		if type(specId) == "number" and specId > 0 then return specId end
+		if type(specId) == "table" and type(specId.specID) == "number" and specId.specID > 0 then return specId.specID end
+	end
+	return nil
+end
+
+function cdp.RUNTIME.GetTalentNodeActiveEntryID(nodeInfo)
+	if type(nodeInfo) ~= "table" then return nil end
+	local activeEntry = nodeInfo.activeEntry
+	if type(activeEntry) == "table" then
+		local entryID = tonumber(activeEntry.entryID or activeEntry.id)
+		if entryID then return entryID end
+	elseif type(activeEntry) == "number" then
+		return activeEntry
+	end
+	local activeEntryID = tonumber(nodeInfo.activeEntryID)
+	if activeEntryID then return activeEntryID end
+	local committed = nodeInfo.entryIDsWithCommittedRanks
+	if type(committed) == "table" then
+		for i = 1, #committed do
+			local entryID = tonumber(committed[i])
+			if entryID then return entryID end
+		end
+		for entryID, rank in pairs(committed) do
+			local numericEntryID = tonumber(entryID)
+			local numericRank = tonumber(rank)
+			if numericEntryID and numericRank and numericRank > 0 then return numericEntryID end
+		end
+	end
+	return nil
+end
+
+function cdp.RUNTIME.IsTalentChoiceNodeActive(nodeInfo, activeEntryID)
+	if type(nodeInfo) ~= "table" or not activeEntryID then return false end
+	local hasRankField = false
+	for _, field in ipairs({ "currentRank", "activeRank", "ranksPurchased", "rank" }) do
+		local rank = tonumber(nodeInfo[field])
+		if rank ~= nil then
+			hasRankField = true
+			if rank > 0 then return true end
+		end
+	end
+	local committed = nodeInfo.entryIDsWithCommittedRanks
+	if type(committed) == "table" then
+		for i = 1, #committed do
+			if tonumber(committed[i]) == activeEntryID then return true end
+		end
+		for entryID, rank in pairs(committed) do
+			local numericEntryID = tonumber(entryID)
+			local numericRank = tonumber(rank)
+			if numericEntryID == activeEntryID and (numericRank == nil or numericRank > 0) then return true end
+		end
+	end
+	if hasRankField then return false end
+	return true
+end
+
+function cdp.RUNTIME.GetTalentEntrySpellID(configID, entryID)
+	local entryInfo = Api.GetTraitEntryInfo and Api.GetTraitEntryInfo(configID, entryID) or nil
+	local definitionID = entryInfo and tonumber(entryInfo.definitionID) or nil
+	if not definitionID then return nil end
+	local definitionInfo = Api.GetTraitDefinitionInfo and Api.GetTraitDefinitionInfo(definitionID) or nil
+	local spellID = definitionInfo and tonumber(definitionInfo.spellID) or nil
+	return spellID and spellID > 0 and spellID or nil
+end
+
+function cdp.RUNTIME.AddTalentChoiceGroupLookupID(ctx, group, spellID)
+	local id = tonumber(spellID)
+	if not id or group.lookupSeen[id] then return end
+	group.lookupSeen[id] = true
+	local list = ctx.byID[id]
+	if type(list) ~= "table" then
+		list = {}
+		ctx.byID[id] = list
+	end
+	list[#list + 1] = group
+end
+
+function cdp.RUNTIME.RegisterTalentChoiceRuntimeGroup(ctx, treeID, nodeID, spellIDs, selectedSpellID, activeEntryID)
+	local selectedID = tonumber(selectedSpellID)
+	if type(ctx) ~= "table" or type(spellIDs) ~= "table" or #spellIDs < 2 or not selectedID then return nil end
+	local group = {
+		kind = "talentChoice",
+		treeID = treeID,
+		nodeID = nodeID,
+		key = tostring(treeID or "?") .. ":" .. tostring(nodeID or "?"),
+		ids = spellIDs,
+		idSet = {},
+		canonicalID = tonumber(spellIDs[1]) or selectedID,
+		selectedSpellID = selectedID,
+		activeEntryID = activeEntryID,
+		lookupSeen = {},
+	}
+	ctx.groups[#ctx.groups + 1] = group
+	for i = 1, #spellIDs do
+		local spellID = tonumber(spellIDs[i])
+		if spellID then
+			group.idSet[spellID] = true
+			cdp.RUNTIME.AddTalentChoiceGroupLookupID(ctx, group, spellID)
+			cdp.RUNTIME.AddTalentChoiceGroupLookupID(ctx, group, getBaseSpellId(spellID))
+			cdp.RUNTIME.AddTalentChoiceGroupLookupID(ctx, group, getEffectiveSpellId(spellID))
+		end
+	end
+	cdp.RUNTIME.AddTalentChoiceGroupLookupID(ctx, group, selectedID)
+	cdp.RUNTIME.AddTalentChoiceGroupLookupID(ctx, group, getBaseSpellId(selectedID))
+	cdp.RUNTIME.AddTalentChoiceGroupLookupID(ctx, group, getEffectiveSpellId(selectedID))
+	group.lookupSeen = nil
+	return group
+end
+
 function cdp.RUNTIME.EnsureTalentChoiceSpellVariantGroupsLoaded(owner)
 	owner.runtime = owner.runtime or {}
-	local loadedByConfig = owner.runtime.talentChoiceSpellVariantGroupsLoadedByConfig
-	if type(loadedByConfig) ~= "table" then
-		loadedByConfig = {}
-		owner.runtime.talentChoiceSpellVariantGroupsLoadedByConfig = loadedByConfig
-	end
-
+	local runtime = owner.runtime
+	runtime.talentChoiceSpellVariantGroupsLoadedByConfig = nil
+	local specID = queryPlayerSpecId()
 	local configID = Api.GetActiveTalentConfigID and Api.GetActiveTalentConfigID() or nil
-	if not configID or loadedByConfig[configID] == true then return end
-	loadedByConfig[configID] = true
+	if not specID or not configID then
+		runtime.talentChoiceVariantContext = nil
+		return nil
+	end
+	local generation = runtime.talentChoiceVariantGeneration or 0
+	local key = tostring(specID) .. ":" .. tostring(configID) .. ":" .. tostring(generation)
+	local existing = runtime.talentChoiceVariantContext
+	if existing and existing.key == key then return existing end
+
+	local ctx = {
+		key = key,
+		specID = specID,
+		configID = configID,
+		generation = generation,
+		groups = {},
+		byID = {},
+	}
 
 	local configInfo = Api.GetTraitConfigInfo and Api.GetTraitConfigInfo(configID) or nil
 	local treeIDs = configInfo and configInfo.treeIDs
-	if type(treeIDs) ~= "table" then return end
+	if type(treeIDs) ~= "table" then
+		runtime.talentChoiceVariantContext = ctx
+		return ctx
+	end
 
 	local selectionNodeType = Api.TraitNodeTypeSelection
+	local subtreeSelectionNodeType = Api.TraitNodeTypeSubTreeSelection or (Enum and Enum.TraitNodeType and Enum.TraitNodeType.SubTreeSelection)
 	for _, treeID in ipairs(treeIDs) do
 		local nodeIDs = Api.GetTraitTreeNodes and Api.GetTraitTreeNodes(treeID) or nil
 		if type(nodeIDs) == "table" then
 			for _, nodeID in ipairs(nodeIDs) do
 				local nodeInfo = Api.GetTraitNodeInfo and Api.GetTraitNodeInfo(configID, nodeID) or nil
 				local entryIDs = nodeInfo and nodeInfo.entryIDs
-				if type(entryIDs) == "table" and #entryIDs > 1 and (selectionNodeType == nil or nodeInfo.type == selectionNodeType) then
+				local nodeType = nodeInfo and nodeInfo.type
+				local activeEntryID = cdp.RUNTIME.GetTalentNodeActiveEntryID(nodeInfo)
+				local isChoiceNode = selectionNodeType == nil
+					or nodeType == selectionNodeType
+					or nodeType == subtreeSelectionNodeType
+					or activeEntryID ~= nil
+				if type(entryIDs) == "table" and #entryIDs > 1 and isChoiceNode then
 					local spellIDs = {}
 					local seenSpellIDs = {}
+					local selectedSpellID = activeEntryID and cdp.RUNTIME.GetTalentEntrySpellID(configID, activeEntryID) or nil
 					for _, entryID in ipairs(entryIDs) do
-						local entryInfo = Api.GetTraitEntryInfo and Api.GetTraitEntryInfo(configID, entryID) or nil
-						local definitionID = entryInfo and tonumber(entryInfo.definitionID) or nil
-						if definitionID then
-							local definitionInfo = Api.GetTraitDefinitionInfo and Api.GetTraitDefinitionInfo(definitionID) or nil
-							local spellID = definitionInfo and tonumber(definitionInfo.spellID) or nil
-							if spellID and spellID > 0 and not seenSpellIDs[spellID] then
-								seenSpellIDs[spellID] = true
-								spellIDs[#spellIDs + 1] = spellID
-							end
+						local spellID = cdp.RUNTIME.GetTalentEntrySpellID(configID, entryID)
+						if spellID and not seenSpellIDs[spellID] then
+							seenSpellIDs[spellID] = true
+							spellIDs[#spellIDs + 1] = spellID
 						end
 					end
-					if #spellIDs >= 2 then owner:RegisterSpellVariantGroup(spellIDs) end
+					if #spellIDs >= 2 and selectedSpellID and cdp.RUNTIME.IsTalentChoiceNodeActive(nodeInfo, activeEntryID) then
+						cdp.RUNTIME.RegisterTalentChoiceRuntimeGroup(ctx, treeID, nodeID, spellIDs, selectedSpellID, activeEntryID)
+					end
 				end
 			end
 		end
 	end
+	runtime.talentChoiceVariantContext = ctx
+	return ctx
+end
+
+function CooldownPanels:InvalidateTalentChoiceSpellVariantGroups()
+	self.runtime = self.runtime or {}
+	local runtime = self.runtime
+	runtime.talentChoiceVariantGeneration = (runtime.talentChoiceVariantGeneration or 0) + 1
+	runtime.talentChoiceVariantContext = nil
+	runtime.talentChoiceSpellVariantGroupsLoadedByConfig = nil
+	self.spellVariantGroupByID = self.staticSpellVariantGroupByID
+end
+
+function CooldownPanels:GetActiveTalentChoiceVariantContext()
+	local ctx = cdp.RUNTIME.EnsureTalentChoiceSpellVariantGroupsLoaded(self)
+	local runtime = self.runtime
+	if not ctx then ctx = runtime and runtime.talentChoiceVariantContext or nil end
+	if not ctx then return nil end
+	local specID = queryPlayerSpecId()
+	local configID = Api.GetActiveTalentConfigID and Api.GetActiveTalentConfigID() or nil
+	if ctx.specID ~= specID or ctx.configID ~= configID then
+		self:InvalidateTalentChoiceSpellVariantGroups()
+		return nil
+	end
+	return ctx
+end
+
+function CooldownPanels:GetStaticSpellVariantGroupForSpell(spellId)
+	self:EnsureStaticSpellVariantGroupsLoaded()
+	local numericID = tonumber(spellId)
+	if not numericID then return nil end
+	local baseSpellID = getBaseSpellId(numericID) or numericID
+	local groupMap = self.staticSpellVariantGroupByID
+	return type(groupMap) == "table" and (groupMap[numericID] or groupMap[baseSpellID]) or nil
+end
+
+function CooldownPanels:GetActiveTalentChoiceGroupsForSpell(spellId)
+	local numericID = tonumber(spellId)
+	if not numericID then return nil end
+	local ctx = self:GetActiveTalentChoiceVariantContext()
+	if not ctx then ctx = cdp.RUNTIME.EnsureTalentChoiceSpellVariantGroupsLoaded(self) end
+	if not (ctx and type(ctx.byID) == "table") then return nil end
+	local groups = ctx.byID[numericID]
+	if groups then return groups end
+	local baseSpellID = getBaseSpellId(numericID)
+	if baseSpellID and baseSpellID ~= numericID then
+		groups = ctx.byID[baseSpellID]
+		if groups then return groups end
+	end
+	local effectiveSpellID = getEffectiveSpellId(numericID)
+	if effectiveSpellID and effectiveSpellID ~= numericID and effectiveSpellID ~= baseSpellID then
+		groups = ctx.byID[effectiveSpellID]
+		if groups then return groups end
+	end
+	return nil
 end
 
 function cdp.RUNTIME.ResolveTrackedSpellID(owner, spellId)
 	local numericID = tonumber(spellId)
 	if not numericID then return nil, nil, nil end
 	local storedBaseSpellID = getBaseSpellId(numericID) or numericID
-	local resolvedSpellID = owner:ResolveKnownSpellVariantID(numericID) or storedBaseSpellID
+	local resolvedSpellID, _, variantGroup = owner:ResolveRuntimeSpellVariantID(numericID)
+	resolvedSpellID = resolvedSpellID or storedBaseSpellID
 	local effectiveSpellID = getEffectiveSpellId(resolvedSpellID) or resolvedSpellID
-	return effectiveSpellID, resolvedSpellID, storedBaseSpellID
+	return effectiveSpellID, resolvedSpellID, storedBaseSpellID, variantGroup
 end
 
-function cdp.RUNTIME.GetSpellAliasIDs(owner, spellId, outIds, seenIds)
+function cdp.RUNTIME.GetSpellAliasIDs(owner, spellId, outIds, seenIds, options)
 	local ids = outIds or {}
 	local seen = seenIds or {}
+	local includeTalentChoice = type(options) ~= "table" or options.includeTalentChoice ~= false
 
 	local function addID(id)
 		local numericID = tonumber(id)
@@ -614,10 +820,26 @@ function cdp.RUNTIME.GetSpellAliasIDs(owner, spellId, outIds, seenIds)
 	end
 
 	collectID(spellId)
-	local _, _, variantGroup = owner:GetCanonicalSpellVariantID(spellId)
-	if type(variantGroup) == "table" then
-		for i = 1, #variantGroup do
-			collectID(variantGroup[i])
+	local staticGroup = owner:GetStaticSpellVariantGroupForSpell(spellId)
+	if type(staticGroup) == "table" then
+		for i = 1, #staticGroup do
+			collectID(staticGroup[i])
+		end
+	end
+	if includeTalentChoice then
+		local dynamicGroups = owner:GetActiveTalentChoiceGroupsForSpell(spellId)
+		if type(dynamicGroups) == "table" then
+			for groupIndex = 1, #dynamicGroups do
+				local group = dynamicGroups[groupIndex]
+				local groupIDs = group and group.ids
+				if type(groupIDs) == "table" then
+					for i = 1, #groupIDs do
+						collectID(groupIDs[i])
+					end
+				end
+				if group and group.selectedSpellID then collectID(group.selectedSpellID) end
+				if group and group.canonicalID then collectID(group.canonicalID) end
+			end
 		end
 	end
 	return ids, seen
@@ -639,35 +861,53 @@ function cdp.RUNTIME.AreSpellVariantsEquivalent(owner, firstSpellId, secondSpell
 		or false
 end
 
-function CooldownPanels:EnsureTalentChoiceSpellVariantGroupsLoaded() cdp.RUNTIME.EnsureTalentChoiceSpellVariantGroupsLoaded(self) end
+function CooldownPanels:EnsureTalentChoiceSpellVariantGroupsLoaded() return cdp.RUNTIME.EnsureTalentChoiceSpellVariantGroupsLoaded(self) end
 
 function CooldownPanels:ResolveTrackedSpellID(spellId) return cdp.RUNTIME.ResolveTrackedSpellID(self, spellId) end
 
-function CooldownPanels:GetSpellAliasIDs(spellId, outIds, seenIds) return cdp.RUNTIME.GetSpellAliasIDs(self, spellId, outIds, seenIds) end
+function CooldownPanels:GetSpellAliasIDs(spellId, outIds, seenIds, options) return cdp.RUNTIME.GetSpellAliasIDs(self, spellId, outIds, seenIds, options) end
 
 function CooldownPanels:AreSpellVariantsEquivalent(firstSpellId, secondSpellId) return cdp.RUNTIME.AreSpellVariantsEquivalent(self, firstSpellId, secondSpellId) end
 
-function CooldownPanels:GetCanonicalSpellVariantID(spellId)
+function CooldownPanels:GetStaticCanonicalSpellVariantID(spellId)
 	self:EnsureStaticSpellVariantGroupsLoaded()
-	self:EnsureTalentChoiceSpellVariantGroupsLoaded()
 	local numericID = tonumber(spellId)
 	if not numericID then return nil, false, nil end
 	local baseSpellID = getBaseSpellId(numericID) or numericID
-	local groupMap = self.spellVariantGroupByID
-	local group = type(groupMap) == "table" and (groupMap[numericID] or groupMap[baseSpellID]) or nil
+	local group = self:GetStaticSpellVariantGroupForSpell(numericID)
 	if not group or type(group) ~= "table" or #group == 0 then return baseSpellID, false, nil end
 	local canonicalID = tonumber(group[1]) or baseSpellID
 	return canonicalID, canonicalID ~= baseSpellID, group
 end
 
-function CooldownPanels:ResolveKnownSpellVariantID(spellId)
-	self:EnsureStaticSpellVariantGroupsLoaded()
-	self:EnsureTalentChoiceSpellVariantGroupsLoaded()
+function CooldownPanels:GetRuntimeCanonicalSpellVariantID(spellId)
 	local numericID = tonumber(spellId)
 	if not numericID then return nil, false, nil end
 	local baseSpellID = getBaseSpellId(numericID) or numericID
-	local groupMap = self.spellVariantGroupByID
-	local group = type(groupMap) == "table" and (groupMap[numericID] or groupMap[baseSpellID]) or nil
+	local dynamicGroups = self:GetActiveTalentChoiceGroupsForSpell(numericID)
+	if type(dynamicGroups) == "table" then
+		local group = dynamicGroups[1]
+		if group then
+			local canonicalID = tonumber(group.canonicalID) or baseSpellID
+			return canonicalID, canonicalID ~= baseSpellID, group
+		end
+	end
+	return self:GetStaticCanonicalSpellVariantID(numericID)
+end
+
+function CooldownPanels:GetCanonicalSpellVariantID(spellId, options)
+	if type(options) == "table" and options.staticOnly == true then
+		return self:GetStaticCanonicalSpellVariantID(spellId)
+	end
+	return self:GetRuntimeCanonicalSpellVariantID(spellId)
+end
+
+function CooldownPanels:ResolveStaticKnownSpellVariantID(spellId)
+	self:EnsureStaticSpellVariantGroupsLoaded()
+	local numericID = tonumber(spellId)
+	if not numericID then return nil, false, nil end
+	local baseSpellID = getBaseSpellId(numericID) or numericID
+	local group = self:GetStaticSpellVariantGroupForSpell(numericID)
 	if not group or type(group) ~= "table" or #group == 0 then return baseSpellID, false, nil end
 	if Api.IsSpellKnown and Api.IsSpellKnown(baseSpellID, false) then return baseSpellID, false, group end
 	for i = 1, #group do
@@ -675,6 +915,50 @@ function CooldownPanels:ResolveKnownSpellVariantID(spellId)
 		if candidateID and candidateID > 0 and Api.IsSpellKnown and Api.IsSpellKnown(candidateID, false) then return candidateID, candidateID ~= baseSpellID, group end
 	end
 	return baseSpellID, false, group
+end
+
+function CooldownPanels:ResolveActiveTalentChoiceVariantID(spellId)
+	local numericID = tonumber(spellId)
+	if not numericID then return nil, false, nil end
+	local dynamicGroups = self:GetActiveTalentChoiceGroupsForSpell(numericID)
+	if type(dynamicGroups) ~= "table" then return nil, false, nil end
+	for i = 1, #dynamicGroups do
+		local group = dynamicGroups[i]
+		local selectedID = group and tonumber(group.selectedSpellID) or nil
+		if selectedID and selectedID > 0 then return selectedID, selectedID ~= numericID, group end
+	end
+	return nil, false, nil
+end
+
+function CooldownPanels:ResolveRuntimeSpellVariantID(spellId)
+	local dynamicID, dynamicChanged, dynamicGroup = self:ResolveActiveTalentChoiceVariantID(spellId)
+	if dynamicID then return dynamicID, dynamicChanged, dynamicGroup end
+	return self:ResolveStaticKnownSpellVariantID(spellId)
+end
+
+function CooldownPanels:ResolveKnownSpellVariantID(spellId, options)
+	if type(options) == "table" and options.staticOnly == true then
+		return self:ResolveStaticKnownSpellVariantID(spellId)
+	end
+	return self:ResolveRuntimeSpellVariantID(spellId)
+end
+
+function CooldownPanels:NormalizePersistentSpellID(spellId, options)
+	local numericID = tonumber(spellId)
+	if not numericID then return spellId end
+	local allowTalentChoiceCanonical = type(options) == "table" and options.allowTalentChoiceCanonical == true
+	if allowTalentChoiceCanonical then
+		local dynamicGroups = self:GetActiveTalentChoiceGroupsForSpell(numericID)
+		if type(dynamicGroups) == "table" then
+			for i = 1, #dynamicGroups do
+				local canonicalID = tonumber(dynamicGroups[i] and dynamicGroups[i].canonicalID)
+				if canonicalID and canonicalID > 0 then return canonicalID end
+			end
+		end
+	end
+	local canonicalID, _, staticGroup = self:GetStaticCanonicalSpellVariantID(numericID)
+	if staticGroup then return canonicalID end
+	return getBaseSpellId(numericID) or numericID
 end
 
 local function isSpellPassiveSafe(spellId, effectiveId)
@@ -2883,21 +3167,7 @@ function CooldownPanels:GetEntryStandaloneTitle(entry)
 	return name or typeLabel or ""
 end
 
-getPlayerSpecId = function()
-	if not (C_SpecializationInfo and C_SpecializationInfo.GetSpecialization) then return nil end
-	local specIndex = C_SpecializationInfo.GetSpecialization()
-	if not specIndex then return nil end
-	if C_SpecializationInfo and C_SpecializationInfo.GetSpecializationInfo then
-		local specId = C_SpecializationInfo.GetSpecializationInfo(specIndex)
-		if type(specId) == "number" and specId > 0 then return specId end
-	end
-	if C_SpecializationInfo and C_SpecializationInfo.GetSpecializationInfo then
-		local info = C_SpecializationInfo.GetSpecializationInfo(specIndex)
-		if type(info) == "table" and type(info.specID) == "number" and info.specID > 0 then return info.specID end
-		if type(info) == "number" and info > 0 then return info end
-	end
-	return nil
-end
+getPlayerSpecId = queryPlayerSpecId
 
 local function getPlayerClassSpecMap()
 	local classId = UnitClass and select(3, UnitClass("player")) or nil
@@ -3656,7 +3926,7 @@ function CooldownPanels:AddEntry(panelId, entryType, idValue, overrides)
 	if typeKey == "SPELL" or typeKey == "ITEM" or typeKey == "SLOT" then
 		if not numericValue then return nil end
 		if typeKey == "SPELL" then
-			numericValue = self:ResolveKnownSpellVariantID(numericValue) or getBaseSpellId(numericValue) or numericValue
+			numericValue = self:NormalizePersistentSpellID(numericValue, { allowTalentChoiceCanonical = true }) or numericValue
 		elseif typeKey == "ITEM" then
 			local canonicalItemID, wasHigherRank = self:GetCanonicalItemRankID(numericValue)
 			numericValue = canonicalItemID
@@ -3731,7 +4001,7 @@ function CooldownPanels:FindEntryByValue(panelId, entryType, idValue)
 	end
 	local numericValue = tonumber(idValue)
 	local canonicalSpellValue = nil
-	if typeKey == "SPELL" and numericValue then canonicalSpellValue = self:GetCanonicalSpellVariantID(numericValue) or numericValue end
+	if typeKey == "SPELL" and numericValue then canonicalSpellValue = self:NormalizePersistentSpellID(numericValue, { allowTalentChoiceCanonical = true }) or numericValue end
 	if typeKey == "ITEM" and numericValue then
 		local canonicalItemID = self:GetCanonicalItemRankID(numericValue)
 		numericValue = canonicalItemID or numericValue
@@ -3744,7 +4014,7 @@ function CooldownPanels:FindEntryByValue(panelId, entryType, idValue)
 		if entry and entry.type == typeKey then
 			if typeKey == "SPELL" then
 				local entrySpellID = tonumber(entry.spellID)
-				local canonicalEntrySpellID = entrySpellID and (self:GetCanonicalSpellVariantID(entrySpellID) or entrySpellID) or nil
+				local canonicalEntrySpellID = entrySpellID and (self:NormalizePersistentSpellID(entrySpellID, { allowTalentChoiceCanonical = true }) or entrySpellID) or nil
 				if canonicalEntrySpellID and canonicalSpellValue and canonicalEntrySpellID == canonicalSpellValue then return entryId, entry end
 			end
 			if typeKey == "ITEM" then
@@ -3920,7 +4190,7 @@ function CooldownPanels:RebuildSpellIndex()
 						end
 					end
 					if spellId then
-						local effectiveId, resolvedSpellId = self:ResolveTrackedSpellID(spellId)
+						local effectiveId, resolvedSpellId, _, variantGroup = self:ResolveTrackedSpellID(spellId)
 						effectiveId = effectiveId or getEffectiveSpellId(spellId) or spellId
 						resolvedSpellId = resolvedSpellId or spellId
 						if not isSpellPassiveSafe(resolvedSpellId, effectiveId) then
@@ -3932,7 +4202,10 @@ function CooldownPanels:RebuildSpellIndex()
 							spellEntryMetaData.panelId = panelId
 							spellEntryMetaData.entryId = entryId
 							spellEntryMetaData.baseSpellId = spellId
+							spellEntryMetaData.resolvedSpellId = resolvedSpellId
 							spellEntryMetaData.effectiveSpellId = effectiveId
+							spellEntryMetaData.variantGroupKind = variantGroup and variantGroup.kind or nil
+							spellEntryMetaData.variantGroupKey = variantGroup and variantGroup.key or nil
 							spellEntryMetaData.trackCooldown = showCooldown or staticTextShowOnCooldown
 							spellEntryMetaData.trackCharges = showCharges
 							spellEntryMetaData.alwaysShow = alwaysShow
@@ -4298,7 +4571,7 @@ function CooldownPanels:NormalizeAll()
 			if entry and entry.id == nil then entry.id = entryId end
 			Helper.NormalizeEntry(entry, root.defaults)
 			if entry and entry.type == "SPELL" and entry.spellID then
-				entry.spellID = self:ResolveKnownSpellVariantID(entry.spellID) or getBaseSpellId(entry.spellID) or entry.spellID
+				entry.spellID = self:NormalizePersistentSpellID(entry.spellID, { allowTalentChoiceCanonical = false }) or entry.spellID
 			end
 			if entry and entry.type == "ITEM" then
 				local canonicalItemID, wasHigherRank = self:GetCanonicalItemRankID(entry.itemID)
@@ -4311,7 +4584,7 @@ function CooldownPanels:NormalizeAll()
 		for _, entryId in ipairs(panel.order or {}) do
 			local entry = panel.entries and panel.entries[entryId]
 			if entry and entry.type == "SPELL" and entry.spellID then
-				local canonicalSpellID, _, spellGroup = self:GetCanonicalSpellVariantID(entry.spellID)
+				local canonicalSpellID, _, spellGroup = self:GetCanonicalSpellVariantID(entry.spellID, { staticOnly = true })
 				if canonicalSpellID and spellGroup then
 					seenSpellVariantEntries = seenSpellVariantEntries or {}
 					if seenSpellVariantEntries[canonicalSpellID] then
@@ -4364,7 +4637,7 @@ function CooldownPanels:AddEntrySafe(panelId, entryType, idValue, overrides)
 			showErrorMessage(L["CooldownPanelSpellInvalid"] or "Spell does not exist.")
 			return nil
 		end
-		baseValue = self:ResolveKnownSpellVariantID(numericValue) or baseValue
+		baseValue = self:NormalizePersistentSpellID(numericValue, { allowTalentChoiceCanonical = true }) or baseValue
 	end
 	if typeKey == "STANCE" then
 		local stanceDef = CooldownPanels.GetStanceDefinition and CooldownPanels:GetStanceDefinition(idValue) or nil
@@ -8701,7 +8974,7 @@ local function importCooldownManagerSpells(panelId, sourceKind)
 	local existingBySpellId = {}
 	for _, entry in pairs(panel.entries) do
 		if entry and entry.type == "SPELL" and entry.spellID then
-			local canonicalSpellID = CooldownPanels:GetCanonicalSpellVariantID(entry.spellID) or tonumber(entry.spellID)
+			local canonicalSpellID = CooldownPanels:NormalizePersistentSpellID(entry.spellID, { allowTalentChoiceCanonical = true }) or tonumber(entry.spellID)
 			if canonicalSpellID then existingBySpellId[canonicalSpellID] = true end
 		end
 	end
@@ -8717,8 +8990,8 @@ local function importCooldownManagerSpells(panelId, sourceKind)
 			stats.invalid = stats.invalid + 1
 			return
 		end
-		local resolvedSpellId = CooldownPanels:ResolveKnownSpellVariantID(spellId) or baseSpellId
-		local canonicalSpellID = CooldownPanels:GetCanonicalSpellVariantID(resolvedSpellId) or resolvedSpellId
+		local resolvedSpellId = CooldownPanels:NormalizePersistentSpellID(spellId, { allowTalentChoiceCanonical = true }) or baseSpellId
+		local canonicalSpellID = CooldownPanels:NormalizePersistentSpellID(resolvedSpellId, { allowTalentChoiceCanonical = true }) or resolvedSpellId
 		if existingBySpellId[canonicalSpellID] then
 			stats.duplicates = stats.duplicates + 1
 			return
@@ -12665,7 +12938,7 @@ local function ensureEditor()
 				CooldownPanels:RefreshEditor()
 				return
 			end
-			newValue = CooldownPanels:ResolveKnownSpellVariantID(value) or baseValue
+			newValue = CooldownPanels:NormalizePersistentSpellID(value, { allowTalentChoiceCanonical = true }) or baseValue
 		elseif entry.type == "ITEM" then
 			local canonicalItemID, wasHigherRank = CooldownPanels:GetCanonicalItemRankID(newValue)
 			if canonicalItemID then newValue = canonicalItemID end
@@ -15267,8 +15540,9 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			local cdmAuraAlwaysShowMode = resolvedType == "CDM_AURA" and CooldownPanels:ResolveEntryCDMAuraAlwaysShowMode(entryLayout, entry) or nil
 			local glowReady = entry.type ~= "MACRO" and entry.type ~= "CDM_AURA" and entry.glowReady ~= false
 			local baseSpellId = resolvedType == "SPELL" and ((macro and macro.spellID) or entry.spellID) or nil
-			local effectiveSpellId = baseSpellId and CooldownPanels:ResolveTrackedSpellID(baseSpellId) or nil
-			local resolvedSpellId = baseSpellId and select(2, CooldownPanels:ResolveTrackedSpellID(baseSpellId)) or nil
+			local effectiveSpellId, resolvedSpellId, _, variantGroup
+			if baseSpellId then effectiveSpellId, resolvedSpellId, _, variantGroup = CooldownPanels:ResolveTrackedSpellID(baseSpellId) end
+			local talentChoiceResolved = variantGroup and variantGroup.kind == "talentChoice"
 			local stanceRelevant = resolvedType == "STANCE" and CooldownPanels.IsStanceEntryRelevant and CooldownPanels:IsStanceEntryRelevant(entry) or false
 			local stanceActive = stanceRelevant and CooldownPanels.IsStanceEntryActive and CooldownPanels:IsStanceEntryActive(entry) or false
 			local spellPassive = resolvedSpellId and isSpellPassiveSafe(resolvedSpellId, effectiveSpellId) or false
@@ -15293,7 +15567,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 				spellPassState = self:GetSpellPassState(spellId)
 				if spellPassive then
 					show = false
-				elseif Api.IsSpellKnown and not Api.IsSpellKnown(spellId) then
+				elseif Api.IsSpellKnown and not talentChoiceResolved and not Api.IsSpellKnown(spellId) then
 					show = false
 				else
 					canTriggerReadyGlow = true
@@ -15579,6 +15853,8 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 				data.baseSpellId = baseSpellId
 				data.effectiveSpellId = effectiveSpellId
 				data.resolvedSpellId = resolvedSpellId
+				data.variantGroupKind = variantGroup and variantGroup.kind or nil
+				data.variantGroupKey = variantGroup and variantGroup.key or nil
 				data.overlayGlow = overlayGlow
 				data.overlayGlowColor = nil
 				data.overlayGlowStyle = procGlowStyle
@@ -19576,11 +19852,12 @@ function cdp.ENTRY.TryRefreshVisibleSpellEntry(panelId, entryId, mode)
 	local macro = entry.type == "MACRO" and CooldownPanels.ResolveMacroEntry(entry) or nil
 	local baseSpellId = entry.type == "SPELL" and tonumber(entry.spellID) or (macro and macro.kind == "SPELL" and tonumber(macro.spellID)) or nil
 	if not baseSpellId then return false end
-	local effectiveSpellId, resolvedSpellId = CooldownPanels:ResolveTrackedSpellID(baseSpellId)
+	local effectiveSpellId, resolvedSpellId, _, variantGroup = CooldownPanels:ResolveTrackedSpellID(baseSpellId)
 	effectiveSpellId = effectiveSpellId or getEffectiveSpellId(baseSpellId) or baseSpellId
 	local spellId = effectiveSpellId or baseSpellId
 	local spellPassive = isSpellPassiveSafe(resolvedSpellId or baseSpellId, effectiveSpellId)
-	if spellPassive or (Api.IsSpellKnown and not Api.IsSpellKnown(spellId)) then return false end
+	local talentChoiceResolved = variantGroup and variantGroup.kind == "talentChoice"
+	if spellPassive or (Api.IsSpellKnown and not talentChoiceResolved and not Api.IsSpellKnown(spellId)) then return false end
 
 	local showCooldown = entry.showCooldown ~= false
 	local staticTextShowOnCooldown = entry.staticTextShowOnCooldown == true
@@ -19632,6 +19909,8 @@ function cdp.ENTRY.TryRefreshVisibleSpellEntry(panelId, entryId, mode)
 	data.baseSpellId = baseSpellId
 	data.effectiveSpellId = effectiveSpellId
 	data.resolvedSpellId = resolvedSpellId
+	data.variantGroupKind = variantGroup and variantGroup.kind or nil
+	data.variantGroupKey = variantGroup and variantGroup.key or nil
 	if data.glowReady and showCooldown then
 		if cooldownGCD then
 			data.spellReadyCondition = true
@@ -20718,6 +20997,8 @@ CooldownPanels.UPDATE_FRAME_EVENTS = {
 	"ACTIVE_PLAYER_SPECIALIZATION_CHANGED",
 	"ACTIVE_TALENT_GROUP_CHANGED",
 	"PLAYER_TALENT_UPDATE",
+	"TRAIT_CONFIG_UPDATED",
+	"TRAIT_CONFIG_LIST_UPDATED",
 	"PLAYER_EQUIPMENT_CHANGED",
 	"PLAYER_MOUNT_DISPLAY_CHANGED",
 	"UPDATE_SHAPESHIFT_FORM",
@@ -20922,11 +21203,13 @@ function CooldownPanels.EnsureUpdateFrame()
 		if event == "PLAYER_LOGIN" then
 			local anchorHelper = CooldownPanels.AnchorHelper
 			if anchorHelper and anchorHelper.HandlePlayerLogin then anchorHelper:HandlePlayerLogin() end
+			CooldownPanels:InvalidateTalentChoiceSpellVariantGroups()
 			if Keybinds.InvalidateButtonList then Keybinds.InvalidateButtonList() end
 			Keybinds.InvalidateCache()
 			Keybinds.RequestRefresh("Event:PLAYER_LOGIN")
 			if CooldownPanels.refreshAssistedHighlightCVarState then CooldownPanels.refreshAssistedHighlightCVarState("Event:PLAYER_LOGIN", true) end
 			refreshPanelsForCharges()
+			scheduleSpecAwareRebuild(event, false)
 			return
 		end
 		if event == "CVAR_UPDATE" then
@@ -21105,6 +21388,7 @@ function CooldownPanels.EnsureUpdateFrame()
 			return
 		end
 		if event == "SPELLS_CHANGED" then
+			CooldownPanels:InvalidateTalentChoiceSpellVariantGroups()
 			CooldownPanels:InvalidateSpellQueryCaches()
 			if CooldownPanels.RefreshAllOverlayGlowStates then CooldownPanels:RefreshAllOverlayGlowStates() end
 			scheduleSpecAwareRebuild(event, false)
@@ -21113,12 +21397,15 @@ function CooldownPanels.EnsureUpdateFrame()
 		if event == "PLAYER_SPECIALIZATION_CHANGED" then
 			local unit = ...
 			if unit and unit ~= "player" then return end
+			CooldownPanels:InvalidateTalentChoiceSpellVariantGroups()
 			CooldownPanels:InvalidateSpellQueryCaches()
 			scheduleSpecAwareRebuild(event, true)
 			return
 		end
-		if event == "ACTIVE_PLAYER_SPECIALIZATION_CHANGED" or event == "PLAYER_TALENT_UPDATE" or event == "ACTIVE_TALENT_GROUP_CHANGED" then
+		if event == "ACTIVE_PLAYER_SPECIALIZATION_CHANGED" or event == "PLAYER_TALENT_UPDATE" or event == "ACTIVE_TALENT_GROUP_CHANGED" or event == "TRAIT_CONFIG_UPDATED" or event == "TRAIT_CONFIG_LIST_UPDATED" then
+			CooldownPanels:InvalidateTalentChoiceSpellVariantGroups()
 			CooldownPanels:InvalidateSpellQueryCaches()
+			if CooldownPanels.runtime then CooldownPanels.runtime.iconCache = nil end
 			scheduleSpecAwareRebuild(event, true)
 			return
 		end
@@ -21181,6 +21468,7 @@ function CooldownPanels.EnsureUpdateFrame()
 			return
 		end
 		if event == "PLAYER_ENTERING_WORLD" then
+			CooldownPanels:InvalidateTalentChoiceSpellVariantGroups()
 			CooldownPanels:InvalidateSpellQueryCaches()
 			updateItemCountCache()
 			scheduleSpecAwareRebuild(event)
