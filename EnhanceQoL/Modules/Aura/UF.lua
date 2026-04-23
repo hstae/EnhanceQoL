@@ -5304,6 +5304,11 @@ function AuraUtil.UpdateSingleDispelIndicator(unit, allowSample)
 	local scfg = cfg.status or {}
 	local dcfg = scfg.dispelTint or {}
 	local defDispel = (def.status and def.status.dispelTint) or {}
+	if not allowSample and addon.EditModeLib and addon.EditModeLib.IsInEditMode and addon.EditModeLib:IsInEditMode() then
+		local showSample = dcfg.showSample
+		if showSample == nil then showSample = defDispel.showSample == true end
+		allowSample = showSample == true
+	end
 
 	local overlayEnabled = dcfg.enabled
 	if overlayEnabled == nil then overlayEnabled = defDispel.enabled ~= false end

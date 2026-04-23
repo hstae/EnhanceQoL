@@ -999,6 +999,17 @@ local function setFrameLevelAbove(child, parent, offset)
 	if child.SetFrameLevel and parent.GetFrameLevel then child:SetFrameLevel((parent:GetFrameLevel() or 0) + (offset or 1)) end
 end
 
+function GF.SyncDispelTintLayer(st)
+	if not (st and st.dispelTint) then return end
+	local anchor = st.barGroup or st.health or st.frame
+	if not anchor then return end
+	local parent = st.statusIconLayer or st.layoutAnchor or anchor
+	if st.dispelTint.GetParent and st.dispelTint:GetParent() ~= parent then st.dispelTint:SetParent(parent) end
+	st.dispelTint:ClearAllPoints()
+	st.dispelTint:SetAllPoints(anchor)
+	setFrameLevelAbove(st.dispelTint, st.statusIconLayer or st.healthTextLayer or st.powerTextLayer or anchor, 1)
+end
+
 local function syncTextFrameLevels(st)
 	if not st then return end
 	local frame = st.frame
@@ -1018,6 +1029,7 @@ local function syncTextFrameLevels(st)
 		GF.SyncFrameLayerAbove(st.statusIconLayer, parent, 6)
 		if anchor and st.statusIconLayer.SetAllPoints then st.statusIconLayer:SetAllPoints(anchor) end
 	end
+	GF.SyncDispelTintLayer(st)
 end
 
 local function hookTextFrameLevels(st)
@@ -1947,6 +1959,9 @@ local function getSafeLevelText(unit, hideClassText)
 end
 
 local function getUnitRoleKey(unit)
+	if unit == "player" or (UnitIsUnit and GFH.UnsecretBool(UnitIsUnit(unit, "player")) == true) then
+		return GF.GetPlayerEffectiveRoleKey and GF.GetPlayerEffectiveRoleKey() or "NONE"
+	end
 	local roleEnum
 	if UnitGroupRolesAssignedEnum then roleEnum = UnitGroupRolesAssignedEnum(unit) end
 	if roleEnum and Enum and Enum.LFGRole then
@@ -5979,12 +5994,7 @@ function GF:BuildButton(self)
 	end
 	if st.statusIconLayer.GetParent and st.statusIconLayer:GetParent() ~= (st.layoutAnchor or st.barGroup) then st.statusIconLayer:SetParent(st.layoutAnchor or st.barGroup) end
 	if st.dispelTint then
-		if st.dispelTint.GetParent and st.dispelTint:GetParent() ~= st.healthTextLayer then st.dispelTint:SetParent(st.healthTextLayer) end
-		if st.dispelTint.SetFrameLevel and st.healthTextLayer then
-			local lvl = st.healthTextLayer:GetFrameLevel() or 0
-			st.dispelTint:SetFrameLevel(lvl)
-		end
-		st.dispelTint:SetAllPoints(st.health)
+		GF.SyncDispelTintLayer(st)
 	end
 
 	if not st.healthTextLeft then st.healthTextLeft = st.healthTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight") end
@@ -6315,7 +6325,7 @@ function GF:LayoutButton(self)
 
 	self.powerBarUsedHeight = powerH > 0 and powerH or 0
 	if st.dispelTint then
-		st.dispelTint:SetAllPoints(st.health)
+		GF.SyncDispelTintLayer(st)
 		if st.dispelTint.SetOrientation and DispelOverlayOrientation then st.dispelTint:SetOrientation(DispelOverlayOrientation.VerticalTopToBottom, 0, 0) end
 	end
 
@@ -9172,6 +9182,11 @@ function GF:UpdateDispelTint(self, cache, dispelFilter, allowSample, requiredFla
 	local scfg = cfg and cfg.status or {}
 	local dcfg = scfg.dispelTint or {}
 	local defDispel = (DEFAULTS[kind] and DEFAULTS[kind].status and DEFAULTS[kind].status.dispelTint) or {}
+	if not allowSample and isEditModeActive() then
+		local showSample = dcfg.showSample
+		if showSample == nil then showSample = defDispel.showSample == true end
+		allowSample = showSample == true
+	end
 	local overlayEnabled = dcfg.enabled
 	if overlayEnabled == nil then overlayEnabled = defDispel.enabled ~= false end
 	local glowEnabled = dcfg.glowEnabled
