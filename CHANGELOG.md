@@ -6,6 +6,7 @@
 
 - Vendor: Fixed Auto Vendor selling cosmetic appearance items with vendor prices, including event-cache cosmetics.
 - Profiles / Fonts: Fixed global font and font-style propagation for the BR tracker, Total Absorb tracker, and target/focus buff text so they now update without manually switching fonts first.
+- Unit Frames / Boss Frames: Fixed boss frames disappearing after resetting and re-pulling an encounter by matching the boss-frame update lifecycle to Blizzard/oUF behavior.
 
 ---
 

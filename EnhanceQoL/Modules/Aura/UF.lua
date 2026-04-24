@@ -11370,10 +11370,6 @@ onEvent = function(self, event, unit, ...)
 		updateBossFrames(true)
 	elseif event == "UNIT_TARGETABLE_CHANGED" and isBossUnit(unit) then
 		updateBossFrames(true)
-	elseif event == "ENCOUNTER_START" then
-		updateBossFrames(true)
-	elseif event == "ENCOUNTER_END" then
-		hideBossFrames()
 	elseif event == "UNIT_PET" and unit == "player" then
 		local petCfg = getCfg(UNIT.PET)
 		if petCfg.enabled then
@@ -11494,8 +11490,6 @@ local function ensureEventHandling()
 	if ensureDB("boss").enabled then
 		eventFrame:RegisterEvent("INSTANCE_ENCOUNTER_ENGAGE_UNIT")
 		eventFrame:RegisterEvent("UNIT_TARGETABLE_CHANGED")
-		eventFrame:RegisterEvent("ENCOUNTER_START")
-		eventFrame:RegisterEvent("ENCOUNTER_END")
 	end
 	UF._registerUnitScopedEvents(anyPortraitEnabled())
 	syncTargetRangeFadeConfig(ensureDB(UNIT.TARGET), defaultsFor(UNIT.TARGET))
