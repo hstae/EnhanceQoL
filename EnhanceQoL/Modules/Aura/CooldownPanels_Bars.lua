@@ -2697,7 +2697,11 @@ buildBarState = function(panelId, entryId, entry, icon, preview, runtimeDataOver
 		showValueText = showValueText,
 		showChargeDuration = showChargeDuration,
 		showChargeCount = showChargeCount,
-		showStackText = mode == Bars.BAR_MODE.STACKS and getStoredBoolean(entry, "barShowStackText", Bars.DEFAULTS.barShowStackText),
+		showStackText = getStoredBoolean(entry, "barShowStackText", Bars.DEFAULTS.barShowStackText)
+			and (
+				mode == Bars.BAR_MODE.STACKS
+				or (mode == Bars.BAR_MODE.COOLDOWN and resolvedType == "CDM_AURA" and Bars.ShouldEntryShowStacks(entry, resolvedType))
+			),
 		showStacks = Bars.ShouldEntryShowStacks(entry, resolvedType),
 		stackDisplayText = nil,
 		progress = 1,
