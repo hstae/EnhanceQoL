@@ -9,6 +9,7 @@
 - Cooldown Panels / Bars: Fixed old button charge text carrying over into BAR-mode charge entries after switching display modes.
 - Cooldown Panels / Bars: Fixed standalone bar borders so border size and offset no longer shrink, shift, or squash the bar fill texture.
 - Group Frames / Healer Buff Editor: Fixed preview cooldown and charge text using unresolved global font-style settings, preventing `SetFont` errors when opening the editor with global font styling enabled.
+- Square Minimap Stats: Fixed the default Tracking Button placement so new profiles start at the top-right corner instead of overlapping the mail icon at top-left.
 - Unit Frames / Group Frames: Fixed hover highlight layering by adding Frame Strata controls, allowing borders to render above dispel overlays while hover highlights still render on top.
 
 ---
