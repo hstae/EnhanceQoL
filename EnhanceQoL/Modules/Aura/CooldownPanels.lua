@@ -620,20 +620,9 @@ function cdp.RUNTIME.GetTalentEntrySpellID(configID, entryID)
 	if not definitionID then return nil end
 	local definitionInfo = Api.GetTraitDefinitionInfo and Api.GetTraitDefinitionInfo(definitionID) or nil
 	local spellID = definitionInfo and tonumber(definitionInfo.spellID) or nil
-	local overriddenSpellID = definitionInfo and tonumber(definitionInfo.overriddenSpellID) or nil
-
-	local function pickTrackableSpellID(...)
-		for i = 1, select("#", ...) do
-			local candidateValue = select(i, ...)
-			local candidateID = tonumber(candidateValue)
-			if candidateID and candidateID > 0 then
-				if not (Api.IsSpellPassiveFn and Api.IsSpellPassiveFn(candidateID)) then return candidateID end
-			end
-		end
-		return nil
-	end
-
-	return pickTrackableSpellID(spellID, overriddenSpellID)
+	if not spellID or spellID <= 0 then return nil end
+	if Api.IsSpellPassiveFn and Api.IsSpellPassiveFn(spellID) then return nil end
+	return spellID
 end
 
 function cdp.RUNTIME.AddTalentChoiceGroupLookupID(ctx, group, spellID)
@@ -680,6 +669,44 @@ function cdp.RUNTIME.RegisterTalentChoiceRuntimeGroup(ctx, treeID, nodeID, spell
 	return group
 end
 
+function cdp.RUNTIME.AreEquivalentSpellIDs(firstSpellId, secondSpellId)
+	local firstID = tonumber(firstSpellId)
+	local secondID = tonumber(secondSpellId)
+	if not (firstID and secondID) then return false end
+	if firstID == secondID then return true end
+
+	local firstBaseID = getBaseSpellId(firstID) or firstID
+	local secondBaseID = getBaseSpellId(secondID) or secondID
+	if firstBaseID == secondBaseID then return true end
+
+	local firstEffectiveID = getEffectiveSpellId(firstID)
+	local secondEffectiveID = getEffectiveSpellId(secondID)
+	if firstEffectiveID and firstEffectiveID == secondID then return true end
+	if secondEffectiveID and secondEffectiveID == firstID then return true end
+	if firstEffectiveID and secondEffectiveID and firstEffectiveID == secondEffectiveID then return true end
+
+	local firstEffectiveBaseID = firstEffectiveID and (getBaseSpellId(firstEffectiveID) or firstEffectiveID) or nil
+	local secondEffectiveBaseID = secondEffectiveID and (getBaseSpellId(secondEffectiveID) or secondEffectiveID) or nil
+	if firstEffectiveBaseID and firstEffectiveBaseID == secondBaseID then return true end
+	if secondEffectiveBaseID and secondEffectiveBaseID == firstBaseID then return true end
+
+	return false
+end
+
+function cdp.RUNTIME.DoesSpellMatchTalentChoiceGroup(group, spellId)
+	local numericID = tonumber(spellId)
+	if not (group and numericID) then return false end
+	if type(group.idSet) == "table" and group.idSet[numericID] == true then return true end
+	local selectedID = tonumber(group.selectedSpellID)
+	if selectedID and cdp.RUNTIME.AreEquivalentSpellIDs(selectedID, numericID) then return true end
+	return false
+end
+
+function cdp.RUNTIME.IsDirectTalentChoiceGroupMember(group, spellId)
+	local numericID = tonumber(spellId)
+	return group and group.kind == "talentChoice" and numericID and type(group.idSet) == "table" and group.idSet[numericID] == true or false
+end
+
 function cdp.RUNTIME.EnsureTalentChoiceSpellVariantGroupsLoaded(owner)
 	owner.runtime = owner.runtime or {}
 	local runtime = owner.runtime
@@ -724,7 +751,7 @@ function cdp.RUNTIME.EnsureTalentChoiceSpellVariantGroupsLoaded(owner)
 				local isChoiceNode = selectionNodeType == nil
 					or nodeType == selectionNodeType
 					or nodeType == subtreeSelectionNodeType
-					or activeEntryID ~= nil
+					or (nodeType == nil and activeEntryID ~= nil)
 				if type(entryIDs) == "table" and #entryIDs > 1 and isChoiceNode then
 					local spellIDs = {}
 					local seenSpellIDs = {}
@@ -786,18 +813,21 @@ function CooldownPanels:GetActiveTalentChoiceGroupsForSpell(spellId)
 	if not ctx then ctx = cdp.RUNTIME.EnsureTalentChoiceSpellVariantGroupsLoaded(self) end
 	if not (ctx and type(ctx.byID) == "table") then return nil end
 	local groups = ctx.byID[numericID]
-	if groups then return groups end
 	local baseSpellID = getBaseSpellId(numericID)
-	if baseSpellID and baseSpellID ~= numericID then
-		groups = ctx.byID[baseSpellID]
-		if groups then return groups end
-	end
 	local effectiveSpellID = getEffectiveSpellId(numericID)
-	if effectiveSpellID and effectiveSpellID ~= numericID and effectiveSpellID ~= baseSpellID then
-		groups = ctx.byID[effectiveSpellID]
-		if groups then return groups end
+	if not groups and baseSpellID and baseSpellID ~= numericID then groups = ctx.byID[baseSpellID] end
+	if not groups and effectiveSpellID and effectiveSpellID ~= numericID and effectiveSpellID ~= baseSpellID then groups = ctx.byID[effectiveSpellID] end
+	if type(groups) ~= "table" then return nil end
+
+	local filtered = nil
+	for i = 1, #groups do
+		local group = groups[i]
+		if cdp.RUNTIME.DoesSpellMatchTalentChoiceGroup(group, numericID) then
+			filtered = filtered or {}
+			filtered[#filtered + 1] = group
+		end
 	end
-	return nil
+	return filtered
 end
 
 function cdp.RUNTIME.ResolveTrackedSpellID(owner, spellId)
@@ -971,7 +1001,7 @@ function CooldownPanels:NormalizePersistentSpellID(spellId, options)
 	end
 	local canonicalID, _, staticGroup = self:GetStaticCanonicalSpellVariantID(numericID)
 	if staticGroup then return canonicalID end
-	return getBaseSpellId(numericID) or numericID
+	return numericID
 end
 
 local function isSpellPassiveSafe(spellId, effectiveId)
@@ -3134,7 +3164,12 @@ local function getEntryName(entry)
 		end
 	end
 	if entry.type == "SPELL" then
-		local spellId = CooldownPanels:ResolveTrackedSpellID(entry.spellID) or getEffectiveSpellId(entry.spellID) or entry.spellID
+		local numericID = tonumber(entry.spellID)
+		local effectiveSpellId, resolvedSpellId, _, variantGroup = CooldownPanels:ResolveTrackedSpellID(entry.spellID)
+		local spellId = effectiveSpellId or resolvedSpellId or getEffectiveSpellId(entry.spellID) or entry.spellID
+		if variantGroup and variantGroup.kind == "talentChoice" and not cdp.RUNTIME.IsDirectTalentChoiceGroupMember(variantGroup, numericID) then
+			spellId = numericID or entry.spellID
+		end
 		local name = getSpellName(spellId)
 		return name or ("Spell " .. tostring(entry.spellID or ""))
 	end
@@ -15523,6 +15558,30 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 	local powerCheckSpells = shared and shared.powerCheckSpells or nil
 	local cdmAuras = CooldownPanels.CDMAuras
 	local playerInCombat = (InCombatLockdown and InCombatLockdown()) or (UnitAffectingCombat and UnitAffectingCombat("player")) or false
+	local directTalentChoiceEntriesByGroupKey = {}
+	for _, candidateEntryId in ipairs(order) do
+		local candidateEntry = panel.entries and panel.entries[candidateEntryId]
+		if candidateEntry then
+			local candidateMacro = candidateEntry.type == "MACRO" and CooldownPanels.ResolveMacroEntry(candidateEntry) or nil
+			local candidateResolvedType = (candidateMacro and candidateMacro.kind) or candidateEntry.type
+			local candidateBaseSpellId = candidateResolvedType == "SPELL" and ((candidateMacro and candidateMacro.spellID) or candidateEntry.spellID) or nil
+			if candidateBaseSpellId then
+				local candidateGroups = self:GetActiveTalentChoiceGroupsForSpell(candidateBaseSpellId)
+				if type(candidateGroups) == "table" then
+					for groupIndex = 1, #candidateGroups do
+						local candidateGroup = candidateGroups[groupIndex]
+						if cdp.RUNTIME.IsDirectTalentChoiceGroupMember(candidateGroup, candidateBaseSpellId) then
+							local key = candidateGroup.key
+							if key then
+								directTalentChoiceEntriesByGroupKey[key] = directTalentChoiceEntriesByGroupKey[key] or {}
+								directTalentChoiceEntriesByGroupKey[key][candidateEntryId] = true
+							end
+						end
+					end
+				end
+			end
+		end
+	end
 	for _, entryId in ipairs(order) do
 		local entry = panel.entries and panel.entries[entryId]
 		if entry then
@@ -15685,6 +15744,18 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			end
 			if show and resolvedType == "SPELL" and baseSpellId and self:ResolveEntryHideWhenNoResource(entryLayout, entry) then
 				if isSpellFlagged(powerInsufficientSpells, baseSpellId, effectiveSpellId) then show = false end
+			end
+			if show and resolvedType == "SPELL" and cdp.RUNTIME.IsDirectTalentChoiceGroupMember(variantGroup, baseSpellId) ~= true then
+				local directEntries = variantGroup and directTalentChoiceEntriesByGroupKey[variantGroup.key] or nil
+				if type(directEntries) == "table" then
+					for directEntryId in pairs(directEntries) do
+						if directEntryId ~= entryId then
+							show = false
+							CooldownPanels.ClearReadyGlowEntryState(panelId, entryId, true)
+							break
+						end
+					end
+				end
 			end
 			if layoutEditActive then show = true end
 
