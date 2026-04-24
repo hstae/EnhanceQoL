@@ -1,5 +1,13 @@
 # Changelog
 
+## [10.6.6] - 2026-04-24
+
+### 🐛 Fixed
+
+- Class Buff Reminder: Fixed food, flask, rune, and weapon buff reminders sometimes not showing for classes, such as Warlock, Death Knight, Demon Hunter, Monk, and Hunter.
+
+---
+
 ## [10.6.5] - 2026-04-24
 
 ### 🐛 Fixed
