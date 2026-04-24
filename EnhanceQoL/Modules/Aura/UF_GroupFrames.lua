@@ -606,6 +606,8 @@ local function buildHighlightConfig(cfg, def, key)
 	offset = tonumber(offset) or 0
 	local layer = tostring(hcfg.layer or hdef.layer or "ABOVE_BORDER"):upper()
 	if layer ~= "BEHIND_BORDER" then layer = "ABOVE_BORDER" end
+	local strata = GF.NormalizeFrameStrataToken(hcfg.strata)
+	if strata == nil then strata = GF.NormalizeFrameStrataToken(hdef.strata) end
 	local mode = hcfg.mode
 	if mode == nil then mode = hdef.mode end
 	local sample = hcfg.sample
@@ -617,6 +619,7 @@ local function buildHighlightConfig(cfg, def, key)
 		color = color,
 		offset = offset,
 		layer = layer,
+		strata = strata,
 		mode = mode,
 		sample = sample == true,
 	}
@@ -634,7 +637,9 @@ local function applyHighlightStyle(st, cfg, key)
 	end
 	frame = ensureHighlightFrame(st, key)
 	if not frame then return end
-	if frame.SetFrameStrata and st.barGroup and st.barGroup.GetFrameStrata then frame:SetFrameStrata(st.barGroup:GetFrameStrata()) end
+	local targetStrata = GF.NormalizeFrameStrataToken(cfg.strata)
+	if not targetStrata and st.barGroup and st.barGroup.GetFrameStrata then targetStrata = st.barGroup:GetFrameStrata() end
+	if frame.SetFrameStrata and targetStrata and frame:GetFrameStrata() ~= targetStrata then frame:SetFrameStrata(targetStrata) end
 	if frame.SetFrameLevel and st.barGroup and st.barGroup.GetFrameLevel then
 		local baseLevel = st.barGroup:GetFrameLevel() or 0
 		local layer = tostring(cfg.layer or "ABOVE_BORDER"):upper()
@@ -645,7 +650,13 @@ local function applyHighlightStyle(st, cfg, key)
 			levelOffset = 4
 		end
 		if key == "aggro" then levelOffset = levelOffset + 1 end
-		frame:SetFrameLevel(baseLevel + levelOffset)
+		local targetLevel = baseLevel + levelOffset
+		local border = st.barGroup._ufBorder
+		if layer ~= "BEHIND_BORDER" and border and border.GetFrameLevel and border.GetFrameStrata and frame.GetFrameStrata and border:GetFrameStrata() == frame:GetFrameStrata() then
+			local borderLevel = border:GetFrameLevel()
+			if borderLevel and targetLevel <= borderLevel then targetLevel = borderLevel + 1 end
+		end
+		frame:SetFrameLevel(targetLevel)
 	end
 	local size = cfg.size or 1
 	if size < 1 then size = 1 end
@@ -2550,6 +2561,7 @@ local DEFAULTS = {
 			enabled = true,
 			offset = 0,
 			size = 2,
+			strata = nil,
 			texture = "DEFAULT",
 		},
 		highlightTarget = {
@@ -3337,6 +3349,7 @@ local DEFAULTS = {
 			enabled = false,
 			offset = 0,
 			size = 2,
+			strata = nil,
 			texture = "DEFAULT",
 		},
 		highlightTarget = {
@@ -3972,6 +3985,7 @@ local DEFAULTS = {
 			enabled = false,
 			offset = 0,
 			size = 2,
+			strata = nil,
 			texture = "DEFAULT",
 		},
 		highlightTarget = {
@@ -4605,6 +4619,7 @@ local DEFAULTS = {
 			enabled = false,
 			offset = 0,
 			size = 2,
+			strata = nil,
 			texture = "DEFAULT",
 		},
 		highlightTarget = {
@@ -16060,6 +16075,30 @@ local function buildEditModeSettings(kind, editModeId)
 			isEnabled = function() return isHighlightEnabled("highlightHover") end,
 		},
 		{
+			name = L["Frame strata"] or "Frame strata",
+			kind = SettingType.Dropdown,
+			field = "hoverHighlightStrata",
+			parentId = "hoverHighlight",
+			get = function()
+				local hcfg, def = getHighlightCfg("highlightHover")
+				return GF.NormalizeFrameStrataToken(hcfg.strata) or GF.NormalizeFrameStrataToken(def.strata) or ""
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.highlightHover = cfg.highlightHover or {}
+				cfg.highlightHover.strata = GF.NormalizeFrameStrataToken(value)
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "hoverHighlightStrata", cfg.highlightHover.strata or "", nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			getValueText = function()
+				local hcfg, def = getHighlightCfg("highlightHover")
+				return GF.DropdownOptionLabel(GF._FRAME_STRATA_OPTIONS_WITH_DEFAULT, GF.NormalizeFrameStrataToken(hcfg.strata) or GF.NormalizeFrameStrataToken(def.strata) or "", DEFAULT or "Default")
+			end,
+			generator = GF.DropdownRadioGenerator(GF._FRAME_STRATA_OPTIONS_WITH_DEFAULT),
+			isEnabled = function() return isHighlightEnabled("highlightHover") end,
+		},
+		{
 			name = L["Size"] or "Size",
 			kind = SettingType.Slider,
 			allowInput = true,
@@ -25796,12 +25835,20 @@ local function applyEditModeData(kind, data)
 		offset = floor(offset + (offset >= 0 and 0.5 or -0.5))
 		cfg.border.frameLevelOffset = offset
 	end
-	if data.hoverHighlightEnabled ~= nil or data.hoverHighlightColor ~= nil or data.hoverHighlightTexture ~= nil or data.hoverHighlightSize ~= nil or data.hoverHighlightOffset ~= nil then
+	if
+		data.hoverHighlightEnabled ~= nil
+		or data.hoverHighlightColor ~= nil
+		or data.hoverHighlightTexture ~= nil
+		or data.hoverHighlightStrata ~= nil
+		or data.hoverHighlightSize ~= nil
+		or data.hoverHighlightOffset ~= nil
+	then
 		cfg.highlightHover = cfg.highlightHover or {}
 	end
 	if data.hoverHighlightEnabled ~= nil then cfg.highlightHover.enabled = data.hoverHighlightEnabled and true or false end
 	if data.hoverHighlightColor ~= nil then cfg.highlightHover.color = data.hoverHighlightColor end
 	if data.hoverHighlightTexture ~= nil then cfg.highlightHover.texture = data.hoverHighlightTexture end
+	if data.hoverHighlightStrata ~= nil then cfg.highlightHover.strata = GF.NormalizeFrameStrataToken(data.hoverHighlightStrata) end
 	if data.hoverHighlightSize ~= nil then cfg.highlightHover.size = clampNumber(data.hoverHighlightSize, 1, 64, cfg.highlightHover.size or 2) end
 	if data.hoverHighlightOffset ~= nil then cfg.highlightHover.offset = clampNumber(data.hoverHighlightOffset, -64, 64, cfg.highlightHover.offset or 0) end
 	if
@@ -26940,6 +26987,7 @@ function GF:EnsureEditMode()
 				hoverHighlightEnabled = (cfg.highlightHover and cfg.highlightHover.enabled) == true,
 				hoverHighlightColor = (cfg.highlightHover and cfg.highlightHover.color) or (def.highlightHover and def.highlightHover.color) or { 1, 1, 1, 0.9 },
 				hoverHighlightTexture = (cfg.highlightHover and cfg.highlightHover.texture) or (def.highlightHover and def.highlightHover.texture) or "DEFAULT",
+				hoverHighlightStrata = GF.NormalizeFrameStrataToken((cfg.highlightHover and cfg.highlightHover.strata) or (def.highlightHover and def.highlightHover.strata)) or "",
 				hoverHighlightSize = (cfg.highlightHover and cfg.highlightHover.size) or (def.highlightHover and def.highlightHover.size) or 2,
 				hoverHighlightOffset = (cfg.highlightHover and cfg.highlightHover.offset) or (def.highlightHover and def.highlightHover.offset) or 0,
 				aggroHighlightEnabled = (cfg.highlightAggro and cfg.highlightAggro.enabled) == true,

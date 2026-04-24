@@ -1793,14 +1793,17 @@ ensurePanelAnchor = function(panel)
 	if not panel then return nil end
 	panel.anchor = panel.anchor or {}
 	local anchor = panel.anchor
-	if anchor.point == nil then anchor.point = panel.point or "CENTER" end
-	if anchor.relativePoint == nil then anchor.relativePoint = anchor.point end
-	if anchor.x == nil then anchor.x = panel.x or 0 end
-	if anchor.y == nil then anchor.y = panel.y or 0 end
+	local fallbackPoint = Helper.NormalizeAnchor(panel.point, "CENTER")
+	anchor.point = Helper.NormalizeAnchor(anchor.point, fallbackPoint)
+	anchor.relativePoint = Helper.NormalizeAnchor(anchor.relativePoint, anchor.point)
+	anchor.x = tonumber(anchor.x)
+	if anchor.x == nil then anchor.x = tonumber(panel.x) or 0 end
+	anchor.y = tonumber(anchor.y)
+	if anchor.y == nil then anchor.y = tonumber(panel.y) or 0 end
 	anchor.relativeFrame = Helper.NormalizeRelativeFrameName(anchor.relativeFrame)
-	panel.point = anchor.point or panel.point
-	panel.x = anchor.x or panel.x
-	panel.y = anchor.y or panel.y
+	panel.point = anchor.point
+	panel.x = anchor.x
+	panel.y = anchor.y
 	return anchor
 end
 
@@ -14874,6 +14877,8 @@ function CooldownPanels:ApplyLayout(panelId, countOverride)
 	frame:SetFrameStrata(Helper.NormalizeStrata(layout.strata, Helper.PANEL_LAYOUT_DEFAULTS.strata))
 	syncLayoutSelectionStrata(frame)
 	if frame.label then frame.label:SetText(panel.name or "Cooldown Panel") end
+	CooldownPanels.ClearAppliedAnchorCache(runtime)
+	self:ApplyPanelPosition(panelId)
 end
 
 function CooldownPanels.LayoutSlotAnchorHandleOnEnter(self)

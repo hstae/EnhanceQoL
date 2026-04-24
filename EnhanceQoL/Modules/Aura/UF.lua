@@ -1401,6 +1401,7 @@ local defaults = {
 			target = false,
 			aggro = true,
 			combat = false,
+			strata = nil,
 			texture = "DEFAULT",
 			size = 2,
 			color = { 1, 0, 0, 1 },

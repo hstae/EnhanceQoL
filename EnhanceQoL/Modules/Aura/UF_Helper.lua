@@ -1232,7 +1232,14 @@ function H.ApplyPrivateAuras(container, unit, cfg, parent, levelFrame, showSampl
 	end
 end
 
-local function ensureHighlightFrame(frame)
+function H.NormalizeFrameStrata(value)
+	if type(value) ~= "string" or value == "" then return nil end
+	local token = string.upper(value)
+	if token == "BACKGROUND" or token == "LOW" or token == "MEDIUM" or token == "HIGH" or token == "DIALOG" or token == "FULLSCREEN" or token == "FULLSCREEN_DIALOG" or token == "TOOLTIP" then return token end
+	return nil
+end
+
+local function ensureHighlightFrame(frame, highlightCfg)
 	if not frame then return nil end
 	local highlight = frame._ufHighlight
 	if not highlight then
@@ -1242,11 +1249,12 @@ local function ensureHighlightFrame(frame)
 	elseif highlight.GetParent and highlight:GetParent() ~= frame and highlight.SetParent then
 		highlight:SetParent(frame)
 	end
-	highlight:SetFrameStrata(frame:GetFrameStrata())
+	local strata = H.NormalizeFrameStrata(highlightCfg and highlightCfg.strata) or (frame.GetFrameStrata and frame:GetFrameStrata())
+	if strata and highlight.SetFrameStrata and highlight:GetFrameStrata() ~= strata then highlight:SetFrameStrata(strata) end
 	local baseLevel = frame:GetFrameLevel() or 0
 	local targetLevel = baseLevel + 4
 	local border = frame._ufBorder
-	if border and border.GetFrameLevel then
+	if border and border.GetFrameLevel and border.GetFrameStrata and highlight.GetFrameStrata and border:GetFrameStrata() == highlight:GetFrameStrata() then
 		local borderLevel = border:GetFrameLevel()
 		if borderLevel and targetLevel <= borderLevel then targetLevel = borderLevel + 1 end
 	end
@@ -1295,12 +1303,15 @@ function H.buildHighlightConfig(cfg, def)
 	local combatColor = hcfg.combatColor
 	if type(combatColor) ~= "table" then combatColor = hdef.combatColor end
 	if type(combatColor) ~= "table" then combatColor = color end
+	local strata = H.NormalizeFrameStrata(hcfg.strata)
+	if strata == nil then strata = H.NormalizeFrameStrata(hdef.strata) end
 	return {
 		enabled = true,
 		mouseover = mouseover == true,
 		target = target == true,
 		aggro = aggro == true,
 		combat = combat == true,
+		strata = strata,
 		texture = texture,
 		size = size,
 		color = color,
@@ -1331,7 +1342,7 @@ function H.applyHighlightStyle(st, highlightCfg)
 	end
 	if st._highlightFrame and st._highlightFrame.GetParent and st._highlightFrame:GetParent() ~= host then st._highlightFrame:Hide() end
 	if highlight and host._ufHighlight ~= highlight then host._ufHighlight = highlight end
-	highlight = ensureHighlightFrame(host)
+	highlight = ensureHighlightFrame(host, highlightCfg)
 	if not highlight then return end
 	st._highlightFrame = highlight
 	local size = highlightCfg.size or 1
@@ -1379,7 +1390,7 @@ function H.updateHighlight(st, unit, playerUnit)
 		if not highlight then return end
 	else
 		if host._ufHighlight ~= highlight then host._ufHighlight = highlight end
-		highlight = ensureHighlightFrame(host) or highlight
+		highlight = ensureHighlightFrame(host, cfg) or highlight
 		st._highlightFrame = highlight
 	end
 	local show = false

@@ -2113,8 +2113,14 @@ local function applyReservedGhost(icon, ownerEntry, slotColumn, slotRow)
 		icon.texture:SetAlpha(0)
 	end
 	if icon.cooldown then icon.cooldown:Hide() end
-	if icon.count then icon.count:Hide() end
-	if icon.charges then icon.charges:Hide() end
+	if icon.count then
+		if icon.count.SetText then icon.count:SetText("") end
+		icon.count:Hide()
+	end
+	if icon.charges then
+		if icon.charges.SetText then icon.charges:SetText("") end
+		icon.charges:Hide()
+	end
 	if icon.keybind then icon.keybind:Hide() end
 	if icon.stateTexture then icon.stateTexture:Hide() end
 	if icon.stateTextureSecond then icon.stateTextureSecond:Hide() end
@@ -2599,8 +2605,13 @@ end
 getChargeBarValueText = function(icon, currentCharges, maxCharges)
 	local current = safeNumber(currentCharges)
 	local maximum = safeNumber(maxCharges)
-	if current and maximum and maximum > 0 then return format("%d/%d", current, maximum) end
-	return icon and icon.charges and icon.charges.GetText and icon.charges:GetText() or nil
+	if not (current and maximum) or maximum <= 0 then return nil end
+	local roundedMaximum = floor(maximum)
+	if roundedMaximum <= 0 then return nil end
+	local roundedCurrent = floor(current)
+	if roundedCurrent < 0 then roundedCurrent = 0 end
+	if roundedCurrent > roundedMaximum then roundedCurrent = roundedMaximum end
+	return format("%d/%d", roundedCurrent, roundedMaximum)
 end
 
 getChargeSegmentDescriptors = function(state, segmentCount)

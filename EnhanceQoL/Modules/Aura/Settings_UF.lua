@@ -3734,6 +3734,20 @@ local function buildUnitSettings(unit)
 	highlightTexture.isEnabled = isHighlightEnabled
 	list[#list + 1] = highlightTexture
 
+	local highlightStrata = radioDropdown(
+		L["Frame strata"] or "Frame strata",
+		UF.ui.strataOptionsWithDefault,
+		function() return getValue(unit, { "highlight", "strata" }, highlightDef.strata or "") or "" end,
+		function(val)
+			setValue(unit, { "highlight", "strata" }, val ~= "" and val or nil)
+			refresh()
+		end,
+		highlightDef.strata or "",
+		"highlight"
+	)
+	highlightStrata.isEnabled = isHighlightEnabled
+	list[#list + 1] = highlightStrata
+
 	local highlightSizeSetting = slider(L["UFHighlightSize"] or "Highlight size", 1, 64, 1, function() return getValue(unit, { "highlight", "size" }, highlightDef.size or 2) end, function(val)
 		debounced(unit .. "_highlightSize", function()
 			setValue(unit, { "highlight", "size" }, val or highlightDef.size or 2)
