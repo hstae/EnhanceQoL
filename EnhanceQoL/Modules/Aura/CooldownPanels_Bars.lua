@@ -1213,24 +1213,13 @@ local function applyBackdropFrame(frame, edgeFile, edgeSize)
 		bgFile = "Interface\\Buttons\\WHITE8x8",
 		edgeFile = resolvedEdge,
 		edgeSize = resolvedSize,
+		insets = { left = 0, right = 0, top = 0, bottom = 0 },
 	})
 	frame._eqolBackdropSignature = signature
 end
 
-Bars.GetBarIconBorderOutset = function(borderSize, borderOffset)
-	local size = max(tonumber(borderSize) or 0, 0)
-	if size <= 0 then return 0 end
-	local offset = max(tonumber(borderOffset) or 0, 0)
-	return size + offset
-end
-
 Bars.GetBarFillInset = function(borderSize, effectiveScale, width, height)
-	local size = max(tonumber(borderSize) or 0, 0)
-	if size <= 0 then return 0 end
-	local inset = max(1, pixelSnap(size, effectiveScale))
-	local shortestSide = min(max(tonumber(width) or 0, 0), max(tonumber(height) or 0, 0))
-	if shortestSide > 0 then inset = min(inset, max(0, floor((shortestSide - 1) * 0.5))) end
-	return inset
+	return 0
 end
 
 Bars.ApplyBarIconBorder = function(barFrame, showIcon, borderTexturePath, borderSize, borderOffset, borderColor)
@@ -1270,7 +1259,7 @@ local function ensureBarSegment(frame, index)
 	segment.fillBg:SetAllPoints(segment.fill)
 	segment.fillBg:SetTexture("Interface\\Buttons\\WHITE8x8")
 	segment.fillBg:SetVertexColor(0, 0, 0, 0.35)
-	segment.borderOverlay = CreateFrame("Frame", nil, segment, "BackdropTemplate")
+	segment.borderOverlay = CreateFrame("Frame", nil, frame, "BackdropTemplate")
 	segment.borderOverlay:SetClampedToScreen(false)
 	segment.borderOverlay:SetMovable(false)
 	segment.borderOverlay:EnableMouse(false)
@@ -1488,7 +1477,10 @@ local function hideUnusedBarSegments(frame, firstIndex)
 	if not (frame and frame.segments) then return end
 	for index = firstIndex or 1, #frame.segments do
 		local segment = frame.segments[index]
-		if segment then segment:Hide() end
+		if segment then
+			if segment.borderOverlay then segment.borderOverlay:Hide() end
+			segment:Hide()
+		end
 	end
 end
 
@@ -3050,7 +3042,7 @@ local function layoutChargeSegmentsIntoBar(
 		local fillInset = Bars.GetBarFillInset(borderSize, effectiveScale, segmentDirection == BAR_ORIENTATION_VERTICAL and bodyWidth or primarySize, segmentDirection == BAR_ORIENTATION_VERTICAL and primarySize or bodyHeight)
 		segment:SetFrameStrata(barFrame:GetFrameStrata())
 		segment:SetFrameLevel((barFrame.body and barFrame.body:GetFrameLevel() or barFrame:GetFrameLevel()) + 1)
-		applyBackdropFrame(segment, borderTexturePath, borderSize)
+		applyBackdropFrame(segment, "Interface\\Buttons\\WHITE8x8", 1)
 		segment:SetBackdropColor(0, 0, 0, 0)
 		segment:SetBackdropBorderColor(0, 0, 0, 0)
 		applyStatusBarTexture(segment.fill, fillTexturePath)
@@ -3237,7 +3229,7 @@ Bars.LayoutStackSegmentsIntoBar = function(
 		local fillInset = Bars.GetBarFillInset(borderSize, effectiveScale, segmentDirection == BAR_ORIENTATION_VERTICAL and bodyWidth or primarySize, segmentDirection == BAR_ORIENTATION_VERTICAL and primarySize or bodyHeight)
 		segment:SetFrameStrata(barFrame:GetFrameStrata())
 		segment:SetFrameLevel((barFrame.body and barFrame.body:GetFrameLevel() or barFrame:GetFrameLevel()) + 1)
-		applyBackdropFrame(segment, borderTexturePath, borderSize)
+		applyBackdropFrame(segment, "Interface\\Buttons\\WHITE8x8", 1)
 		segment:SetBackdropColor(0, 0, 0, 0)
 		segment:SetBackdropBorderColor(0, 0, 0, 0)
 		applyStatusBarTexture(segment.fill, fillTexturePath)
@@ -3422,8 +3414,7 @@ layoutBarFrame = function(barFrame, icon, span, layout, state)
 	local iconSize = state.showIcon and pixelSnap(Bars.DEFAULTS.barIconSize, effectiveScale) or 0
 	local configuredIconSize = normalizeBarIconSize(state and state.iconSize, Bars.DEFAULTS.barIconSize)
 	if configuredIconSize > 0 then iconSize = pixelSnap(configuredIconSize, effectiveScale) end
-	local iconBorderOutset = state.showIcon and borderEnabled and Bars.GetBarIconBorderOutset(borderSize, normalizeBarBorderOffset(state and state.borderOffset, Bars.DEFAULTS.barBorderOffset)) or 0
-	local iconArea = state.showIcon and (iconSize + iconSpacing + (iconBorderOutset * 2)) or 0
+	local iconArea = state.showIcon and (iconSize + iconSpacing) or 0
 	local iconPosition = normalizeBarIconPosition(state and state.iconPosition, Bars.DEFAULTS.barIconPosition)
 	local bodyLeft = outerPadding + ((state.showIcon and iconPosition == BAR_ICON_POSITION_LEFT) and iconArea or 0)
 	local bodyRight = outerPadding + ((state.showIcon and iconPosition == BAR_ICON_POSITION_RIGHT) and iconArea or 0)
@@ -3515,7 +3506,7 @@ layoutBarFrame = function(barFrame, icon, span, layout, state)
 	barFrame.body:ClearAllPoints()
 	barFrame.body:SetPoint("TOPLEFT", barFrame, "TOPLEFT", bodyLeft, -bodyTop)
 	barFrame.body:SetPoint("BOTTOMRIGHT", barFrame, "BOTTOMRIGHT", -bodyRight, bodyBottom)
-	applyBackdropFrame(barFrame.body, borderTexturePath, borderSize)
+	applyBackdropFrame(barFrame.body, "Interface\\Buttons\\WHITE8x8", 1)
 	barFrame.body:SetBackdropColor(0, 0, 0, 0)
 	barFrame.body:SetBackdropBorderColor(0, 0, 0, 0)
 	barFrame.fillBg:SetVertexColor(backgroundColor[1], backgroundColor[2], backgroundColor[3], backgroundColor[4])
@@ -3548,13 +3539,13 @@ layoutBarFrame = function(barFrame, icon, span, layout, state)
 		local iconOffsetY = pixelSnap(state.iconOffsetY or 0, effectiveScale)
 		barFrame.iconHolder:ClearAllPoints()
 		if iconPosition == BAR_ICON_POSITION_RIGHT then
-			barFrame.iconHolder:SetPoint("RIGHT", barFrame, "RIGHT", pixelSnap(-(outerPadding + iconBorderOutset) + iconOffsetX, effectiveScale), iconOffsetY)
+			barFrame.iconHolder:SetPoint("RIGHT", barFrame, "RIGHT", pixelSnap(-outerPadding + iconOffsetX, effectiveScale), iconOffsetY)
 		elseif iconPosition == BAR_ICON_POSITION_TOP then
-			barFrame.iconHolder:SetPoint("TOP", barFrame, "TOP", iconOffsetX, pixelSnap(-(outerPadding + iconBorderOutset) + iconOffsetY, effectiveScale))
+			barFrame.iconHolder:SetPoint("TOP", barFrame, "TOP", iconOffsetX, pixelSnap(-outerPadding + iconOffsetY, effectiveScale))
 		elseif iconPosition == BAR_ICON_POSITION_BOTTOM then
-			barFrame.iconHolder:SetPoint("BOTTOM", barFrame, "BOTTOM", iconOffsetX, pixelSnap(outerPadding + iconBorderOutset + iconOffsetY, effectiveScale))
+			barFrame.iconHolder:SetPoint("BOTTOM", barFrame, "BOTTOM", iconOffsetX, pixelSnap(outerPadding + iconOffsetY, effectiveScale))
 		else
-			barFrame.iconHolder:SetPoint("LEFT", barFrame, "LEFT", pixelSnap(outerPadding + iconBorderOutset + iconOffsetX, effectiveScale), iconOffsetY)
+			barFrame.iconHolder:SetPoint("LEFT", barFrame, "LEFT", pixelSnap(outerPadding + iconOffsetX, effectiveScale), iconOffsetY)
 		end
 		barFrame.iconHolder:SetSize(iconSize, iconSize)
 		barFrame.icon:ClearAllPoints()
