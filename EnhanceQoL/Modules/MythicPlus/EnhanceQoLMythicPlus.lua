@@ -352,8 +352,10 @@ end
 
 local function resolveBRFontFace(dbKey)
 	local configured = normalizeBRFontFace(addon.db and addon.db[dbKey])
-	local localeFallback = addon.functions and addon.functions.GetLocaleDefaultFontFace and addon.functions.GetLocaleDefaultFontFace()
-	local fallback = localeFallback or addon.variables.defaultFont or STANDARD_TEXT_FONT
+	local fallback = (addon.functions and addon.functions.GetGlobalDefaultFontFace and addon.functions.GetGlobalDefaultFontFace())
+		or (addon.functions and addon.functions.GetLocaleDefaultFontFace and addon.functions.GetLocaleDefaultFontFace())
+		or addon.variables.defaultFont
+		or STANDARD_TEXT_FONT
 	if addon.functions and addon.functions.ResolveFontFace then return addon.functions.ResolveFontFace(configured, fallback) end
 	if configured == BLOODLUST_GLOBAL_FONT_KEY then return fallback end
 	return configured
@@ -1827,8 +1829,10 @@ end
 
 local function resolveBloodlustCooldownFontFace()
 	local configured = normalizeBloodlustCooldownFontFace(addon.db and addon.db["mythicPlusBloodlustTrackerCooldownFontFace"])
-	local localeFallback = addon.functions and addon.functions.GetLocaleDefaultFontFace and addon.functions.GetLocaleDefaultFontFace()
-	local fallback = localeFallback or addon.variables.defaultFont or STANDARD_TEXT_FONT
+	local fallback = (addon.functions and addon.functions.GetGlobalDefaultFontFace and addon.functions.GetGlobalDefaultFontFace())
+		or (addon.functions and addon.functions.GetLocaleDefaultFontFace and addon.functions.GetLocaleDefaultFontFace())
+		or addon.variables.defaultFont
+		or STANDARD_TEXT_FONT
 	if addon.functions and addon.functions.ResolveFontFace then return addon.functions.ResolveFontFace(configured, fallback) end
 	if configured == BLOODLUST_GLOBAL_FONT_KEY then return fallback end
 	return configured

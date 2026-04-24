@@ -3844,6 +3844,7 @@ function AuraUtil.styleAuraCount(btn, ac, countFontSizeOverride)
 	if size == nil then size = ac.countFontSize end
 	local flags = ac.countFontOutline
 	local fontKey = ac.countFont or (addon.variables and addon.variables.defaultFont) or (LSM and LSM.DefaultMedia and LSM.DefaultMedia.font) or STANDARD_TEXT_FONT
+	local globalFontStateVersion = addon.functions and addon.functions.GetGlobalFontStateVersion and addon.functions.GetGlobalFontStateVersion() or 0
 	if
 		btn._countStyleAnchor == anchor
 		and btn._countStyleOx == ox
@@ -3851,6 +3852,7 @@ function AuraUtil.styleAuraCount(btn, ac, countFontSizeOverride)
 		and btn._countStyleFontKey == fontKey
 		and btn._countStyleSize == size
 		and btn._countStyleFlags == flags
+		and btn._countStyleFontStateVersion == globalFontStateVersion
 	then
 		return
 	end
@@ -3860,6 +3862,7 @@ function AuraUtil.styleAuraCount(btn, ac, countFontSizeOverride)
 	btn._countStyleFontKey = fontKey
 	btn._countStyleSize = size
 	btn._countStyleFlags = flags
+	btn._countStyleFontStateVersion = globalFontStateVersion
 	btn.count:ClearAllPoints()
 	btn.count:SetPoint(anchor, btn.foreground or btn.overlay or btn, anchor, ox, oy)
 	if size == nil or flags == nil then
@@ -3889,6 +3892,7 @@ function AuraUtil.styleAuraCooldownText(btn, ac, cooldownFontSizeOverride)
 	if size == nil then size = ac.cooldownFontSize end
 	local fontKey = ac.cooldownFont
 	local outline = ac.cooldownFontOutline
+	local globalFontStateVersion = addon.functions and addon.functions.GetGlobalFontStateVersion and addon.functions.GetGlobalFontStateVersion() or 0
 	local curFont, curSize, curFlags = fs:GetFont()
 	if size == nil then size = curSize or 12 end
 	if outline == nil then outline = curFlags end
@@ -3900,6 +3904,7 @@ function AuraUtil.styleAuraCooldownText(btn, ac, cooldownFontSizeOverride)
 		and btn._cooldownStyleFontKey == fontKey
 		and btn._cooldownStyleSize == size
 		and btn._cooldownStyleOutline == outline
+		and btn._cooldownStyleFontStateVersion == globalFontStateVersion
 	then
 		return
 	end
@@ -3909,6 +3914,7 @@ function AuraUtil.styleAuraCooldownText(btn, ac, cooldownFontSizeOverride)
 	btn._cooldownStyleFontKey = fontKey
 	btn._cooldownStyleSize = size
 	btn._cooldownStyleOutline = outline
+	btn._cooldownStyleFontStateVersion = globalFontStateVersion
 	fs:ClearAllPoints()
 	fs:SetPoint(anchor, btn.overlay or btn, anchor, ox, oy)
 	if UFHelper and UFHelper.applyFont then

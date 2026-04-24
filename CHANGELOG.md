@@ -1,5 +1,14 @@
 # Changelog
 
+## [10.6.4-beta2] - 2026-04-24
+
+### 🐛 Fixed
+
+- Vendor: Fixed Auto Vendor selling cosmetic appearance items with vendor prices, including event-cache cosmetics.
+- Profiles / Fonts: Fixed global font and font-style propagation for the BR tracker, Total Absorb tracker, and target/focus buff text so they now update without manually switching fonts first.
+
+---
+
 ## [10.6.4-beta1] - 2026-04-23
 
 ### 🐛 Fixed
