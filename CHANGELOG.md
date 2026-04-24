@@ -1,5 +1,13 @@
 # Changelog
 
+## [10.6.5] - 2026-04-24
+
+### 🐛 Fixed
+
+- Group Frames / Healer Buff Editor: Fixed preview cooldown and charge text using unresolved global font-style settings, preventing `SetFont` errors when opening the editor with global font styling enabled.
+
+---
+
 ## [10.6.4] - 2026-04-24
 
 ### 🐛 Fixed
