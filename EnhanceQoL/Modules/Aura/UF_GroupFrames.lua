@@ -27678,9 +27678,6 @@ function GF:RunPostRosterRefreshPass()
 		self:ApplyHeaderAttributes("mt")
 		self:ApplyHeaderAttributes("ma")
 	else
-		-- oUF only refreshes the affected units after roster changes. Keep the delayed
-		-- pass lightweight so we don't churn secure header attributes on wipe/release
-		-- style roster events that did not actually change the frame structure.
 		local function nudgeVisible(header)
 			if not (header and header.IsShown and header:IsShown()) then return end
 			nudgeHeaderLayout(header)

@@ -1,22 +1,15 @@
 # Changelog
 
-## [10.6.4-beta2] - 2026-04-24
+## [10.6.4] - 2026-04-24
 
 ### 🐛 Fixed
 
-- Vendor: Fixed Auto Vendor selling cosmetic appearance items with vendor prices, including event-cache cosmetics.
-- Profiles / Fonts: Fixed global font and font-style propagation for the BR tracker, Total Absorb tracker, and target/focus buff text so they now update without manually switching fonts first.
-- Unit Frames / Boss Frames: Fixed boss frames disappearing after resetting and re-pulling an encounter by matching the boss-frame update lifecycle to Blizzard/oUF behavior.
 - Cooldown Panels: Fixed shared talent and capstone spell entries so they now switch more reliably to the correct active spell, no longer collapse unrelated active spells into one entry, and stay stable after `/reload`.
-
----
-
-## [10.6.4-beta1] - 2026-04-23
-
-### 🐛 Fixed
-
 - Cooldown Panels / Bars: Fixed bar fills sometimes drawing slightly outside their border.
 - Group Frames: Improved name text stability on party and raid frames, reducing visible shaking when frames update, resize, or refresh their layout.
+- Profiles / Fonts: Fixed global font and font-style propagation for the BR tracker, Total Absorb tracker, and target/focus buff text so they now update without manually switching fonts first.
+- Unit Frames / Boss Frames: Fixed boss frames disappearing after resetting and re-pulling an encounter.
+- Vendor: Fixed Auto Vendor selling cosmetic appearance items with vendor prices, including event-cache cosmetics.
 
 ---
 
