@@ -809,6 +809,8 @@ function H.FlushDeferredPrivateAuraMutations()
 				H.RemovePrivateAuras(container)
 			elseif pending.action == "apply" then
 				H.ApplyPrivateAuras(container, pending.unit, pending.cfg, pending.parent, pending.levelFrame, pending.showSample, pending.inverseAnchor)
+			elseif pending.action == "applyBlizzard" then
+				H.ApplyBlizzardAuraContainer(container, pending.unit, pending.cfg, pending.parent, pending.levelFrame, pending.showSample)
 			end
 		end
 	end
@@ -831,6 +833,13 @@ function H.QueueDeferredPrivateAuraMutation(container, action, payload)
 		pending.levelFrame = payload.levelFrame
 		pending.showSample = payload.showSample
 		pending.inverseAnchor = payload.inverseAnchor
+	elseif action == "applyBlizzard" and payload then
+		pending.unit = payload.unit
+		pending.cfg = payload.cfg
+		pending.parent = payload.parent
+		pending.levelFrame = payload.levelFrame
+		pending.showSample = payload.showSample
+		pending.inverseAnchor = nil
 	else
 		pending.unit = nil
 		pending.cfg = nil
@@ -849,6 +858,84 @@ local function removePrivateAuraAnchor(anchor)
 		pcall(C_UnitAuras.RemovePrivateAuraAnchor, anchor.anchorID)
 		anchor.anchorID = nil
 	end
+end
+
+function H.RemoveBlizzardAuraContainer(container)
+	if container and container._eqolBlizzardAuraAnchorID and C_UnitAuras and C_UnitAuras.RemovePrivateAuraAnchor then
+		pcall(C_UnitAuras.RemovePrivateAuraAnchor, container._eqolBlizzardAuraAnchorID)
+		container._eqolBlizzardAuraAnchorID = nil
+	end
+	if container then container._eqolBlizzardAuraSignature = nil end
+end
+
+function H.NormalizeAuraRenderer(value)
+	local renderer = tostring(value or "CUSTOM"):upper()
+	if renderer == "BLIZZARD" or renderer == "BLIZZARD_CONTAINER" then return "BLIZZARD" end
+	return "CUSTOM"
+end
+
+function H.IsBlizzardAuraRenderer(value)
+	return H.NormalizeAuraRenderer(value) == "BLIZZARD"
+end
+
+function H.ResolveBlizzardAuraOrganization(value)
+	if type(value) == "number" then return value end
+	local token = tostring(value or ""):upper()
+	local org = Enum and Enum.RaidAuraOrganizationType
+	if token == "BUFFS_TOP_DEBUFFS_BOTTOM" or token == "TOP_BOTTOM" then
+		return (org and org.BuffsTopDebuffsBottom) or 2
+	elseif token == "BUFFS_RIGHT_DEBUFFS_LEFT" or token == "RIGHT_LEFT" then
+		return (org and org.BuffsRightDebuffsLeft) or 3
+	end
+	return (org and org.Legacy) or 1
+end
+
+function H.SetBlizzardAuraContainerAttributes(container, cfg)
+	local showBuffs = cfg.showBuffs == true
+	local showDebuffs = cfg.showDebuffs == true
+	local showDispels = cfg.showDispels == true
+	local showBigDefensive = cfg.showBigDefensive == true
+
+	container:SetAttribute("max-buffs", showBuffs and (cfg.maxBuffs or 0) or 0)
+	container:SetAttribute("max-debuffs", showDebuffs and (cfg.maxDebuffs or 0) or 0)
+	container:SetAttribute("max-dispel-debuffs", showDispels and (cfg.maxDispelDebuffs or 0) or 0)
+	container:SetAttribute("aura-organization-type", H.ResolveBlizzardAuraOrganization(cfg.organizationType))
+	container:SetAttribute("display-only-dispellable-debuffs", cfg.displayOnlyDispellableDebuffs == true)
+	container:SetAttribute("ignore-buffs", not showBuffs)
+	container:SetAttribute("ignore-debuffs", not showDebuffs)
+	container:SetAttribute("ignore-dispel-debuffs", not showDispels)
+	container:SetAttribute("dispel-indicator-option", cfg.dispelIndicatorOption or 2)
+	container:SetAttribute("display-larger-role-specific-debuffs", cfg.displayLargerRoleSpecificDebuffs == true)
+	container:SetAttribute("show-dispel-indicator-overlay", cfg.showDispelOverlay == true)
+	container:SetAttribute("show-big-defensive", showBigDefensive)
+	container:SetAttribute("big-defensive-size", cfg.bigDefensiveSize or cfg.iconSize or 16)
+	container:SetAttribute("icon-size", cfg.iconSize or 16)
+	container:SetAttribute("always-hide-duration", cfg.alwaysHideDuration ~= false)
+	container:SetAttribute("set-aura-size-to-icon-size", true)
+	container:SetAttribute("power-bar-used-height", cfg.powerBarUsedHeight or 0)
+	container:SetAttribute("group-type", cfg.groupType)
+	container:SetAttribute("suppress-dispel-border-icons", cfg.suppressDispelBorderIcons ~= false)
+end
+
+function H.BuildBlizzardAuraSignature(unit, cfg)
+	return table.concat({
+		tostring(unit or ""),
+		tostring(cfg.showBuffs == true),
+		tostring(cfg.showDebuffs == true),
+		tostring(cfg.showDispels == true),
+		tostring(cfg.showBigDefensive == true),
+		tostring(cfg.maxBuffs or 0),
+		tostring(cfg.maxDebuffs or 0),
+		tostring(cfg.maxDispelDebuffs or 0),
+		tostring(H.ResolveBlizzardAuraOrganization(cfg.organizationType)),
+		tostring(cfg.displayOnlyDispellableDebuffs == true),
+		tostring(cfg.dispelIndicatorOption or 2),
+		tostring(cfg.showDispelOverlay == true),
+		tostring(cfg.iconSize or 16),
+		tostring(cfg.bigDefensiveSize or cfg.iconSize or 16),
+		tostring(cfg.powerBarUsedHeight or 0),
+		tostring(cfg.groupType or ""),
+	}, ":")
 end
 
 local function buildPrivateAuraAnchor(anchor, unit, index, size, borderScale, showFrame, showNumbers, durationEnabled, durationPoint, durationOffsetX, durationOffsetY, durationRelativeTo)
@@ -951,6 +1038,7 @@ function H.RemovePrivateAuras(container)
 	end
 	H.ClearDeferredPrivateAuraMutation(container)
 	updatePrivateAuraShowDispelType(container, false)
+	H.RemoveBlizzardAuraContainer(container)
 	if container._eqolPrivateAuraFrames then
 		for _, anchor in ipairs(container._eqolPrivateAuraFrames) do
 			removePrivateAuraAnchor(anchor)
@@ -968,6 +1056,83 @@ function H.RemovePrivateAuras(container)
 		end
 	end
 	container._eqolPrivateAuraState = nil
+end
+
+function H.ApplyBlizzardAuraContainer(container, unit, cfg, parent, levelFrame, showSample)
+	if not container then return end
+	if not (C_UnitAuras and C_UnitAuras.AddPrivateAuraAnchor) then return end
+	cfg = cfg or {}
+	if not unit then
+		H.RemovePrivateAuras(container)
+		if container.Hide then container:Hide() end
+		return
+	end
+	if UnitExists and not showSample and not UnitExists(unit) then
+		H.RemovePrivateAuras(container)
+		if container.Hide then container:Hide() end
+		return
+	end
+	if InCombatLockdown and InCombatLockdown() then
+		H.QueueDeferredPrivateAuraMutation(container, "applyBlizzard", {
+			unit = unit,
+			cfg = cfg,
+			parent = parent,
+			levelFrame = levelFrame,
+			showSample = showSample,
+		})
+		return
+	end
+	H.ClearDeferredPrivateAuraMutation(container)
+	updatePrivateAuraShowDispelType(container, false)
+
+	if container._eqolPrivateAuraFrames then
+		for _, anchor in ipairs(container._eqolPrivateAuraFrames) do
+			removePrivateAuraAnchor(anchor)
+			if anchor.Hide then anchor:Hide() end
+			if anchor._eqolPrivateAuraLayout and anchor._eqolPrivateAuraLayout.Hide then anchor._eqolPrivateAuraLayout:Hide() end
+		end
+	end
+	container._eqolPrivateAuraState = nil
+
+	local effectiveUnit = resolvePrivateAuraUnitToken(unit)
+	if parent and container.GetParent and container:GetParent() ~= parent then container:SetParent(parent) end
+	if container.SetFrameStrata then
+		local strataSource = (levelFrame and levelFrame.GetFrameStrata and levelFrame) or (parent and parent.GetFrameStrata and parent)
+		if strataSource then container:SetFrameStrata(strataSource:GetFrameStrata()) end
+	end
+	if levelFrame and container.SetFrameLevel and levelFrame.GetFrameLevel then container:SetFrameLevel((levelFrame:GetFrameLevel() or 0) + 10) end
+	container:ClearAllPoints()
+	if parent then
+		container:SetAllPoints(parent)
+	else
+		container:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+		container:SetSize(1, 1)
+	end
+	container:EnableMouse(false)
+	container:Show()
+
+	H.SetBlizzardAuraContainerAttributes(container, cfg)
+	local signature = H.BuildBlizzardAuraSignature(effectiveUnit, cfg)
+	if container._eqolBlizzardAuraAnchorID and container._eqolBlizzardAuraSignature == signature then
+		container:SetAttribute("update-settings", true)
+		return
+	end
+
+	H.RemoveBlizzardAuraContainer(container)
+	local ok, anchorID = pcall(C_UnitAuras.AddPrivateAuraAnchor, {
+		unitToken = effectiveUnit,
+		auraIndex = 1,
+		parent = container,
+		showCountdownFrame = false,
+		showCountdownNumbers = false,
+		isContainer = true,
+	})
+	if ok and anchorID then
+		container._eqolBlizzardAuraAnchorID = anchorID
+		container._eqolBlizzardAuraSignature = signature
+	else
+		container:Hide()
+	end
 end
 
 function H.ApplyPrivateAuras(container, unit, cfg, parent, levelFrame, showSample, inverseAnchor)
@@ -1002,6 +1167,7 @@ function H.ApplyPrivateAuras(container, unit, cfg, parent, levelFrame, showSampl
 		return
 	end
 	H.ClearDeferredPrivateAuraMutation(container)
+	H.RemoveBlizzardAuraContainer(container)
 
 	local effectiveUnit = resolvePrivateAuraUnitToken(unit)
 	local cacheState = unit == "player" or unit == "focus"

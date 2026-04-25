@@ -1,6 +1,10 @@
 # Changelog
 
-## [10.6.6] - 2026-04-24
+## [10.7.0] - 2026-04-25
+
+### ✨ Added
+
+- Unit Frames / Group Frames: Added an optional Blizzard aura rendering mode. This lets Blizzard render selected aura categories such as buffs, debuffs, defensives, dispels, and private auras directly, giving the same aura filtering and visibility behavior as the default Blizzard frames. It can be mixed with EnhanceQoL's custom aura rendering per category, but Blizzard-rendered categories intentionally offer less customization and focus on native frame parity.
 
 ### 🐛 Fixed
 

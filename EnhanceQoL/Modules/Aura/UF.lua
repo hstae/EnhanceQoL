@@ -4331,6 +4331,62 @@ function AuraUtil.hideAuraContainers(st)
 	end
 end
 
+function AuraUtil.GetAuraRenderer(value)
+	if UFHelper and UFHelper.NormalizeAuraRenderer then return UFHelper.NormalizeAuraRenderer(value) end
+	local renderer = tostring(value or "CUSTOM"):upper()
+	return (renderer == "BLIZZARD" or renderer == "BLIZZARD_CONTAINER") and "BLIZZARD" or "CUSTOM"
+end
+
+function AuraUtil.isBlizzardAuraRenderer(ac, defAc)
+	local renderer = ac and ac.renderer
+	if renderer == nil and defAc then renderer = defAc.renderer end
+	return AuraUtil.GetAuraRenderer(renderer) == "BLIZZARD"
+end
+
+function AuraUtil.ApplyBlizzardAuraRenderer(unit, st, cfg, def, allowSample)
+	if not (st and st.privateAuras and UFHelper and UFHelper.ApplyBlizzardAuraContainer) then return end
+	cfg = cfg or {}
+	def = def or defaultsFor(unit)
+	local ac = cfg.auraIcons or (def and def.auraIcons) or defaults.target.auraIcons or {}
+	local defAc = def and def.auraIcons
+	local pcfg = cfg.privateAuras or (def and def.privateAuras) or {}
+	local auraRuntime = AuraUtil.getUnitSingleAuraRuntimeConfig(unit, ac, defAc)
+	local showBuffs = auraRuntime.enabled and auraRuntime.showBuffs == true
+	local privateEnabled = pcfg and pcfg.enabled == true
+	local showDebuffs = (auraRuntime.enabled and auraRuntime.showDebuffs == true) or privateEnabled
+	local buffStyle = auraRuntime.buff or {}
+	local debuffStyle = auraRuntime.debuff or {}
+	local privateIcon = (pcfg and pcfg.icon) or {}
+	local iconSize = (showBuffs and buffStyle.size)
+		or (showDebuffs and debuffStyle.size)
+		or privateIcon.size
+		or 24
+	local maxDebuffs = showDebuffs and (debuffStyle.max or privateIcon.amount or 0) or 0
+	if privateEnabled and maxDebuffs < (privateIcon.amount or 0) then maxDebuffs = privateIcon.amount or maxDebuffs end
+	local containerCfg = {
+		showBuffs = showBuffs,
+		showDebuffs = showDebuffs,
+		showDispels = showDebuffs and debuffStyle.blizzardDispelBorder == true,
+		showDispelOverlay = showDebuffs and debuffStyle.blizzardDispelBorder == true,
+		showBigDefensive = showBuffs,
+		maxBuffs = showBuffs and (buffStyle.max or 0) or 0,
+		maxDebuffs = maxDebuffs,
+		maxDispelDebuffs = 3,
+		iconSize = iconSize,
+		bigDefensiveSize = iconSize,
+		organizationType = ac.blizzardOrganizationType,
+		dispelIndicatorOption = 2,
+		powerBarUsedHeight = 0,
+		groupType = nil,
+	}
+	if not (containerCfg.showBuffs or containerCfg.showDebuffs or containerCfg.showDispels or containerCfg.showBigDefensive) then
+		UFHelper.RemovePrivateAuras(st.privateAuras)
+		if st.privateAuras.Hide then st.privateAuras:Hide() end
+		return
+	end
+	UFHelper.ApplyBlizzardAuraContainer(st.privateAuras, unit, containerCfg, st.frame, st.statusTextLayer or st.frame, allowSample)
+end
+
 function AuraUtil.prepareSingleAuraSectionStyle(section)
 	local style = CopyTable(section or {})
 	style.size = tonumber(style.size) or 24
@@ -4452,6 +4508,11 @@ function AuraUtil.updateTargetAuraIcons(startIndex, unit)
 	local cfg = st.cfg or ensureDB(unit)
 	local def = defaultsFor(unit)
 	local ac = cfg.auraIcons or (def and def.auraIcons) or defaults.target.auraIcons or { size = 24, padding = 2, max = 16, showCooldown = true }
+	if AuraUtil.isBlizzardAuraRenderer(ac, def and def.auraIcons) then
+		AuraUtil.hideAuraContainers(st)
+		AuraUtil.HideSingleDispelIndicator(unit)
+		return
+	end
 	local auraRuntime = AuraUtil.getUnitSingleAuraRuntimeConfig(unit, ac, def and def.auraIcons)
 	if not auraRuntime.enabled then
 		AuraUtil.hideAuraContainers(st)
@@ -4702,6 +4763,11 @@ function AuraUtil.fullScanTargetAuras(unit)
 	local cfg = (st and st.cfg) or ensureDB(unit)
 	local def = defaultsFor(unit)
 	local ac = cfg.auraIcons or (def and def.auraIcons) or defaults.target.auraIcons or {}
+	if AuraUtil.isBlizzardAuraRenderer(ac, def and def.auraIcons) then
+		if st then st._sampleAurasActive = nil end
+		AuraUtil.updateTargetAuraIcons(nil, unit)
+		return
+	end
 	local auraRuntime = AuraUtil.getUnitSingleAuraRuntimeConfig(unit, ac, def and def.auraIcons)
 	if not auraRuntime.enabled then
 		if st then st._sampleAurasActive = nil end
@@ -9153,12 +9219,19 @@ local function applyConfig(unit)
 		st._displayPowerStructureKey = sig and sig.key or nil
 	end
 	updatePortrait(cfg, unit)
-	AuraUtil.UpdateSingleDispelIndicator(unit, UF.IsEditModeSampleEnabled and UF.IsEditModeSampleEnabled(unit))
+	local auraRendererIsBlizzard = AuraUtil.isBlizzardAuraRenderer(cfg.auraIcons, def and def.auraIcons)
+	if auraRendererIsBlizzard then
+		AuraUtil.HideSingleDispelIndicator(unit)
+	else
+		AuraUtil.UpdateSingleDispelIndicator(unit, UF.IsEditModeSampleEnabled and UF.IsEditModeSampleEnabled(unit))
+	end
 	checkRaidTargetIcon(unit, st)
 	UFHelper.updateLeaderIndicator(st, unit, cfg, defaultsFor(unit), false)
 	UFHelper.updatePvPIndicator(st, unit, cfg, defaultsFor(unit), false)
 	UFHelper.updateRoleIndicator(st, unit, cfg, defaultsFor(unit), false)
-	if st.privateAuras and UFHelper and UFHelper.ApplyPrivateAuras then
+	if st.privateAuras and auraRendererIsBlizzard and UFHelper and UFHelper.ApplyBlizzardAuraContainer then
+		AuraUtil.ApplyBlizzardAuraRenderer(unit, st, cfg, def, UF.IsEditModeSampleEnabled and UF.IsEditModeSampleEnabled(unit))
+	elseif st.privateAuras and UFHelper and UFHelper.ApplyPrivateAuras then
 		local pcfg = cfg.privateAuras or (def and def.privateAuras)
 		UFHelper.ApplyPrivateAuras(st.privateAuras, unit, pcfg, st.frame, st.statusTextLayer or st.frame, UF.IsEditModeSampleEnabled and UF.IsEditModeSampleEnabled(unit), true)
 	end

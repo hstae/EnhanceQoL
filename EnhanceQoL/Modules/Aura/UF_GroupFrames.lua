@@ -103,6 +103,18 @@ end
 local function requestEditModeSettingsRefresh()
 	if addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RequestRefreshSettings then addon.EditModeLib.internal:RequestRefreshSettings() end
 end
+function GF.MarkEditModeReloadRequired()
+	addon.variables = addon.variables or {}
+	addon.variables.requireReload = true
+	GF._editModeReloadRequired = true
+end
+function GF.ShowEditModeReloadIfRequired()
+	if not GF._editModeReloadRequired then return end
+	GF._editModeReloadRequired = nil
+	addon.variables = addon.variables or {}
+	addon.variables.requireReload = true
+	if addon.functions and addon.functions.checkReloadFrame then addon.functions.checkReloadFrame() end
+end
 local function borderOptions()
 	local list = {}
 	local seen = {}
@@ -5791,6 +5803,7 @@ local function updateButtonConfig(self, cfg)
 
 	local wantsHealerBuffPlacement = false
 	if UF.GroupFramesHealerBuffs and UF.GroupFramesHealerBuffs.IsEnabled then wantsHealerBuffPlacement = UF.GroupFramesHealerBuffs.IsEnabled(self._eqolGroupKind or "party", cfg) == true end
+	if wantsHealerBuffPlacement and GF.IsHealerBuffPlacementSuppressedByBlizzard(self._eqolGroupKind or "party", cfg) then wantsHealerBuffPlacement = false end
 	st._wantsHealerBuffPlacement = wantsHealerBuffPlacement
 end
 
@@ -8280,6 +8293,212 @@ local function updateAuraType(self, unit, st, ac, kindKey, cache, changed, heale
 	hideAuraButtons(buttons, shown + 1)
 end
 
+function GF.GetGroupAuraRenderer(cfg, def)
+	local ac = cfg and cfg.auras
+	local defAc = def and def.auras
+	local renderer = ac and ac.renderer
+	if renderer == nil and defAc then renderer = defAc.renderer end
+	if UFHelper and UFHelper.NormalizeAuraRenderer then return UFHelper.NormalizeAuraRenderer(renderer) end
+	local token = tostring(renderer or "CUSTOM"):upper()
+	return (token == "BLIZZARD" or token == "BLIZZARD_CONTAINER") and "BLIZZARD" or "CUSTOM"
+end
+
+function GF.IsGroupBlizzardAuraRenderer(cfg, def)
+	return GF.GetGroupAuraRenderer(cfg, def) == "BLIZZARD"
+end
+
+GF.BLIZZARD_AURA_RENDER_TYPES = {
+	buffs = true,
+	debuffs = true,
+	dispels = true,
+	externals = true,
+	privateAuras = true,
+}
+
+GF.BLIZZARD_AURA_SETTING_FIELDS = {
+	buffs = {
+		buffsEnabled = true,
+		buffMax = true,
+		buffSize = true,
+	},
+	debuffs = {
+		debuffsEnabled = true,
+		debuffMax = true,
+	},
+	externals = {
+		externalsEnabled = true,
+		externalSize = true,
+	},
+	privateAuras = {
+		privateAurasAmount = true,
+		privateAurasEnabled = true,
+	},
+}
+
+function GF.IsBlizzardAuraRenderTypeEnabled(cfg, def, key)
+	if not GF.IsGroupBlizzardAuraRenderer(cfg, def) then return false end
+	local ac = cfg and cfg.auras
+	local defAc = def and def.auras
+	local selection = ac and ac.blizzardTypes
+	if type(selection) ~= "table" then selection = defAc and defAc.blizzardTypes end
+	if type(selection) ~= "table" then return GF.BLIZZARD_AURA_RENDER_TYPES[key] == true end
+	return selection[key] == true
+end
+
+function GF.IsHealerBuffPlacementSuppressedByBlizzard(kind, cfg)
+	local def = DEFAULTS[kind or "party"] or EMPTY
+	cfg = cfg or getCfg(kind or "party")
+	return GF.IsBlizzardAuraRenderTypeEnabled(cfg, def, "buffs")
+end
+
+function GF.EnsureBlizzardAuraRenderTypes(cfg)
+	if not cfg then return nil end
+	cfg.auras = cfg.auras or {}
+	local selection = cfg.auras.blizzardTypes
+	if type(selection) ~= "table" then
+		selection = GF._sharedEdit.csm(GF.BLIZZARD_AURA_RENDER_TYPES)
+		cfg.auras.blizzardTypes = selection
+	end
+	return selection
+end
+
+function GF.IsBlizzardAuraRenderTypeActive(kind, sectionId)
+	local cfg = getCfg(kind)
+	local def = DEFAULTS[kind] or EMPTY
+	if not GF.IsBlizzardAuraRenderTypeEnabled(cfg, def, sectionId) then return false end
+	if sectionId == "dispels" then return true end
+	if sectionId == "privateAuras" then
+		local pcfg = (cfg and cfg.privateAuras) or def.privateAuras or EMPTY
+		return pcfg.enabled == true
+	end
+	local ac = (cfg and cfg.auras) or EMPTY
+	local defAuras = def.auras or EMPTY
+	local typeCfg = (sectionId == "buffs" and ac.buff) or (sectionId == "debuffs" and ac.debuff) or (sectionId == "externals" and ac.externals) or EMPTY
+	local defType = (sectionId == "buffs" and defAuras.buff) or (sectionId == "debuffs" and defAuras.debuff) or (sectionId == "externals" and defAuras.externals) or EMPTY
+	if typeCfg.enabled ~= nil then return typeCfg.enabled == true end
+	return defType.enabled == true
+end
+
+function GF.IsBlizzardAuraSettingFieldVisible(kind, sectionId, field)
+	if not sectionId then return true end
+	local cfg = getCfg(kind)
+	local def = DEFAULTS[kind] or EMPTY
+	if not GF.IsBlizzardAuraRenderTypeEnabled(cfg, def, sectionId) then return true end
+	if not field then return false end
+	local allowed = GF.BLIZZARD_AURA_SETTING_FIELDS[sectionId]
+	if allowed and allowed[field] then return true end
+	if sectionId == "debuffs" and field == "debuffSize" then return not GF.IsBlizzardAuraRenderTypeActive(kind, "buffs") end
+	if sectionId == "privateAuras" and field == "privateAurasSize" then
+		return not GF.IsBlizzardAuraRenderTypeActive(kind, "buffs")
+			and not GF.IsBlizzardAuraRenderTypeActive(kind, "debuffs")
+			and not GF.IsBlizzardAuraRenderTypeActive(kind, "externals")
+	end
+	return false
+end
+
+function GF.CombineSettingShown(setting, predicate)
+	if not (setting and predicate) then return end
+	local original = setting.isShown
+	setting.isShown = function(...)
+		if original then
+			local ok, shown = pcall(original, ...)
+			if ok and shown == false then return false end
+		end
+		return predicate(setting) ~= false
+	end
+end
+
+function GF.ApplyBlizzardAuraSettingVisibility(settings, kind)
+	for _, setting in ipairs(settings or EMPTY) do
+		if setting then
+			local sectionId = setting.parentId
+			if sectionId == "buffs" or sectionId == "debuffs" or sectionId == "externals" or sectionId == "privateAuras" then
+				GF.CombineSettingShown(setting, function(entry) return GF.IsBlizzardAuraSettingFieldVisible(kind, sectionId, entry.field) end)
+			elseif setting.id == "dispeltint" or setting.parentId == "dispeltint" then
+				GF.CombineSettingShown(setting, function()
+					local cfg = getCfg(kind)
+					return not GF.IsBlizzardAuraRenderTypeEnabled(cfg, DEFAULTS[kind] or EMPTY, "dispels")
+				end)
+			end
+		end
+	end
+end
+
+function GF:UpdateBlizzardAuraContainer(self)
+	if not (self and UFHelper and UFHelper.ApplyBlizzardAuraContainer) then return end
+	local st = getState(self)
+	local unit = getUnit(self)
+	if not st then return end
+	if not unit then
+		if st.blizzardAuras and UFHelper.RemovePrivateAuras then
+			UFHelper.RemovePrivateAuras(st.blizzardAuras)
+			if st.blizzardAuras.Hide then st.blizzardAuras:Hide() end
+		end
+		return
+	end
+	local kind = self._eqolGroupKind or "party"
+	local cfg = self._eqolCfg or getCfg(kind)
+	local def = DEFAULTS[kind] or EMPTY
+	if not GF.IsGroupBlizzardAuraRenderer(cfg, def) then
+		if st.blizzardAuras and UFHelper.RemovePrivateAuras then
+			UFHelper.RemovePrivateAuras(st.blizzardAuras)
+			if st.blizzardAuras.Hide then st.blizzardAuras:Hide() end
+		end
+		return
+	end
+	if cfg then GFH.SyncAurasEnabled(cfg) end
+	local ac = (cfg and cfg.auras) or EMPTY
+	local defAuras = def.auras or EMPTY
+	local buff = ac.buff or defAuras.buff or EMPTY
+	local debuff = ac.debuff or defAuras.debuff or EMPTY
+	local externals = ac.externals or defAuras.externals or EMPTY
+	local defBuff = defAuras.buff or EMPTY
+	local defDebuff = defAuras.debuff or EMPTY
+	local defExternals = defAuras.externals or EMPTY
+	local pcfg = (cfg and cfg.privateAuras) or def.privateAuras or EMPTY
+	local privateIcon = pcfg.icon or EMPTY
+	local showBuffs = GF.IsBlizzardAuraRenderTypeEnabled(cfg, def, "buffs") and ((buff.enabled ~= nil) and (buff.enabled == true) or (defBuff.enabled == true))
+	local renderDebuffs = GF.IsBlizzardAuraRenderTypeEnabled(cfg, def, "debuffs") and ((debuff.enabled ~= nil) and (debuff.enabled == true) or (defDebuff.enabled == true))
+	local privateEnabled = GF.IsBlizzardAuraRenderTypeEnabled(cfg, def, "privateAuras") and pcfg.enabled == true
+	local showDebuffs = renderDebuffs or privateEnabled
+	local showBigDefensive = GF.IsBlizzardAuraRenderTypeEnabled(cfg, def, "externals") and ((externals.enabled ~= nil) and (externals.enabled == true) or (defExternals.enabled == true))
+	local showDispels = GF.IsBlizzardAuraRenderTypeEnabled(cfg, def, "dispels")
+	local iconSize = (showBuffs and (buff.size or defBuff.size)) or (renderDebuffs and (debuff.size or defDebuff.size)) or (showBigDefensive and (externals.size or defExternals.size)) or privateIcon.size or 16
+	local maxDebuffs = renderDebuffs and (debuff.max or defDebuff.max or privateIcon.amount or 0) or 0
+	if privateEnabled and maxDebuffs < (privateIcon.amount or 0) then maxDebuffs = privateIcon.amount or maxDebuffs end
+	if not (showBuffs or showDebuffs or showDispels or showBigDefensive) then
+		if st.blizzardAuras and UFHelper.RemovePrivateAuras then
+			UFHelper.RemovePrivateAuras(st.blizzardAuras)
+			if st.blizzardAuras.Hide then st.blizzardAuras:Hide() end
+		end
+		return
+	end
+	local privateAuraParent = GF.GetLayoutAnchorFrame(st, st.health or self) or self
+	local privateAuraLevelParent = st.statusIconLayer or st.healthTextLayer or privateAuraParent or st.health or st.barGroup or self
+	if not st.blizzardAuras then
+		st.blizzardAuras = CreateFrame("Frame", nil, privateAuraParent)
+		st.blizzardAuras:EnableMouse(false)
+	elseif st.blizzardAuras.GetParent and privateAuraParent and st.blizzardAuras:GetParent() ~= privateAuraParent then
+		st.blizzardAuras:SetParent(privateAuraParent)
+	end
+	UFHelper.ApplyBlizzardAuraContainer(st.blizzardAuras, unit, {
+		showBuffs = showBuffs,
+		showDebuffs = showDebuffs,
+		showDispels = showDispels,
+		showDispelOverlay = showDispels,
+		showBigDefensive = showBigDefensive,
+		maxBuffs = showBuffs and (GF.ClampAuraCount(buff.max or defBuff.max, 6, 20) or 6) or 0,
+		maxDebuffs = maxDebuffs,
+		maxDispelDebuffs = 3,
+		iconSize = iconSize,
+		bigDefensiveSize = (showBigDefensive and (externals.size or defExternals.size or iconSize)) or iconSize,
+		organizationType = ac.blizzardOrganizationType,
+		dispelIndicatorOption = 2,
+		powerBarUsedHeight = cfg and cfg.powerHeight or 0,
+		groupType = (kind == "party") and 4 or 5,
+	}, privateAuraParent, privateAuraLevelParent, isEditModeActive())
+end
+
 local function fullScanGroupAuras(
 	unit,
 	st,
@@ -8404,7 +8623,7 @@ function GF:UpdateAuras(self, updateInfo)
 	local unit = getUnit(self)
 	local inEditMode = isEditModeActive()
 	if inEditMode then
-		if GF and GF._editModeSampleAuras == false then
+		if GF and (GF._editModeSampleAuras == false or GF._editModeExiting == true) then
 			if st.buffContainer then st.buffContainer:Hide() end
 			if st.debuffContainer then st.debuffContainer:Hide() end
 			if st.externalContainer then st.externalContainer:Hide() end
@@ -8432,6 +8651,16 @@ function GF:UpdateAuras(self, updateInfo)
 		st._healerBuffPlacementActive = nil
 		return
 	end
+	if st._auraSampleActive then
+		if st.buffContainer then st.buffContainer:Hide() end
+		if st.debuffContainer then st.debuffContainer:Hide() end
+		if st.externalContainer then st.externalContainer:Hide() end
+		hideAuraButtons(st.buffButtons, 1)
+		hideAuraButtons(st.debuffButtons, 1)
+		hideAuraButtons(st.externalButtons, 1)
+		st._auraSampleActive = nil
+		updateInfo = nil
+	end
 	if not (unit and C_UnitAuras) then
 		GF:UpdateDispelTint(self, nil, nil)
 		if st._healerBuffPlacementActive and UF.GroupFramesHealerBuffs and UF.GroupFramesHealerBuffs.ClearButton then UF.GroupFramesHealerBuffs.ClearButton(self) end
@@ -8439,15 +8668,28 @@ function GF:UpdateAuras(self, updateInfo)
 		return
 	end
 	local cfg = self._eqolCfg or getCfg(self._eqolGroupKind or "party")
+	local def = DEFAULTS[self._eqolGroupKind or "party"]
+	local blizzardRenderer = GF.IsGroupBlizzardAuraRenderer(cfg, def)
+	local blizzardBuffs = blizzardRenderer and GF.IsBlizzardAuraRenderTypeEnabled(cfg, def, "buffs")
+	local blizzardDebuffs = blizzardRenderer and GF.IsBlizzardAuraRenderTypeEnabled(cfg, def, "debuffs")
+	local blizzardDispels = blizzardRenderer and GF.IsBlizzardAuraRenderTypeEnabled(cfg, def, "dispels")
+	local blizzardExternals = blizzardRenderer and GF.IsBlizzardAuraRenderTypeEnabled(cfg, def, "externals")
+	if blizzardRenderer then GF:UpdateBlizzardAuraContainer(self) end
 	local ac = (cfg and cfg.auras) or EMPTY
 	if cfg then GFH.SyncAurasEnabled(cfg) end
 	local wantsAuras = st._wantsAuras
 	if wantsAuras == nil then wantsAuras = ((ac.buff and ac.buff.enabled) or (ac.debuff and ac.debuff.enabled) or (ac.externals and ac.externals.enabled)) or false end
-	local wantsDispelTint = st._wantsDispelTint == true
+	local wantsDispelTint = st._wantsDispelTint == true and not blizzardDispels
 	local wantsHealerBuffPlacement = st._wantsHealerBuffPlacement == true
 	if wantsHealerBuffPlacement and not (cfg and cfg.healerBuffPlacement and cfg.healerBuffPlacement.enabled == true) then
 		wantsHealerBuffPlacement = false
 		st._wantsHealerBuffPlacement = false
+	end
+	if wantsHealerBuffPlacement and blizzardBuffs then
+		wantsHealerBuffPlacement = false
+		st._wantsHealerBuffPlacement = false
+		if UF.GroupFramesHealerBuffs and UF.GroupFramesHealerBuffs.ClearButton then UF.GroupFramesHealerBuffs.ClearButton(self) end
+		st._healerBuffPlacementActive = nil
 	end
 	if wantsAuras == false and not wantsDispelTint and not wantsHealerBuffPlacement then
 		if st.buffContainer then st.buffContainer:Hide() end
@@ -8471,9 +8713,22 @@ function GF:UpdateAuras(self, updateInfo)
 
 	st._auraSampleActive = nil
 
-	local wantBuff = (wantsAuras and ac.buff and ac.buff.enabled ~= false) or wantsHealerBuffPlacement
-	local wantDebuff = wantsAuras and ac.debuff and ac.debuff.enabled ~= false
-	local wantExternals = wantsAuras and ac.externals and ac.externals.enabled ~= false
+	local wantBuff = ((wantsAuras and ac.buff and ac.buff.enabled ~= false) or wantsHealerBuffPlacement) and not blizzardBuffs
+	local wantDebuff = wantsAuras and ac.debuff and ac.debuff.enabled ~= false and not blizzardDebuffs
+	local wantExternals = wantsAuras and ac.externals and ac.externals.enabled ~= false and not blizzardExternals
+	if blizzardBuffs then
+		if st.buffContainer then st.buffContainer:Hide() end
+		hideAuraButtons(st.buffButtons, 1)
+	end
+	if blizzardDebuffs then
+		if st.debuffContainer then st.debuffContainer:Hide() end
+		hideAuraButtons(st.debuffButtons, 1)
+	end
+	if blizzardExternals then
+		if st.externalContainer then st.externalContainer:Hide() end
+		hideAuraButtons(st.externalButtons, 1)
+	end
+	if not (wantBuff or wantDebuff or wantExternals) and not wantsDispelTint and not wantsHealerBuffPlacement then return end
 	if wantsAuras then
 		if
 			not st._auraLayout
@@ -8672,21 +8927,45 @@ function GF:UpdateSampleAuras(self)
 	local unit = getUnit(self)
 	local st = getState(self)
 	if not (st and AuraUtil) then return end
-	local cfg = self._eqolCfg or getCfg(self._eqolGroupKind or "party")
+	local kind = self._eqolGroupKind or "party"
+	local cfg = self._eqolCfg or getCfg(kind)
+	local def = DEFAULTS[kind] or EMPTY
+	local blizzardRenderer = GF.IsGroupBlizzardAuraRenderer(cfg, def)
+	local blizzardBuffs = blizzardRenderer and GF.IsBlizzardAuraRenderTypeEnabled(cfg, def, "buffs")
+	local blizzardDebuffs = blizzardRenderer and GF.IsBlizzardAuraRenderTypeEnabled(cfg, def, "debuffs")
+	local blizzardDispels = blizzardRenderer and GF.IsBlizzardAuraRenderTypeEnabled(cfg, def, "dispels")
+	local blizzardExternals = blizzardRenderer and GF.IsBlizzardAuraRenderTypeEnabled(cfg, def, "externals")
+	if blizzardRenderer then
+		GF:UpdateBlizzardAuraContainer(self)
+	elseif st.blizzardAuras and UFHelper and UFHelper.RemovePrivateAuras then
+		UFHelper.RemovePrivateAuras(st.blizzardAuras)
+		if st.blizzardAuras.Hide then st.blizzardAuras:Hide() end
+	end
 	local ac = (cfg and cfg.auras) or EMPTY
 	local scfg = (cfg and cfg.status) or EMPTY
-	local wantsDispelTint = resolveDispelIndicatorEnabled(cfg, self._eqolGroupKind or "party")
+	local wantsDispelTint = resolveDispelIndicatorEnabled(cfg, kind) and not blizzardDispels
 	st._wantsDispelTint = wantsDispelTint
 	local wantsHealerBuffPlacement = st._wantsHealerBuffPlacement == true
 	if wantsHealerBuffPlacement and not (cfg and cfg.healerBuffPlacement and cfg.healerBuffPlacement.enabled == true) then
 		wantsHealerBuffPlacement = false
 		st._wantsHealerBuffPlacement = false
 	end
+	if wantsHealerBuffPlacement and blizzardBuffs then
+		wantsHealerBuffPlacement = false
+		st._wantsHealerBuffPlacement = false
+		if UF.GroupFramesHealerBuffs and UF.GroupFramesHealerBuffs.ClearButton then UF.GroupFramesHealerBuffs.ClearButton(self) end
+		st._healerBuffPlacementActive = nil
+	end
 	if cfg then GFH.SyncAurasEnabled(cfg) end
-	local wantsAuras = ((ac.buff and ac.buff.enabled) or (ac.debuff and ac.debuff.enabled) or (ac.externals and ac.externals.enabled)) or false
-	if ac.enabled == true then wantsAuras = true end
-	st._wantsAuras = wantsAuras
-	if wantsAuras == false then
+	local rawWantsAuras = ((ac.buff and ac.buff.enabled) or (ac.debuff and ac.debuff.enabled) or (ac.externals and ac.externals.enabled)) or false
+	if ac.enabled == true then rawWantsAuras = true end
+	st._wantsAuras = rawWantsAuras
+	local wantBuff = ac.buff and ac.buff.enabled ~= false and not blizzardBuffs
+	local wantDebuff = ac.debuff and ac.debuff.enabled ~= false and not blizzardDebuffs
+	local wantExternals = ac.externals and ac.externals.enabled ~= false and not blizzardExternals
+	if wantsHealerBuffPlacement and not blizzardBuffs then wantBuff = true end
+	local wantsCustomAuras = wantBuff or wantDebuff or wantExternals
+	if rawWantsAuras == false or (not wantsCustomAuras and not wantsDispelTint) then
 		if st.buffContainer then st.buffContainer:Hide() end
 		if st.debuffContainer then st.debuffContainer:Hide() end
 		if st.externalContainer then st.externalContainer:Hide() end
@@ -8705,10 +8984,6 @@ function GF:UpdateSampleAuras(self)
 		end
 		return
 	end
-
-	local wantBuff = ac.buff and ac.buff.enabled ~= false
-	local wantDebuff = ac.debuff and ac.debuff.enabled ~= false
-	local wantExternals = ac.externals and ac.externals.enabled ~= false
 	if
 		not st._auraLayout
 		or (wantBuff and not (st._auraLayout.buff and st._auraLayout.buff.key))
@@ -8722,7 +8997,12 @@ function GF:UpdateSampleAuras(self)
 		local meta = AURA_TYPE_META[kindKey]
 		if not meta then return end
 		local typeCfg = (ac and ac[kindKey]) or EMPTY
-		if typeCfg.enabled == false then
+		if
+			typeCfg.enabled == false
+			or (kindKey == "buff" and not wantBuff)
+			or (kindKey == "debuff" and not wantDebuff)
+			or (kindKey == "externals" and not wantExternals)
+		then
 			local container = st[meta.containerKey]
 			if container then container:Hide() end
 			hideAuraButtons(st[meta.buttonsKey], 1)
@@ -9477,6 +9757,10 @@ function GF:UpdatePrivateAuras(self)
 	local kind = self._eqolGroupKind or "party"
 	local cfg = self._eqolCfg or getCfg(kind)
 	local def = DEFAULTS[kind] or {}
+	if GF.IsBlizzardAuraRenderTypeEnabled(cfg, def, "privateAuras") then
+		GF:UpdateBlizzardAuraContainer(self)
+		return
+	end
 	local pcfg = (cfg and cfg.privateAuras) or def.privateAuras
 	local runtimePrivateCfg = GF.GetScaledPrivateAuraConfig(self, pcfg)
 	local privateAuraParent = GF.GetLayoutAnchorFrame(st, st.health or self) or self
@@ -10330,11 +10614,16 @@ function GF:UnitButton_ClearUnit(self)
 		if st.portraitHolder then st.portraitHolder:Hide() end
 		if st.portraitSeparator then st.portraitSeparator:Hide() end
 	end
+	if GF.ClearAuraSamplesOnButton then GF.ClearAuraSamplesOnButton(self) end
 	if UF.GroupFramesHealerBuffs and UF.GroupFramesHealerBuffs.ClearButton then UF.GroupFramesHealerBuffs.ClearButton(self) end
 	if st then st._healerBuffPlacementActive = nil end
 	if st and st.privateAuras and UFHelper then
 		if UFHelper.RemovePrivateAuras then UFHelper.RemovePrivateAuras(st.privateAuras) end
 		if UFHelper.UpdatePrivateAuraSound then UFHelper.UpdatePrivateAuraSound(st.privateAuras, nil, (self._eqolCfg and self._eqolCfg.privateAuras) or {}) end
+	end
+	if st and st.blizzardAuras and UFHelper and UFHelper.RemovePrivateAuras then
+		UFHelper.RemovePrivateAuras(st.blizzardAuras)
+		if st.blizzardAuras.Hide then st.blizzardAuras:Hide() end
 	end
 end
 
@@ -11429,6 +11718,10 @@ function GF:ToggleHealerBuffPlacementEditor(kind)
 	if not (editor and editor.Toggle) then return end
 	kind = tostring(kind or "raid"):lower()
 	if kind ~= "party" and kind ~= "raid" then kind = "raid" end
+	if GF.IsHealerBuffPlacementSuppressedByBlizzard(kind, getCfg(kind)) then
+		if editor.IsShown and editor:IsShown() and editor.Hide then editor:Hide() end
+		return
+	end
 	editor:Toggle(kind)
 	if addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RequestRefreshSettings then addon.EditModeLib.internal:RequestRefreshSettings() end
 end
@@ -11574,6 +11867,46 @@ local function refreshAllPrivateAuras()
 		for _, frames in pairs(GF._previewFrames) do
 			for _, btn in ipairs(frames) do
 				if btn then GF:UpdatePrivateAuras(btn) end
+			end
+		end
+	end
+end
+
+function GF.ClearAuraSamplesOnButton(btn)
+	local st = btn and getState(btn)
+	if not st then return end
+	if st.buffContainer then st.buffContainer:Hide() end
+	if st.debuffContainer then st.debuffContainer:Hide() end
+	if st.externalContainer then st.externalContainer:Hide() end
+	hideAuraButtons(st.buffButtons, 1)
+	hideAuraButtons(st.debuffButtons, 1)
+	hideAuraButtons(st.externalButtons, 1)
+	st._auraSampleActive = nil
+	GF:UpdateDispelTint(btn, nil, nil)
+	if st._healerBuffPlacementActive and UF.GroupFramesHealerBuffs and UF.GroupFramesHealerBuffs.ClearButton then
+		UF.GroupFramesHealerBuffs.ClearButton(btn)
+		st._healerBuffPlacementActive = nil
+	end
+end
+
+function GF:ClearEditModeAuraSamples(kind)
+	local function normalized(value)
+		value = tostring(value or ""):lower()
+		if value == "mt" or value == "ma" then return "raid" end
+		return value
+	end
+	local targetKind = kind and normalized(kind)
+	for headerKind, header in pairs(GF.headers or {}) do
+		if not targetKind or targetKind == normalized(headerKind) then
+			forEachChild(header, GF.ClearAuraSamplesOnButton)
+		end
+	end
+	if GF._previewFrames then
+		for frameKind, frames in pairs(GF._previewFrames) do
+			if not targetKind or targetKind == normalized(frameKind) then
+				for _, btn in ipairs(frames) do
+					GF.ClearAuraSamplesOnButton(btn)
+				end
 			end
 		end
 	end
@@ -14780,6 +15113,17 @@ local function buildEditModeSettings(kind, editModeId)
 		{ value = "TOP", label = "Top", text = "Top" },
 		{ value = "BOTTOM", label = "Bottom", text = "Bottom" },
 	}
+	local auraRendererOptions = {
+		{ value = "CUSTOM", label = L["UFAuraRendererCustom"] or "EnhanceQoL", text = L["UFAuraRendererCustom"] or "EnhanceQoL" },
+		{ value = "BLIZZARD", label = L["UFAuraRendererBlizzard"] or "Blizzard", text = L["UFAuraRendererBlizzard"] or "Blizzard" },
+	}
+	local blizzardAuraTypeOptions = {
+		{ value = "buffs", label = L["Buffs"] or "Buffs", text = L["Buffs"] or "Buffs" },
+		{ value = "debuffs", label = L["Debuffs"] or "Debuffs", text = L["Debuffs"] or "Debuffs" },
+		{ value = "dispels", label = L["UFDispelIndicator"] or "Dispel indicator", text = L["UFDispelIndicator"] or "Dispel indicator" },
+		{ value = "externals", label = L["Externals"] or "Externals", text = L["Externals"] or "Externals" },
+		{ value = "privateAuras", label = L["Private Auras"] or "Private Auras", text = L["Private Auras"] or "Private Auras" },
+	}
 	local defPrivateAuras = (DEFAULTS[kind] and DEFAULTS[kind].privateAuras) or {}
 	local function ensurePrivateAuraConfig(cfg)
 		if not cfg then return nil end
@@ -14794,6 +15138,13 @@ local function buildEditModeSettings(kind, editModeId)
 		local pcfg = cfg and cfg.privateAuras or {}
 		if pcfg.enabled == nil then return defPrivateAuras.enabled == true end
 		return pcfg.enabled == true
+	end
+	local function getAuraRendererValue()
+		local cfg = getCfg(kind)
+		return GF.GetGroupAuraRenderer(cfg, DEFAULTS[kind] or EMPTY)
+	end
+	local function isBlizzardRendererSelected()
+		return getAuraRendererValue() == "BLIZZARD"
 	end
 	local function normalizeGroupBy(value)
 		if value == nil then return nil end
@@ -15065,6 +15416,60 @@ local function buildEditModeSettings(kind, editModeId)
 					end)
 				end
 			end,
+		},
+		{
+			name = L["UFAuraRenderer"] or "Aura renderer",
+			kind = SettingType.Dropdown,
+			field = "auraRenderer",
+			parentId = "utility",
+			values = auraRendererOptions,
+			get = getAuraRendererValue,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.auras = cfg.auras or {}
+				local previous = GF.GetGroupAuraRenderer(cfg, DEFAULTS[kind] or EMPTY)
+				local nextRenderer = (value == "BLIZZARD") and "BLIZZARD" or "CUSTOM"
+				cfg.auras.renderer = nextRenderer
+				if previous == "BLIZZARD" and nextRenderer ~= "BLIZZARD" then GF.MarkEditModeReloadRequired() end
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "auraRenderer", cfg.auras.renderer, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+				requestEditModeSettingsRefresh()
+				GF:RefreshHealerBuffPlacement(kind)
+				refreshAllAuras()
+				refreshAllPrivateAuras()
+			end,
+		},
+		{
+			name = L["UFAuraRendererBlizzardTypes"] or "Rendered by Blizzard",
+			kind = SettingType.MultiDropdown,
+			field = "auraRendererBlizzardTypes",
+			parentId = "utility",
+			height = 150,
+			values = blizzardAuraTypeOptions,
+			isSelected = function(_, value)
+				local cfg = getCfg(kind)
+				return GF.IsBlizzardAuraRenderTypeEnabled(cfg, DEFAULTS[kind] or EMPTY, value)
+			end,
+			setSelected = function(_, value, state)
+				local cfg = getCfg(kind)
+				local selection = GF.EnsureBlizzardAuraRenderTypes(cfg)
+				if not selection then return end
+				local wasSelected = selection[value] == true
+				if state then
+					selection[value] = true
+				else
+					selection[value] = nil
+				end
+				if wasSelected and not state then GF.MarkEditModeReloadRequired() end
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "auraRendererBlizzardTypes", GF._sharedEdit.csm(selection), nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+				requestEditModeSettingsRefresh()
+				GF:RefreshHealerBuffPlacement(kind)
+				refreshAllAuras()
+				refreshAllPrivateAuras()
+			end,
+			isEnabled = isBlizzardRendererSelected,
 		},
 		{
 			name = L["Frame"] or "Frame",
@@ -25682,6 +26087,7 @@ local function buildEditModeSettings(kind, editModeId)
 		GF:AppendStatusIconSettings(settings, kind, editModeId, raidMarkerIndex)
 	end
 
+	GF.ApplyBlizzardAuraSettingVisibility(settings, kind)
 	return settings
 end
 
@@ -26546,6 +26952,8 @@ local function applyEditModeData(kind, data)
 	end
 
 	local ac = ensureAuraConfig(cfg)
+	if data.auraRenderer ~= nil then ac.renderer = (data.auraRenderer == "BLIZZARD") and "BLIZZARD" or "CUSTOM" end
+	if data.auraRendererBlizzardTypes ~= nil then ac.blizzardTypes = GF._sharedEdit.csm(data.auraRendererBlizzardTypes) end
 	if data.buffsEnabled ~= nil then ac.buff.enabled = data.buffsEnabled and true or false end
 	if data.buffAnchor ~= nil then ac.buff.anchorPoint = data.buffAnchor end
 	if data.buffAnchorOutside ~= nil then ac.buff.anchorOutside = data.buffAnchorOutside and true or false end
@@ -27328,6 +27736,8 @@ function GF:EnsureEditMode()
 				powerCenterY = (pcfg.offsetCenter and pcfg.offsetCenter.y) or 0,
 				powerRightX = (pcfg.offsetRight and pcfg.offsetRight.x) or 0,
 				powerRightY = (pcfg.offsetRight and pcfg.offsetRight.y) or 0,
+				auraRenderer = GF.GetGroupAuraRenderer(cfg, def),
+				auraRendererBlizzardTypes = GF._sharedEdit.csm((ac and ac.blizzardTypes) or (defAuras and defAuras.blizzardTypes) or GF.BLIZZARD_AURA_RENDER_TYPES),
 				privateAurasEnabled = (pa.enabled ~= nil) and (pa.enabled == true) or ((pa.enabled == nil) and defPrivate.enabled == true),
 				privateAurasAmount = paIcon.amount or defPrivateIcon.amount or 2,
 				privateAurasSize = paIcon.size or defPrivateIcon.size or 20,
@@ -27566,6 +27976,7 @@ end
 
 function GF:OnEnterEditMode(kind)
 	if not isFeatureEnabled() then return end
+	GF._editModeExiting = nil
 	local cfg = getCfg(kind)
 	if not (cfg and cfg.enabled == true) then return end
 	if GF._editModeSampleAuras == nil then GF._editModeSampleAuras = false end
@@ -27598,18 +28009,48 @@ function GF:OnExitEditMode(kind)
 	if editor and editor.IsShown and editor:IsShown() then editor:Hide() end
 	local globalIgnoreEditor = UF and UF.GlobalAuraIgnore
 	if globalIgnoreEditor and globalIgnoreEditor.HideEditor then globalIgnoreEditor:HideEditor() end
-	if not isFeatureEnabled() then return end
+	GF._editModeExiting = true
+	GF:ClearEditModeAuraSamples()
+	if not isFeatureEnabled() then
+		GF._editModeExiting = nil
+		GF.ShowEditModeReloadIfRequired()
+		return
+	end
 	local cfg = getCfg(kind)
-	if not (cfg and cfg.enabled == true) then return end
+	if not (cfg and cfg.enabled == true) then
+		GF._editModeExiting = nil
+		GF.ShowEditModeReloadIfRequired()
+		return
+	end
 	GF:EnsureHeaders()
 	local header = GF.headers and GF.headers[kind]
-	if not header then return end
+	if not header then
+		GF._editModeExiting = nil
+		GF.ShowEditModeReloadIfRequired()
+		return
+	end
 	if GF._previewActive then GF._previewActive[kind] = nil end
 	GF:ShowPreviewFrames(kind, false)
 	header._eqolForceHide = nil
 	header._eqolForceShow = nil
 	if GF._customSortEditor and GF._customSortEditor.IsShown and GF._customSortEditor:IsShown() then GF._customSortEditor:Hide() end
 	GF:ApplyHeaderAttributes(kind)
+	local function refreshAfterEditMode()
+		GF:ClearEditModeAuraSamples()
+		if isEditModeActive() then
+			if C_Timer and C_Timer.After then C_Timer.After(0.05, refreshAfterEditMode) end
+			return
+		end
+		GF._editModeExiting = nil
+		refreshAllAuras()
+		refreshAllPrivateAuras()
+		GF.ShowEditModeReloadIfRequired()
+	end
+	if C_Timer and C_Timer.After then
+		C_Timer.After(0, refreshAfterEditMode)
+	else
+		refreshAfterEditMode()
+	end
 end
 
 registerFeatureEvents = function(frame)
