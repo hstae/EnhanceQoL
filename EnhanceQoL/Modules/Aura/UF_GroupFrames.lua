@@ -2174,6 +2174,7 @@ local DEFAULTS = {
 					x = 4,
 					y = 2,
 				},
+				displayLargerRoleSpecificDebuffs = true,
 				enabled = true,
 				growth = "RIGHTDOWN",
 				growthX = "RIGHT",
@@ -2961,6 +2962,7 @@ local DEFAULTS = {
 					x = 0,
 					y = 0,
 				},
+				displayLargerRoleSpecificDebuffs = true,
 				enabled = true,
 				growth = "RIGHTUP",
 				growthX = "RIGHT",
@@ -3721,6 +3723,7 @@ local DEFAULTS = {
 					x = 4,
 					y = 2,
 				},
+				displayLargerRoleSpecificDebuffs = true,
 				enabled = false,
 				growth = "DOWNRIGHT",
 				growthX = "RIGHT",
@@ -4355,6 +4358,7 @@ local DEFAULTS = {
 					x = 4,
 					y = 2,
 				},
+				displayLargerRoleSpecificDebuffs = true,
 				enabled = false,
 				growth = "DOWNRIGHT",
 				growthX = "RIGHT",
@@ -8325,6 +8329,7 @@ GF.BLIZZARD_AURA_SETTING_FIELDS = {
 	},
 	debuffs = {
 		debuffsEnabled = true,
+		debuffDisplayLargerRoleSpecific = true,
 		debuffMax = true,
 	},
 	externals = {
@@ -8357,6 +8362,14 @@ function GF.IsBlizzardAuraCooldownTextEnabled(cfg, def)
 	if ac and ac.blizzardShowCooldownText ~= nil then return ac.blizzardShowCooldownText == true end
 	local defAc = def and def.auras
 	if defAc and defAc.blizzardShowCooldownText ~= nil then return defAc.blizzardShowCooldownText == true end
+	return true
+end
+
+function GF.IsBlizzardLargerRoleDebuffEnabled(cfg, def)
+	local debuff = cfg and cfg.auras and cfg.auras.debuff
+	if debuff and debuff.displayLargerRoleSpecificDebuffs ~= nil then return debuff.displayLargerRoleSpecificDebuffs == true end
+	local defDebuff = def and def.auras and def.auras.debuff
+	if defDebuff and defDebuff.displayLargerRoleSpecificDebuffs ~= nil then return defDebuff.displayLargerRoleSpecificDebuffs == true end
 	return true
 end
 
@@ -8514,6 +8527,7 @@ function GF:UpdateBlizzardAuraContainer(self)
 		dispelIndicatorOption = 2,
 		powerBarUsedHeight = cfg and cfg.powerHeight or 0,
 		groupType = (kind == "party") and 4 or 5,
+		displayLargerRoleSpecificDebuffs = GF.IsBlizzardLargerRoleDebuffEnabled(cfg, def),
 		showCountdownFrame = true,
 		showCountdownNumbers = GF.IsBlizzardAuraCooldownTextEnabled(cfg, def),
 	}, privateAuraParent, privateAuraLevelParent, isEditModeActive())
@@ -23447,6 +23461,27 @@ local function buildEditModeSettings(kind, editModeId)
 			end,
 		},
 		{
+			name = L["Display larger role-specific debuffs"] or "Display larger role-specific debuffs",
+			kind = SettingType.Checkbox,
+			field = "debuffDisplayLargerRoleSpecific",
+			parentId = "debuffs",
+			isShown = function()
+				return GF.IsBlizzardAuraRenderTypeEnabled(getCfg(kind), DEFAULTS[kind] or EMPTY, "debuffs")
+			end,
+			get = function()
+				return GF.IsBlizzardLargerRoleDebuffEnabled(getCfg(kind), DEFAULTS[kind] or EMPTY)
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				local ac = ensureAuraConfig(cfg)
+				ac.debuff.displayLargerRoleSpecificDebuffs = value and true or false
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "debuffDisplayLargerRoleSpecific", ac.debuff.displayLargerRoleSpecificDebuffs, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+				refreshAllAuras()
+				refreshAllPrivateAuras()
+			end,
+		},
+		{
 			name = L["Debuff spacing"] or "Debuff spacing",
 			kind = SettingType.Slider,
 			allowInput = true,
@@ -27111,6 +27146,7 @@ local function applyEditModeData(kind, data)
 	if data.debuffSize ~= nil then ac.debuff.size = data.debuffSize end
 	if data.debuffPerRow ~= nil then ac.debuff.perRow = data.debuffPerRow end
 	if data.debuffMax ~= nil then ac.debuff.max = GF.ClampAuraCount(data.debuffMax, ac.debuff.max or 6) or ac.debuff.max or 6 end
+	if data.debuffDisplayLargerRoleSpecific ~= nil then ac.debuff.displayLargerRoleSpecificDebuffs = data.debuffDisplayLargerRoleSpecific and true or false end
 	if data.debuffSpacing ~= nil then ac.debuff.spacing = data.debuffSpacing end
 	if data.debuffBorderTexture ~= nil then ac.debuff.borderTexture = data.debuffBorderTexture end
 	if data.debuffBorderSize ~= nil then ac.debuff.borderSize = clampNumber(data.debuffBorderSize, 1, 64, ac.debuff.borderSize or 2) end
@@ -27896,6 +27932,7 @@ function GF:EnsureEditMode()
 				debuffSize = ac.debuff.size or 16,
 				debuffPerRow = ac.debuff.perRow or 6,
 				debuffMax = GF.ClampAuraCount(ac.debuff.max, 6) or 6,
+				debuffDisplayLargerRoleSpecific = GF.IsBlizzardLargerRoleDebuffEnabled(cfg, def),
 				debuffSpacing = ac.debuff.spacing or 2,
 				debuffBorderTexture = ac.debuff.borderTexture or defDebuff.borderTexture or "DEFAULT",
 				debuffBorderSize = ac.debuff.borderSize or defDebuff.borderSize or 2,

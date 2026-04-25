@@ -929,6 +929,7 @@ function H.BuildBlizzardAuraSignature(unit, cfg)
 		tostring(cfg.maxDispelDebuffs or 0),
 		tostring(H.ResolveBlizzardAuraOrganization(cfg.organizationType)),
 		tostring(cfg.displayOnlyDispellableDebuffs == true),
+		tostring(cfg.displayLargerRoleSpecificDebuffs == true),
 		tostring(cfg.dispelIndicatorOption or 2),
 		tostring(cfg.showDispelOverlay == true),
 		tostring(cfg.iconSize or 16),
