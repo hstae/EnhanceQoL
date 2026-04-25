@@ -1364,6 +1364,10 @@ for i = 1, maxBossFrames do
 	}
 end
 
+function UF.SupportsCombatIndicator(unit)
+	return unit == UNIT.PLAYER or unit == UNIT.TARGET or unit == UNIT.FOCUS
+end
+
 local defaults = {
 	player = {
 		enabled = false,
@@ -7859,7 +7863,7 @@ local function updateStatus(cfg, unit)
 	local showName = scfg.enabled ~= false
 	local showLevel = shouldShowLevel(scfg, unit)
 	local showUnitStatus = usCfg.enabled == true
-	local showCombatIndicator = (unit == UNIT.PLAYER or unit == UNIT.TARGET) and ciCfg.enabled ~= false
+	local showCombatIndicator = UF.SupportsCombatIndicator(unit) and ciCfg.enabled ~= false
 	local showStatus = showName or showLevel or showUnitStatus or showCombatIndicator
 	local statusHeight = UF.ResolveStatusHeight(cfg, def, showStatus)
 	if statusHeight <= 0 then statusHeight = 0.001 end
@@ -7927,7 +7931,7 @@ end
 
 local function updateCombatIndicator(cfg, unit)
 	unit = unit or UNIT.PLAYER
-	if unit ~= UNIT.PLAYER and unit ~= UNIT.TARGET then return end
+	if not UF.SupportsCombatIndicator(unit) then return end
 	local st = states[unit]
 	if not st or not st.combatIcon or not st.status then return end
 	local def = defaultsFor(unit)
@@ -8139,7 +8143,7 @@ local function layoutFrame(cfg, unit)
 	local showName = scfg.enabled ~= false
 	local showLevel = shouldShowLevel(scfg, unit)
 	local showUnitStatus = usCfg.enabled == true
-	local showCombatIndicator = (unit == UNIT.PLAYER or unit == UNIT.TARGET) and ciCfg.enabled ~= false
+	local showCombatIndicator = UF.SupportsCombatIndicator(unit) and ciCfg.enabled ~= false
 	local showStatus = showName or showLevel or showUnitStatus or showCombatIndicator
 	local pcfg = cfg.power or {}
 	local powerDef = def.power or {}
@@ -8786,7 +8790,7 @@ local function ensureFrames(unit)
 		st.classificationIcon:SetSize(16, 16)
 		st.classificationIcon:Hide()
 	end
-	if unit == UNIT.PLAYER or unit == UNIT.TARGET then
+	if UF.SupportsCombatIndicator(unit) then
 		st.combatIcon = st.combatIcon or st.statusTextLayer:CreateTexture(nil, "OVERLAY")
 		if st.combatIcon.GetParent and st.combatIcon:GetParent() ~= st.statusTextLayer then st.combatIcon:SetParent(st.statusTextLayer) end
 	end
@@ -9276,7 +9280,7 @@ local function applyConfig(unit)
 		local pcfg = cfg.privateAuras or (def and def.privateAuras)
 		UFHelper.ApplyPrivateAuras(st.privateAuras, unit, pcfg, st.frame, st.statusTextLayer or st.frame, UF.IsEditModeSampleEnabled and UF.IsEditModeSampleEnabled(unit), true)
 	end
-	if unit == UNIT.PLAYER or unit == UNIT.TARGET then
+	if UF.SupportsCombatIndicator(unit) then
 		updateCombatIndicator(cfg, unit)
 	end
 	if unit == UNIT.PLAYER then
@@ -10420,6 +10424,7 @@ local function updateFocusFrame(cfg, forceApply)
 	UFHelper.updatePvPIndicator(st, UNIT.FOCUS, cfg, defaultsFor(UNIT.FOCUS), not forceApply)
 	UFHelper.updateRoleIndicator(st, UNIT.FOCUS, cfg, defaultsFor(UNIT.FOCUS), not forceApply)
 	updateUnitStatusIndicator(cfg, UNIT.FOCUS)
+	updateCombatIndicator(cfg, UNIT.FOCUS)
 	updatePortrait(cfg, UNIT.FOCUS)
 	UFHelper.updateHighlight(st, UNIT.FOCUS, UNIT.PLAYER)
 	applyVisibilityRules(UNIT.FOCUS)
@@ -11361,7 +11366,7 @@ onEvent = function(self, event, unit, ...)
 		if unit and states[unit] then UFHelper.updateClassificationIndicator(states[unit], unit, getCfg(unit), defaultsFor(unit), true) end
 	elseif event == "UNIT_FLAGS" then
 		updateUnitStatusIndicator(getCfg(unit), unit)
-		if unit == UNIT.PLAYER or unit == UNIT.TARGET then updateCombatIndicator(getCfg(unit), unit) end
+		if UF.SupportsCombatIndicator(unit) then updateCombatIndicator(getCfg(unit), unit) end
 		UFHelper.updateLeaderIndicator(states[unit], unit, getCfg(unit), defaultsFor(unit), true)
 		UFHelper.updatePvPIndicator(states[unit], unit, getCfg(unit), defaultsFor(unit), true)
 		if states[unit] then states[unit]._healthColorDirty = true end
@@ -11500,6 +11505,7 @@ onEvent = function(self, event, unit, ...)
 			checkRaidTargetIcon(UNIT.FOCUS, states[UNIT.FOCUS])
 		end
 		updateUnitStatusIndicator(focusCfg, UNIT.FOCUS)
+		updateCombatIndicator(focusCfg, UNIT.FOCUS)
 		UFHelper.updateLeaderIndicator(states[UNIT.FOCUS], UNIT.FOCUS, focusCfg, defaultsFor(UNIT.FOCUS), true)
 		UFHelper.updatePvPIndicator(states[UNIT.FOCUS], UNIT.FOCUS, focusCfg, defaultsFor(UNIT.FOCUS), true)
 		UFHelper.updateRoleIndicator(states[UNIT.FOCUS], UNIT.FOCUS, focusCfg, defaultsFor(UNIT.FOCUS), true)
@@ -11554,6 +11560,7 @@ local function ensureEventHandling()
 			addon.EditModeLib:RegisterCallback("enter", function()
 				updateCombatIndicator(states[UNIT.PLAYER] and states[UNIT.PLAYER].cfg or ensureDB(UNIT.PLAYER), UNIT.PLAYER)
 				updateCombatIndicator(states[UNIT.TARGET] and states[UNIT.TARGET].cfg or ensureDB(UNIT.TARGET), UNIT.TARGET)
+				updateCombatIndicator(states[UNIT.FOCUS] and states[UNIT.FOCUS].cfg or ensureDB(UNIT.FOCUS), UNIT.FOCUS)
 				ensureBossFramesReady(ensureDB("boss"))
 				updateBossFrames(true)
 				updateAllRaidTargetIcons()
@@ -11571,6 +11578,7 @@ local function ensureEventHandling()
 			addon.EditModeLib:RegisterCallback("exit", function()
 				updateCombatIndicator(states[UNIT.PLAYER] and states[UNIT.PLAYER].cfg or ensureDB(UNIT.PLAYER), UNIT.PLAYER)
 				updateCombatIndicator(states[UNIT.TARGET] and states[UNIT.TARGET].cfg or ensureDB(UNIT.TARGET), UNIT.TARGET)
+				updateCombatIndicator(states[UNIT.FOCUS] and states[UNIT.FOCUS].cfg or ensureDB(UNIT.FOCUS), UNIT.FOCUS)
 				hideBossFrames(true)
 				if ensureDB("boss").enabled then updateBossFrames(true) end
 				updateAllRaidTargetIcons()

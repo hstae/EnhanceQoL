@@ -4,6 +4,7 @@
 
 ### ✨ Added
 
+- Unit Frames / Focus Frame: Added Combat Indicator support to the Focus Frame.
 - Unit Frames / Group Frames: Added an optional Blizzard aura rendering mode. This lets Blizzard render selected aura categories such as buffs, debuffs, defensives, dispels, and private auras directly, giving the same aura filtering and visibility behavior as the default Blizzard frames. It can be mixed with EnhanceQoL's custom aura rendering per category, but Blizzard-rendered categories intentionally offer less customization and focus on native frame parity.
 
 ### 🐛 Fixed

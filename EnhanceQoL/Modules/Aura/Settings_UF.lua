@@ -2165,7 +2165,7 @@ local function calcLayout(unit, frame)
 	local showName = getValue(unit, { "status", "enabled" }, statusDef.enabled ~= false) ~= false
 	local showLevel = getValue(unit, { "status", "levelEnabled" }, statusDef.levelEnabled ~= false) ~= false
 	local ciDef = statusDef.combatIndicator or {}
-	local showCombat = (unit == "player" or unit == "target") and getValue(unit, { "status", "combatIndicator", "enabled" }, ciDef.enabled ~= false) ~= false
+	local showCombat = (unit == "player" or unit == "target" or unit == "focus") and getValue(unit, { "status", "combatIndicator", "enabled" }, ciDef.enabled ~= false) ~= false
 	local usDef = statusDef.unitStatus or {}
 	local showUnitStatus = getValue(unit, { "status", "unitStatus", "enabled" }, usDef.enabled == true) == true
 	local showStatus = showName or showLevel or showCombat or showUnitStatus
@@ -7647,7 +7647,7 @@ local function buildUnitSettings(unit)
 		list[#list + 1] = { name = "", kind = UF.ui.settingType.Divider, parentId = "unitStatus" }
 	end
 
-	if isPlayer or unit == "target" then
+	if isPlayer or unit == "target" or unit == "focus" then
 		local ciDef = statusDef.combatIndicator or {}
 		local function isCombatIndicatorEnabled() return getValue(unit, { "status", "combatIndicator", "enabled" }, ciDef.enabled ~= false) ~= false end
 		local combatIndicatorToggle = checkbox(
