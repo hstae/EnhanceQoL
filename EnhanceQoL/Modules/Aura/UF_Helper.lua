@@ -1060,8 +1060,11 @@ function H.ApplyPrivateAuras(container, unit, cfg, parent, levelFrame, showSampl
 	local anchorPoint = useInverse and inversePoint(parentPoint) or parentPoint
 
 	if parent and container.GetParent and container:GetParent() ~= parent then container:SetParent(parent) end
-	if container.SetFrameStrata and parent and parent.GetFrameStrata then container:SetFrameStrata(parent:GetFrameStrata()) end
-	if levelFrame and container.SetFrameLevel and levelFrame.GetFrameLevel then container:SetFrameLevel((levelFrame:GetFrameLevel() or 0) + 5) end
+	if container.SetFrameStrata then
+		local strataSource = (levelFrame and levelFrame.GetFrameStrata and levelFrame) or (parent and parent.GetFrameStrata and parent)
+		if strataSource then container:SetFrameStrata(strataSource:GetFrameStrata()) end
+	end
+	if levelFrame and container.SetFrameLevel and levelFrame.GetFrameLevel then container:SetFrameLevel((levelFrame:GetFrameLevel() or 0) + 10) end
 	container:ClearAllPoints()
 	container:SetPoint(anchorPoint, parent or container:GetParent() or UIParent, parentPoint, parentOffsetX, parentOffsetY)
 	container:SetSize(size, size)
@@ -1235,7 +1238,9 @@ end
 function H.NormalizeFrameStrata(value)
 	if type(value) ~= "string" or value == "" then return nil end
 	local token = string.upper(value)
-	if token == "BACKGROUND" or token == "LOW" or token == "MEDIUM" or token == "HIGH" or token == "DIALOG" or token == "FULLSCREEN" or token == "FULLSCREEN_DIALOG" or token == "TOOLTIP" then return token end
+	if token == "BACKGROUND" or token == "LOW" or token == "MEDIUM" or token == "HIGH" or token == "DIALOG" or token == "FULLSCREEN" or token == "FULLSCREEN_DIALOG" or token == "TOOLTIP" then
+		return token
+	end
 	return nil
 end
 
@@ -2092,20 +2097,10 @@ function H.SetCastbarColorWithGradient(bar, ccfg, r, g, b, a, progressOverride)
 		renderR, renderG, renderB, renderA = 1, 1, 1, 1
 	end
 	local lastColor = bar._eqolLastColor
-	if
-		not lastColor
-		or lastColor[1] ~= renderR
-		or lastColor[2] ~= renderG
-		or lastColor[3] ~= renderB
-		or lastColor[4] ~= renderA
-	then
+	if not lastColor or lastColor[1] ~= renderR or lastColor[2] ~= renderG or lastColor[3] ~= renderB or lastColor[4] ~= renderA then
 		bar:SetStatusBarColor(renderR, renderG, renderB, renderA)
 		bar._eqolLastColor = bar._eqolLastColor or {}
-		bar._eqolLastColor[1], bar._eqolLastColor[2], bar._eqolLastColor[3], bar._eqolLastColor[4] =
-			renderR,
-			renderG,
-			renderB,
-			renderA
+		bar._eqolLastColor[1], bar._eqolLastColor[2], bar._eqolLastColor[3], bar._eqolLastColor[4] = renderR, renderG, renderB, renderA
 	end
 	if ccfg and ccfg.useGradient == true then
 		if not applyCastbarGradient(bar, ccfg, br, bg, bb, ba, progressOverride) then clearCastbarGradientState(bar) end
