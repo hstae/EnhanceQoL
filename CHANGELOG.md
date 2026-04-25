@@ -10,6 +10,9 @@
 
 - Class Buff Reminder: Fixed food, flask, rune, and weapon buff reminders sometimes not showing for classes, such as Warlock, Death Knight, Demon Hunter, Monk, and Hunter.
 - Cooldown Panels / Bars: Fixed Blizzard Cooldown Manager aura bars so stack counts can be shown while using Cooldown bar mode.
+- Unit Frames: Fixed the Player Frame name sometimes disappearing after login or reload until a font or outline setting was changed.
+- Group Frames: Fixed party and raid frame growth directions sometimes turning into a stepped layout after profile or layout changes.
+- Unit Frames / Group Frames: Fixed Blizzard-rendered aura borders so debuff frames scale correctly with the global Blizzard aura icon size.
 - Unit Frames / Group Frames: Fixed Private Auras rendering behind party and raid frames by matching their layer to the regular aura containers.
 
 ---
