@@ -935,6 +935,9 @@ function H.BuildBlizzardAuraSignature(unit, cfg)
 		tostring(cfg.bigDefensiveSize or cfg.iconSize or 16),
 		tostring(cfg.powerBarUsedHeight or 0),
 		tostring(cfg.groupType or ""),
+		tostring(cfg.showCountdownFrame ~= false),
+		tostring(cfg.showCountdownNumbers == true),
+		tostring(cfg.borderScale or ""),
 	}, ":")
 end
 
@@ -1119,13 +1122,27 @@ function H.ApplyBlizzardAuraContainer(container, unit, cfg, parent, levelFrame, 
 	end
 
 	H.RemoveBlizzardAuraContainer(container)
+	local iconSize = tonumber(cfg.iconSize) or 16
+	local borderScale = tonumber(cfg.borderScale) or (iconSize / 11)
 	local ok, anchorID = pcall(C_UnitAuras.AddPrivateAuraAnchor, {
 		unitToken = effectiveUnit,
 		auraIndex = 1,
 		parent = container,
-		showCountdownFrame = false,
-		showCountdownNumbers = false,
+		showCountdownFrame = cfg.showCountdownFrame ~= false,
+		showCountdownNumbers = cfg.showCountdownNumbers == true,
 		isContainer = true,
+		iconInfo = {
+			iconWidth = iconSize,
+			iconHeight = iconSize,
+			borderScale = borderScale,
+			iconAnchor = {
+				point = "CENTER",
+				relativePoint = "CENTER",
+				relativeTo = container,
+				offsetX = 0,
+				offsetY = 0,
+			},
+		},
 	})
 	if ok and anchorID then
 		container._eqolBlizzardAuraAnchorID = anchorID

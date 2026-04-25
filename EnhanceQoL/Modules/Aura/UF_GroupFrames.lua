@@ -5577,6 +5577,9 @@ function GF:ApplyProfileChange(reason)
 	if UF and UF.Profiles and UF.Profiles.Debug then UF.Profiles.Debug("GF apply profile change (reason=%s)", tostring(reason)) end
 	if UF and UF.Profiles and UF.Profiles.Trace then UF.Profiles.Trace("GF_APPLY_PROFILE_CHANGE", reason) end
 	self:ResetDBCache()
+	for _, header in pairs(self.headers or {}) do
+		if header then header._eqolLastSecureLayoutKey = nil end
+	end
 	if not isFeatureEnabled() then
 		self:DisableFeature()
 		return
@@ -8319,7 +8322,6 @@ GF.BLIZZARD_AURA_SETTING_FIELDS = {
 	buffs = {
 		buffsEnabled = true,
 		buffMax = true,
-		buffSize = true,
 	},
 	debuffs = {
 		debuffsEnabled = true,
@@ -8327,7 +8329,6 @@ GF.BLIZZARD_AURA_SETTING_FIELDS = {
 	},
 	externals = {
 		externalsEnabled = true,
-		externalSize = true,
 	},
 	privateAuras = {
 		privateAurasAmount = true,
@@ -8349,6 +8350,29 @@ function GF.IsHealerBuffPlacementSuppressedByBlizzard(kind, cfg)
 	local def = DEFAULTS[kind or "party"] or EMPTY
 	cfg = cfg or getCfg(kind or "party")
 	return GF.IsBlizzardAuraRenderTypeEnabled(cfg, def, "buffs")
+end
+
+function GF.IsBlizzardAuraCooldownTextEnabled(cfg, def)
+	local ac = cfg and cfg.auras
+	if ac and ac.blizzardShowCooldownText ~= nil then return ac.blizzardShowCooldownText == true end
+	local defAc = def and def.auras
+	if defAc and defAc.blizzardShowCooldownText ~= nil then return defAc.blizzardShowCooldownText == true end
+	return true
+end
+
+function GF.GetBlizzardAuraIconSize(cfg, def)
+	local ac = cfg and cfg.auras
+	local defAuras = def and def.auras
+	local configured = ac and tonumber(ac.blizzardIconSize)
+	if not configured and defAuras then configured = tonumber(defAuras.blizzardIconSize) end
+	if configured then return clampNumber(configured, 8, 120, configured) end
+
+	local buff = (ac and ac.buff) or (defAuras and defAuras.buff) or EMPTY
+	local debuff = (ac and ac.debuff) or (defAuras and defAuras.debuff) or EMPTY
+	local externals = (ac and ac.externals) or (defAuras and defAuras.externals) or EMPTY
+	local privateAuras = (cfg and cfg.privateAuras) or (def and def.privateAuras) or EMPTY
+	local privateIcon = privateAuras.icon or EMPTY
+	return clampNumber(buff.size or debuff.size or externals.size or privateIcon.size or 16, 8, 120, 16)
 end
 
 function GF.EnsureBlizzardAuraRenderTypes(cfg)
@@ -8387,12 +8411,6 @@ function GF.IsBlizzardAuraSettingFieldVisible(kind, sectionId, field)
 	if not field then return false end
 	local allowed = GF.BLIZZARD_AURA_SETTING_FIELDS[sectionId]
 	if allowed and allowed[field] then return true end
-	if sectionId == "debuffs" and field == "debuffSize" then return not GF.IsBlizzardAuraRenderTypeActive(kind, "buffs") end
-	if sectionId == "privateAuras" and field == "privateAurasSize" then
-		return not GF.IsBlizzardAuraRenderTypeActive(kind, "buffs")
-			and not GF.IsBlizzardAuraRenderTypeActive(kind, "debuffs")
-			and not GF.IsBlizzardAuraRenderTypeActive(kind, "externals")
-	end
 	return false
 end
 
@@ -8463,7 +8481,7 @@ function GF:UpdateBlizzardAuraContainer(self)
 	local showDebuffs = renderDebuffs or privateEnabled
 	local showBigDefensive = GF.IsBlizzardAuraRenderTypeEnabled(cfg, def, "externals") and ((externals.enabled ~= nil) and (externals.enabled == true) or (defExternals.enabled == true))
 	local showDispels = GF.IsBlizzardAuraRenderTypeEnabled(cfg, def, "dispels")
-	local iconSize = (showBuffs and (buff.size or defBuff.size)) or (renderDebuffs and (debuff.size or defDebuff.size)) or (showBigDefensive and (externals.size or defExternals.size)) or privateIcon.size or 16
+	local iconSize = GF.GetBlizzardAuraIconSize(cfg, def)
 	local maxDebuffs = renderDebuffs and (debuff.max or defDebuff.max or privateIcon.amount or 0) or 0
 	if privateEnabled and maxDebuffs < (privateIcon.amount or 0) then maxDebuffs = privateIcon.amount or maxDebuffs end
 	if not (showBuffs or showDebuffs or showDispels or showBigDefensive) then
@@ -8496,6 +8514,8 @@ function GF:UpdateBlizzardAuraContainer(self)
 		dispelIndicatorOption = 2,
 		powerBarUsedHeight = cfg and cfg.powerHeight or 0,
 		groupType = (kind == "party") and 4 or 5,
+		showCountdownFrame = true,
+		showCountdownNumbers = GF.IsBlizzardAuraCooldownTextEnabled(cfg, def),
 	}, privateAuraParent, privateAuraLevelParent, isEditModeActive())
 end
 
@@ -10882,14 +10902,46 @@ local function queueGroupIndicatorRefresh(delay, repeats)
 	end
 end
 
+function GF.GetSecureHeaderLayoutKey(header)
+	if not (header and header.GetAttribute) then return "" end
+	return table.concat({
+		tostring(header:GetAttribute("point") or ""),
+		tostring(header:GetAttribute("xOffset") or ""),
+		tostring(header:GetAttribute("yOffset") or ""),
+		tostring(header:GetAttribute("columnSpacing") or ""),
+		tostring(header:GetAttribute("columnAnchorPoint") or ""),
+		tostring(header:GetAttribute("maxColumns") or ""),
+		tostring(header:GetAttribute("unitsPerColumn") or ""),
+	}, "\031")
+end
+
+function GF.ClearSecureHeaderChildPoints(header)
+	if not (header and header.GetAttribute) then return end
+	local index = 1
+	local child = header:GetAttribute("child" .. index)
+	while child do
+		if child.ClearAllPoints then child:ClearAllPoints() end
+		index = index + 1
+		child = header:GetAttribute("child" .. index)
+	end
+end
+
 local function nudgeHeaderLayout(header)
 	if not header or not header.SetAttribute then return end
 	if InCombatLockdown and InCombatLockdown() then
 		header._eqolPendingLayout = true
 		return
 	end
-	local nonce = (header:GetAttribute("eqolLayoutNonce") or 0) + 1
-	header:SetAttribute("eqolLayoutNonce", nonce)
+	local layoutKey = GF.GetSecureHeaderLayoutKey(header)
+	if header._eqolLastSecureLayoutKey ~= layoutKey then
+		GF.ClearSecureHeaderChildPoints(header)
+		header._eqolLastSecureLayoutKey = layoutKey
+	end
+	if type(_G.SecureGroupHeader_Update) == "function" then pcall(_G.SecureGroupHeader_Update, header) end
+	local xOffset = tonumber(header:GetAttribute("xOffset")) or 0
+	header:SetAttribute("xOffset", xOffset + 0.001)
+	header:SetAttribute("xOffset", xOffset)
+	if header._eqolAttrCache then header._eqolAttrCache.xOffset = xOffset end
 	header._eqolPendingLayout = nil
 	if header._eqolKind == "raid" then queueGroupIndicatorRefresh(0, 4) end
 end
@@ -15470,6 +15522,54 @@ local function buildEditModeSettings(kind, editModeId)
 				refreshAllPrivateAuras()
 			end,
 			isEnabled = isBlizzardRendererSelected,
+		},
+		{
+			name = L["Icon size"] or "Icon size",
+			kind = SettingType.Slider,
+			allowInput = true,
+			field = "auraRendererBlizzardIconSize",
+			parentId = "utility",
+			minValue = 8,
+			maxValue = 120,
+			valueStep = 1,
+			get = function()
+				local cfg = getCfg(kind)
+				return GF.GetBlizzardAuraIconSize(cfg, DEFAULTS[kind] or EMPTY)
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.auras = cfg.auras or {}
+				cfg.auras.blizzardIconSize = clampNumber(value, 8, 120, GF.GetBlizzardAuraIconSize(cfg, DEFAULTS[kind] or EMPTY))
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "auraRendererBlizzardIconSize", cfg.auras.blizzardIconSize, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+				refreshAllAuras()
+				refreshAllPrivateAuras()
+			end,
+			isEnabled = isBlizzardRendererSelected,
+			isShown = isBlizzardRendererSelected,
+		},
+		{
+			name = L["Show cooldown text"] or "Show cooldown text",
+			kind = SettingType.Checkbox,
+			field = "auraRendererBlizzardCooldownText",
+			parentId = "utility",
+			get = function()
+				local cfg = getCfg(kind)
+				return GF.IsBlizzardAuraCooldownTextEnabled(cfg, DEFAULTS[kind] or EMPTY)
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.auras = cfg.auras or {}
+				cfg.auras.blizzardShowCooldownText = value and true or false
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "auraRendererBlizzardCooldownText", cfg.auras.blizzardShowCooldownText, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+				refreshAllAuras()
+				refreshAllPrivateAuras()
+			end,
+			isEnabled = isBlizzardRendererSelected,
+			isShown = isBlizzardRendererSelected,
 		},
 		{
 			name = L["Frame"] or "Frame",
@@ -26954,6 +27054,8 @@ local function applyEditModeData(kind, data)
 	local ac = ensureAuraConfig(cfg)
 	if data.auraRenderer ~= nil then ac.renderer = (data.auraRenderer == "BLIZZARD") and "BLIZZARD" or "CUSTOM" end
 	if data.auraRendererBlizzardTypes ~= nil then ac.blizzardTypes = GF._sharedEdit.csm(data.auraRendererBlizzardTypes) end
+	if data.auraRendererBlizzardIconSize ~= nil then ac.blizzardIconSize = clampNumber(data.auraRendererBlizzardIconSize, 8, 120, ac.blizzardIconSize or 16) end
+	if data.auraRendererBlizzardCooldownText ~= nil then ac.blizzardShowCooldownText = data.auraRendererBlizzardCooldownText and true or false end
 	if data.buffsEnabled ~= nil then ac.buff.enabled = data.buffsEnabled and true or false end
 	if data.buffAnchor ~= nil then ac.buff.anchorPoint = data.buffAnchor end
 	if data.buffAnchorOutside ~= nil then ac.buff.anchorOutside = data.buffAnchorOutside and true or false end
@@ -27738,6 +27840,8 @@ function GF:EnsureEditMode()
 				powerRightY = (pcfg.offsetRight and pcfg.offsetRight.y) or 0,
 				auraRenderer = GF.GetGroupAuraRenderer(cfg, def),
 				auraRendererBlizzardTypes = GF._sharedEdit.csm((ac and ac.blizzardTypes) or (defAuras and defAuras.blizzardTypes) or GF.BLIZZARD_AURA_RENDER_TYPES),
+				auraRendererBlizzardIconSize = GF.GetBlizzardAuraIconSize(cfg, def),
+				auraRendererBlizzardCooldownText = GF.IsBlizzardAuraCooldownTextEnabled(cfg, def),
 				privateAurasEnabled = (pa.enabled ~= nil) and (pa.enabled == true) or ((pa.enabled == nil) and defPrivate.enabled == true),
 				privateAurasAmount = paIcon.amount or defPrivateIcon.amount or 2,
 				privateAurasSize = paIcon.size or defPrivateIcon.size or 20,

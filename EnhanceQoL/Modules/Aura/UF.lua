@@ -3975,14 +3975,31 @@ function AuraUtil.applyAuraToButton(btn, aura, ac, isDebuff, unitToken, harmfulF
 	local showCooldown = ac.showCooldown ~= false
 	local showCooldownText = ac.showCooldownText
 	if showCooldownText == nil then showCooldownText = showCooldown end
-	if aura.auraInstanceID and aura.auraInstanceID > 0 then
+	local hasCooldown = false
+	if btn.cd.SetDrawEdge then btn.cd:SetDrawEdge(false) end
+	if btn.cd.SetDrawSwipe then btn.cd:SetDrawSwipe(false) end
+	if showCooldown and aura.auraInstanceID and aura.auraInstanceID > 0 then
 		local durObj = C_UnitAuras.GetAuraDuration(unitToken, aura.auraInstanceID)
-		if durObj then btn.cd:SetCooldownFromDurationObject(durObj) end
+		if durObj then
+			btn.cd:SetCooldownFromDurationObject(durObj)
+			hasCooldown = true
+		end
+	elseif showCooldown and aura.isSample and aura.duration and aura.expirationTime and aura.duration > 0 and aura.expirationTime > 0 then
+		local startTime = aura.expirationTime - aura.duration
+		if btn.cd.SetCooldown then
+			btn.cd:SetCooldown(startTime, aura.duration)
+			hasCooldown = true
+		elseif CooldownFrame_Set then
+			CooldownFrame_Set(btn.cd, startTime, aura.duration, true)
+			hasCooldown = true
+		end
 	end
+	if btn.cd.SetDrawEdge then btn.cd:SetDrawEdge(hasCooldown) end
+	if btn.cd.SetDrawSwipe then btn.cd:SetDrawSwipe(hasCooldown) end
 	local cooldownFontSize = ac.cooldownFontSize
 	if cooldownFontSize ~= nil and cooldownFontSize < 1 then cooldownFontSize = nil end
 	local countFontSize = ac.countFontSize
-	btn.cd:SetHideCountdownNumbers(showCooldownText == false)
+	btn.cd:SetHideCountdownNumbers(not hasCooldown or showCooldownText == false)
 	AuraUtil.styleAuraCount(btn, ac, countFontSize)
 	AuraUtil.styleAuraCooldownText(btn, ac, cooldownFontSize)
 	local showStacks = ac.showStacks
@@ -7858,7 +7875,22 @@ local function updateStatus(cfg, unit)
 		st.nameText:SetPoint(nameAnchor, st.status, nameAnchor, (scfg.nameOffset and scfg.nameOffset.x) or 0, (scfg.nameOffset and scfg.nameOffset.y) or 0)
 		if st.nameText.SetJustifyH then st.nameText:SetJustifyH(nameAnchor) end
 		st.nameText:SetShown(showName)
-		UFHelper.applyNameCharLimit(st, scfg, defStatus)
+		local maxChars = scfg.nameMaxChars
+		if maxChars == nil then maxChars = defStatus.nameMaxChars end
+		maxChars = tonumber(maxChars) or 0
+		if maxChars > 0 then
+			UFHelper.applyNameCharLimit(st, scfg, defStatus)
+		else
+			if st.nameText.SetMaxLines then st.nameText:SetMaxLines(1) end
+			if st.nameText.SetWordWrap then st.nameText:SetWordWrap(false) end
+			if st.nameText.SetNonSpaceWrap then st.nameText:SetNonSpaceWrap(false) end
+
+			local nameWidth = (st.status and st.status.GetWidth and st.status:GetWidth()) or 0
+			if not nameWidth or nameWidth <= 1 then nameWidth = (st.frame and st.frame.GetWidth and st.frame:GetWidth()) or 0 end
+			if not nameWidth or nameWidth <= 1 then nameWidth = max(MIN_WIDTH, tonumber(cfg.width or def.width) or 220) end
+			st.nameText:SetWidth(max(1, nameWidth))
+			st._eqolNameTextWidth = nil
+		end
 	end
 	if st.levelText then
 		UFHelper.applyFont(st.levelText, scfg.font, levelFontSize, scfg.fontOutline)
@@ -9081,25 +9113,34 @@ local function updateNameAndLevel(cfg, unit, levelOverride)
 end
 
 refreshNameAndLevelSoon = function(unit)
+	if not unit then return end
+	UF._pendingNameLevelRefresh = UF._pendingNameLevelRefresh or {}
+	if UF._pendingNameLevelRefresh[unit] then return end
+	UF._pendingNameLevelRefresh[unit] = true
+
 	local function refresh()
 		local st = states[unit]
 		if not st then return end
 		local cfg = st.cfg or ensureDB(unit)
 		if not cfg or cfg.enabled == false then return end
+		updateStatus(cfg, unit)
+		syncTextFrameLevels(st)
 		updateNameAndLevel(cfg, unit)
 	end
 
-	local st = states[unit]
-	if st and st._nameLevelRefreshPending then return end
 	refresh()
-	if After then
-		st = states[unit]
-		if not st then return end
-		st._nameLevelRefreshPending = true
-		After(0, function()
-			local delayedState = states[unit]
-			if delayedState then delayedState._nameLevelRefreshPending = nil end
+	if not After then
+		UF._pendingNameLevelRefresh[unit] = nil
+		return
+	end
+
+	local delays = { 0, 0.05, 0.25, 0.75, 1.5 }
+	local remaining = #delays
+	for _, delay in ipairs(delays) do
+		After(delay, function()
 			refresh()
+			remaining = remaining - 1
+			if remaining <= 0 then UF._pendingNameLevelRefresh[unit] = nil end
 		end)
 	end
 end
