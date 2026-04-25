@@ -1,5 +1,14 @@
 # Changelog
 
+## [10.7.1] - 2026-04-25
+
+### 🐛 Fixed
+
+- Cooldown Panels / Bars: Fixed Assisted Combat highlights appearing on hidden ghost icons used by fixed-layout bar entries.
+- Loot: Fixed moved group loot anchors causing bonus roll prompts to overlap group loot roll frames.
+
+---
+
 ## [10.7.0] - 2026-04-25
 
 ### ✨ Added

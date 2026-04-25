@@ -2098,6 +2098,16 @@ local function configureBarDragPreview(panelId, panel, icon, actualEntryId, slot
 	end
 end
 
+Bars.ClearAssistedHighlightPresentation = Bars.ClearAssistedHighlightPresentation
+	or function(icon)
+		if not icon then return end
+		icon._eqolAssistedHighlightShown = nil
+		local highlight = icon._eqolAssistedHighlight
+		if not highlight then return end
+		if highlight.SetAlpha then highlight:SetAlpha(0) end
+		if highlight.Anim and highlight.Anim.IsPlaying and highlight.Anim:IsPlaying() then highlight.Anim:Stop() end
+	end
+
 local function applyReservedGhost(icon, ownerEntry, slotColumn, slotRow)
 	if not icon then return end
 	if icon.texture then
@@ -2116,6 +2126,7 @@ local function applyReservedGhost(icon, ownerEntry, slotColumn, slotRow)
 	if icon.keybind then icon.keybind:Hide() end
 	if icon.stateTexture then icon.stateTexture:Hide() end
 	if icon.stateTextureSecond then icon.stateTextureSecond:Hide() end
+	Bars.ClearAssistedHighlightPresentation(icon)
 	if icon.staticText then
 		icon.staticText:SetText("")
 		icon.staticText:Hide()
@@ -2144,6 +2155,7 @@ local function applyNativeSuppression(icon)
 	if icon.previewSoundBorder then icon.previewSoundBorder:Hide() end
 	CooldownPanels.HidePreviewGlowBorder(icon)
 	CooldownPanels.StopAllIconGlows(icon)
+	Bars.ClearAssistedHighlightPresentation(icon)
 end
 
 local function getStackSessionMax(entryKey, observedValue, preview)
