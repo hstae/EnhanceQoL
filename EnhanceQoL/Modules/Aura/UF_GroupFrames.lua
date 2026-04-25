@@ -108,6 +108,10 @@ function GF.MarkEditModeReloadRequired()
 	addon.variables.requireReload = true
 	GF._editModeReloadRequired = true
 end
+function GF.MarkBlizzardRendererRemovalReloadIfNeeded()
+	if GF._editModeSampleAuras ~= false then return end
+	GF.MarkEditModeReloadRequired()
+end
 function GF.ShowEditModeReloadIfRequired()
 	if not GF._editModeReloadRequired then return end
 	GF._editModeReloadRequired = nil
@@ -8455,26 +8459,37 @@ function GF.ApplyBlizzardAuraSettingVisibility(settings, kind)
 	end
 end
 
+function GF:ClearBlizzardAuraContainer(self)
+	local st = getState(self)
+	local container = st and st.blizzardAuras
+	if not container then return end
+	if UFHelper and UFHelper.RemovePrivateAuras then
+		local removed = UFHelper.RemovePrivateAuras(container)
+		if removed == false then GF.MarkEditModeReloadRequired() end
+	end
+	if container.Hide then container:Hide() end
+end
+
 function GF:UpdateBlizzardAuraContainer(self)
 	if not (self and UFHelper and UFHelper.ApplyBlizzardAuraContainer) then return end
 	local st = getState(self)
 	local unit = getUnit(self)
 	if not st then return end
 	if not unit then
-		if st.blizzardAuras and UFHelper.RemovePrivateAuras then
-			UFHelper.RemovePrivateAuras(st.blizzardAuras)
-			if st.blizzardAuras.Hide then st.blizzardAuras:Hide() end
-		end
+		GF:ClearBlizzardAuraContainer(self)
 		return
 	end
 	local kind = self._eqolGroupKind or "party"
 	local cfg = self._eqolCfg or getCfg(kind)
 	local def = DEFAULTS[kind] or EMPTY
 	if not GF.IsGroupBlizzardAuraRenderer(cfg, def) then
-		if st.blizzardAuras and UFHelper.RemovePrivateAuras then
-			UFHelper.RemovePrivateAuras(st.blizzardAuras)
-			if st.blizzardAuras.Hide then st.blizzardAuras:Hide() end
-		end
+		GF:ClearBlizzardAuraContainer(self)
+		return
+	end
+	local inEditMode = isEditModeActive()
+	local showSample = inEditMode == true and GF._editModeSampleAuras ~= false and GF._editModeExiting ~= true
+	if inEditMode and not showSample then
+		GF:ClearBlizzardAuraContainer(self)
 		return
 	end
 	if cfg then GFH.SyncAurasEnabled(cfg) end
@@ -8498,10 +8513,7 @@ function GF:UpdateBlizzardAuraContainer(self)
 	local maxDebuffs = renderDebuffs and (debuff.max or defDebuff.max or privateIcon.amount or 0) or 0
 	if privateEnabled and maxDebuffs < (privateIcon.amount or 0) then maxDebuffs = privateIcon.amount or maxDebuffs end
 	if not (showBuffs or showDebuffs or showDispels or showBigDefensive) then
-		if st.blizzardAuras and UFHelper.RemovePrivateAuras then
-			UFHelper.RemovePrivateAuras(st.blizzardAuras)
-			if st.blizzardAuras.Hide then st.blizzardAuras:Hide() end
-		end
+		GF:ClearBlizzardAuraContainer(self)
 		return
 	end
 	local privateAuraParent = GF.GetLayoutAnchorFrame(st, st.health or self) or self
@@ -8530,7 +8542,7 @@ function GF:UpdateBlizzardAuraContainer(self)
 		displayLargerRoleSpecificDebuffs = GF.IsBlizzardLargerRoleDebuffEnabled(cfg, def),
 		showCountdownFrame = true,
 		showCountdownNumbers = GF.IsBlizzardAuraCooldownTextEnabled(cfg, def),
-	}, privateAuraParent, privateAuraLevelParent, isEditModeActive())
+	}, privateAuraParent, privateAuraLevelParent, showSample)
 end
 
 local function fullScanGroupAuras(
@@ -8661,6 +8673,7 @@ function GF:UpdateAuras(self, updateInfo)
 			if st.buffContainer then st.buffContainer:Hide() end
 			if st.debuffContainer then st.debuffContainer:Hide() end
 			if st.externalContainer then st.externalContainer:Hide() end
+			GF:ClearBlizzardAuraContainer(self)
 			hideAuraButtons(st.buffButtons, 1)
 			hideAuraButtons(st.debuffButtons, 1)
 			hideAuraButtons(st.externalButtons, 1)
@@ -8708,7 +8721,11 @@ function GF:UpdateAuras(self, updateInfo)
 	local blizzardDebuffs = blizzardRenderer and GF.IsBlizzardAuraRenderTypeEnabled(cfg, def, "debuffs")
 	local blizzardDispels = blizzardRenderer and GF.IsBlizzardAuraRenderTypeEnabled(cfg, def, "dispels")
 	local blizzardExternals = blizzardRenderer and GF.IsBlizzardAuraRenderTypeEnabled(cfg, def, "externals")
-	if blizzardRenderer then GF:UpdateBlizzardAuraContainer(self) end
+	if blizzardRenderer then
+		GF:UpdateBlizzardAuraContainer(self)
+	else
+		GF:ClearBlizzardAuraContainer(self)
+	end
 	local ac = (cfg and cfg.auras) or EMPTY
 	if cfg then GFH.SyncAurasEnabled(cfg) end
 	local wantsAuras = st._wantsAuras
@@ -9792,7 +9809,12 @@ function GF:UpdatePrivateAuras(self)
 	local cfg = self._eqolCfg or getCfg(kind)
 	local def = DEFAULTS[kind] or {}
 	if GF.IsBlizzardAuraRenderTypeEnabled(cfg, def, "privateAuras") then
-		GF:UpdateBlizzardAuraContainer(self)
+		local inEditMode = isEditModeActive()
+		if inEditMode and (GF._editModeSampleAuras == false or GF._editModeExiting == true) then
+			GF:ClearBlizzardAuraContainer(self)
+		else
+			GF:UpdateBlizzardAuraContainer(self)
+		end
 		return
 	end
 	local pcfg = (cfg and cfg.privateAuras) or def.privateAuras
@@ -10929,10 +10951,23 @@ function GF.GetSecureHeaderLayoutKey(header)
 	}, "\031")
 end
 
+function GF.BuildSecureHeaderLayoutKey(point, xOffset, yOffset, columnSpacing, columnAnchorPoint, maxColumns, unitsPerColumn)
+	return table.concat({
+		tostring(point or ""),
+		tostring(xOffset or ""),
+		tostring(yOffset or ""),
+		tostring(columnSpacing or ""),
+		tostring(columnAnchorPoint or ""),
+		tostring(maxColumns or ""),
+		tostring(unitsPerColumn or ""),
+	}, "\031")
+end
+
 function GF.ClearSecureHeaderChildPoints(header)
 	if not (header and header.GetAttribute) then return end
 	local index = 1
 	local child = header:GetAttribute("child" .. index)
+
 	while child do
 		if child.ClearAllPoints then child:ClearAllPoints() end
 		index = index + 1
@@ -10940,22 +10975,26 @@ function GF.ClearSecureHeaderChildPoints(header)
 	end
 end
 
+function GF.PrepareSecureHeaderLayoutChange(header, nextLayoutKey)
+	if not header or not nextLayoutKey then return end
+	if InCombatLockdown and InCombatLockdown() then
+		header._eqolPendingLayout = true
+		return
+	end
+
+	local currentLayoutKey = header._eqolLastSecureLayoutKey or GF.GetSecureHeaderLayoutKey(header)
+	if currentLayoutKey ~= nextLayoutKey then GF.ClearSecureHeaderChildPoints(header) end
+	header._eqolLastSecureLayoutKey = nextLayoutKey
+end
+
 local function nudgeHeaderLayout(header)
-	if not header or not header.SetAttribute then return end
+	if not header then return end
 	if InCombatLockdown and InCombatLockdown() then
 		header._eqolPendingLayout = true
 		return
 	end
 	local layoutKey = GF.GetSecureHeaderLayoutKey(header)
-	if header._eqolLastSecureLayoutKey ~= layoutKey then
-		GF.ClearSecureHeaderChildPoints(header)
-		header._eqolLastSecureLayoutKey = layoutKey
-	end
-	if type(_G.SecureGroupHeader_Update) == "function" then pcall(_G.SecureGroupHeader_Update, header) end
-	local xOffset = tonumber(header:GetAttribute("xOffset")) or 0
-	header:SetAttribute("xOffset", xOffset + 0.001)
-	header:SetAttribute("xOffset", xOffset)
-	if header._eqolAttrCache then header._eqolAttrCache.xOffset = xOffset end
+	header._eqolLastSecureLayoutKey = layoutKey
 	header._eqolPendingLayout = nil
 	if header._eqolKind == "raid" then queueGroupIndicatorRefresh(0, 4) end
 end
@@ -11944,6 +11983,7 @@ function GF.ClearAuraSamplesOnButton(btn)
 	if st.buffContainer then st.buffContainer:Hide() end
 	if st.debuffContainer then st.debuffContainer:Hide() end
 	if st.externalContainer then st.externalContainer:Hide() end
+	GF:ClearBlizzardAuraContainer(btn)
 	hideAuraButtons(st.buffButtons, 1)
 	hideAuraButtons(st.debuffButtons, 1)
 	hideAuraButtons(st.externalButtons, 1)
@@ -12874,35 +12914,38 @@ function GF:ApplyHeaderAttributes(kind, options)
 		layoutPoint = point
 		layoutXOffset = roundToPixel(xOff, scale)
 		layoutYOffset = 0
-		setAttr("point", layoutPoint)
-		setAttr("xOffset", layoutXOffset)
-		setAttr("yOffset", layoutYOffset)
 		if kind == "party" then
 			layoutColumnSpacing = spacing
-			setAttr("columnSpacing", layoutColumnSpacing)
 		else
 			local columnSpacing = clampNumber(tonumber(cfg.columnSpacing) or spacing, 0, 40, spacing)
 			layoutColumnSpacing = roundToPixel(columnSpacing, scale)
-			setAttr("columnSpacing", layoutColumnSpacing)
 		end
 
 		layoutColumnAnchorPoint = (kind == "raid" and not centerGrowthActive) and GF.GetRaidColumnAnchorPoint(growth, cfg.groupGrowth) or "TOP"
-		setAttr("columnAnchorPoint", layoutColumnAnchorPoint)
 	else
 		local yOff = (growth == "UP") and spacing or -spacing
 		local point = (growth == "UP") and "BOTTOM" or "TOP"
 		layoutPoint = point
 		layoutXOffset = 0
 		layoutYOffset = roundToPixel(yOff, scale)
-		setAttr("point", layoutPoint)
-		setAttr("xOffset", layoutXOffset)
-		setAttr("yOffset", layoutYOffset)
 		local columnSpacing = clampNumber(tonumber(cfg.columnSpacing) or spacing, 0, 40, spacing)
 		layoutColumnSpacing = roundToPixel(columnSpacing, scale)
-		setAttr("columnSpacing", layoutColumnSpacing)
 		layoutColumnAnchorPoint = (kind == "raid" and not centerGrowthActive) and GF.GetRaidColumnAnchorPoint(growth, cfg.groupGrowth) or "LEFT"
-		setAttr("columnAnchorPoint", layoutColumnAnchorPoint)
 	end
+	GF.PrepareSecureHeaderLayoutChange(header, GF.BuildSecureHeaderLayoutKey(
+		layoutPoint,
+		layoutXOffset,
+		layoutYOffset,
+		layoutColumnSpacing,
+		layoutColumnAnchorPoint,
+		header:GetAttribute("maxColumns"),
+		header:GetAttribute("unitsPerColumn")
+	))
+	setAttr("point", layoutPoint)
+	setAttr("xOffset", layoutXOffset)
+	setAttr("yOffset", layoutYOffset)
+	setAttr("columnSpacing", layoutColumnSpacing)
+	setAttr("columnAnchorPoint", layoutColumnAnchorPoint)
 
 	setAttr("template", "EQOLUFGroupUnitButtonTemplate")
 
@@ -15497,7 +15540,7 @@ local function buildEditModeSettings(kind, editModeId)
 				local previous = GF.GetGroupAuraRenderer(cfg, DEFAULTS[kind] or EMPTY)
 				local nextRenderer = (value == "BLIZZARD") and "BLIZZARD" or "CUSTOM"
 				cfg.auras.renderer = nextRenderer
-				if previous == "BLIZZARD" and nextRenderer ~= "BLIZZARD" then GF.MarkEditModeReloadRequired() end
+				if previous == "BLIZZARD" and nextRenderer ~= "BLIZZARD" then GF.MarkBlizzardRendererRemovalReloadIfNeeded() end
 				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "auraRenderer", cfg.auras.renderer, nil, true) end
 				GF:ApplyHeaderAttributes(kind)
 				requestEditModeSettingsRefresh()
@@ -15527,7 +15570,7 @@ local function buildEditModeSettings(kind, editModeId)
 				else
 					selection[value] = nil
 				end
-				if wasSelected and not state then GF.MarkEditModeReloadRequired() end
+				if wasSelected and not state then GF.MarkBlizzardRendererRemovalReloadIfNeeded() end
 				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "auraRendererBlizzardTypes", GF._sharedEdit.csm(selection), nil, true) end
 				GF:ApplyHeaderAttributes(kind)
 				requestEditModeSettingsRefresh()

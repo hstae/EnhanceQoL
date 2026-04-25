@@ -861,11 +861,15 @@ local function removePrivateAuraAnchor(anchor)
 end
 
 function H.RemoveBlizzardAuraContainer(container)
-	if container and container._eqolBlizzardAuraAnchorID and C_UnitAuras and C_UnitAuras.RemovePrivateAuraAnchor then
-		pcall(C_UnitAuras.RemovePrivateAuraAnchor, container._eqolBlizzardAuraAnchorID)
+	if not container then return true end
+	if container._eqolBlizzardAuraAnchorID then
+		if not (C_UnitAuras and C_UnitAuras.RemovePrivateAuraAnchor) then return false end
+		local ok = pcall(C_UnitAuras.RemovePrivateAuraAnchor, container._eqolBlizzardAuraAnchorID)
+		if not ok then return false end
 		container._eqolBlizzardAuraAnchorID = nil
 	end
-	if container then container._eqolBlizzardAuraSignature = nil end
+	container._eqolBlizzardAuraSignature = nil
+	return true
 end
 
 function H.NormalizeAuraRenderer(value)
@@ -1042,7 +1046,7 @@ function H.RemovePrivateAuras(container)
 	end
 	H.ClearDeferredPrivateAuraMutation(container)
 	updatePrivateAuraShowDispelType(container, false)
-	H.RemoveBlizzardAuraContainer(container)
+	if not H.RemoveBlizzardAuraContainer(container) then return false end
 	if container._eqolPrivateAuraFrames then
 		for _, anchor in ipairs(container._eqolPrivateAuraFrames) do
 			removePrivateAuraAnchor(anchor)
@@ -1060,6 +1064,7 @@ function H.RemovePrivateAuras(container)
 		end
 	end
 	container._eqolPrivateAuraState = nil
+	return true
 end
 
 function H.ApplyBlizzardAuraContainer(container, unit, cfg, parent, levelFrame, showSample)
@@ -1118,11 +1123,12 @@ function H.ApplyBlizzardAuraContainer(container, unit, cfg, parent, levelFrame, 
 	H.SetBlizzardAuraContainerAttributes(container, cfg)
 	local signature = H.BuildBlizzardAuraSignature(effectiveUnit, cfg)
 	if container._eqolBlizzardAuraAnchorID and container._eqolBlizzardAuraSignature == signature then
-		container:SetAttribute("update-settings", true)
+		container._eqolBlizzardAuraUpdateSerial = (container._eqolBlizzardAuraUpdateSerial or 0) + 1
+		container:SetAttribute("update-settings", container._eqolBlizzardAuraUpdateSerial)
 		return
 	end
 
-	H.RemoveBlizzardAuraContainer(container)
+	if not H.RemoveBlizzardAuraContainer(container) then return end
 	local iconSize = tonumber(cfg.iconSize) or 16
 	local borderScale = tonumber(cfg.borderScale) or (iconSize / 11)
 	local ok, anchorID = pcall(C_UnitAuras.AddPrivateAuraAnchor, {
@@ -1185,7 +1191,7 @@ function H.ApplyPrivateAuras(container, unit, cfg, parent, levelFrame, showSampl
 		return
 	end
 	H.ClearDeferredPrivateAuraMutation(container)
-	H.RemoveBlizzardAuraContainer(container)
+	if not H.RemoveBlizzardAuraContainer(container) then return end
 
 	local effectiveUnit = resolvePrivateAuraUnitToken(unit)
 	local cacheState = unit == "player" or unit == "focus"
