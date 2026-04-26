@@ -549,10 +549,10 @@ local function ensureBorderFrame(frame, borderCfg)
 	return border
 end
 
-local function setBackdrop(frame, borderCfg)
+local function setBackdrop(frame, borderCfg, preserveFrameBackdrop)
 	if not frame then return end
 	if borderCfg and borderCfg.enabled then
-		if frame.SetBackdrop then frame:SetBackdrop(nil) end
+		if frame.SetBackdrop and not preserveFrameBackdrop then frame:SetBackdrop(nil) end
 		local borderFrame = ensureBorderFrame(frame, borderCfg)
 		if not borderFrame then return end
 		local color = borderCfg.color or { 0, 0, 0, 0.8 }
@@ -585,7 +585,7 @@ local function setBackdrop(frame, borderCfg)
 		borderFrame:SetBackdropBorderColor(color[1] or 0, color[2] or 0, color[3] or 0, color[4] or 1)
 		borderFrame:Show()
 	else
-		if frame.SetBackdrop then frame:SetBackdrop(nil) end
+		if frame.SetBackdrop and not preserveFrameBackdrop then frame:SetBackdrop(nil) end
 		local borderFrame = frame._ufBorder
 		if borderFrame then
 			borderFrame:SetBackdrop(nil)
@@ -1032,6 +1032,37 @@ function GF.ResolveGroupPortraitConfig(cfg, kind)
 	local borderWithFrame = pcfg.borderWithFrame
 	if borderWithFrame == nil then borderWithFrame = pdef.borderWithFrame end
 	return enabled == true, side, squareBackground == true, borderWithFrame == true
+end
+
+function GF.IsGroupPowerDetached(cfg, kind)
+	if kind ~= "party" then return false end
+	local def = (kind and DEFAULTS[kind]) or DEFAULTS.party or {}
+	local pdef = def and def.power or {}
+	local pcfg = (cfg and cfg.power) or {}
+	local detached = pcfg.detached
+	if detached == nil then detached = pdef.detached end
+	return detached == true
+end
+
+function GF.ResolveGroupPortraitDetachedConfig(cfg, kind)
+	if kind ~= "party" then return false, 0, 0, nil end
+	local def = (kind and DEFAULTS[kind]) or DEFAULTS.party or {}
+	local pdef = def and def.portrait or {}
+	local pcfg = (cfg and cfg.portrait) or {}
+	local detached = pcfg.detached
+	if detached == nil then detached = pdef.detached end
+	local offset = pcfg.detachedOffset or EMPTY
+	local size = tonumber(pcfg.detachedSize or pdef.detachedSize)
+	return detached == true, tonumber(offset.x), tonumber(offset.y), size
+end
+
+function GF.GetDefaultDetachedPortraitOffset(cfg, kind, frameWidth, frameHeight, portraitSize)
+	local _, growth = GF.ResolveUnitGrowthDirection((cfg and cfg.growth) or (DEFAULTS[kind] and DEFAULTS[kind].growth), "DOWN")
+	local fw = tonumber(frameWidth) or tonumber(cfg and cfg.width) or tonumber(DEFAULTS[kind] and DEFAULTS[kind].width) or 0
+	local fh = tonumber(frameHeight) or tonumber(cfg and cfg.height) or tonumber(DEFAULTS[kind] and DEFAULTS[kind].height) or 0
+	local size = tonumber(portraitSize) or tonumber(cfg and cfg.portrait and cfg.portrait.detachedSize) or fh
+	if growth == "RIGHT" or growth == "LEFT" then return 0, (fh * 0.5) + (size * 0.5) end
+	return -((fw * 0.5) + (size * 0.5)), 0
 end
 
 function GF.ResolveGroupPortraitSeparatorConfig(cfg, kind, portraitEnabled)
@@ -2759,6 +2790,8 @@ local DEFAULTS = {
 		point = "CENTER",
 		portrait = {
 			borderWithFrame = true,
+			detached = false,
+			detachedSize = nil,
 			enabled = false,
 			separator = {
 				color = {
@@ -2787,6 +2820,21 @@ local DEFAULTS = {
 				enabled = true,
 				texture = "DEFAULT",
 			},
+			detached = false,
+			detachedBorder = false,
+			detachedBorderOffset = nil,
+			detachedBorderSize = nil,
+			detachedBorderTexture = nil,
+			detachedFrameLevelOffset = 2,
+			detachedGrowFromCenter = false,
+			detachedHeight = nil,
+			detachedMatchHealthWidth = true,
+			detachedStrata = nil,
+			offset = {
+				x = 0,
+				y = 0,
+			},
+			width = nil,
 			font = "__EQOL_GLOBAL_FONT__",
 			fontOutline = "OUTLINE",
 			fontSize = 10,
@@ -6384,20 +6432,32 @@ function GF:LayoutButton(self)
 	local scale = GFH.GetEffectiveScale(self)
 	if not scale or scale <= 0 then scale = (UIParent and UIParent.GetEffectiveScale and UIParent:GetEffectiveScale()) or 1 end
 
-	local powerH = tonumber(cfg.powerHeight)
+	local powerDetachedRequested = GF.IsGroupPowerDetached(cfg, kind)
+	local powerH = tonumber(powerDetachedRequested and pcfg.detachedHeight)
+	if powerH == nil then powerH = tonumber(cfg.powerHeight) end
 	if powerH == nil then powerH = tonumber(def.powerHeight) or 6 end
 	if st._powerHidden then powerH = 0 end
 	local w, h = self:GetSize()
 	if not w or not h then return end
 	local availH = h
 	if availH < 1 then availH = 1 end
-	if powerH > availH - 4 then powerH = math.max(0, availH * 0.25) end
+	if not powerDetachedRequested and powerH > availH - 4 then powerH = math.max(0, availH * 0.25) end
 	powerH = roundToEvenPixel(max(0, powerH), scale)
-	if powerH > availH then powerH = availH end
+	if not powerDetachedRequested and powerH > availH then powerH = availH end
+	local powerDetached = powerDetachedRequested and powerH > 0
 
 	local portraitEnabled, portraitSide, portraitSquareBackground, portraitBorderWithFrame = GF.ResolveGroupPortraitConfig(cfg, kind)
-	local portraitBaseSize = max(1, availH)
+	local portraitDetached, portraitDetachedX, portraitDetachedY, portraitDetachedSize = GF.ResolveGroupPortraitDetachedConfig(cfg, kind)
+	portraitDetached = portraitEnabled and portraitDetached == true
+	local portraitBaseSize = max(1, portraitDetachedSize or availH)
 	local portraitSize = portraitEnabled and roundToEvenPixel(portraitBaseSize, scale) or 0
+	if portraitDetached and (portraitDetachedX == nil or portraitDetachedY == nil) then
+		local defaultPortraitX, defaultPortraitY = GF.GetDefaultDetachedPortraitOffset(cfg, kind, w, h, portraitSize)
+		if portraitDetachedX == nil then portraitDetachedX = defaultPortraitX end
+		if portraitDetachedY == nil then portraitDetachedY = defaultPortraitY end
+	end
+	portraitDetachedX = portraitDetachedX or 0
+	portraitDetachedY = portraitDetachedY or 0
 	local borderCfg = cfg.border or {}
 	local borderDef = def.border or {}
 	local frameBorderEnabled = borderCfg.enabled
@@ -6405,7 +6465,7 @@ function GF:LayoutButton(self)
 	frameBorderEnabled = frameBorderEnabled == true
 	-- Match the regular unit-frame behavior: when the frame border should include the portrait,
 	-- expand the bordered frame towards the portrait side so the bars keep their width.
-	local portraitInsideFrame = portraitEnabled and portraitBorderWithFrame and frameBorderEnabled
+	local portraitInsideFrame = portraitEnabled and not portraitDetached and portraitBorderWithFrame and frameBorderEnabled
 	local portraitOutside = not portraitInsideFrame
 	local separatorEnabled, separatorSize = GF.ResolveGroupPortraitSeparatorConfig(cfg, kind, portraitEnabled)
 	local separatorSpace = (separatorEnabled and separatorSize > 0) and separatorSize or 0
@@ -6416,24 +6476,16 @@ function GF:LayoutButton(self)
 			separatorSpace = 0
 		end
 	end
-	local portraitSpace = portraitEnabled and (portraitSize + separatorSpace) or 0
+	local portraitSpace = (portraitEnabled and not portraitDetached) and (portraitSize + separatorSpace) or 0
 	local contentOffsetLeft = 0
 	local contentOffsetRight = 0
-	local layoutOffsetLeft = 0
-	local layoutOffsetRight = 0
 	local layoutAnchor = GF.GetLayoutAnchorFrame(st, self) or self
 	if not portraitOutside then
 		contentOffsetLeft = (portraitEnabled and portraitSide == "LEFT") and portraitSpace or 0
 		contentOffsetRight = (portraitEnabled and portraitSide == "RIGHT") and portraitSpace or 0
-	elseif portraitEnabled and portraitSpace > 0 then
-		if portraitSide == "RIGHT" then
-			layoutOffsetRight = portraitSpace
-		else
-			layoutOffsetLeft = portraitSpace
-		end
 	end
 
-	local healthBottomOffset = roundToPixel(powerH, scale)
+	local healthBottomOffset = powerDetached and 0 or roundToPixel(powerH, scale)
 
 	st.barGroup:ClearAllPoints()
 	if portraitInsideFrame and portraitSpace > 0 then
@@ -6449,12 +6501,7 @@ function GF:LayoutButton(self)
 	end
 	if st.layoutAnchor then
 		st.layoutAnchor:ClearAllPoints()
-		if layoutOffsetLeft > 0 or layoutOffsetRight > 0 then
-			st.layoutAnchor:SetPoint("TOPLEFT", self, "TOPLEFT", -layoutOffsetLeft, 0)
-			st.layoutAnchor:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", layoutOffsetRight, 0)
-		else
-			st.layoutAnchor:SetAllPoints(self)
-		end
+		st.layoutAnchor:SetAllPoints(self)
 		if st.layoutAnchor.SetFrameStrata and st.barGroup.GetFrameStrata then st.layoutAnchor:SetFrameStrata(st.barGroup:GetFrameStrata()) end
 		if st.layoutAnchor.SetFrameLevel and st.barGroup.GetFrameLevel then st.layoutAnchor:SetFrameLevel(st.barGroup:GetFrameLevel() or 0) end
 	end
@@ -6469,8 +6516,6 @@ function GF:LayoutButton(self)
 	st._wantsAggroHighlight = st._highlightAggroCfg and st._highlightAggroCfg.enabled == true or false
 
 	st.power:ClearAllPoints()
-	st.power:SetPoint("BOTTOMLEFT", st.barGroup, "BOTTOMLEFT", contentOffsetLeft, 0)
-	st.power:SetPoint("BOTTOMRIGHT", st.barGroup, "BOTTOMRIGHT", -contentOffsetRight, 0)
 	if Pixel and Pixel.SetHeight then
 		Pixel.SetHeight(st.power, powerH)
 	else
@@ -6483,12 +6528,72 @@ function GF:LayoutButton(self)
 	applyBarBackdrop(st.health, hc, { clampToFill = healthBackdropClampToFill == true, textureKey = healthTexKey })
 	applyBarBackdrop(st.power, pcfg, { textureKey = powerTexKey })
 
+	if powerDetached then
+		local powerOffset = pcfg.offset or EMPTY
+		local powerX = tonumber(powerOffset.x) or 0
+		local powerY = tonumber(powerOffset.y) or 0
+		local powerGrowFromCenter = pcfg.detachedGrowFromCenter == true
+		local powerMatchHealthWidth = pcfg.detachedMatchHealthWidth ~= false
+		local powerWidth = max(1, w - contentOffsetLeft - contentOffsetRight)
+		if not powerMatchHealthWidth then powerWidth = max(1, tonumber(pcfg.width) or powerWidth) end
+		if Pixel and Pixel.SetWidth then
+			Pixel.SetWidth(st.power, powerWidth, 1)
+		else
+			st.power:SetWidth(powerWidth)
+		end
+		if powerGrowFromCenter then
+			st.power:SetPoint("TOP", st.health, "BOTTOM", powerX, powerY)
+		else
+			st.power:SetPoint("TOPLEFT", st.health, "BOTTOMLEFT", powerX, powerY)
+		end
+		local detachedPowerStrata = GF.NormalizeFrameStrataToken(pcfg.detachedStrata)
+		if st.power.SetFrameStrata then
+			if detachedPowerStrata then
+				st.power:SetFrameStrata(detachedPowerStrata)
+			elseif st.health.GetFrameStrata then
+				st.power:SetFrameStrata(st.health:GetFrameStrata())
+			end
+		end
+		if st.power.SetFrameLevel and st.health.GetFrameLevel then
+			local levelOffset = clampNumber(pcfg.detachedFrameLevelOffset, -20, 1000, 2)
+			levelOffset = floor(levelOffset + (levelOffset >= 0 and 0.5 or -0.5))
+			local powerLevel = (st.health:GetFrameLevel() or 0) + levelOffset
+			if powerLevel < 0 then powerLevel = 0 end
+			st.power:SetFrameLevel(powerLevel)
+		end
+	else
+		st.power:SetPoint("BOTTOMLEFT", st.barGroup, "BOTTOMLEFT", contentOffsetLeft, 0)
+		st.power:SetPoint("BOTTOMRIGHT", st.barGroup, "BOTTOMRIGHT", -contentOffsetRight, 0)
+		if st.power.SetFrameStrata and st.barGroup.GetFrameStrata then st.power:SetFrameStrata(st.barGroup:GetFrameStrata()) end
+		if st.power.SetFrameLevel and st.health.GetFrameLevel then st.power:SetFrameLevel((st.health:GetFrameLevel() or 0) + 1) end
+	end
+	local detachedPowerBorderCfg
+	if powerDetached and pcfg.detachedBorder == true then
+		local detachedPowerBorderSize = pcfg.detachedBorderSize
+		if detachedPowerBorderSize == nil then detachedPowerBorderSize = borderCfg.edgeSize or borderDef.edgeSize end
+		local detachedPowerBorderOffset = pcfg.detachedBorderOffset
+		if detachedPowerBorderOffset == nil then detachedPowerBorderOffset = borderCfg.offset end
+		if detachedPowerBorderOffset == nil then detachedPowerBorderOffset = borderDef.offset end
+		if detachedPowerBorderOffset == nil then detachedPowerBorderOffset = detachedPowerBorderSize end
+		detachedPowerBorderCfg = {
+			enabled = true,
+			texture = pcfg.detachedBorderTexture or borderCfg.texture or borderDef.texture,
+			edgeSize = detachedPowerBorderSize,
+			color = borderCfg.color or borderDef.color,
+			offset = detachedPowerBorderOffset,
+			inset = borderCfg.inset ~= nil and borderCfg.inset or borderDef.inset,
+			strata = GF.NormalizeFrameStrataToken(pcfg.detachedStrata) or borderCfg.strata or borderDef.strata,
+			frameLevelOffset = borderCfg.frameLevelOffset ~= nil and borderCfg.frameLevelOffset or borderDef.frameLevelOffset,
+		}
+	end
+	setBackdrop(st.power, detachedPowerBorderCfg, true)
+
 	st._portraitEnabled = portraitEnabled
 	st._portraitSide = portraitSide
 	st._portraitSize = portraitSize
 	st._portraitSquareBackground = portraitSquareBackground
 	st._portraitSpace = portraitSpace
-	st._portraitCenterOffset = layoutOffsetLeft > 0 and (layoutOffsetLeft * 0.5) or (layoutOffsetRight > 0 and -(layoutOffsetRight * 0.5) or 0)
+	st._portraitCenterOffset = 0
 	if st.portraitHolder then
 		if portraitEnabled then
 			local holderParent = st.barGroup or self
@@ -6506,7 +6611,9 @@ function GF:LayoutButton(self)
 				st.portraitHolder:SetSize(portraitSize, portraitSize)
 			end
 			st.portraitHolder:ClearAllPoints()
-			if portraitSide == "RIGHT" then
+			if portraitDetached then
+				st.portraitHolder:SetPoint("CENTER", self, "CENTER", portraitDetachedX, portraitDetachedY)
+			elseif portraitSide == "RIGHT" then
 				st.portraitHolder:SetPoint("CENTER", holderParent, "RIGHT", holderX, 0)
 			else
 				st.portraitHolder:SetPoint("CENTER", holderParent, "LEFT", holderX, 0)
@@ -6539,9 +6646,26 @@ function GF:LayoutButton(self)
 			if st.portraitBg then st.portraitBg:Hide() end
 			st.portraitHolder:Hide()
 		end
-		setBackdrop(st.portraitHolder, nil)
+		local portraitBorderCfg
+		if portraitDetached and portraitBorderWithFrame and frameBorderEnabled then
+			portraitBorderCfg = {
+				enabled = true,
+				texture = borderCfg.texture or borderDef.texture,
+				edgeSize = borderCfg.edgeSize or borderDef.edgeSize,
+				color = borderCfg.color or borderDef.color,
+				offset = borderCfg.offset ~= nil and borderCfg.offset or borderDef.offset,
+				inset = borderCfg.inset ~= nil and borderCfg.inset or borderDef.inset,
+				strata = borderCfg.strata or borderDef.strata,
+				frameLevelOffset = borderCfg.frameLevelOffset ~= nil and borderCfg.frameLevelOffset or borderDef.frameLevelOffset,
+			}
+		end
+		setBackdrop(st.portraitHolder, portraitBorderCfg)
 	end
-	GF.ApplyGroupPortraitSeparator(cfg, kind, st, portraitEnabled)
+	if st.portraitSeparator then
+		local separatorParent = portraitDetached and st.portraitHolder or st.barGroup
+		if separatorParent and st.portraitSeparator.GetParent and st.portraitSeparator:GetParent() ~= separatorParent then st.portraitSeparator:SetParent(separatorParent) end
+	end
+	GF.ApplyGroupPortraitSeparator(cfg, kind, st, portraitEnabled and not portraitDetached)
 
 	self.powerBarUsedHeight = powerH > 0 and powerH or 0
 	if st.dispelTint then
@@ -15597,6 +15721,30 @@ local function buildEditModeSettings(kind, editModeId)
 		local def = (DEFAULTS[kind] and DEFAULTS[kind].power) or {}
 		return pcfg[key] or def[key] or fallback or "NONE"
 	end
+	local function isPowerDetached()
+		local cfg = getCfg(kind)
+		return GF.IsGroupPowerDetached(cfg, kind)
+	end
+	local function isDetachedPowerWidthUnlocked()
+		if not isPowerDetached() then return false end
+		local cfg = getCfg(kind)
+		local pcfg = cfg and cfg.power or {}
+		local def = DEFAULTS[kind] and DEFAULTS[kind].power or {}
+		local value = pcfg.detachedMatchHealthWidth
+		if value == nil then value = def.detachedMatchHealthWidth end
+		if value == nil then value = true end
+		return value ~= true
+	end
+	local function isDetachedPowerBorderEnabled()
+		if not isPowerDetached() then return false end
+		local cfg = getCfg(kind)
+		local pcfg = cfg and cfg.power or {}
+		return pcfg.detachedBorder == true
+	end
+	local function isPortraitDetached()
+		local cfg = getCfg(kind)
+		return select(1, GF.ResolveGroupPortraitDetachedConfig(cfg, kind))
+	end
 	local function isPowerTextEnabled(key, fallback) return getPowerTextMode(key, fallback) ~= "NONE" end
 	local function anyHealthTextEnabled() return isHealthTextEnabled("textLeft") or isHealthTextEnabled("textCenter") or isHealthTextEnabled("textRight") end
 	local function healthDelimiterCount() return maxDelimiterCount(getHealthTextMode("textLeft"), getHealthTextMode("textCenter"), getHealthTextMode("textRight")) end
@@ -17527,6 +17675,110 @@ local function buildEditModeSettings(kind, editModeId)
 			end,
 		},
 		{
+			name = "Detach portrait",
+			kind = SettingType.Checkbox,
+			field = "portraitDetached",
+			parentId = "portrait",
+			isShown = function() return kind == "party" end,
+			get = function()
+				local cfg = getCfg(kind)
+				return select(1, GF.ResolveGroupPortraitDetachedConfig(cfg, kind))
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.portrait = cfg.portrait or {}
+				cfg.portrait.detached = value and true or false
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "portraitDetached", cfg.portrait.detached, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+				requestEditModeSettingsRefresh()
+			end,
+			isEnabled = function() return isPortraitEnabled() end,
+		},
+		{
+			name = "Portrait size",
+			kind = SettingType.Slider,
+			allowInput = true,
+			field = "portraitDetachedSize",
+			parentId = "portrait",
+			isShown = function() return kind == "party" and isPortraitDetached() end,
+			minValue = 8,
+			maxValue = 200,
+			valueStep = 1,
+			get = function()
+				local cfg = getCfg(kind)
+				local pcfg = cfg and cfg.portrait or {}
+				return pcfg.detachedSize or cfg.height or (DEFAULTS[kind] and DEFAULTS[kind].height) or 24
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.portrait = cfg.portrait or {}
+				cfg.portrait.detachedSize = clampNumber(value, 8, 200, cfg.portrait.detachedSize or cfg.height or 24)
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "portraitDetachedSize", cfg.portrait.detachedSize, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			isEnabled = function() return isPortraitEnabled() and isPortraitDetached() end,
+		},
+		{
+			name = "Portrait offset X",
+			kind = SettingType.Slider,
+			allowInput = true,
+			field = "portraitDetachedOffsetX",
+			parentId = "portrait",
+			isShown = function() return kind == "party" and isPortraitDetached() end,
+			minValue = -1000,
+			maxValue = 1000,
+			valueStep = 1,
+			get = function()
+				local cfg = getCfg(kind)
+				local pcfg = cfg and cfg.portrait or {}
+				if pcfg.detachedOffset and pcfg.detachedOffset.x ~= nil then return pcfg.detachedOffset.x end
+				local size = pcfg.detachedSize or cfg.height or (DEFAULTS[kind] and DEFAULTS[kind].height) or 24
+				local x = GF.GetDefaultDetachedPortraitOffset(cfg, kind, cfg.width, cfg.height, size)
+				return x or 0
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.portrait = cfg.portrait or {}
+				cfg.portrait.detachedOffset = cfg.portrait.detachedOffset or {}
+				cfg.portrait.detachedOffset.x = clampNumber(value, -1000, 1000, cfg.portrait.detachedOffset.x or 0)
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "portraitDetachedOffsetX", cfg.portrait.detachedOffset.x, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			isEnabled = function() return isPortraitEnabled() and isPortraitDetached() end,
+		},
+		{
+			name = "Portrait offset Y",
+			kind = SettingType.Slider,
+			allowInput = true,
+			field = "portraitDetachedOffsetY",
+			parentId = "portrait",
+			isShown = function() return kind == "party" and isPortraitDetached() end,
+			minValue = -1000,
+			maxValue = 1000,
+			valueStep = 1,
+			get = function()
+				local cfg = getCfg(kind)
+				local pcfg = cfg and cfg.portrait or {}
+				if pcfg.detachedOffset and pcfg.detachedOffset.y ~= nil then return pcfg.detachedOffset.y end
+				local size = pcfg.detachedSize or cfg.height or (DEFAULTS[kind] and DEFAULTS[kind].height) or 24
+				local _, y = GF.GetDefaultDetachedPortraitOffset(cfg, kind, cfg.width, cfg.height, size)
+				return y or 0
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.portrait = cfg.portrait or {}
+				cfg.portrait.detachedOffset = cfg.portrait.detachedOffset or {}
+				cfg.portrait.detachedOffset.y = clampNumber(value, -1000, 1000, cfg.portrait.detachedOffset.y or 0)
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "portraitDetachedOffsetY", cfg.portrait.detachedOffset.y, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			isEnabled = function() return isPortraitEnabled() and isPortraitDetached() end,
+		},
+		{
 			name = L["Show separator"] or "Show separator",
 			kind = SettingType.Checkbox,
 			field = "portraitSeparatorEnabled",
@@ -17552,7 +17804,7 @@ local function buildEditModeSettings(kind, editModeId)
 				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "portraitSeparatorEnabled", cfg.portrait.separator.enabled, nil, true) end
 				GF:ApplyHeaderAttributes(kind)
 			end,
-			isEnabled = function() return isPortraitEnabled() end,
+			isEnabled = function() return isPortraitEnabled() and not isPortraitDetached() end,
 		},
 		{
 			name = L["Separator size"] or "Separator size",
@@ -17591,6 +17843,7 @@ local function buildEditModeSettings(kind, editModeId)
 			end,
 			isEnabled = function()
 				if not isPortraitEnabled() then return false end
+				if isPortraitDetached() then return false end
 				local cfg = getCfg(kind)
 				local pcfg = cfg and cfg.portrait or {}
 				local scfg = pcfg.separator or {}
@@ -17629,6 +17882,7 @@ local function buildEditModeSettings(kind, editModeId)
 			end,
 			isEnabled = function()
 				if not isPortraitEnabled() then return false end
+				if isPortraitDetached() then return false end
 				local cfg = getCfg(kind)
 				local pcfg = cfg and cfg.portrait or {}
 				local scfg = pcfg.separator or {}
@@ -17677,6 +17931,7 @@ local function buildEditModeSettings(kind, editModeId)
 			end,
 			isEnabled = function()
 				if not isPortraitEnabled() then return false end
+				if isPortraitDetached() then return false end
 				local cfg = getCfg(kind)
 				local pcfg = cfg and cfg.portrait or {}
 				local scfg = pcfg.separator or {}
@@ -22223,6 +22478,352 @@ local function buildEditModeSettings(kind, editModeId)
 				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "powerSpecs", GF._sharedEdit.csm(selection), nil, true) end
 				GF:RefreshPowerVisibility()
 			end,
+		},
+		{
+			name = "Detach power bar",
+			kind = SettingType.Checkbox,
+			field = "powerDetached",
+			parentId = "power",
+			isShown = function() return kind == "party" end,
+			get = function()
+				local cfg = getCfg(kind)
+				return GF.IsGroupPowerDetached(cfg, kind)
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.power = cfg.power or {}
+				cfg.power.detached = value and true or false
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "powerDetached", cfg.power.detached, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+				requestEditModeSettingsRefresh()
+			end,
+		},
+		{
+			name = "Match health width",
+			kind = SettingType.Checkbox,
+			field = "powerDetachedMatchHealthWidth",
+			parentId = "power",
+			get = function()
+				local cfg = getCfg(kind)
+				local pcfg = cfg and cfg.power or {}
+				local def = DEFAULTS[kind] and DEFAULTS[kind].power or {}
+				local value = pcfg.detachedMatchHealthWidth
+				if value == nil then value = def.detachedMatchHealthWidth end
+				if value == nil then value = true end
+				return value == true
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.power = cfg.power or {}
+				cfg.power.detachedMatchHealthWidth = value and true or false
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "powerDetachedMatchHealthWidth", cfg.power.detachedMatchHealthWidth, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			isEnabled = isPowerDetached,
+			isShown = isPowerDetached,
+		},
+		{
+			name = "Detached power width",
+			kind = SettingType.Slider,
+			allowInput = true,
+			field = "powerDetachedWidth",
+			parentId = "power",
+			minValue = 10,
+			maxValue = 600,
+			valueStep = 1,
+			get = function()
+				local cfg = getCfg(kind)
+				local pcfg = cfg and cfg.power or {}
+				return pcfg.width or cfg.width or (DEFAULTS[kind] and DEFAULTS[kind].width) or 100
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.power = cfg.power or {}
+				cfg.power.width = clampNumber(value, 10, 600, cfg.power.width or cfg.width or 100)
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "powerDetachedWidth", cfg.power.width, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			isEnabled = isDetachedPowerWidthUnlocked,
+			isShown = isPowerDetached,
+		},
+		{
+			name = "Detached power height",
+			kind = SettingType.Slider,
+			allowInput = true,
+			field = "powerDetachedHeight",
+			parentId = "power",
+			minValue = 1,
+			maxValue = 1000,
+			valueStep = 1,
+			get = function()
+				local cfg = getCfg(kind)
+				local pcfg = cfg and cfg.power or {}
+				return pcfg.detachedHeight or cfg.powerHeight or (DEFAULTS[kind] and DEFAULTS[kind].powerHeight) or 6
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.power = cfg.power or {}
+				cfg.power.detachedHeight = clampNumber(value, 1, 1000, cfg.power.detachedHeight or cfg.powerHeight or 6)
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "powerDetachedHeight", cfg.power.detachedHeight, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			isEnabled = isPowerDetached,
+			isShown = isPowerDetached,
+		},
+		{
+			name = "Detached power border",
+			kind = SettingType.Checkbox,
+			field = "powerDetachedBorder",
+			parentId = "power",
+			get = function()
+				local cfg = getCfg(kind)
+				local pcfg = cfg and cfg.power or {}
+				return pcfg.detachedBorder == true
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.power = cfg.power or {}
+				cfg.power.detachedBorder = value and true or false
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "powerDetachedBorder", cfg.power.detachedBorder, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			isEnabled = isPowerDetached,
+			isShown = isPowerDetached,
+		},
+		{
+			name = "Detached power border texture",
+			kind = SettingType.Dropdown,
+			field = "powerDetachedBorderTexture",
+			parentId = "power",
+			height = 180,
+			get = function()
+				local cfg = getCfg(kind)
+				local pcfg = cfg and cfg.power or {}
+				local bc = cfg and cfg.border or {}
+				return pcfg.detachedBorderTexture or bc.texture or (DEFAULTS[kind] and DEFAULTS[kind].border and DEFAULTS[kind].border.texture) or "DEFAULT"
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.power = cfg.power or {}
+				cfg.power.detachedBorderTexture = value or "DEFAULT"
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "powerDetachedBorderTexture", cfg.power.detachedBorderTexture, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			generator = function(_, root)
+				for _, option in ipairs(borderOptions()) do
+					root:CreateRadio(option.label, function()
+						local cfg = getCfg(kind)
+						local pcfg = cfg and cfg.power or {}
+						local bc = cfg and cfg.border or {}
+						return (pcfg.detachedBorderTexture or bc.texture or (DEFAULTS[kind] and DEFAULTS[kind].border and DEFAULTS[kind].border.texture) or "DEFAULT") == option.value
+					end, function()
+						local cfg = getCfg(kind)
+						if not cfg then return end
+						cfg.power = cfg.power or {}
+						cfg.power.detachedBorderTexture = option.value
+						if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "powerDetachedBorderTexture", option.value, nil, true) end
+						GF:ApplyHeaderAttributes(kind)
+					end)
+				end
+			end,
+			isEnabled = isDetachedPowerBorderEnabled,
+			isShown = isPowerDetached,
+		},
+		{
+			name = "Detached power border size",
+			kind = SettingType.Slider,
+			allowInput = true,
+			field = "powerDetachedBorderSize",
+			parentId = "power",
+			minValue = 1,
+			maxValue = 64,
+			valueStep = 1,
+			get = function()
+				local cfg = getCfg(kind)
+				local pcfg = cfg and cfg.power or {}
+				local bc = cfg and cfg.border or {}
+				local bdef = (DEFAULTS[kind] and DEFAULTS[kind].border) or {}
+				return pcfg.detachedBorderSize or bc.edgeSize or bdef.edgeSize or 1
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.power = cfg.power or {}
+				cfg.power.detachedBorderSize = clampNumber(value, 1, 64, cfg.power.detachedBorderSize or 1)
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "powerDetachedBorderSize", cfg.power.detachedBorderSize, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			isEnabled = isDetachedPowerBorderEnabled,
+			isShown = isPowerDetached,
+		},
+		{
+			name = "Detached power border offset",
+			kind = SettingType.Slider,
+			allowInput = true,
+			field = "powerDetachedBorderOffset",
+			parentId = "power",
+			minValue = 0,
+			maxValue = 100,
+			valueStep = 1,
+			get = function()
+				local cfg = getCfg(kind)
+				local pcfg = cfg and cfg.power or {}
+				local bc = cfg and cfg.border or {}
+				local bdef = (DEFAULTS[kind] and DEFAULTS[kind].border) or {}
+				local fallback = bc.offset
+				if fallback == nil then fallback = bdef.offset end
+				if fallback == nil then fallback = pcfg.detachedBorderSize or bc.edgeSize or bdef.edgeSize or 1 end
+				return pcfg.detachedBorderOffset or fallback
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.power = cfg.power or {}
+				cfg.power.detachedBorderOffset = clampNumber(value, 0, 100, cfg.power.detachedBorderOffset or 1)
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "powerDetachedBorderOffset", cfg.power.detachedBorderOffset, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			isEnabled = isDetachedPowerBorderEnabled,
+			isShown = isPowerDetached,
+		},
+		{
+			name = "Detached power strata",
+			kind = SettingType.Dropdown,
+			field = "powerDetachedStrata",
+			parentId = "power",
+			get = function()
+				local cfg = getCfg(kind)
+				local pcfg = cfg and cfg.power or {}
+				return GF.NormalizeFrameStrataToken(pcfg.detachedStrata) or ""
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.power = cfg.power or {}
+				cfg.power.detachedStrata = GF.NormalizeFrameStrataToken(value)
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "powerDetachedStrata", cfg.power.detachedStrata or "", nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			getValueText = function()
+				local cfg = getCfg(kind)
+				local pcfg = cfg and cfg.power or {}
+				return GF.DropdownOptionLabel(GF._FRAME_STRATA_OPTIONS_WITH_DEFAULT, GF.NormalizeFrameStrataToken(pcfg.detachedStrata) or "", DEFAULT or "Default")
+			end,
+			generator = GF.DropdownRadioGenerator(GF._FRAME_STRATA_OPTIONS_WITH_DEFAULT),
+			isEnabled = isPowerDetached,
+			isShown = isPowerDetached,
+		},
+		{
+			name = "Detached power level",
+			kind = SettingType.Slider,
+			allowInput = true,
+			field = "powerDetachedFrameLevelOffset",
+			parentId = "power",
+			minValue = -20,
+			maxValue = 1000,
+			valueStep = 1,
+			get = function()
+				local cfg = getCfg(kind)
+				local pcfg = cfg and cfg.power or {}
+				local value = pcfg.detachedFrameLevelOffset
+				if value == nil then value = (DEFAULTS[kind] and DEFAULTS[kind].power and DEFAULTS[kind].power.detachedFrameLevelOffset) end
+				value = clampNumber(value, -20, 1000, 2)
+				return floor(value + (value >= 0 and 0.5 or -0.5))
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.power = cfg.power or {}
+				local levelOffset = clampNumber(value, -20, 1000, cfg.power.detachedFrameLevelOffset or 2)
+				levelOffset = floor(levelOffset + (levelOffset >= 0 and 0.5 or -0.5))
+				cfg.power.detachedFrameLevelOffset = levelOffset
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "powerDetachedFrameLevelOffset", cfg.power.detachedFrameLevelOffset, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			isEnabled = isPowerDetached,
+			isShown = isPowerDetached,
+		},
+		{
+			name = "Grow from center",
+			kind = SettingType.Checkbox,
+			field = "powerDetachedGrowFromCenter",
+			parentId = "power",
+			get = function()
+				local cfg = getCfg(kind)
+				local pcfg = cfg and cfg.power or {}
+				local def = DEFAULTS[kind] and DEFAULTS[kind].power or {}
+				local value = pcfg.detachedGrowFromCenter
+				if value == nil then value = def.detachedGrowFromCenter end
+				return value == true
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.power = cfg.power or {}
+				cfg.power.detachedGrowFromCenter = value and true or false
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "powerDetachedGrowFromCenter", cfg.power.detachedGrowFromCenter, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			isEnabled = isPowerDetached,
+			isShown = isPowerDetached,
+		},
+		{
+			name = "Power offset X",
+			kind = SettingType.Slider,
+			allowInput = true,
+			field = "powerDetachedOffsetX",
+			parentId = "power",
+			minValue = -400,
+			maxValue = 400,
+			valueStep = 1,
+			get = function()
+				local cfg = getCfg(kind)
+				local pcfg = cfg and cfg.power or {}
+				return (pcfg.offset and pcfg.offset.x) or 0
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.power = cfg.power or {}
+				cfg.power.offset = cfg.power.offset or {}
+				cfg.power.offset.x = clampNumber(value, -400, 400, cfg.power.offset.x or 0)
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "powerDetachedOffsetX", cfg.power.offset.x, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			isEnabled = isPowerDetached,
+			isShown = isPowerDetached,
+		},
+		{
+			name = "Power offset Y",
+			kind = SettingType.Slider,
+			allowInput = true,
+			field = "powerDetachedOffsetY",
+			parentId = "power",
+			minValue = -400,
+			maxValue = 400,
+			valueStep = 1,
+			get = function()
+				local cfg = getCfg(kind)
+				local pcfg = cfg and cfg.power or {}
+				return (pcfg.offset and pcfg.offset.y) or 0
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.power = cfg.power or {}
+				cfg.power.offset = cfg.power.offset or {}
+				cfg.power.offset.y = clampNumber(value, -400, 400, cfg.power.offset.y or 0)
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "powerDetachedOffsetY", cfg.power.offset.y, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			isEnabled = isPowerDetached,
+			isShown = isPowerDetached,
 		},
 		{
 			name = L["Power text left"] or "Power text left",
@@ -27401,6 +28002,58 @@ local function applyEditModeData(kind, data)
 		cfg.power = cfg.power or {}
 		cfg.power.showSpecs = GF._sharedEdit.csm(data.powerSpecs)
 	end
+	if data.powerDetached ~= nil then
+		cfg.power = cfg.power or {}
+		cfg.power.detached = data.powerDetached and true or false
+	end
+	if data.powerDetachedMatchHealthWidth ~= nil then
+		cfg.power = cfg.power or {}
+		cfg.power.detachedMatchHealthWidth = data.powerDetachedMatchHealthWidth and true or false
+	end
+	if data.powerDetachedWidth ~= nil then
+		cfg.power = cfg.power or {}
+		cfg.power.width = clampNumber(data.powerDetachedWidth, 10, 600, cfg.power.width or cfg.width or 100)
+	end
+	if data.powerDetachedHeight ~= nil then
+		cfg.power = cfg.power or {}
+		cfg.power.detachedHeight = clampNumber(data.powerDetachedHeight, 1, 1000, cfg.power.detachedHeight or cfg.powerHeight or 6)
+	end
+	if data.powerDetachedBorder ~= nil then
+		cfg.power = cfg.power or {}
+		cfg.power.detachedBorder = data.powerDetachedBorder and true or false
+	end
+	if data.powerDetachedBorderTexture ~= nil then
+		cfg.power = cfg.power or {}
+		cfg.power.detachedBorderTexture = data.powerDetachedBorderTexture or "DEFAULT"
+	end
+	if data.powerDetachedBorderSize ~= nil then
+		cfg.power = cfg.power or {}
+		cfg.power.detachedBorderSize = clampNumber(data.powerDetachedBorderSize, 1, 64, cfg.power.detachedBorderSize or 1)
+	end
+	if data.powerDetachedBorderOffset ~= nil then
+		cfg.power = cfg.power or {}
+		cfg.power.detachedBorderOffset = clampNumber(data.powerDetachedBorderOffset, 0, 100, cfg.power.detachedBorderOffset or 1)
+	end
+	if data.powerDetachedStrata ~= nil then
+		cfg.power = cfg.power or {}
+		cfg.power.detachedStrata = GF.NormalizeFrameStrataToken(data.powerDetachedStrata)
+	end
+	if data.powerDetachedFrameLevelOffset ~= nil then
+		cfg.power = cfg.power or {}
+		local levelOffset = clampNumber(data.powerDetachedFrameLevelOffset, -20, 1000, cfg.power.detachedFrameLevelOffset or 2)
+		levelOffset = floor(levelOffset + (levelOffset >= 0 and 0.5 or -0.5))
+		cfg.power.detachedFrameLevelOffset = levelOffset
+	end
+	if data.powerDetachedGrowFromCenter ~= nil then
+		cfg.power = cfg.power or {}
+		cfg.power.detachedGrowFromCenter = data.powerDetachedGrowFromCenter and true or false
+	end
+	if data.powerDetachedOffsetX ~= nil or data.powerDetachedOffsetY ~= nil then
+		cfg.power = cfg.power or {}
+		cfg.power.offset = cfg.power.offset or {}
+		if data.powerDetachedOffsetX ~= nil then cfg.power.offset.x = clampNumber(data.powerDetachedOffsetX, -400, 400, cfg.power.offset.x or 0) end
+		if data.powerDetachedOffsetY ~= nil then cfg.power.offset.y = clampNumber(data.powerDetachedOffsetY, -400, 400, cfg.power.offset.y or 0) end
+	end
 	if data.powerTextLeft ~= nil then
 		cfg.power = cfg.power or {}
 		cfg.power.textLeft = data.powerTextLeft
@@ -27828,6 +28481,7 @@ function GF:EnsureEditMode()
 			local racfg = sc.raidAssignmentIcon or {}
 			local acfg = sc.assistIcon or {}
 			local hc = cfg.health or {}
+			local bc = cfg.border or {}
 			local def = DEFAULTS[kind] or {}
 			local defStatus = def.status or {}
 			local defUS = defStatus.unitStatus or {}
@@ -28265,6 +28919,19 @@ function GF:EnsureEditMode()
 				roleIconRoles = (type(rc.showRoles) == "table") and GF._sharedEdit.csm(rc.showRoles) or GF._sharedEdit.defaultRoleSel(),
 				powerRoles = (type(pcfg.showRoles) == "table") and GF._sharedEdit.csm(pcfg.showRoles) or GF._sharedEdit.defaultRoleSel(),
 				powerSpecs = (type(pcfg.showSpecs) == "table") and GF._sharedEdit.csm(pcfg.showSpecs) or GF._sharedEdit.defaultSpecSel(),
+				powerDetached = GF.IsGroupPowerDetached(cfg, kind),
+				powerDetachedMatchHealthWidth = pcfg.detachedMatchHealthWidth ~= false,
+				powerDetachedWidth = pcfg.width or cfg.width or (DEFAULTS[kind] and DEFAULTS[kind].width) or 100,
+				powerDetachedHeight = pcfg.detachedHeight or cfg.powerHeight or (DEFAULTS[kind] and DEFAULTS[kind].powerHeight) or 6,
+				powerDetachedBorder = pcfg.detachedBorder == true,
+				powerDetachedBorderTexture = pcfg.detachedBorderTexture or bc.texture or (DEFAULTS[kind] and DEFAULTS[kind].border and DEFAULTS[kind].border.texture) or "DEFAULT",
+				powerDetachedBorderSize = pcfg.detachedBorderSize or bc.edgeSize or (DEFAULTS[kind] and DEFAULTS[kind].border and DEFAULTS[kind].border.edgeSize) or 1,
+				powerDetachedBorderOffset = pcfg.detachedBorderOffset or bc.offset or (DEFAULTS[kind] and DEFAULTS[kind].border and DEFAULTS[kind].border.offset) or 1,
+				powerDetachedStrata = GF.NormalizeFrameStrataToken(pcfg.detachedStrata) or "",
+				powerDetachedFrameLevelOffset = pcfg.detachedFrameLevelOffset or (DEFAULTS[kind] and DEFAULTS[kind].power and DEFAULTS[kind].power.detachedFrameLevelOffset) or 2,
+				powerDetachedGrowFromCenter = pcfg.detachedGrowFromCenter == true,
+				powerDetachedOffsetX = (pcfg.offset and pcfg.offset.x) or 0,
+				powerDetachedOffsetY = (pcfg.offset and pcfg.offset.y) or 0,
 				powerTextLeft = pcfg.textLeft or ((DEFAULTS[kind] and DEFAULTS[kind].power and DEFAULTS[kind].power.textLeft) or "NONE"),
 				powerTextCenter = pcfg.textCenter or ((DEFAULTS[kind] and DEFAULTS[kind].power and DEFAULTS[kind].power.textCenter) or "NONE"),
 				powerTextRight = pcfg.textRight or ((DEFAULTS[kind] and DEFAULTS[kind].power and DEFAULTS[kind].power.textRight) or "NONE"),
