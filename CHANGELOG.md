@@ -4,6 +4,7 @@
 
 ### 🐛 Fixed
 
+- Class Buff Reminder: Fixed the content filter missing Follower Dungeons, and limited missing flask, food, and weapon buff reminders to current dungeon and raid content while class buff reminders continue to work independently.
 - Cooldown Panels / Bars: Fixed Assisted Combat highlights appearing on hidden ghost icons used by fixed-layout bar entries.
 - Group Frames / Healer Buffs: Fixed the Cooldown Swipe, Draw Edge, and Draw Bling options not being applied to active healer buff indicators.
 - Loot: Fixed moved group loot anchors causing bonus roll prompts to overlap group loot roll frames.

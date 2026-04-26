@@ -39,6 +39,7 @@ local AURA_SLOT_BATCH_SIZE = 32
 local AURA_SLOT_SCAN_GUARD = 16
 local REMINDER_GLOW_KEY = "CLASS_BUFF_REMINDER"
 local SHARED_FOOD_AURA_ICON_ID = 136000
+local CURRENT_EXPANSION_INSTANCE_CACHE = {}
 
 local DB_ENABLED = "classBuffReminderEnabled"
 local DB_SHOW_PARTY = "classBuffReminderShowParty"
@@ -103,6 +104,7 @@ Reminder.runeTracking = Reminder.runeTracking or {
 local TRACKING_CONTENT = {
 	OPEN_WORLD = "openWorld",
 	SCENARIO = "scenario",
+	PARTY_FOLLOWER = "partyFollower",
 	PARTY_NORMAL = "partyNormal",
 	PARTY_HEROIC = "partyHeroic",
 	PARTY_MYTHIC = "partyMythic",
@@ -122,6 +124,7 @@ TRACKING_CONTENT.db = {
 TRACKING_CONTENT.order = {
 	TRACKING_CONTENT.OPEN_WORLD,
 	TRACKING_CONTENT.SCENARIO,
+	TRACKING_CONTENT.PARTY_FOLLOWER,
 	TRACKING_CONTENT.PARTY_NORMAL,
 	TRACKING_CONTENT.PARTY_HEROIC,
 	TRACKING_CONTENT.PARTY_MYTHIC,
@@ -134,6 +137,7 @@ TRACKING_CONTENT.order = {
 TRACKING_CONTENT.keys = {
 	[TRACKING_CONTENT.OPEN_WORLD] = true,
 	[TRACKING_CONTENT.SCENARIO] = true,
+	[TRACKING_CONTENT.PARTY_FOLLOWER] = true,
 	[TRACKING_CONTENT.PARTY_NORMAL] = true,
 	[TRACKING_CONTENT.PARTY_HEROIC] = true,
 	[TRACKING_CONTENT.PARTY_MYTHIC] = true,
@@ -145,6 +149,9 @@ TRACKING_CONTENT.keys = {
 
 TRACKING_CONTENT.difficulties = {
 	party = {
+		follower = {
+			[((_G.DifficultyUtil and _G.DifficultyUtil.ID) or {}).FollowerDungeon or 205] = true,
+		},
 		normal = {
 			[((_G.DifficultyUtil and _G.DifficultyUtil.ID) or {}).DungeonNormal or 1] = true,
 			[((_G.DifficultyUtil and _G.DifficultyUtil.ID) or {}).DungeonTimewalker or 24] = true,
@@ -203,6 +210,7 @@ end
 
 function Reminder.CreateLegacyInstanceTrackingContentSelection()
 	return {
+		[TRACKING_CONTENT.PARTY_FOLLOWER] = true,
 		[TRACKING_CONTENT.PARTY_NORMAL] = true,
 		[TRACKING_CONTENT.PARTY_HEROIC] = true,
 		[TRACKING_CONTENT.PARTY_MYTHIC] = true,
@@ -628,6 +636,7 @@ end
 function Reminder.GetTrackingContentLabel(key)
 	if key == TRACKING_CONTENT.OPEN_WORLD then return _G.WORLD or "World" end
 	if key == TRACKING_CONTENT.SCENARIO then return _G.SCENARIOS or _G.TRACKER_HEADER_SCENARIO or "Scenarios" end
+	if key == TRACKING_CONTENT.PARTY_FOLLOWER then return L["timeoutReleaseGroupDungeonFollower"] or Reminder.BuildContentDifficultyLabel(_G.DUNGEONS or _G.LFG_TYPE_DUNGEON or "Dungeon", _G.FOLLOWER or "Follower") end
 	if key == TRACKING_CONTENT.PARTY_NORMAL then return Reminder.BuildContentDifficultyLabel(_G.PARTY or "Party", _G.PLAYER_DIFFICULTY1 or _G.NORMAL or "Normal") end
 	if key == TRACKING_CONTENT.PARTY_HEROIC then return Reminder.BuildContentDifficultyLabel(_G.PARTY or "Party", _G.PLAYER_DIFFICULTY2 or _G.HEROIC or "Heroic") end
 	if key == TRACKING_CONTENT.PARTY_MYTHIC then return Reminder.BuildContentDifficultyLabel(_G.PARTY or "Party", _G.PLAYER_DIFFICULTY6 or "Mythic") end
@@ -1263,6 +1272,7 @@ function Reminder:GetConsumableTrackingContentToken()
 
 	if instanceType == "party" then
 		if difficultyID == (((_G.DifficultyUtil and _G.DifficultyUtil.ID) or {}).DungeonChallenge or 8) then return nil end
+		if difficultyID and TRACKING_CONTENT.difficulties.party.follower[difficultyID] then return TRACKING_CONTENT.PARTY_FOLLOWER end
 		if difficultyID and TRACKING_CONTENT.difficulties.party.heroic[difficultyID] then return TRACKING_CONTENT.PARTY_HEROIC end
 		if difficultyID and TRACKING_CONTENT.difficulties.party.mythic[difficultyID] then return TRACKING_CONTENT.PARTY_MYTHIC end
 		return TRACKING_CONTENT.PARTY_NORMAL
@@ -1285,9 +1295,81 @@ function Reminder:IsDungeonOrRaidInstance()
 	return instanceType == "party" or instanceType == "raid"
 end
 
-function Reminder:IsTrackingContentSelected(selection)
+function Reminder:GetCurrentExpansionLevel()
+	local expansionLevel
+	if type(LE_EXPANSION_LEVEL_CURRENT) == "number" then expansionLevel = LE_EXPANSION_LEVEL_CURRENT end
+	if type(expansionLevel) ~= "number" and GetServerExpansionLevel then expansionLevel = GetServerExpansionLevel() end
+	if issecretvalue and issecretvalue(expansionLevel) then expansionLevel = nil end
+	if type(expansionLevel) ~= "number" and GetMaximumExpansionLevel then expansionLevel = GetMaximumExpansionLevel() end
+	if type(expansionLevel) ~= "number" and GetExpansionLevel then expansionLevel = GetExpansionLevel() end
+	if issecretvalue and issecretvalue(expansionLevel) then expansionLevel = nil end
+	return type(expansionLevel) == "number" and expansionLevel or nil
+end
+
+function Reminder:GetCurrentExpansionInstanceCache()
+	local expansionLevel = self:GetCurrentExpansionLevel()
+	if not expansionLevel then return nil end
+	local cache = CURRENT_EXPANSION_INSTANCE_CACHE[expansionLevel]
+	if cache then return cache end
+
+	if not (EJ_SelectTier and EJ_GetInstanceByIndex) then return nil end
+
+	cache = {
+		instances = {},
+		maps = {},
+	}
+	CURRENT_EXPANSION_INSTANCE_CACHE[expansionLevel] = cache
+
+	local previousTier = EJ_GetCurrentTier and EJ_GetCurrentTier() or nil
+	EJ_SelectTier(expansionLevel + 1)
+
+	for _, showRaid in ipairs({ false, true }) do
+		local index = 1
+		while true do
+			local journalInstanceID, _, _, _, _, _, _, _, _, _, mapID = EJ_GetInstanceByIndex(index, showRaid)
+			if not journalInstanceID then break end
+			cache.instances[journalInstanceID] = true
+			if type(mapID) == "number" and mapID > 0 then cache.maps[mapID] = true end
+			index = index + 1
+		end
+	end
+
+	if previousTier then EJ_SelectTier(previousTier) end
+	return cache
+end
+
+function Reminder:IsCurrentExpansionDungeonOrRaidInstance()
+	if self:IsDungeonOrRaidInstance() ~= true then return true end
+	if not GetInstanceInfo then return true end
+
+	local _, _, difficultyID, _, _, _, _, instanceMapID, _, lfgDungeonID = GetInstanceInfo()
+	local currentExpansionLevel = self:GetCurrentExpansionLevel()
+
+	if GetLFGDungeonInfo and lfgDungeonID then
+		local _, _, _, _, _, _, _, _, expansionLevel, _, _, _, _, _, _, _, _, isTimewalker = GetLFGDungeonInfo(lfgDungeonID)
+		if issecretvalue and issecretvalue(expansionLevel) then expansionLevel = nil end
+		if issecretvalue and issecretvalue(isTimewalker) then isTimewalker = nil end
+		if isTimewalker == true then return false end
+		if type(expansionLevel) == "number" and currentExpansionLevel then return expansionLevel >= currentExpansionLevel end
+	end
+
+	local ids = (_G.DifficultyUtil and _G.DifficultyUtil.ID) or {}
+	if difficultyID == (ids.DungeonTimewalker or 24) or difficultyID == (ids.RaidTimewalker or 33) then return false end
+
+	local cache = self:GetCurrentExpansionInstanceCache()
+	if type(cache) ~= "table" then return true end
+
+	if type(instanceMapID) == "number" and cache.maps[instanceMapID] then return true end
+	local journalInstanceID = C_EncounterJournal and C_EncounterJournal.GetInstanceForGameMap and type(instanceMapID) == "number"
+		and C_EncounterJournal.GetInstanceForGameMap(instanceMapID)
+		or nil
+	return journalInstanceID ~= nil and cache.instances[journalInstanceID] == true
+end
+
+function Reminder:IsTrackingContentSelected(selection, requireCurrentExpansionInstance)
 	local token = self:GetConsumableTrackingContentToken()
 	if not token or type(selection) ~= "table" then return false end
+	if requireCurrentExpansionInstance == true and self:IsCurrentExpansionDungeonOrRaidInstance() ~= true then return false end
 	return selection[token] == true
 end
 
@@ -1309,7 +1391,7 @@ end
 function Reminder:CanCheckFlaskReminder()
 	if self:IsFlaskEnvironmentRestricted() then return false end
 	if not self:IsFlaskTrackingEnabled() then return false end
-	return self:IsTrackingContentSelected(self:GetFlaskTrackingContentSelection())
+	return self:IsTrackingContentSelected(self:GetFlaskTrackingContentSelection(), true)
 end
 
 function Reminder:IsEarthenPlayer()
@@ -1322,7 +1404,7 @@ function Reminder:CanCheckFoodReminder()
 	if self:IsFlaskEnvironmentRestricted() then return false end
 	if self:IsEarthenPlayer() then return false end
 	if not self:IsFoodTrackingEnabled() then return false end
-	return self:IsTrackingContentSelected(self:GetFoodTrackingContentSelection())
+	return self:IsTrackingContentSelected(self:GetFoodTrackingContentSelection(), true)
 end
 
 function Reminder:CanCheckRuneReminder()
@@ -1349,7 +1431,7 @@ function Reminder:CanCheckWeaponBuffReminder()
 	if self:IsFlaskEnvironmentRestricted() then return false end
 	if self:ShouldSuppressGenericWeaponBuffReminder() then return false end
 	if not self:IsWeaponBuffTrackingEnabled() then return false end
-	return self:IsTrackingContentSelected(self:GetWeaponBuffTrackingContentSelection())
+	return self:IsTrackingContentSelected(self:GetWeaponBuffTrackingContentSelection(), true)
 end
 
 function Reminder:CanEvaluateFoodReminderNow()
