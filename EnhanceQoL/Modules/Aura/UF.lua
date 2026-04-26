@@ -6068,12 +6068,82 @@ function UF.ClearCastInterruptState(st)
 	st.castInterruptToken = (st.castInterruptToken or 0) + 1
 end
 
+function UF._setAlphaFromBoolean(region, value, alphaOn, alphaOff)
+	if not region then return end
+	if value == nil then
+		region:SetAlpha(alphaOff)
+	elseif region.SetAlphaFromBoolean then
+		region:SetAlphaFromBoolean(value, alphaOn, alphaOff)
+	elseif type(value) == "boolean" then
+		region:SetAlpha(value and alphaOn or alphaOff)
+	else
+		region:SetAlpha(alphaOff)
+	end
+end
+
+function UF._hideDefaultCastUninterruptibleBar(st)
+	if st and st.castDefaultUninterruptibleBar then st.castDefaultUninterruptibleBar:Hide() end
+	local normalTexture = st and st.castBar and st.castBar.GetStatusBarTexture and st.castBar:GetStatusBarTexture()
+	if normalTexture then normalTexture:SetAlpha(1) end
+end
+
+function UF._ensureDefaultCastUninterruptibleBar(st)
+	if not st or not st.castBar then return nil end
+	local overlay = st.castDefaultUninterruptibleBar
+	if not overlay then
+		overlay = st.castBar:CreateTexture(nil, "ARTWORK", nil, 0)
+		st.castDefaultUninterruptibleBar = overlay
+	end
+	local normalTexture = st.castBar.GetStatusBarTexture and st.castBar:GetStatusBarTexture()
+	overlay:ClearAllPoints()
+	if normalTexture then
+		overlay:SetAllPoints(normalTexture)
+	else
+		overlay:SetAllPoints(st.castBar)
+	end
+	local tex = (UFHelper.resolveCastUninterruptibleTexture and UFHelper.resolveCastUninterruptibleTexture()) or "ui-castingbar-uninterruptable"
+	if overlay.SetAtlas then
+		overlay:SetAtlas(tex, false)
+	else
+		overlay:SetTexture(tex)
+	end
+	if overlay.SetHorizTile then overlay:SetHorizTile(false) end
+	if overlay.SetVertTile then overlay:SetVertTile(false) end
+	if overlay.SetVertexColor then overlay:SetVertexColor(1, 1, 1, 1) end
+	return overlay
+end
+
+function UF._syncDefaultCastUninterruptibleBar(st, notInterruptible)
+	if not st or not st.castBar then return end
+	if st.castUseDefaultArt ~= true then
+		UF._hideDefaultCastUninterruptibleBar(st)
+		return
+	end
+	local overlay = UF._ensureDefaultCastUninterruptibleBar(st)
+	if not overlay then return end
+	local normalTexture = st.castBar:GetStatusBarTexture()
+	UF._setAlphaFromBoolean(normalTexture, notInterruptible, 0, 1)
+	UF._setAlphaFromBoolean(overlay, notInterruptible, 1, 0)
+	overlay:Show()
+end
+
+function UF._setCastBarMinMaxValues(st, minValue, maxValue)
+	if not st or not st.castBar then return end
+	st.castBar:SetMinMaxValues(minValue, maxValue)
+end
+
+function UF._setCastBarValue(st, value)
+	if not st or not st.castBar then return end
+	st.castBar:SetValue(value)
+end
+
 local function stopCast(unit)
 	local st = states[unit]
 	if not st or not st.castBar then return end
 	UF.ClearCastInterruptState(st)
 	UFHelper.clearEmpowerStages(st)
 	UFHelper.hideCastSpark(st)
+	UF._hideDefaultCastUninterruptibleBar(st)
 	st.castBar:Hide()
 	if st.castName then st.castName:SetText("") end
 	if st.castDuration then st.castDuration:SetText("") end
@@ -6169,6 +6239,7 @@ local function applyCastLayout(cfg, unit)
 	local castTexture = UFHelper.resolveCastTexture(texKey)
 	st.castBar:SetStatusBarTexture(castTexture)
 	st.castUseDefaultArt = useDefaultArt
+	UF._syncDefaultCastUninterruptibleBar(st, st.castInfo and st.castInfo.notInterruptible)
 	do -- Cast backdrop
 		local bd = (ccfg and ccfg.backdrop) or (defc and defc.backdrop) or { enabled = true, color = { 0, 0, 0, 0.6 } }
 		local backdropTexKey = bd.texture
@@ -6283,6 +6354,7 @@ local function configureCastStatic(unit, ccfg, defc)
 
 	local gradientCfg = unit == UNIT.PLAYER and ccfg or nil
 	local isEmpoweredDefault = st.castInfo.isEmpowered and st.castUseDefaultArt == true
+	local useDefaultArt = st.castUseDefaultArt == true
 	local clr = ccfg.color or defc.color or { 0.9, 0.7, 0.2, 1 }
 	local useClassColor = ccfg.useClassColor
 	if useClassColor == nil then useClassColor = defc.useClassColor end
@@ -6294,20 +6366,30 @@ local function configureCastStatic(unit, ccfg, defc)
 	if isEmpoweredDefault then
 		st.castBar:SetStatusBarDesaturated(false)
 		UFHelper.SetCastbarColorWithGradient(st.castBar, nil, 0, 0, 0, 0)
-	elseif st.castInfo.notInterruptible then
-		clr = ccfg.notInterruptibleColor or defc.notInterruptibleColor or clr
-		st.castBar:SetStatusBarDesaturated(true)
-		UFHelper.SetCastbarColorWithGradient(st.castBar, gradientCfg, clr[1] or 0.9, clr[2] or 0.7, clr[3] or 0.2, clr[4] or 1)
+	elseif useDefaultArt then
+		st.castBar:SetStatusBarDesaturated(false)
+		UFHelper.SetCastbarColorWithGradient(st.castBar, nil, 1, 1, 1, 1)
 	else
+		local nclr = ccfg.notInterruptibleColor or defc.notInterruptibleColor or clr
 		st.castBar:SetStatusBarDesaturated(false)
 		UFHelper.SetCastbarColorWithGradient(st.castBar, gradientCfg, clr[1] or 0.9, clr[2] or 0.7, clr[3] or 0.2, clr[4] or 1)
+		local tex = st.castBar:GetStatusBarTexture()
+		if tex and tex.SetVertexColorFromBoolean then
+			tex:SetVertexColorFromBoolean(
+				st.castInfo.notInterruptible,
+				CreateColor(nclr[1] or 0.9, nclr[2] or 0.7, nclr[3] or 0.2, nclr[4] or 1),
+				CreateColor(clr[1] or 0.9, clr[2] or 0.7, clr[3] or 0.2, clr[4] or 1)
+			)
+		end
 	end
+	UF._syncDefaultCastUninterruptibleBar(st, st.castInfo.notInterruptible)
 	local duration = (st.castInfo.endTime or 0) - (st.castInfo.startTime or 0)
 	local maxValue = duration and duration > 0 and duration / 1000 or 1
 	st.castInfo.maxValue = maxValue
 	-- UFHelper.applyStatusBarReverseFill(st.castBar, st.castInfo.isChannel == true and not st.castInfo.isEmpowered)
-	st.castBar:SetMinMaxValues(0, maxValue)
-	UFHelper.RefreshCastbarGradient(st.castBar, isEmpoweredDefault and nil or gradientCfg)
+	UF._setCastBarMinMaxValues(st, 0, maxValue)
+	UFHelper.RefreshCastbarGradient(st.castBar, useDefaultArt and nil or gradientCfg)
+	UF._syncDefaultCastUninterruptibleBar(st, st.castInfo.notInterruptible)
 	if st.castName then
 		local showName = ccfg.showName ~= false
 		st.castName:SetShown(showName)
@@ -6386,7 +6468,7 @@ local function updateCastBar(unit)
 	end
 	if elapsedMs < 0 then elapsedMs = 0 end
 	local value = elapsedMs / 1000
-	st.castBar:SetValue(value)
+	UF._setCastBarValue(st, value)
 	if
 		unit == UNIT.PLAYER
 		and not (st.castInfo.isEmpowered and st.castUseDefaultArt == true)
@@ -6612,6 +6694,7 @@ function UF.ShowCastInterrupt(unit, event)
 		interruptTex = UFHelper.resolveCastTexture(texKey)
 	end
 	if interruptTex then st.castBar:SetStatusBarTexture(interruptTex) end
+	UF._hideDefaultCastUninterruptibleBar(st)
 	if st.castBar.SetStatusBarDesaturated then st.castBar:SetStatusBarDesaturated(false) end
 	local ir = st.castInterruptFeedbackR
 	local ig = st.castInterruptFeedbackG
@@ -6636,8 +6719,8 @@ function UF.ShowCastInterrupt(unit, event)
 		st.castInterruptFeedbackA = ia
 	end
 	UFHelper.SetCastbarColorWithGradient(st.castBar, nil, ir, ig, ib, ia)
-	st.castBar:SetMinMaxValues(0, 1)
-	st.castBar:SetValue(1)
+	UF._setCastBarMinMaxValues(st, 0, 1)
+	UF._setCastBarValue(st, 1)
 	if st.castDuration then
 		st.castDuration:SetText("")
 		st.castDuration:Hide()
@@ -6849,12 +6932,20 @@ local function setCastInfoFromUnit(unit)
 				local cr, cg, cb, ca = getClassColor(class)
 				if cr then clr = { cr, cg, cb, ca or 1 } end
 			end
-			local nclr = ccfg.notInterruptibleColor or defc.notInterruptibleColor or { 204 / 255, 204 / 255, 204 / 255, 1 }
-			st.castBar:GetStatusBarTexture():SetVertexColorFromBoolean(
-				notInterruptible,
-				CreateColor(nclr[1] or 0.9, nclr[2] or 0.7, nclr[3] or 0.2, nclr[4] or 1),
-				CreateColor(clr[1] or 0.9, clr[2] or 0.7, clr[3] or 0.2, clr[4] or 1)
-			)
+			local tex = st.castBar:GetStatusBarTexture()
+			if st.castUseDefaultArt == true then
+				if tex and tex.SetVertexColor then tex:SetVertexColor(1, 1, 1, 1) end
+			else
+				local nclr = ccfg.notInterruptibleColor or defc.notInterruptibleColor or { 204 / 255, 204 / 255, 204 / 255, 1 }
+				if tex and tex.SetVertexColorFromBoolean then
+					tex:SetVertexColorFromBoolean(
+						notInterruptible,
+						CreateColor(nclr[1] or 0.9, nclr[2] or 0.7, nclr[3] or 0.2, nclr[4] or 1),
+						CreateColor(clr[1] or 0.9, clr[2] or 0.7, clr[3] or 0.2, clr[4] or 1)
+					)
+				end
+			end
+			UF._syncDefaultCastUninterruptibleBar(st, notInterruptible)
 			st.castBar:SetStatusBarDesaturated(false)
 			local showDuration = ccfg.showDuration ~= false and st.castDuration ~= nil
 			local needsOnUpdate = showDuration
@@ -8722,8 +8813,8 @@ local function ensureFrames(unit)
 		st.castIcon = st.castIconHolder:CreateTexture(nil, "ARTWORK")
 		st.castIcon:SetAllPoints(st.castIconHolder)
 		st.castIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-		st.castBar:SetMinMaxValues(0, 1)
-		st.castBar:SetValue(0)
+		UF._setCastBarMinMaxValues(st, 0, 1)
+		UF._setCastBarValue(st, 0)
 		st.castBar:Hide()
 	end
 
@@ -9013,8 +9104,8 @@ local function applyBars(cfg, unit)
 		local defc = (defaultsFor(unit) and defaultsFor(unit).cast) or {}
 		local ccfg = cfg.cast or defc
 		st.castBar:SetStatusBarTexture(UFHelper.resolveCastTexture((ccfg.texture or defc.texture or "DEFAULT")))
-		st.castBar:SetMinMaxValues(0, 1)
-		st.castBar:SetValue(0)
+		UF._setCastBarMinMaxValues(st, 0, 1)
+		UF._setCastBarValue(st, 0)
 		applyCastLayout(cfg, unit)
 		local castFont = ccfg.font or defc.font or hc.font
 		local castFontSize = ccfg.fontSize or defc.fontSize or hc.fontSize or 12

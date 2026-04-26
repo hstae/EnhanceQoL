@@ -13,6 +13,7 @@
 - Bags: Fixed per-element font and outline changes sometimes requiring a UI reload by resolving text appearance caches per element instead of sharing one cache across all bag text styles.
 - Cooldown Panels: Fixed tracked aura entries with a configured state texture disappearing while using "Always show (desaturate if inactive)".
 - Group Frames / Party: Fixed name TOPLEFT/TOPRIGHT style anchors being shifted by role-icon padding instead of using the selected corner literally.
+- Unit Frames / Cast Bar: Fixed the default castbar style so uninterruptible casts use Blizzard's grey uninterruptible fill.
 
 ---
 
