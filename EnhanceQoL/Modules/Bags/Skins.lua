@@ -412,9 +412,12 @@ local function applyProfessionQualityOverlayLayout(button, shapeDefinition)
 	end
 
 	local iconInset = shapeDefinition.iconInset or shapeDefinition.frameInset or 0
+	clearTextureMask(overlay)
+	if overlay.SetDrawLayer then
+		overlay:SetDrawLayer("OVERLAY", 7)
+	end
 	overlay:ClearAllPoints()
 	overlay:SetPoint("TOPLEFT", button, "TOPLEFT", (iconInset - 3), (2 - iconInset))
-	ensureTextureMask(overlay, button.BagsShapeFrameMask)
 end
 
 local function ensureItemButtonShapeElements(button)

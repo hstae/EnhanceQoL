@@ -4343,15 +4343,7 @@ updateCategoryModeCard = function(frame)
 	if not basicMode then
 		frame.ModeCard.CopyButton:SetText(L["settingsCategoryModeCopyBasic"] or "Copy Basic to Advanced")
 		frame.ModeCard.CopyButton:SetScript("OnClick", function()
-			if addon.HasCategoryModeContent and addon.HasCategoryModeContent("advanced") then
-				StaticPopup_Show("BAGS_COPY_BASIC_TO_ADVANCED_CONFIRM")
-				return
-			end
-			if addon.CopyBasicCategoriesToAdvanced then
-				addon.CopyBasicCategoriesToAdvanced()
-			end
-			requestBagRefresh(true, true)
-			addon.RefreshSettingsFrame("categories", true)
+			StaticPopup_Show("BAGS_COPY_BASIC_TO_ADVANCED_CONFIRM")
 		end)
 	end
 end
@@ -4373,7 +4365,7 @@ end
 
 if type(StaticPopupDialogs) == "table" then
 	StaticPopupDialogs["BAGS_COPY_BASIC_TO_ADVANCED_CONFIRM"] = {
-		text = L["settingsCategoryModeCopyConfirm"] or "Replace the current Advanced categories with a fresh copy of Basic?",
+		text = L["settingsCategoryModeCopyConfirm"] or "This will overwrite all current Advanced categories, groups, hidden defaults, and rules with a fresh copy of Basic. Continue?",
 		button1 = YES or "Yes",
 		button2 = NO or "No",
 		OnAccept = function()

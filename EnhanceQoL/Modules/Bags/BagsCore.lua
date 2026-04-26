@@ -966,6 +966,12 @@ local function getAnchorTargetFrame()
 	end
 
 	if shouldShowBankManagedBags() and addon.GetBankAnchorTargetFrame then
+		if addon.GetCustomBankAnchorTargetFrame then
+			local customBankFrame = addon.GetCustomBankAnchorTargetFrame()
+			if customBankFrame then
+				return customBankFrame
+			end
+		end
 		return addon.GetBankAnchorTargetFrame()
 	end
 

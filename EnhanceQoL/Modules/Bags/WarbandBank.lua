@@ -3334,6 +3334,16 @@ end
 
 Bags.functions.PositionWarbandBankFrame = Bags.functions.PositionBankFrame
 
+function addon.GetCustomBankAnchorTargetFrame()
+	if not state.frame or not state.initialized then
+		return nil
+	end
+	if state.frame:IsShown() or (addon.AreAnyBankContextsViewable and addon.AreAnyBankContextsViewable()) then
+		return state.frame
+	end
+	return nil
+end
+
 local function shouldShowFrame(context)
 	return addon.Bags and addon.Bags.IsEnabled and addon.Bags.IsEnabled() and context ~= nil
 end
@@ -3406,6 +3416,9 @@ local function processUpdate()
 		end
 		if state.frame then
 			state.frame:Show()
+		end
+		if Bags.functions.RequestLayoutUpdate then
+			Bags.functions.RequestLayoutUpdate(false, true)
 		end
 	else
 		if state.frame then
