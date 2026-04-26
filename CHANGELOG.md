@@ -2,8 +2,13 @@
 
 ## [10.9.0-beta3] - 2026-04-26
 
+### ✨ Added
+
+- Group Frames / Hover Highlight: Added a frame level control alongside the existing strata control.
+
 ### 🐛 Fixed
 
+- Cooldown Panels: Fixed tracked aura entries with a configured state texture disappearing while using "Always show (desaturate if inactive)".
 - Group Frames / Party: Fixed name TOPLEFT/TOPRIGHT style anchors being shifted by role-icon padding instead of using the selected corner literally.
 
 ---

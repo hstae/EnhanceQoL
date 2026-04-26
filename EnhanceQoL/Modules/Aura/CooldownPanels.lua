@@ -6279,9 +6279,14 @@ local function applyStateTexture(icon, data)
 	local texture = icon and icon.stateTexture or nil
 	local textureSecond = icon and icon.stateTextureSecond or nil
 	if not texture then return end
+	local desaturated = data and data.stateTextureDesaturated == true
 	if not (data and data.stateTextureShown == true and data.stateTextureType and data.stateTextureValue) then
+		if texture.SetDesaturated then texture:SetDesaturated(false) end
 		texture:Hide()
-		if textureSecond then textureSecond:Hide() end
+		if textureSecond then
+			if textureSecond.SetDesaturated then textureSecond:SetDesaturated(false) end
+			textureSecond:Hide()
+		end
 		return
 	end
 
@@ -6341,6 +6346,7 @@ local function applyStateTexture(icon, data)
 			region:SetTexture(fileID)
 			setRegionTexCoord(region, 0, 1, 0, 1, mirroredHorizontal, mirroredVertical)
 		end
+		if region.SetDesaturated then region:SetDesaturated(desaturated) end
 		if region.SetRotation then region:SetRotation(math.rad(angle)) end
 		region:Show()
 	end
@@ -6354,7 +6360,10 @@ local function applyStateTexture(icon, data)
 		applyRegion(textureSecond, halfX, halfY, secondMirrored, secondMirroredVertical)
 	else
 		applyRegion(texture, 0, 0, mirror, mirrorVertical)
-		if textureSecond then textureSecond:Hide() end
+		if textureSecond then
+			if textureSecond.SetDesaturated then textureSecond:SetDesaturated(false) end
+			textureSecond:Hide()
+		end
 	end
 end
 
@@ -6716,6 +6725,7 @@ function cdp.RUNTIME.HasStateTextureChange(snapshot, data)
 		or snapshot.stateTextureMirrorVerticalSecond ~= (data.stateTextureMirrorVerticalSecond == true)
 		or snapshot.stateTextureSpacingX ~= data.stateTextureSpacingX
 		or snapshot.stateTextureSpacingY ~= data.stateTextureSpacingY
+		or snapshot.stateTextureDesaturated ~= (data.stateTextureDesaturated == true)
 end
 
 function cdp.RUNTIME.WriteStateTextureSnapshot(snapshot, data)
@@ -6735,6 +6745,7 @@ function cdp.RUNTIME.WriteStateTextureSnapshot(snapshot, data)
 	snapshot.stateTextureMirrorVerticalSecond = data.stateTextureMirrorVerticalSecond == true
 	snapshot.stateTextureSpacingX = data.stateTextureSpacingX
 	snapshot.stateTextureSpacingY = data.stateTextureSpacingY
+	snapshot.stateTextureDesaturated = data.stateTextureDesaturated == true
 end
 
 local function createIconFrame(parent)
@@ -15985,7 +15996,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 					elseif resolvedType == "SPELL" then
 						data.stateTextureShown = procActive == true
 					elseif resolvedType == "CDM_AURA" then
-						data.stateTextureShown = cdmAuraData and cdmAuraData.active == true or false
+						data.stateTextureShown = cdmAuraData and cdmAuraData.show == true or false
 					end
 				end
 				data.powerInsufficient = powerInsufficient
@@ -16569,6 +16580,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 				end
 			end
 
+			data.stateTextureDesaturated = data.stateTextureShown == true and desaturate == true and entryNoDesaturation ~= true
 			if data._eqolRuntimePlacementDirty or cdp.RUNTIME.HasStateTextureChange(icon._eqolRuntimeSnapshot, data) then
 				applyStateTexture(icon, data)
 				cdp.RUNTIME.WriteStateTextureSnapshot(icon._eqolRuntimeSnapshot, data)
