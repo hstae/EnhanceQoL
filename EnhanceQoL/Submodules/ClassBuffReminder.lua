@@ -1298,9 +1298,9 @@ end
 function Reminder:GetCurrentExpansionLevel()
 	local expansionLevel
 	if type(LE_EXPANSION_LEVEL_CURRENT) == "number" then expansionLevel = LE_EXPANSION_LEVEL_CURRENT end
-	if type(expansionLevel) ~= "number" and GetServerExpansionLevel then expansionLevel = GetServerExpansionLevel() end
+	if type(expansionLevel) ~= "number" and _G.GetServerExpansionLevel then expansionLevel = _G.GetServerExpansionLevel() end
 	if issecretvalue and issecretvalue(expansionLevel) then expansionLevel = nil end
-	if type(expansionLevel) ~= "number" and GetMaximumExpansionLevel then expansionLevel = GetMaximumExpansionLevel() end
+	if type(expansionLevel) ~= "number" and _G.GetMaximumExpansionLevel then expansionLevel = _G.GetMaximumExpansionLevel() end
 	if type(expansionLevel) ~= "number" and GetExpansionLevel then expansionLevel = GetExpansionLevel() end
 	if issecretvalue and issecretvalue(expansionLevel) then expansionLevel = nil end
 	return type(expansionLevel) == "number" and expansionLevel or nil

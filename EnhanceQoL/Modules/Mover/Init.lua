@@ -66,6 +66,7 @@ registry.addonIndex = registry.addonIndex or {}
 registry.noAddonEntries = registry.noAddonEntries or {}
 
 local IsAddonLoaded = (C_AddOns and C_AddOns.IsAddOnLoaded) or IsAddOnLoaded
+local TextureLoadingGroupMixin = _G.TextureLoadingGroupMixin
 
 local function entryAddonList(entry)
 	local list = {}
