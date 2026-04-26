@@ -653,6 +653,11 @@ local function getTextAppearanceSignature(appearance)
 	)
 end
 
+local function getItemButtonTextAppearanceSignature(appearance)
+	local stackAppearance = getResolvedTextAppearance("stackCount")
+	return getTextAppearanceSignature(appearance or getResolvedTextAppearance("overlays")) .. ":" .. getTextAppearanceSignature(stackAppearance)
+end
+
 local function getMaxFrameHeight()
 	local parentHeight = UIParent and UIParent:GetHeight() or nil
 	local screenHeight = (parentHeight and parentHeight > 0) and parentHeight or 900
@@ -733,8 +738,10 @@ applyConfiguredItemButtonFonts = function(button, appearance, signature)
 	end
 
 	appearance = appearance or getResolvedTextAppearance("overlays")
+	local stackAppearance = getResolvedTextAppearance("stackCount")
 	local overlayBaseSize = tonumber(appearance and appearance.size) or 12
-	signature = signature or getTextAppearanceSignature(appearance)
+	local stackBaseSize = tonumber(stackAppearance and stackAppearance.size) or overlayBaseSize
+	signature = signature or getItemButtonTextAppearanceSignature(appearance)
 	if button._bagsFontSignature == signature then
 		return
 	end
@@ -749,7 +756,7 @@ applyConfiguredItemButtonFonts = function(button, appearance, signature)
 		button.ItemUpgradeText:SetJustifyH("RIGHT")
 	end
 	if button.Count then
-		applyConfiguredFont(button.Count, math.max(8, overlayBaseSize - 2), "overlays")
+		applyConfiguredFont(button.Count, stackBaseSize, "stackCount")
 	end
 end
 
@@ -4153,7 +4160,7 @@ local function rebuildLayout()
 	layoutFrame(layoutData)
 	local overlayRuntime = getOverlayRuntimeConfig()
 	local textAppearance = getResolvedTextAppearance("overlays")
-	local fontSignature = getTextAppearanceSignature(textAppearance)
+	local fontSignature = getItemButtonTextAppearanceSignature(textAppearance)
 	local tooltipOwner = GameTooltip and GameTooltip.GetOwner and GameTooltip:GetOwner() or nil
 	local forceDynamicUpdate = state.forceDynamicRefresh
 
@@ -4214,7 +4221,7 @@ local function refreshButtons()
 
 	local overlayRuntime = getOverlayRuntimeConfig()
 	local textAppearance = getResolvedTextAppearance("overlays")
-	local fontSignature = getTextAppearanceSignature(textAppearance)
+	local fontSignature = getItemButtonTextAppearanceSignature(textAppearance)
 	if state.currentTextAppearanceSignature ~= nil and state.currentTextAppearanceSignature ~= fontSignature then
 		return rebuildLayout()
 	end

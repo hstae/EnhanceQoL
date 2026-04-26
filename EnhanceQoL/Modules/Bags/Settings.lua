@@ -3044,7 +3044,7 @@ local function createLayoutPage(parent)
 	scrollFrame:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -28, 0)
 	page.ScrollFrame = scrollFrame
 	page.Content = content
-	page.LayoutContentHeight = 1372
+	page.LayoutContentHeight = 1484
 
 	local contentParent = content
 
@@ -3677,129 +3677,134 @@ local function createLayoutPage(parent)
 	page.TextOutlineButton = outlineButton
 	anchorTextAppearanceRow(outlineLabel, outlineButton, overlaySizeStepper)
 
-	page.SelectedTextElement = "categoryHeader"
+	local textStylesTitle = textAppearanceCard:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+	textStylesTitle:SetPoint("LEFT", textAppearanceCard, "LEFT", textAppearanceLeftInset, 0)
+	textStylesTitle:SetPoint("TOP", outlineButton, "BOTTOM", 0, -textAppearanceRowGap - 8)
+	textStylesTitle:SetText(L["settingsTextStylesTitle"] or "Text styles")
+	page.TextStylesTitle = textStylesTitle
 
-	local textElementLabel = textAppearanceCard:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-	textElementLabel:SetText(L["settingsTextElementLabel"] or "Text element")
-	page.TextElementLabel = textElementLabel
-
-	local textElementButton = CreateFrame("Button", nil, textAppearanceCard, "UIPanelButtonTemplate")
-	textElementButton:SetSize(textAppearanceControlWidth, 22)
-	setButtonFontObject(textElementButton, GameFontNormalSmall)
-	textElementButton:SetScript("OnClick", function(self)
-		local selectedElement = page.SelectedTextElement or "categoryHeader"
-		openSimpleRadioMenu(self, addon.GetTextElementOptions and addon.GetTextElementOptions() or {}, selectedElement, function(value)
-			page.SelectedTextElement = value
-			addon.RefreshSettingsFrame("layout")
-		end)
-	end)
-	page.TextElementButton = textElementButton
-	anchorTextAppearanceRow(textElementLabel, textElementButton, outlineButton)
-
-	local elementFontLabel = textAppearanceCard:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-	elementFontLabel:SetText(L["settingsTextElementFontLabel"] or "Element font")
-	page.TextElementFontLabel = elementFontLabel
-
-	local elementFontButton = CreateFrame("Button", nil, textAppearanceCard, "UIPanelButtonTemplate")
-	elementFontButton:SetSize(textAppearanceControlWidth, 22)
-	setButtonFontObject(elementFontButton, GameFontNormalSmall)
-	elementFontButton:SetScript("OnClick", function(self)
-		local selectedElement = page.SelectedTextElement or "categoryHeader"
-		local element = addon.GetTextElementAppearance and addon.GetTextElementAppearance(selectedElement) or {}
-		openSimpleRadioMenu(self, addon.GetTextElementFontOptions and addon.GetTextElementFontOptions() or {}, element.font, function(value)
-			if addon.SetTextElementFont and addon.SetTextElementFont(selectedElement, value) then
-				addon.RefreshSettingsFrame("layout")
-				requestBagRefresh(true)
-			end
-		end)
-	end)
-	page.TextElementFontButton = elementFontButton
-	anchorTextAppearanceRow(elementFontLabel, elementFontButton, textElementButton)
-
-	local elementSizeLabel = textAppearanceCard:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-	elementSizeLabel:SetText(L["settingsTextElementSizeLabel"] or "Element size")
-	page.TextElementSizeLabel = elementSizeLabel
-
-	local elementSizeStepper = CreateFrame("Frame", nil, textAppearanceCard)
-	elementSizeStepper:SetSize(textAppearanceControlWidth, 22)
-	page.TextElementSizeStepper = elementSizeStepper
-	anchorTextAppearanceRow(elementSizeLabel, elementSizeStepper, elementFontButton)
-
-	local elementSizeDownButton = CreateFrame("Button", nil, elementSizeStepper, "UIPanelButtonTemplate")
-	elementSizeDownButton:SetSize(24, 22)
-	elementSizeDownButton:SetPoint("LEFT", elementSizeStepper, "LEFT", 0, 0)
-	elementSizeDownButton:SetText("-")
-	setButtonFontObject(elementSizeDownButton, GameFontNormalSmall)
-	elementSizeDownButton:SetScript("OnClick", function()
-		local selectedElement = page.SelectedTextElement or "categoryHeader"
-		local element = addon.GetTextElementAppearance and addon.GetTextElementAppearance(selectedElement) or {}
-		if addon.SetTextElementSize and addon.SetTextElementSize(selectedElement, (tonumber(element.size) or 12) - 1) then
-			addon.RefreshSettingsFrame("layout")
-			requestBagRefresh(true)
+	local textStyleRows = {}
+	local function createTextStyleRow(elementID, previousRow)
+		local row = CreateFrame("Frame", nil, textAppearanceCard)
+		row:SetHeight(42)
+		row:SetPoint("LEFT", textAppearanceCard, "LEFT", textAppearanceLeftInset, 0)
+		row:SetPoint("RIGHT", textAppearanceCard, "RIGHT", -14, 0)
+		if previousRow then
+			row:SetPoint("TOP", previousRow, "BOTTOM", 0, -10)
+		else
+			row:SetPoint("TOP", textStylesTitle, "BOTTOM", 0, -8)
 		end
-	end)
-	page.TextElementSizeDownButton = elementSizeDownButton
+		row.ElementID = elementID
 
-	local elementSizeUpButton = CreateFrame("Button", nil, elementSizeStepper, "UIPanelButtonTemplate")
-	elementSizeUpButton:SetSize(24, 22)
-	elementSizeUpButton:SetPoint("RIGHT", elementSizeStepper, "RIGHT", 0, 0)
-	elementSizeUpButton:SetText("+")
-	setButtonFontObject(elementSizeUpButton, GameFontNormalSmall)
-	elementSizeUpButton:SetScript("OnClick", function()
-		local selectedElement = page.SelectedTextElement or "categoryHeader"
-		local element = addon.GetTextElementAppearance and addon.GetTextElementAppearance(selectedElement) or {}
-		if addon.SetTextElementSize and addon.SetTextElementSize(selectedElement, (tonumber(element.size) or 12) + 1) then
-			addon.RefreshSettingsFrame("layout")
-			requestBagRefresh(true)
+		local elementOptions = addon.GetTextElementOptions and addon.GetTextElementOptions() or {}
+		local label = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+		label:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
+		label:SetPoint("RIGHT", row, "RIGHT", 0, 0)
+		label:SetJustifyH("LEFT")
+		label:SetJustifyV("TOP")
+		label:SetText(getOptionLabel(elementOptions, elementID, elementID))
+		setSingleLineText(label)
+		row.Label = label
+
+		local outline = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+		outline:SetSize(122, 22)
+		outline:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, 0)
+		setButtonFontObject(outline, GameFontNormalSmall)
+		outline:SetScript("OnClick", function(self)
+			local element = addon.GetTextElementAppearance and addon.GetTextElementAppearance(elementID) or {}
+			openSimpleRadioMenu(self, addon.GetTextElementOutlineOptions and addon.GetTextElementOutlineOptions() or {}, element.outline, function(value)
+				if addon.SetTextElementOutline and addon.SetTextElementOutline(elementID, value) then
+					addon.RefreshSettingsFrame("layout")
+					requestBagRefresh(true)
+				end
+			end)
+		end)
+		row.OutlineButton = outline
+
+		local case = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+		case:SetSize(78, 22)
+		case:SetPoint("RIGHT", outline, "LEFT", -6, 0)
+		case:SetShown(elementID ~= "stackCount")
+		setButtonFontObject(case, GameFontNormalSmall)
+		case:SetScript("OnClick", function(self)
+			local element = addon.GetTextElementAppearance and addon.GetTextElementAppearance(elementID) or {}
+			openSimpleRadioMenu(self, addon.GetTextCaseOptions and addon.GetTextCaseOptions() or {}, element.case or "default", function(value)
+				if addon.SetTextElementCase and addon.SetTextElementCase(elementID, value) then
+					addon.RefreshSettingsFrame("layout")
+					requestBagRefresh(true)
+				end
+			end)
+		end)
+		row.CaseButton = case
+
+		local sizeStepper = CreateFrame("Frame", nil, row)
+		sizeStepper:SetSize(74, 22)
+		if elementID == "stackCount" then
+			sizeStepper:SetPoint("RIGHT", outline, "LEFT", -6, 0)
+		else
+			sizeStepper:SetPoint("RIGHT", case, "LEFT", -6, 0)
 		end
-	end)
-	page.TextElementSizeUpButton = elementSizeUpButton
+		row.SizeStepper = sizeStepper
 
-	local elementSizeValue = elementSizeStepper:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-	elementSizeValue:SetPoint("LEFT", elementSizeDownButton, "RIGHT", 10, 0)
-	elementSizeValue:SetPoint("RIGHT", elementSizeUpButton, "LEFT", -10, 0)
-	elementSizeValue:SetJustifyH("CENTER")
-	page.TextElementSizeValue = elementSizeValue
-
-	local elementCaseLabel = textAppearanceCard:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-	elementCaseLabel:SetText(L["settingsTextCaseLabel"] or "Case")
-	page.TextElementCaseLabel = elementCaseLabel
-
-	local elementCaseButton = CreateFrame("Button", nil, textAppearanceCard, "UIPanelButtonTemplate")
-	elementCaseButton:SetSize(textAppearanceControlWidth, 22)
-	setButtonFontObject(elementCaseButton, GameFontNormalSmall)
-	elementCaseButton:SetScript("OnClick", function(self)
-		local selectedElement = page.SelectedTextElement or "categoryHeader"
-		local element = addon.GetTextElementAppearance and addon.GetTextElementAppearance(selectedElement) or {}
-		openSimpleRadioMenu(self, addon.GetTextCaseOptions and addon.GetTextCaseOptions() or {}, element.case or "default", function(value)
-			if addon.SetTextElementCase and addon.SetTextElementCase(selectedElement, value) then
+		local sizeDown = CreateFrame("Button", nil, sizeStepper, "UIPanelButtonTemplate")
+		sizeDown:SetSize(20, 22)
+		sizeDown:SetPoint("LEFT", sizeStepper, "LEFT", 0, 0)
+		sizeDown:SetText("-")
+		setButtonFontObject(sizeDown, GameFontNormalSmall)
+		sizeDown:SetScript("OnClick", function()
+			local element = addon.GetTextElementAppearance and addon.GetTextElementAppearance(elementID) or {}
+			if addon.SetTextElementSize and addon.SetTextElementSize(elementID, (tonumber(element.size) or 12) - 1) then
 				addon.RefreshSettingsFrame("layout")
 				requestBagRefresh(true)
 			end
 		end)
-	end)
-	page.TextElementCaseButton = elementCaseButton
-	anchorTextAppearanceRow(elementCaseLabel, elementCaseButton, elementSizeStepper)
+		row.SizeDownButton = sizeDown
 
-	local elementOutlineLabel = textAppearanceCard:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-	elementOutlineLabel:SetText(L["settingsTextElementOutlineLabel"] or "Element outline")
-	page.TextElementOutlineLabel = elementOutlineLabel
-
-	local elementOutlineButton = CreateFrame("Button", nil, textAppearanceCard, "UIPanelButtonTemplate")
-	elementOutlineButton:SetSize(textAppearanceControlWidth, 22)
-	setButtonFontObject(elementOutlineButton, GameFontNormalSmall)
-	elementOutlineButton:SetScript("OnClick", function(self)
-		local selectedElement = page.SelectedTextElement or "categoryHeader"
-		local element = addon.GetTextElementAppearance and addon.GetTextElementAppearance(selectedElement) or {}
-		openSimpleRadioMenu(self, addon.GetTextElementOutlineOptions and addon.GetTextElementOutlineOptions() or {}, element.outline, function(value)
-			if addon.SetTextElementOutline and addon.SetTextElementOutline(selectedElement, value) then
+		local sizeUp = CreateFrame("Button", nil, sizeStepper, "UIPanelButtonTemplate")
+		sizeUp:SetSize(20, 22)
+		sizeUp:SetPoint("RIGHT", sizeStepper, "RIGHT", 0, 0)
+		sizeUp:SetText("+")
+		setButtonFontObject(sizeUp, GameFontNormalSmall)
+		sizeUp:SetScript("OnClick", function()
+			local element = addon.GetTextElementAppearance and addon.GetTextElementAppearance(elementID) or {}
+			if addon.SetTextElementSize and addon.SetTextElementSize(elementID, (tonumber(element.size) or 12) + 1) then
 				addon.RefreshSettingsFrame("layout")
 				requestBagRefresh(true)
 			end
 		end)
-	end)
-	page.TextElementOutlineButton = elementOutlineButton
-	anchorTextAppearanceRow(elementOutlineLabel, elementOutlineButton, elementCaseButton)
+		row.SizeUpButton = sizeUp
+
+		local sizeValue = sizeStepper:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+		sizeValue:SetPoint("LEFT", sizeDown, "RIGHT", 4, 0)
+		sizeValue:SetPoint("RIGHT", sizeUp, "LEFT", -4, 0)
+		sizeValue:SetJustifyH("CENTER")
+		row.SizeValue = sizeValue
+
+		local font = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+		font:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 0, 0)
+		font:SetPoint("RIGHT", sizeStepper, "LEFT", -6, 0)
+		font:SetHeight(22)
+		setButtonFontObject(font, GameFontNormalSmall)
+		font:SetScript("OnClick", function(self)
+			local element = addon.GetTextElementAppearance and addon.GetTextElementAppearance(elementID) or {}
+			openSimpleRadioMenu(self, addon.GetTextElementFontOptions and addon.GetTextElementFontOptions() or {}, element.font, function(value)
+				if addon.SetTextElementFont and addon.SetTextElementFont(elementID, value) then
+					addon.RefreshSettingsFrame("layout")
+					requestBagRefresh(true)
+				end
+			end)
+		end)
+		row.FontButton = font
+
+		textStyleRows[#textStyleRows + 1] = row
+		return row
+	end
+
+	local previousTextStyleRow
+	for _, elementID in ipairs({ "categoryHeader", "subcategoryHeader", "overlays", "stackCount" }) do
+		previousTextStyleRow = createTextStyleRow(elementID, previousTextStyleRow)
+	end
+	page.TextStyleRows = textStyleRows
 
 	local subcategoryFullLabels = createInlineCheckbox(
 		textAppearanceCard,
@@ -3813,8 +3818,11 @@ local function createLayoutPage(parent)
 		end
 	)
 	page.SubcategoryFullLabels = subcategoryFullLabels
-	subcategoryFullLabels:SetPoint("TOPLEFT", textAppearanceCard, "LEFT", textAppearanceLeftInset - 4, 0)
-	subcategoryFullLabels:SetPoint("TOP", elementOutlineButton, "BOTTOM", 0, -12)
+	if previousTextStyleRow then
+		subcategoryFullLabels:SetPoint("TOPLEFT", previousTextStyleRow, "BOTTOMLEFT", -4, -10)
+	else
+		subcategoryFullLabels:SetPoint("TOPLEFT", textStylesTitle, "BOTTOMLEFT", -4, -10)
+	end
 	if subcategoryFullLabels.Label then
 		subcategoryFullLabels.Label:SetPoint("RIGHT", textAppearanceCard, "RIGHT", -14, 0)
 		subcategoryFullLabels.Label:SetWordWrap(false)
@@ -3983,29 +3991,29 @@ refreshLayoutPage = function(page)
 	if page.TextOutlineButton then
 		page.TextOutlineButton:SetText(getOptionLabel(addon.GetTextOutlineOptions and addon.GetTextOutlineOptions() or {}, appearance.outline, L["settingsTextOutlineLabel"] or "Outline"))
 	end
-	local selectedElement = page.SelectedTextElement or "categoryHeader"
-	local elementAppearance = addon.GetTextElementAppearance and addon.GetTextElementAppearance(selectedElement) or {}
-	if page.TextElementButton then
-		page.TextElementButton:SetText(getOptionLabel(addon.GetTextElementOptions and addon.GetTextElementOptions() or {}, selectedElement, L["settingsTextElementLabel"] or "Text element"))
-	end
-	if page.TextElementFontButton then
-		page.TextElementFontButton:SetText(getOptionLabel(addon.GetTextElementFontOptions and addon.GetTextElementFontOptions() or {}, elementAppearance.font, L["settingsTextElementFontLabel"] or "Element font"))
-	end
-	if page.TextElementSizeValue then
+	for _, row in ipairs(page.TextStyleRows or {}) do
+		local elementID = row.ElementID
+		local elementAppearance = addon.GetTextElementAppearance and addon.GetTextElementAppearance(elementID) or {}
 		local size = tonumber(elementAppearance.size) or 12
-		page.TextElementSizeValue:SetText(tostring(size))
-		if page.TextElementSizeDownButton then
-			page.TextElementSizeDownButton:SetEnabled(size > 8)
+		if row.FontButton then
+			row.FontButton:SetText(getOptionLabel(addon.GetTextElementFontOptions and addon.GetTextElementFontOptions() or {}, elementAppearance.font, L["settingsTextElementFontLabel"] or "Element font"))
 		end
-		if page.TextElementSizeUpButton then
-			page.TextElementSizeUpButton:SetEnabled(size < 24)
+		if row.SizeValue then
+			row.SizeValue:SetText(tostring(size))
 		end
-	end
-	if page.TextElementCaseButton then
-		page.TextElementCaseButton:SetText(getOptionLabel(addon.GetTextCaseOptions and addon.GetTextCaseOptions() or {}, elementAppearance.case or "default", L["settingsTextCaseLabel"] or "Case"))
-	end
-	if page.TextElementOutlineButton then
-		page.TextElementOutlineButton:SetText(getOptionLabel(addon.GetTextElementOutlineOptions and addon.GetTextElementOutlineOptions() or {}, elementAppearance.outline, L["settingsTextElementOutlineLabel"] or "Element outline"))
+		if row.SizeDownButton then
+			row.SizeDownButton:SetEnabled(size > 8)
+		end
+		if row.SizeUpButton then
+			row.SizeUpButton:SetEnabled(size < 24)
+		end
+		if row.CaseButton then
+			row.CaseButton:SetShown(elementID ~= "stackCount")
+			row.CaseButton:SetText(getOptionLabel(addon.GetTextCaseOptions and addon.GetTextCaseOptions() or {}, elementAppearance.case or "default", L["settingsTextCaseLabel"] or "Case"))
+		end
+		if row.OutlineButton then
+			row.OutlineButton:SetText(getOptionLabel(addon.GetTextElementOutlineOptions and addon.GetTextElementOutlineOptions() or {}, elementAppearance.outline, L["settingsTextElementOutlineLabel"] or "Element outline"))
+		end
 	end
 	if page.SubcategoryFullLabels then
 		page.SubcategoryFullLabels:SetChecked(addon.GetSubcategoryFullLabels and addon.GetSubcategoryFullLabels() or false)
@@ -4476,7 +4484,7 @@ applyLayoutPageMode = function(page)
 	end
 
 	if page.TextAppearanceCard then
-		page.TextAppearanceCard:SetHeight(724)
+		page.TextAppearanceCard:SetHeight(basicMode and 552 or 836)
 	end
 	if page.TextAppearanceTitle then
 		page.TextAppearanceTitle:SetText((basicMode and (L["settingsBasicLookTitle"] or "Look")) or (L["settingsTextAppearanceTitle"] or "Text appearance"))
@@ -4488,33 +4496,34 @@ applyLayoutPageMode = function(page)
 		)
 	end
 
-	local showAdvancedLookControls = true
 	for _, pair in ipairs({
 		{ page.TextFontLabel, page.TextFontButton },
 		{ page.TextSizeLabel, page.TextSizeStepper },
 		{ page.TextOverlaySizeLabel, page.TextOverlaySizeStepper },
 		{ page.TextOutlineLabel, page.TextOutlineButton },
-		{ page.TextElementLabel, page.TextElementButton },
-		{ page.TextElementFontLabel, page.TextElementFontButton },
-		{ page.TextElementSizeLabel, page.TextElementSizeStepper },
-		{ page.TextElementCaseLabel, page.TextElementCaseButton },
-		{ page.TextElementOutlineLabel, page.TextElementOutlineButton },
 	}) do
 		if pair[1] then
-			pair[1]:SetShown(showAdvancedLookControls)
+			pair[1]:SetShown(true)
 		end
 		if pair[2] then
-			pair[2]:SetShown(showAdvancedLookControls)
+			pair[2]:SetShown(true)
 		end
 	end
+	local showAdvancedLookControls = not basicMode
+	if page.TextStylesTitle then
+		page.TextStylesTitle:SetShown(showAdvancedLookControls)
+	end
+	for _, row in ipairs(page.TextStyleRows or {}) do
+		row:SetShown(showAdvancedLookControls)
+	end
 	if page.TextPreviewLabel then
-		page.TextPreviewLabel:SetShown(showAdvancedLookControls)
+		page.TextPreviewLabel:SetShown(true)
 	end
 	if page.TextPreview then
-		page.TextPreview:SetShown(showAdvancedLookControls)
+		page.TextPreview:SetShown(true)
 	end
 	if page.TextOverlayPreview then
-		page.TextOverlayPreview:SetShown(showAdvancedLookControls)
+		page.TextOverlayPreview:SetShown(true)
 	end
 	if page.SubcategoryFullLabels then
 		page.SubcategoryFullLabels:SetShown(showAdvancedLookControls)
@@ -4535,21 +4544,29 @@ applyLayoutPageMode = function(page)
 	anchorTextAppearanceControl(page.TextAppearanceCard, page.TextAppearanceHint, page.TextSizeLabel, page.TextSizeStepper, page.TextFontButton)
 	anchorTextAppearanceControl(page.TextAppearanceCard, page.TextAppearanceHint, page.TextOverlaySizeLabel, page.TextOverlaySizeStepper, page.TextSizeStepper)
 	anchorTextAppearanceControl(page.TextAppearanceCard, page.TextAppearanceHint, page.TextOutlineLabel, page.TextOutlineButton, page.TextOverlaySizeStepper)
-	anchorTextAppearanceControl(page.TextAppearanceCard, page.TextAppearanceHint, page.TextElementLabel, page.TextElementButton, page.TextOutlineButton)
-	anchorTextAppearanceControl(page.TextAppearanceCard, page.TextAppearanceHint, page.TextElementFontLabel, page.TextElementFontButton, page.TextElementButton)
-	anchorTextAppearanceControl(page.TextAppearanceCard, page.TextAppearanceHint, page.TextElementSizeLabel, page.TextElementSizeStepper, page.TextElementFontButton)
-	anchorTextAppearanceControl(page.TextAppearanceCard, page.TextAppearanceHint, page.TextElementCaseLabel, page.TextElementCaseButton, page.TextElementSizeStepper)
-	anchorTextAppearanceControl(page.TextAppearanceCard, page.TextAppearanceHint, page.TextElementOutlineLabel, page.TextElementOutlineButton, page.TextElementCaseButton)
 	if page.SubcategoryFullLabels then
 		page.SubcategoryFullLabels:ClearAllPoints()
-		page.SubcategoryFullLabels:SetPoint("TOPLEFT", page.TextAppearanceCard, "LEFT", 10, 0)
-		page.SubcategoryFullLabels:SetPoint("TOP", page.TextElementOutlineButton, "BOTTOM", 0, -12)
+		local lastRow = page.TextStyleRows and page.TextStyleRows[#page.TextStyleRows] or nil
+		if lastRow then
+			page.SubcategoryFullLabels:SetPoint("TOPLEFT", lastRow, "BOTTOMLEFT", -4, -10)
+		else
+			page.SubcategoryFullLabels:SetPoint("TOPLEFT", page.TextOutlineButton, "BOTTOMLEFT", -4, -10)
+		end
 		if page.SubcategoryFullLabels.Label then
 			page.SubcategoryFullLabels.Label:ClearAllPoints()
 			page.SubcategoryFullLabels.Label:SetPoint("LEFT", page.SubcategoryFullLabels, "RIGHT", 4, 1)
 			page.SubcategoryFullLabels.Label:SetPoint("RIGHT", page.TextAppearanceCard, "RIGHT", -14, 0)
 			page.SubcategoryFullLabels.Label:SetJustifyH("LEFT")
 			page.SubcategoryFullLabels.Label:SetWordWrap(false)
+		end
+	end
+	if page.TextPreviewLabel then
+		page.TextPreviewLabel:ClearAllPoints()
+		page.TextPreviewLabel:SetPoint("LEFT", page.TextAppearanceCard, "LEFT", 14, 0)
+		if showAdvancedLookControls and page.SubcategoryFullLabels then
+			page.TextPreviewLabel:SetPoint("TOP", page.SubcategoryFullLabels, "BOTTOM", 0, -18)
+		else
+			page.TextPreviewLabel:SetPoint("TOP", page.TextOutlineButton, "BOTTOM", 0, -18)
 		end
 	end
 end

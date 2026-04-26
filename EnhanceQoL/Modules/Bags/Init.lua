@@ -59,6 +59,7 @@ local TEXT_ELEMENT_ORDER = {
 	"categoryHeader",
 	"subcategoryHeader",
 	"overlays",
+	"stackCount",
 }
 local TEXT_ELEMENT_DEFINITIONS = {
 	categoryHeader = {
@@ -71,6 +72,10 @@ local TEXT_ELEMENT_DEFINITIONS = {
 	},
 	overlays = {
 		labelKey = "settingsTextElementOverlays",
+		size = 13,
+	},
+	stackCount = {
+		labelKey = "settingsTextElementStackCount",
 		size = 13,
 	},
 }
@@ -139,6 +144,12 @@ local defaultSettings = {
 			overlays = {
 				font = TEXT_ELEMENT_INHERIT_KEY,
 				size = TEXT_ELEMENT_DEFINITIONS.overlays.size,
+				case = "default",
+				outline = TEXT_ELEMENT_INHERIT_KEY,
+			},
+			stackCount = {
+				font = TEXT_ELEMENT_INHERIT_KEY,
+				size = TEXT_ELEMENT_DEFINITIONS.stackCount.size,
 				case = "default",
 				outline = TEXT_ELEMENT_INHERIT_KEY,
 			},
@@ -223,15 +234,12 @@ local textAppearanceDefaultsCache = {
 }
 
 local resolvedTextAppearanceCache = {
-	appearance = nil,
-	elementID = nil,
-	font = nil,
-	outline = nil,
-	size = nil,
-	overlaySize = nil,
-	globalVersion = nil,
-	fontMediaVersion = nil,
+	byElement = {},
 }
+
+local function invalidateResolvedTextAppearanceCache()
+	resolvedTextAppearanceCache.byElement = {}
+end
 
 local TRACKED_CURRENCY_DATA_REQUEST_THROTTLE = 5
 local trackedCurrencyDataRequestState = addon.Bags.variables.trackedCurrencyDataRequestState or {}
@@ -255,7 +263,7 @@ local function ensureSettingsDefaults(settings)
 		applyDefaults(settings, defaultSettings)
 		settingsDefaultsCache.table = settings
 		textAppearanceDefaultsCache.table = nil
-		resolvedTextAppearanceCache.appearance = nil
+		invalidateResolvedTextAppearanceCache()
 	end
 
 	return settings
@@ -300,7 +308,7 @@ local function ensureTextAppearanceDefaults(appearance)
 			end
 		end
 		textAppearanceDefaultsCache.table = appearance
-		resolvedTextAppearanceCache.appearance = nil
+		invalidateResolvedTextAppearanceCache()
 	end
 
 	return appearance
@@ -323,7 +331,7 @@ local function applyIntegratedDefaults(settings)
 	settings.integratedDefaultsVersion = INTEGRATED_DEFAULTS_VERSION
 	settingsDefaultsCache.table = nil
 	textAppearanceDefaultsCache.table = nil
-	resolvedTextAppearanceCache.appearance = nil
+	invalidateResolvedTextAppearanceCache()
 	return true
 end
 
@@ -1384,7 +1392,7 @@ function addon.SetTextElementFont(elementID, fontID)
 		fontID = TEXT_ELEMENT_INHERIT_KEY
 	end
 	element.font = fontID
-	resolvedTextAppearanceCache.appearance = nil
+	invalidateResolvedTextAppearanceCache()
 	return true
 end
 
@@ -1403,7 +1411,7 @@ function addon.SetTextElementSize(elementID, size)
 		return false
 	end
 	element.size = size
-	resolvedTextAppearanceCache.appearance = nil
+	invalidateResolvedTextAppearanceCache()
 	return true
 end
 
@@ -1434,7 +1442,7 @@ function addon.SetTextElementOutline(elementID, outlineID)
 		end
 	end
 	element.outline = outlineID
-	resolvedTextAppearanceCache.appearance = nil
+	invalidateResolvedTextAppearanceCache()
 	return true
 end
 
@@ -1471,6 +1479,8 @@ end
 function addon.GetResolvedTextAppearance(elementID)
 	local appearance = addon.GetTextAppearance()
 	local element = TEXT_ELEMENT_DEFINITIONS[elementID] and addon.GetTextElementAppearance(elementID) or nil
+	local cacheKey = elementID or "__base"
+	local cache = resolvedTextAppearanceCache.byElement[cacheKey]
 	local fontID = element and element.font ~= TEXT_ELEMENT_INHERIT_KEY and element.font or appearance.font or defaultSettings.textAppearance.font
 	local outlineID = element and element.outline ~= TEXT_ELEMENT_INHERIT_KEY and element.outline or appearance.outline or defaultSettings.textAppearance.outline
 	local size = math.floor((tonumber(element and element.size) or tonumber(appearance.size) or defaultSettings.textAppearance.size) + 0.5)
@@ -1478,28 +1488,32 @@ function addon.GetResolvedTextAppearance(elementID)
 	local globalVersion = addon.functions and addon.functions.GetGlobalFontStateVersion and addon.functions.GetGlobalFontStateVersion() or 0
 	local fontMediaVersion = addon.functions and addon.functions.GetLSMMediaVersion and addon.functions.GetLSMMediaVersion("font") or 0
 
-	if resolvedTextAppearanceCache.appearance ~= appearance
-		or resolvedTextAppearanceCache.elementID ~= elementID
-		or resolvedTextAppearanceCache.font ~= fontID
-		or resolvedTextAppearanceCache.outline ~= outlineID
-		or resolvedTextAppearanceCache.size ~= size
-		or resolvedTextAppearanceCache.overlaySize ~= overlaySize
-		or resolvedTextAppearanceCache.globalVersion ~= globalVersion
-		or resolvedTextAppearanceCache.fontMediaVersion ~= fontMediaVersion
+	if not cache
+		or cache.appearance ~= appearance
+		or cache.elementID ~= elementID
+		or cache.font ~= fontID
+		or cache.outline ~= outlineID
+		or cache.size ~= size
+		or cache.overlaySize ~= overlaySize
+		or cache.globalVersion ~= globalVersion
+		or cache.fontMediaVersion ~= fontMediaVersion
 	then
-		resolvedTextAppearanceCache.appearance = appearance
-		resolvedTextAppearanceCache.elementID = elementID
-		resolvedTextAppearanceCache.font = fontID
-		resolvedTextAppearanceCache.outline = outlineID
-		resolvedTextAppearanceCache.size = size
-		resolvedTextAppearanceCache.overlaySize = overlaySize
-		resolvedTextAppearanceCache.globalVersion = globalVersion
-		resolvedTextAppearanceCache.fontMediaVersion = fontMediaVersion
-		resolvedTextAppearanceCache.fontPath = addon.GetTextFontPath(fontID)
-		resolvedTextAppearanceCache.outlineFlags = addon.GetTextOutlineFlags(outlineID)
+		cache = {
+			appearance = appearance,
+			elementID = elementID,
+			font = fontID,
+			outline = outlineID,
+			size = size,
+			overlaySize = overlaySize,
+			globalVersion = globalVersion,
+			fontMediaVersion = fontMediaVersion,
+			fontPath = addon.GetTextFontPath(fontID),
+			outlineFlags = addon.GetTextOutlineFlags(outlineID),
+		}
+		resolvedTextAppearanceCache.byElement[cacheKey] = cache
 	end
 
-	return resolvedTextAppearanceCache
+	return cache
 end
 
 function addon.SetTextAppearanceFont(fontID)
@@ -1509,7 +1523,7 @@ function addon.SetTextAppearanceFont(fontID)
 
 	local appearance = addon.GetTextAppearance()
 	appearance.font = fontID
-	resolvedTextAppearanceCache.appearance = nil
+	invalidateResolvedTextAppearanceCache()
 	return true
 end
 
@@ -1522,7 +1536,11 @@ function addon.SetTextAppearanceSize(size)
 	end
 
 	local appearance = addon.GetTextAppearance()
+	if tonumber(appearance.size) == size then
+		return false
+	end
 	appearance.size = size
+	invalidateResolvedTextAppearanceCache()
 	return true
 end
 
@@ -1556,6 +1574,7 @@ function addon.SetTextAppearanceOverlaySize(size)
 	end
 
 	appearance.overlaySize = size
+	invalidateResolvedTextAppearanceCache()
 	return true
 end
 
@@ -1569,7 +1588,7 @@ function addon.SetTextAppearanceOutline(outlineID)
 
 	local appearance = addon.GetTextAppearance()
 	appearance.outline = outlineID
-	resolvedTextAppearanceCache.appearance = nil
+	invalidateResolvedTextAppearanceCache()
 	return true
 end
 
@@ -1626,7 +1645,7 @@ function addon.SetMoneyFormat(format)
 end
 
 function addon.Bags.functions.RefreshGlobalFont()
-	resolvedTextAppearanceCache.appearance = nil
+	invalidateResolvedTextAppearanceCache()
 	if addon.Bags.functions.RequestLayoutUpdate then
 		addon.Bags.functions.RequestLayoutUpdate(false, true)
 	end

@@ -4,11 +4,13 @@
 
 ### ✨ Added
 
+- Bags: Added Advanced text style controls for category headers, subcategory headers, item overlays, and stack counts, including per-element font, size, case, and outline options where applicable.
 - Cooldown Panels: Added an "Always show (desaturate when active)" tracked aura display option.
 - Group Frames / Hover Highlight: Added a frame level control alongside the existing strata control.
 
 ### 🐛 Fixed
 
+- Bags: Fixed per-element font and outline changes sometimes requiring a UI reload by resolving text appearance caches per element instead of sharing one cache across all bag text styles.
 - Cooldown Panels: Fixed tracked aura entries with a configured state texture disappearing while using "Always show (desaturate if inactive)".
 - Group Frames / Party: Fixed name TOPLEFT/TOPRIGHT style anchors being shifted by role-icon padding instead of using the selected corner literally.
 
