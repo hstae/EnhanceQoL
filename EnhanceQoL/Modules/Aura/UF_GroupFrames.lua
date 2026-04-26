@@ -16,6 +16,7 @@ UF.GroupFrames = UF.GroupFrames or {}
 local GF = UF.GroupFrames
 local EMPTY = {}
 local getCfg
+local isEditModeActive
 
 local UFHelper = addon.Aura.UFHelper
 local AuraUtil = UF.AuraUtil
@@ -590,6 +591,153 @@ local function setBackdrop(frame, borderCfg)
 			borderFrame:SetBackdrop(nil)
 			borderFrame:Hide()
 		end
+	end
+end
+
+function GF.EnsureGroupBorderFrame(kind, anchor)
+	if kind ~= "party" or not anchor then return nil end
+	GF.groupBorders = GF.groupBorders or {}
+	local border = GF.groupBorders[kind]
+	if not border then
+		local parent = anchor:GetParent() or _G.PetBattleFrameHider or UIParent
+		border = CreateFrame("Frame", "EQOLUFPartyGroupBorder", parent, "BackdropTemplate")
+		border:EnableMouse(false)
+		border:Hide()
+		GF.groupBorders[kind] = border
+	elseif border.GetParent and anchor.GetParent and border:GetParent() ~= anchor:GetParent() then
+		border:SetParent(anchor:GetParent())
+	end
+	return border
+end
+
+function GF.HideGroupBorder(kind)
+	local border = GF.groupBorders and GF.groupBorders[kind]
+	if not border then return end
+	if UnregisterStateDriver then UnregisterStateDriver(border, "visibility") end
+	border:SetBackdrop(nil)
+	if border._eqolBackdrop then
+		border._eqolBackdrop:SetBackdrop(nil)
+		border._eqolBackdrop:Hide()
+	end
+	border:Hide()
+end
+
+function GF.GetPartyGroupBorderCount(cfg)
+	if not cfg then return 0 end
+	if isEditModeActive and isEditModeActive() then
+		if GF._previewActive and GF._previewActive.party then
+			local sampleCount = GF._previewSampleCount and GF._previewSampleCount.party
+			if sampleCount and sampleCount > 0 then return min(sampleCount, 5) end
+			local samples = GF._previewSamples and GF._previewSamples.party
+			return min((samples and #samples) or 5, 5)
+		end
+		return 5
+	end
+	if IsInRaid and IsInRaid() then return 0 end
+	if IsInGroup and IsInGroup() then
+		local count = (GetNumSubgroupMembers and GetNumSubgroupMembers()) or 0
+		if cfg.showPlayer then count = count + 1 end
+		if count < 1 then count = 1 end
+		return min(count, 5)
+	end
+	if cfg.showSolo then return 1 end
+	return 0
+end
+
+function GF.SetGroupBorderFrameBackdrop(border, borderCfg)
+	if not border then return end
+	local backdrop = border._eqolBackdrop
+	if not backdrop then
+		backdrop = CreateFrame("Frame", nil, border, "BackdropTemplate")
+		backdrop:EnableMouse(false)
+		border._eqolBackdrop = backdrop
+	end
+	local color = borderCfg.color or { 1, 1, 1, 1 }
+	local edgeSize = tonumber(borderCfg.edgeSize) or 1
+	if edgeSize < 1 then edgeSize = 1 end
+	local offset = borderCfg.offset
+	if offset == nil then offset = borderCfg.inset end
+	if offset == nil then offset = edgeSize end
+	offset = max(0, tonumber(offset) or 0)
+	local insetVal = borderCfg.inset
+	if insetVal == nil then insetVal = edgeSize end
+	insetVal = max(0, tonumber(insetVal) or edgeSize)
+	local edgeFile = (UFHelper and UFHelper.resolveBorderTexture and UFHelper.resolveBorderTexture(borderCfg.texture)) or "Interface\\Buttons\\WHITE8x8"
+
+	backdrop:ClearAllPoints()
+	backdrop:SetPoint("TOPLEFT", border, "TOPLEFT", -offset, offset)
+	backdrop:SetPoint("BOTTOMRIGHT", border, "BOTTOMRIGHT", offset, -offset)
+	backdrop:SetBackdrop({
+		bgFile = "Interface\\Buttons\\WHITE8x8",
+		edgeFile = edgeFile,
+		tile = false,
+		edgeSize = edgeSize,
+		insets = { left = insetVal, right = insetVal, top = insetVal, bottom = insetVal },
+	})
+	backdrop:SetBackdropColor(0, 0, 0, 0)
+	backdrop:SetBackdropBorderColor(color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1)
+	backdrop:Show()
+end
+
+function GF:ApplyPartyGroupBorder(cfg, header, anchor, growth, scale, spacing, unitW, unitH, startPoint, relativePoint, offsetX, offsetY)
+	local borderCfg = cfg and cfg.groupBorder
+	if not (borderCfg and borderCfg.enabled == true and header and anchor) then
+		GF.HideGroupBorder("party")
+		return
+	end
+	local count = GF.GetPartyGroupBorderCount(cfg)
+	if count <= 0 then
+		GF.HideGroupBorder("party")
+		return
+	end
+
+	local border = GF.EnsureGroupBorderFrame("party", anchor)
+	if not border then return end
+
+	local targetStrata = anchor:GetFrameStrata()
+	local strata = GF.NormalizeFrameStrataToken(borderCfg.strata)
+	if strata then targetStrata = strata end
+	if border.SetFrameStrata and targetStrata then border:SetFrameStrata(targetStrata) end
+
+	local levelOffset = clampNumber(tonumber(borderCfg.frameLevelOffset), -20, 1000, 3)
+	levelOffset = floor(levelOffset + (levelOffset >= 0 and 0.5 or -0.5))
+	local level = (anchor:GetFrameLevel() or 1) + levelOffset
+	if level < 0 then level = 0 end
+	if border.SetFrameLevel then border:SetFrameLevel(level) end
+
+	local totalW, totalH
+	if growth == "RIGHT" or growth == "LEFT" then
+		totalW = unitW * count + spacing * max(0, count - 1)
+		totalH = unitH
+	else
+		totalW = unitW
+		totalH = unitH * count + spacing * max(0, count - 1)
+	end
+	if Pixel and Pixel.RoundEven then
+		totalW = Pixel.RoundEven(totalW, scale, 2)
+		totalH = Pixel.RoundEven(totalH, scale, 2)
+	elseif GFH and GFH.RoundToPixel then
+		totalW = GFH.RoundToPixel(totalW * 0.5, scale) * 2
+		totalH = GFH.RoundToPixel(totalH * 0.5, scale) * 2
+	end
+	if Pixel and Pixel.SetSize then
+		Pixel.SetSize(border, totalW, totalH)
+	else
+		border:SetSize(totalW, totalH)
+	end
+
+	GF.SetGroupBorderFrameBackdrop(border, borderCfg)
+	border:ClearAllPoints()
+	if Pixel and Pixel.SetPoint then
+		Pixel.SetPoint(border, startPoint, anchor, relativePoint, offsetX, offsetY)
+	else
+		border:SetPoint(startPoint, anchor, relativePoint, offsetX, offsetY)
+	end
+	if RegisterStateDriver then
+		if UnregisterStateDriver then UnregisterStateDriver(border, "visibility") end
+		RegisterStateDriver(border, "visibility", header._eqolVisibilityCond or "hide")
+	else
+		border:Show()
 	end
 end
 
@@ -2056,8 +2204,6 @@ local function getPlayerSpecId()
 	return nil
 end
 
-local isEditModeActive
-
 local function shouldShowPowerForUnit(pcfg, unit, st)
 	if not pcfg then return true end
 	local roleMode = GFH.SelectionMode(pcfg.showRoles)
@@ -2261,6 +2407,21 @@ local DEFAULTS = {
 		},
 		barTexture = "EQOL: Blizzard cropped",
 		border = {
+			color = {
+				1,
+				1,
+				1,
+				1,
+			},
+			edgeSize = 15,
+			enabled = false,
+			frameLevelOffset = 10,
+			inset = 0,
+			offset = 2,
+			strata = "",
+			texture = "Blizzard Dialog",
+		},
+		groupBorder = {
 			color = {
 				1,
 				1,
@@ -7998,6 +8159,13 @@ local AURA_TYPE_META = {
 	},
 }
 
+function GF.ResolveAuraTooltipEnabled(groupKind, kindKey, typeCfg)
+	if typeCfg and typeCfg.showTooltip ~= nil then return typeCfg.showTooltip == true end
+	local def = DEFAULTS[groupKind] and DEFAULTS[groupKind].auras and DEFAULTS[groupKind].auras[kindKey]
+	if def and def.showTooltip ~= nil then return def.showTooltip == true end
+	return false
+end
+
 local SAMPLE_BUFF_ICONS = { 136243, 135940, 136085, 136097, 136116, 136048, 135932, 136108 }
 local SAMPLE_DEBUFF_ICONS = { 136207, 136160, 136128, 135804, 136168, 132104, 136118, 136214 }
 local SAMPLE_EXTERNAL_ICONS = { 135936, 136073, 135907, 135940, 136090, 135978 }
@@ -8175,7 +8343,7 @@ function GF:LayoutAuras(self)
 			local style = st._auraStyle[kindKey] or {}
 			style.size = size
 			style.padding = spacing
-			style.showTooltip = typeCfg.showTooltip ~= false
+			style.showTooltip = GF.ResolveAuraTooltipEnabled(groupKind, kindKey, typeCfg)
 			style.tooltipUseEditMode = st._tooltipUseEditMode == true
 			style.tooltipAnchor = "ANCHOR_RIGHT"
 			style.showCooldown = typeCfg.showCooldown ~= false
@@ -13083,8 +13251,10 @@ function GF:ApplyHeaderAttributes(kind, options)
 		else
 			header:SetPoint(p, anchor, rp, anchorOffsetX, anchorOffsetY)
 		end
+		if kind == "party" then GF:ApplyPartyGroupBorder(cfg, header, anchor, growth, scale, spacing, w, h, p, rp, anchorOffsetX, anchorOffsetY) end
 	else
 		GF.SetGroupAnchorPointFromCfg(header, kind, cfg)
+		if kind == "party" then GF.HideGroupBorder("party") end
 	end
 
 	local forceHide = header._eqolForceHide
@@ -13097,6 +13267,13 @@ function GF:ApplyHeaderAttributes(kind, options)
 		header._eqolSpecialHide = nil
 	end
 	applyVisibility(header, kind, cfg)
+	if kind == "party" then
+		local border = GF.groupBorders and GF.groupBorders.party
+		if border and RegisterStateDriver then
+			if UnregisterStateDriver then UnregisterStateDriver(border, "visibility") end
+			RegisterStateDriver(border, "visibility", header._eqolVisibilityCond or "hide")
+		end
+	end
 
 	if kind == "raid" then
 		if useGroupHeaders then
@@ -13339,6 +13516,11 @@ function GF:DisableFeature()
 	if GF.anchors then
 		for _, anchor in pairs(GF.anchors) do
 			if anchor.Hide then anchor:Hide() end
+		end
+	end
+	if GF.groupBorders then
+		for kind in pairs(GF.groupBorders) do
+			GF.HideGroupBorder(kind)
 		end
 	end
 end
@@ -16552,6 +16734,165 @@ local function buildEditModeSettings(kind, editModeId)
 				local cfg = getCfg(kind)
 				local bc = cfg and cfg.border or {}
 				return bc.enabled ~= false
+			end,
+		},
+		{
+			name = string.format("%s %s", PARTY or "Party", EMBLEM_BORDER or "Border"),
+			kind = SettingType.Collapsible,
+			id = "partyGroupBorder",
+			defaultCollapsed = true,
+			isShown = function() return kind == "party" end,
+		},
+		{
+			name = L["Show border"] or "Show border",
+			kind = SettingType.Checkbox,
+			field = "groupBorderEnabled",
+			parentId = "partyGroupBorder",
+			get = function()
+				local cfg = getCfg(kind)
+				local bc = cfg and cfg.groupBorder or {}
+				local def = DEFAULTS.party and DEFAULTS.party.groupBorder or {}
+				if bc.enabled == nil then return def.enabled == true end
+				return bc.enabled == true
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.groupBorder = cfg.groupBorder or {}
+				cfg.groupBorder.enabled = value and true or false
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "groupBorderEnabled", cfg.groupBorder.enabled, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			isShown = function() return kind == "party" end,
+		},
+		{
+			name = EMBLEM_BORDER_COLOR,
+			kind = SettingType.Color,
+			field = "groupBorderColor",
+			parentId = "partyGroupBorder",
+			hasOpacity = true,
+			default = (DEFAULTS.party and DEFAULTS.party.groupBorder and DEFAULTS.party.groupBorder.color) or { 1, 1, 1, 1 },
+			get = function()
+				local cfg = getCfg(kind)
+				local bc = cfg and cfg.groupBorder or {}
+				local def = (DEFAULTS.party and DEFAULTS.party.groupBorder and DEFAULTS.party.groupBorder.color) or { 1, 1, 1, 1 }
+				local r, g, b, a = unpackColor(bc.color, def)
+				return { r = r, g = g, b = b, a = a }
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not (cfg and value) then return end
+				cfg.groupBorder = cfg.groupBorder or {}
+				cfg.groupBorder.color = { value.r or 1, value.g or 1, value.b or 1, value.a or 1 }
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "groupBorderColor", cfg.groupBorder.color, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			isShown = function() return kind == "party" end,
+			isEnabled = function()
+				local cfg = getCfg(kind)
+				local bc = cfg and cfg.groupBorder or {}
+				return bc.enabled == true
+			end,
+		},
+		{
+			name = L["Border texture"] or "Border texture",
+			kind = SettingType.Dropdown,
+			field = "groupBorderTexture",
+			parentId = "partyGroupBorder",
+			height = 180,
+			get = function()
+				local cfg = getCfg(kind)
+				local bc = cfg and cfg.groupBorder or {}
+				return bc.texture or (DEFAULTS.party and DEFAULTS.party.groupBorder and DEFAULTS.party.groupBorder.texture) or "DEFAULT"
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.groupBorder = cfg.groupBorder or {}
+				cfg.groupBorder.texture = value or "DEFAULT"
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "groupBorderTexture", cfg.groupBorder.texture, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			generator = function(_, root)
+				for _, option in ipairs(borderOptions()) do
+					root:CreateRadio(option.label, function()
+						local cfg = getCfg(kind)
+						local bc = cfg and cfg.groupBorder or {}
+						return (bc.texture or (DEFAULTS.party and DEFAULTS.party.groupBorder and DEFAULTS.party.groupBorder.texture) or "DEFAULT") == option.value
+					end, function()
+						local cfg = getCfg(kind)
+						if not cfg then return end
+						cfg.groupBorder = cfg.groupBorder or {}
+						cfg.groupBorder.texture = option.value
+						if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "groupBorderTexture", option.value, nil, true) end
+						GF:ApplyHeaderAttributes(kind)
+					end)
+				end
+			end,
+			isShown = function() return kind == "party" end,
+			isEnabled = function()
+				local cfg = getCfg(kind)
+				local bc = cfg and cfg.groupBorder or {}
+				return bc.enabled == true
+			end,
+		},
+		{
+			name = L["Border size"] or "Border size",
+			kind = SettingType.Slider,
+			allowInput = true,
+			field = "groupBorderSize",
+			parentId = "partyGroupBorder",
+			minValue = 1,
+			maxValue = 64,
+			valueStep = 1,
+			get = function()
+				local cfg = getCfg(kind)
+				local bc = cfg and cfg.groupBorder or {}
+				return bc.edgeSize or (DEFAULTS.party and DEFAULTS.party.groupBorder and DEFAULTS.party.groupBorder.edgeSize) or 1
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.groupBorder = cfg.groupBorder or {}
+				cfg.groupBorder.edgeSize = clampNumber(value, 1, 64, cfg.groupBorder.edgeSize or 1)
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "groupBorderSize", cfg.groupBorder.edgeSize, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			isShown = function() return kind == "party" end,
+			isEnabled = function()
+				local cfg = getCfg(kind)
+				local bc = cfg and cfg.groupBorder or {}
+				return bc.enabled == true
+			end,
+		},
+		{
+			name = L["Border offset"] or "Border offset",
+			kind = SettingType.Slider,
+			allowInput = true,
+			field = "groupBorderOffset",
+			parentId = "partyGroupBorder",
+			minValue = 0,
+			maxValue = 64,
+			valueStep = 1,
+			get = function()
+				local cfg = getCfg(kind)
+				local bc = cfg and cfg.groupBorder or {}
+				if bc.offset == nil and bc.inset == nil then return bc.edgeSize or (DEFAULTS.party and DEFAULTS.party.groupBorder and DEFAULTS.party.groupBorder.edgeSize) or 1 end
+				return bc.offset or bc.inset or 0
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.groupBorder = cfg.groupBorder or {}
+				cfg.groupBorder.offset = clampNumber(value, 0, 64, cfg.groupBorder.offset or cfg.groupBorder.inset or 0)
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "groupBorderOffset", cfg.groupBorder.offset, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			isShown = function() return kind == "party" end,
+			isEnabled = function()
+				local cfg = getCfg(kind)
+				local bc = cfg and cfg.groupBorder or {}
+				return bc.enabled == true
 			end,
 		},
 		{
@@ -26420,6 +26761,23 @@ local function applyEditModeData(kind, data)
 		cfg.border.frameLevelOffset = offset
 	end
 	if
+		kind == "party"
+		and (
+			data.groupBorderEnabled ~= nil
+			or data.groupBorderColor ~= nil
+			or data.groupBorderTexture ~= nil
+			or data.groupBorderSize ~= nil
+			or data.groupBorderOffset ~= nil
+		)
+	then
+		cfg.groupBorder = cfg.groupBorder or {}
+		if data.groupBorderEnabled ~= nil then cfg.groupBorder.enabled = data.groupBorderEnabled and true or false end
+		if data.groupBorderColor ~= nil then cfg.groupBorder.color = data.groupBorderColor end
+		if data.groupBorderTexture ~= nil then cfg.groupBorder.texture = data.groupBorderTexture end
+		if data.groupBorderSize ~= nil then cfg.groupBorder.edgeSize = clampNumber(data.groupBorderSize, 1, 64, cfg.groupBorder.edgeSize or 1) end
+		if data.groupBorderOffset ~= nil then cfg.groupBorder.offset = clampNumber(data.groupBorderOffset, 0, 64, cfg.groupBorder.offset or cfg.groupBorder.inset or 0) end
+	end
+	if
 		data.hoverHighlightEnabled ~= nil
 		or data.hoverHighlightColor ~= nil
 		or data.hoverHighlightTexture ~= nil
@@ -27573,6 +27931,19 @@ function GF:EnsureEditMode()
 					value = clampNumber(value, -20, 1000, 3)
 					return floor(value + (value >= 0 and 0.5 or -0.5))
 				end)(),
+				groupBorderEnabled = kind == "party" and ((cfg.groupBorder and cfg.groupBorder.enabled) == true) or nil,
+				groupBorderColor = kind == "party" and ((cfg.groupBorder and cfg.groupBorder.color) or (DEFAULTS.party and DEFAULTS.party.groupBorder and DEFAULTS.party.groupBorder.color) or { 1, 1, 1, 1 }) or nil,
+				groupBorderTexture = kind == "party" and ((cfg.groupBorder and cfg.groupBorder.texture) or (DEFAULTS.party and DEFAULTS.party.groupBorder and DEFAULTS.party.groupBorder.texture) or "DEFAULT") or nil,
+				groupBorderSize = kind == "party" and ((cfg.groupBorder and cfg.groupBorder.edgeSize) or (DEFAULTS.party and DEFAULTS.party.groupBorder and DEFAULTS.party.groupBorder.edgeSize) or 1) or nil,
+				groupBorderOffset = kind == "party"
+						and (
+							(cfg.groupBorder and (cfg.groupBorder.offset or cfg.groupBorder.inset))
+							or (DEFAULTS.party and DEFAULTS.party.groupBorder and (DEFAULTS.party.groupBorder.offset or DEFAULTS.party.groupBorder.inset))
+							or (cfg.groupBorder and cfg.groupBorder.edgeSize)
+							or (DEFAULTS.party and DEFAULTS.party.groupBorder and DEFAULTS.party.groupBorder.edgeSize)
+							or 1
+						)
+					or nil,
 				hoverHighlightEnabled = (cfg.highlightHover and cfg.highlightHover.enabled) == true,
 				hoverHighlightColor = (cfg.highlightHover and cfg.highlightHover.color) or (def.highlightHover and def.highlightHover.color) or { 1, 1, 1, 0.9 },
 				hoverHighlightTexture = (cfg.highlightHover and cfg.highlightHover.texture) or (def.highlightHover and def.highlightHover.texture) or "DEFAULT",

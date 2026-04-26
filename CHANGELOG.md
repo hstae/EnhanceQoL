@@ -4,6 +4,7 @@
 
 ### ✨ Added
 
+- Group Frames / Party: Added an optional border around the full party group .
 - Mover: Added per-frame position persistence overrides.
 
 ### 🐛 Fixed
