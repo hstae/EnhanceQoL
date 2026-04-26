@@ -3563,7 +3563,7 @@ local function createLayoutPage(parent)
 		openSimpleRadioMenu(self, addon.GetTextFontOptions and addon.GetTextFontOptions() or {}, appearance.font, function(value)
 			if addon.SetTextAppearanceFont and addon.SetTextAppearanceFont(value) then
 				addon.RefreshSettingsFrame()
-				requestBagRefresh(false)
+				requestBagRefresh(true)
 			end
 		end)
 	end)
@@ -3589,7 +3589,7 @@ local function createLayoutPage(parent)
 		local currentSize = tonumber(appearance and appearance.size) or 12
 		if addon.SetTextAppearanceSize and addon.SetTextAppearanceSize(currentSize - 1) then
 			addon.RefreshSettingsFrame()
-			requestBagRefresh(false)
+			requestBagRefresh(true)
 		end
 	end)
 	page.TextSizeDownButton = sizeDownButton
@@ -3604,7 +3604,7 @@ local function createLayoutPage(parent)
 		local currentSize = tonumber(appearance and appearance.size) or 12
 		if addon.SetTextAppearanceSize and addon.SetTextAppearanceSize(currentSize + 1) then
 			addon.RefreshSettingsFrame()
-			requestBagRefresh(false)
+			requestBagRefresh(true)
 		end
 	end)
 	page.TextSizeUpButton = sizeUpButton
@@ -3670,7 +3670,7 @@ local function createLayoutPage(parent)
 		openSimpleRadioMenu(self, addon.GetTextOutlineOptions and addon.GetTextOutlineOptions() or {}, appearance.outline, function(value)
 			if addon.SetTextAppearanceOutline and addon.SetTextAppearanceOutline(value) then
 				addon.RefreshSettingsFrame()
-				requestBagRefresh(false)
+				requestBagRefresh(true)
 			end
 		end)
 	end)
@@ -4072,7 +4072,7 @@ local function createFooterPage(parent)
 		openSimpleRadioMenu(self, addon.GetMoneyFormatOptions and addon.GetMoneyFormatOptions() or {}, moneyFormat, function(value)
 			if addon.SetMoneyFormat and addon.SetMoneyFormat(value) then
 				addon.RefreshSettingsFrame("footer")
-				requestBagRefresh(false)
+				requestBagRefresh(true)
 			end
 		end)
 	end)

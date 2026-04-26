@@ -1478,18 +1478,31 @@ end
 
 function addon.GetResolvedTextAppearance(elementID)
 	local appearance = addon.GetTextAppearance()
-	local element = TEXT_ELEMENT_DEFINITIONS[elementID] and addon.GetTextElementAppearance(elementID) or nil
+	local basicMode = addon.GetActiveCategoryMode and addon.GetActiveCategoryMode() == "basic"
+	local element = (not basicMode and TEXT_ELEMENT_DEFINITIONS[elementID]) and addon.GetTextElementAppearance(elementID) or nil
 	local cacheKey = elementID or "__base"
 	local cache = resolvedTextAppearanceCache.byElement[cacheKey]
+	local baseSize = math.floor((tonumber(appearance.size) or defaultSettings.textAppearance.size) + 0.5)
+	local baseOverlaySize = math.floor((tonumber(appearance.overlaySize) or baseSize) + 0.5)
 	local fontID = element and element.font ~= TEXT_ELEMENT_INHERIT_KEY and element.font or appearance.font or defaultSettings.textAppearance.font
 	local outlineID = element and element.outline ~= TEXT_ELEMENT_INHERIT_KEY and element.outline or appearance.outline or defaultSettings.textAppearance.outline
-	local size = math.floor((tonumber(element and element.size) or tonumber(appearance.size) or defaultSettings.textAppearance.size) + 0.5)
-	local overlaySize = math.floor((tonumber(appearance.overlaySize) or size) + 0.5)
+	local size
+	if element then
+		size = math.floor((tonumber(element.size) or baseSize) + 0.5)
+	elseif elementID == "overlays" or elementID == "stackCount" then
+		size = baseOverlaySize
+	elseif elementID == "categoryHeader" or elementID == "subcategoryHeader" then
+		size = baseSize + 1
+	else
+		size = baseSize
+	end
+	local overlaySize = baseOverlaySize
 	local globalVersion = addon.functions and addon.functions.GetGlobalFontStateVersion and addon.functions.GetGlobalFontStateVersion() or 0
 	local fontMediaVersion = addon.functions and addon.functions.GetLSMMediaVersion and addon.functions.GetLSMMediaVersion("font") or 0
 
 	if not cache
 		or cache.appearance ~= appearance
+		or cache.basicMode ~= basicMode
 		or cache.elementID ~= elementID
 		or cache.font ~= fontID
 		or cache.outline ~= outlineID
@@ -1500,6 +1513,7 @@ function addon.GetResolvedTextAppearance(elementID)
 	then
 		cache = {
 			appearance = appearance,
+			basicMode = basicMode,
 			elementID = elementID,
 			font = fontID,
 			outline = outlineID,

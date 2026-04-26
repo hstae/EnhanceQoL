@@ -2517,6 +2517,7 @@ local function getFooterLayoutSignature(settings, frameWidth)
 	return table.concat({
 		tostring(frameWidth or 0),
 		settings and settings.showGold ~= false and "1" or "0",
+		addon.GetMoneyFormat and addon.GetMoneyFormat() or tostring(settings and settings.moneyFormat or "symbols"),
 		settings and settings.showCurrencies ~= false and "1" or "0",
 		settings and settings.showWatchedCurrencies ~= false and "1" or "0",
 		settings and settings.showFooterSlotSummary ~= false and "1" or "0",
