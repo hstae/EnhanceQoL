@@ -2880,7 +2880,7 @@ local function shouldShowBloodlustTracker()
 	return false
 end
 
-local function shouldAllowBloodlustActiveDebuffDisplay()
+local function shouldAllowBloodlustTrackerScope()
 	if not addon.db["mythicPlusBloodlustTrackerOnlyInInstances"] then return true end
 	local inInstance, instanceType = IsInInstance()
 	if not inInstance then return false end
@@ -2889,7 +2889,7 @@ local function shouldAllowBloodlustActiveDebuffDisplay()
 end
 
 local function shouldShowBloodlustFrame()
-	return shouldShowBloodlustTracker() or (bloodlustStateActive and shouldAllowBloodlustActiveDebuffDisplay())
+	return shouldShowBloodlustTracker() or (bloodlustStateActive and shouldAllowBloodlustTrackerScope())
 end
 
 local function getBloodlustDefaultIcon()
@@ -3161,9 +3161,10 @@ local function refreshBloodlustTracker(playReadySound)
 
 	local isActive = aura ~= nil
 	local classToken = addon.variables.unitClass
+	local allowNotifications = shouldAllowBloodlustTrackerScope()
 	local shouldPlayDebuffActiveSound = false
 	local shouldPlayDebuffFadeSound = false
-	if bloodlustStateInitialized and not bloodlustStateActive and isActive and addon.db["mythicPlusBloodlustTrackerSoundOnDebuffActive"] then
+	if allowNotifications and bloodlustStateInitialized and not bloodlustStateActive and isActive and addon.db["mythicPlusBloodlustTrackerSoundOnDebuffActive"] then
 		local expiration = aura and aura.expirationTime
 		if expiration and not (issecretvalue and issecretvalue(expiration)) then
 			expiration = tonumber(expiration)
@@ -3173,14 +3174,14 @@ local function refreshBloodlustTracker(playReadySound)
 			end
 		end
 	end
-	if bloodlustStateInitialized and bloodlustStateActive and not isActive and addon.db["mythicPlusBloodlustTrackerSoundOnDebuffFade"]
+	if allowNotifications and bloodlustStateInitialized and bloodlustStateActive and not isActive and addon.db["mythicPlusBloodlustTrackerSoundOnDebuffFade"]
 		and BLOODLUST_READY_CLASSES[classToken]
 	then
 		shouldPlayDebuffFadeSound = true
 	end
 	if shouldPlayDebuffActiveSound then playBloodlustSound("mythicPlusBloodlustTrackerUseCustomDebuffSound", "mythicPlusBloodlustTrackerDebuffSoundFile") end
 	if shouldPlayDebuffFadeSound then playBloodlustSound("mythicPlusBloodlustTrackerUseCustomFadeSound", "mythicPlusBloodlustTrackerFadeSoundFile") end
-	if playReadySound and not isActive and addon.db["mythicPlusBloodlustTrackerReadySoundOnEncounterStart"] and BLOODLUST_READY_CLASSES[classToken] then
+	if allowNotifications and playReadySound and not isActive and addon.db["mythicPlusBloodlustTrackerReadySoundOnEncounterStart"] and BLOODLUST_READY_CLASSES[classToken] then
 		playBloodlustSound("mythicPlusBloodlustTrackerUseCustomReadySound", "mythicPlusBloodlustTrackerReadySoundFile")
 	end
 
