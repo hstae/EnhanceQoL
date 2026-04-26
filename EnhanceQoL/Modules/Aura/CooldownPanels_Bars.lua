@@ -2108,6 +2108,18 @@ Bars.ClearAssistedHighlightPresentation = Bars.ClearAssistedHighlightPresentatio
 		if highlight.Anim and highlight.Anim.IsPlaying and highlight.Anim:IsPlaying() then highlight.Anim:Stop() end
 	end
 
+Bars.ClearSuppressedIconPresentation = Bars.ClearSuppressedIconPresentation
+	or function(icon)
+		if not icon then return end
+		if icon.border then icon.border:Hide() end
+		if icon.rangeOverlay then icon.rangeOverlay:Hide() end
+		if icon.previewBling then icon.previewBling:Hide() end
+		if icon.previewSoundBorder then icon.previewSoundBorder:Hide() end
+		if icon.previewGlowBorder then icon.previewGlowBorder:Hide() end
+		if icon.editorGhostTexture then icon.editorGhostTexture:Hide() end
+		Bars.ClearAssistedHighlightPresentation(icon)
+	end
+
 local function applyReservedGhost(icon, ownerEntry, slotColumn, slotRow)
 	if not icon then return end
 	if icon.texture then
@@ -2126,7 +2138,7 @@ local function applyReservedGhost(icon, ownerEntry, slotColumn, slotRow)
 	if icon.keybind then icon.keybind:Hide() end
 	if icon.stateTexture then icon.stateTexture:Hide() end
 	if icon.stateTextureSecond then icon.stateTextureSecond:Hide() end
-	Bars.ClearAssistedHighlightPresentation(icon)
+	Bars.ClearSuppressedIconPresentation(icon)
 	if icon.staticText then
 		icon.staticText:SetText("")
 		icon.staticText:Hide()
@@ -2152,10 +2164,9 @@ local function applyNativeSuppression(icon)
 	if icon.stateTexture then icon.stateTexture:Hide() end
 	if icon.stateTextureSecond then icon.stateTextureSecond:Hide() end
 	if icon.staticText then icon.staticText:Hide() end
-	if icon.previewSoundBorder then icon.previewSoundBorder:Hide() end
 	CooldownPanels.HidePreviewGlowBorder(icon)
 	CooldownPanels.StopAllIconGlows(icon)
-	Bars.ClearAssistedHighlightPresentation(icon)
+	Bars.ClearSuppressedIconPresentation(icon)
 end
 
 local function getStackSessionMax(entryKey, observedValue, preview)

@@ -1,15 +1,22 @@
 # Changelog
 
-## [10.7.1] - 2026-04-25
+## [10.8.0] - 2026-04-26
+
+### ✨ Added
+
+- Mover: Added per-frame position persistence overrides.
 
 ### 🐛 Fixed
 
 - Class Buff Reminder: Fixed the content filter missing Follower Dungeons, and limited missing flask, food, and weapon buff reminders to current dungeon and raid content while class buff reminders continue to work independently.
 - Cooldown Panels / Bars: Fixed Assisted Combat highlights appearing on hidden ghost icons used by fixed-layout bar entries.
+- Cooldown Panels / Bars: Fixed icon borders and other icon overlays appearing as empty boxes on hidden ghost icons used by fixed-layout bar entries.
+- Gem Helper: Fixed the CharacterFrame gem tracker showing before max level while keeping the socketing helper panel available for selecting gems.
 - Group Frames / Healer Buffs: Fixed the Cooldown Swipe, Draw Edge, and Draw Bling options not being applied to active healer buff indicators.
 - Loot: Fixed moved group loot anchors causing bonus roll prompts to overlap group loot roll frames.
 - Mover: Fixed LFG popup dialogs sometimes being restored to the top-left corner.
 - Mover: Fixed combat handling for supported protected frames and reset actions.
+- Mover: Limited several frame drag areas to their intended headers or handles.
 - Mythic Plus / Bloodlust Tracker: Fixed active Sated/Exhaustion debuff icons showing outside instances by adding an instance-only visibility option covering dungeons, raids, and delves.
 
 ---
