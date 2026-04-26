@@ -12,6 +12,7 @@
 - Cooldown Panels / Bars: Fixed Assisted Combat highlights appearing on hidden ghost icons used by fixed-layout bar entries.
 - Cooldown Panels / Bars: Fixed icon borders and other icon overlays appearing as empty boxes on hidden ghost icons used by fixed-layout bar entries.
 - Gem Helper: Fixed the CharacterFrame gem tracker showing before max level while keeping the socketing helper panel available for selecting gems.
+- Group Frames / Auras: Fixed aura tooltips still appearing for some users even though the aura tooltip option was shown as disabled.
 - Group Frames / Healer Buffs: Fixed the Cooldown Swipe, Draw Edge, and Draw Bling options not being applied to active healer buff indicators.
 - Loot: Fixed moved group loot anchors causing bonus roll prompts to overlap group loot roll frames.
 - Mover: Fixed LFG popup dialogs sometimes being restored to the top-left corner.
