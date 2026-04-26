@@ -484,12 +484,37 @@ local function resetItemButtonShape(button, qualityOverride)
 		button.BagsShapeBorder:Hide()
 	end
 
+	if button.BagsDefaultFreeSlotBackground then
+		button.BagsDefaultFreeSlotBackground:Hide()
+	end
+
 	button.emptyBackgroundAtlas = button._bagsDefaultEmptyBackgroundAtlas
 	button.emptyBackgroundTexture = button._bagsDefaultEmptyBackgroundTexture
 
+	local freeSlotColor = button._bagsFreeSlotDisplayMode == "colors" and button._bagsFreeSlotColor or nil
 	if button.ItemSlotBackground then
 		clearTextureMask(button.ItemSlotBackground)
-		button.ItemSlotBackground:SetShown(isCombined)
+		if freeSlotColor then
+			button.ItemSlotBackground:SetVertexColor(freeSlotColor[1] or 1, freeSlotColor[2] or 1, freeSlotColor[3] or 1)
+			button.ItemSlotBackground:SetShown(true)
+		else
+			button.ItemSlotBackground:SetVertexColor(1, 1, 1)
+			button.ItemSlotBackground:SetShown(isCombined)
+		end
+	end
+
+	if freeSlotColor then
+		if not button.BagsDefaultFreeSlotBackground then
+			local background = button:CreateTexture(nil, "BACKGROUND", nil, -6)
+			background:SetTexture(WHITE_TEXTURE)
+			button.BagsDefaultFreeSlotBackground = background
+		end
+		button.BagsDefaultFreeSlotBackground:ClearAllPoints()
+		button.BagsDefaultFreeSlotBackground:SetPoint("TOPLEFT", button, "TOPLEFT", 4, -4)
+		button.BagsDefaultFreeSlotBackground:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -4, 4)
+		button.BagsDefaultFreeSlotBackground:SetTexture(WHITE_TEXTURE)
+		button.BagsDefaultFreeSlotBackground:SetVertexColor(freeSlotColor[1] or 1, freeSlotColor[2] or 1, freeSlotColor[3] or 1, 1)
+		button.BagsDefaultFreeSlotBackground:Show()
 	end
 
 	if normalTexture then
@@ -607,6 +632,9 @@ local function applyCustomItemButtonShape(button, skinDefinition, shapeDefinitio
 	end
 
 	ensureItemButtonShapeElements(button)
+	if button.BagsDefaultFreeSlotBackground then
+		button.BagsDefaultFreeSlotBackground:Hide()
+	end
 
 	local icon = GetItemButtonIconTexture and GetItemButtonIconTexture(button) or button.Icon or button.icon
 	if not icon then
@@ -633,11 +661,15 @@ local function applyCustomItemButtonShape(button, skinDefinition, shapeDefinitio
 			renderTexture = button._bagsWarbandRenderTexture
 		end
 	end
-	local backgroundColor = renderTexture and itemButton.backgroundColor or itemButton.emptyBackgroundColor or itemButton.backgroundColor
-	local bgR, bgG, bgB, bgA = unpackColor(backgroundColor, 0.92)
+	local freeSlotColor = not renderTexture and button._bagsFreeSlotDisplayMode == "colors" and button._bagsFreeSlotColor or nil
+	local backgroundColor = freeSlotColor or (renderTexture and itemButton.backgroundColor or itemButton.emptyBackgroundColor or itemButton.backgroundColor)
+	local bgR, bgG, bgB, bgA = unpackColor(backgroundColor, freeSlotColor and 1 or 0.92)
 	local borderR, borderG, borderB, borderA
 	if renderTexture then
 		borderR, borderG, borderB, borderA = getResolvedItemButtonBorderColor(skinDefinition, quality)
+	elseif freeSlotColor then
+		borderR, borderG, borderB = unpackColor(freeSlotColor, 1)
+		borderA = 0.9
 	else
 		borderR, borderG, borderB, borderA = getResolvedEmptyItemButtonBorderColor(skinDefinition)
 	end

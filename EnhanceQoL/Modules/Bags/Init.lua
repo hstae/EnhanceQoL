@@ -74,6 +74,9 @@ local defaultSettings = {
 	showGold = true,
 	showCurrencies = true,
 	showFooterSlotSummary = false,
+	freeSlotDisplayMode = "icons",
+	freeSlotNormalColor = { 0.18, 0.12, 0.06 },
+	freeSlotReagentColor = { 0.36, 0.27, 0.08 },
 	footerSummaryPadding = 0,
 	skinPreset = "default",
 	iconShape = "default",
@@ -985,6 +988,82 @@ end
 
 function addon.SetFooterSummaryPadding(padding)
 	return addon.SetOutsideFooterPadding(padding)
+end
+
+function addon.GetFreeSlotDisplayMode()
+	local settings = addon.GetSettings()
+	local mode = settings.freeSlotDisplayMode
+	if mode ~= "colors" and mode ~= "texture" then
+		mode = "icons"
+	end
+	settings.freeSlotDisplayMode = mode
+	return mode
+end
+
+function addon.SetFreeSlotDisplayMode(mode)
+	if mode ~= "colors" and mode ~= "texture" then
+		mode = "icons"
+	end
+	local settings = addon.GetSettings()
+	if settings.freeSlotDisplayMode == mode then
+		return false
+	end
+	settings.freeSlotDisplayMode = mode
+	return true
+end
+
+function addon.GetFreeSlotDisplayModeOptions()
+	return {
+		{
+			value = "icons",
+			label = addon.L and addon.L["settingsFreeSlotDisplayIcons"] or "Icons",
+		},
+		{
+			value = "colors",
+			label = addon.L and addon.L["settingsFreeSlotDisplayColors"] or "Colored slots",
+		},
+		{
+			value = "texture",
+			label = addon.L and addon.L["settingsFreeSlotDisplayTexture"] or "Empty texture",
+		},
+	}
+end
+
+local function normalizeFreeSlotColor(color, fallback)
+	color = type(color) == "table" and color or fallback
+	local r = tonumber(color and color[1]) or fallback[1] or 0
+	local g = tonumber(color and color[2]) or fallback[2] or 0
+	local b = tonumber(color and color[3]) or fallback[3] or 0
+	if r < 0 then r = 0 elseif r > 1 then r = 1 end
+	if g < 0 then g = 0 elseif g > 1 then g = 1 end
+	if b < 0 then b = 0 elseif b > 1 then b = 1 end
+	return { r, g, b }
+end
+
+function addon.GetFreeSlotColor(slotType)
+	local settings = addon.GetSettings()
+	if slotType == "reagent" then
+		settings.freeSlotReagentColor = normalizeFreeSlotColor(settings.freeSlotReagentColor, defaultSettings.freeSlotReagentColor)
+		return settings.freeSlotReagentColor
+	end
+	settings.freeSlotNormalColor = normalizeFreeSlotColor(settings.freeSlotNormalColor, defaultSettings.freeSlotNormalColor)
+	return settings.freeSlotNormalColor
+end
+
+function addon.SetFreeSlotColor(slotType, r, g, b)
+	local settings = addon.GetSettings()
+	local fallback = slotType == "reagent" and defaultSettings.freeSlotReagentColor or defaultSettings.freeSlotNormalColor
+	local color = normalizeFreeSlotColor({ r, g, b }, fallback)
+	local key = slotType == "reagent" and "freeSlotReagentColor" or "freeSlotNormalColor"
+	local current = addon.GetFreeSlotColor(slotType)
+	if math.abs((current[1] or 0) - color[1]) < 0.001
+		and math.abs((current[2] or 0) - color[2]) < 0.001
+		and math.abs((current[3] or 0) - color[3]) < 0.001
+	then
+		return false
+	end
+	settings[key] = color
+	return true
 end
 
 function addon.GetItemScale()

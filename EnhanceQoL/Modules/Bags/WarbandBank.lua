@@ -1548,6 +1548,13 @@ local function getDefaultCategoryForItem(info, questInfo, equipLoc, classID)
 	equipLoc = equipLoc or select(4, GetItemInfoInstant(itemRef))
 	classID = classID or select(6, GetItemInfoInstant(itemRef))
 
+	if C_Item and C_Item.IsCosmeticItem then
+		local ok, isCosmetic = pcall(C_Item.IsCosmeticItem, itemRef)
+		if ok and isCosmetic then
+			return "equipment"
+		end
+	end
+
 	if equipLoc and equipLoc ~= "" and not IGNORED_ITEM_LEVEL_EQUIP_LOCS[equipLoc] then
 		return "equipment"
 	end
@@ -1980,6 +1987,7 @@ local function addSlotMapping(layoutData, sectionID, bagID, slotID, extraData)
 	local mapping = state.slotMappings[index] or {}
 	mapping.bagID = bagID
 	mapping.slotID = slotID
+	mapping.freeSlotGroup = extraData and extraData.freeSlotGroup or nil
 	mapping.freeSlotCount = extraData and extraData.freeSlotCount or nil
 	mapping.itemCount = extraData and extraData.itemCount or nil
 	mapping.itemInfo = extraData and extraData.itemInfo or nil
@@ -2089,6 +2097,7 @@ local function buildLayoutData(context)
 			layoutData.freeSlotReference.bagID,
 			layoutData.freeSlotReference.slotID,
 			{
+				freeSlotGroup = "normal",
 				freeSlotCount = layoutData.freeSlotCount,
 			}
 		)
@@ -2226,7 +2235,8 @@ local function hasMatchingButtonRenderState(
 	questIsActive,
 	isNewItem,
 	overlayVersion,
-	fontSignature
+	fontSignature,
+	freeSlotSignature
 )
 	return button._bagsWarbandRenderBagID == bagID
 		and button._bagsWarbandRenderSlotID == slotID
@@ -2245,6 +2255,7 @@ local function hasMatchingButtonRenderState(
 		and button._bagsWarbandRenderNewItem == isNewItem
 		and button._bagsWarbandRenderOverlayVersion == overlayVersion
 		and button._bagsWarbandRenderFontSignature == fontSignature
+		and button._bagsWarbandRenderFreeSlotSignature == freeSlotSignature
 end
 
 local function updateButtonSearchState(button, isFiltered)
@@ -2271,7 +2282,8 @@ local function storeButtonRenderState(
 	questIsActive,
 	isNewItem,
 	overlayVersion,
-	fontSignature
+	fontSignature,
+	freeSlotSignature
 )
 	button._bagsWarbandRenderBagID = bagID
 	button._bagsWarbandRenderSlotID = slotID
@@ -2291,6 +2303,27 @@ local function storeButtonRenderState(
 	button._bagsWarbandRenderNewItem = isNewItem
 	button._bagsWarbandRenderOverlayVersion = overlayVersion
 	button._bagsWarbandRenderFontSignature = fontSignature
+	button._bagsWarbandRenderFreeSlotSignature = freeSlotSignature
+end
+
+local function getFreeSlotRenderSignature(freeSlotGroup)
+	if not freeSlotGroup then
+		return ""
+	end
+
+	local displayMode = addon.GetFreeSlotDisplayMode and addon.GetFreeSlotDisplayMode() or "icons"
+	if displayMode ~= "colors" then
+		return tostring(freeSlotGroup) .. ":" .. tostring(displayMode)
+	end
+
+	local color = addon.GetFreeSlotColor and addon.GetFreeSlotColor(freeSlotGroup) or nil
+	return string.format(
+		"%s:colors:%.3f:%.3f:%.3f",
+		tostring(freeSlotGroup),
+		tonumber(color and color[1]) or 0,
+		tonumber(color and color[2]) or 0,
+		tonumber(color and color[3]) or 0
+	)
 end
 
 local function updateButtonData(button, mapping, overlayRuntime, textAppearance, fontSignature, tooltipOwner, forceDynamicUpdate)
@@ -2324,6 +2357,8 @@ local function updateButtonData(button, mapping, overlayRuntime, textAppearance,
 	local questID = questInfo and questInfo.questID or nil
 	local questIsActive = questInfo and questInfo.isActive or false
 	local isNewItem = isNewItemAtSlot(bagID, slotID)
+	local freeSlotGroup = mapping and mapping.freeSlotGroup or nil
+	local freeSlotSignature = getFreeSlotRenderSignature(freeSlotGroup)
 	overlayRuntime = overlayRuntime or getOverlayRuntimeConfig()
 	fontSignature = fontSignature or getTextAppearanceSignature(textAppearance)
 	local overlayVersion = overlayRuntime and overlayRuntime.version or 0
@@ -2346,7 +2381,8 @@ local function updateButtonData(button, mapping, overlayRuntime, textAppearance,
 		questIsActive,
 		isNewItem,
 		overlayVersion,
-		fontSignature
+		fontSignature,
+		freeSlotSignature
 	) then
 		if not button:IsShown() then
 			button:Show()
@@ -2384,6 +2420,9 @@ local function updateButtonData(button, mapping, overlayRuntime, textAppearance,
 	button:UpdateCooldown(texture)
 	button:SetReadable(readable)
 	updateButtonSearchState(button, isFiltered)
+	button._bagsFreeSlotGroup = freeSlotGroup
+	button._bagsFreeSlotDisplayMode = freeSlotGroup and addon.GetFreeSlotDisplayMode and addon.GetFreeSlotDisplayMode() or nil
+	button._bagsFreeSlotColor = button._bagsFreeSlotDisplayMode == "colors" and addon.GetFreeSlotColor and addon.GetFreeSlotColor(freeSlotGroup) or nil
 
 	if tooltipOwner then
 		button:CheckUpdateTooltip(tooltipOwner)
@@ -2417,7 +2456,8 @@ local function updateButtonData(button, mapping, overlayRuntime, textAppearance,
 		questIsActive,
 		isNewItem,
 		overlayVersion,
-		fontSignature
+		fontSignature,
+		freeSlotSignature
 	)
 	button._bagsWarbandPendingRenderTexture = nil
 	button._bagsWarbandHasPendingRenderTexture = nil

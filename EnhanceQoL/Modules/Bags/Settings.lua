@@ -3035,7 +3035,7 @@ local function createLayoutPage(parent)
 	scrollFrame:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -28, 0)
 	page.ScrollFrame = scrollFrame
 	page.Content = content
-	page.LayoutContentHeight = 1000
+	page.LayoutContentHeight = 1080
 
 	local contentParent = content
 
@@ -3322,7 +3322,7 @@ local function createLayoutPage(parent)
 	local textAppearanceCard = CreateFrame("Frame", nil, contentParent, "BackdropTemplate")
 	textAppearanceCard:SetPoint("TOPLEFT", paddingCard, "BOTTOMLEFT", 0, -18)
 	textAppearanceCard:SetPoint("RIGHT", contentParent, "RIGHT", -12, 0)
-	textAppearanceCard:SetHeight(396)
+	textAppearanceCard:SetHeight(468)
 	createCardBackdrop(textAppearanceCard)
 	page.TextAppearanceCard = textAppearanceCard
 
@@ -3397,6 +3397,64 @@ local function createLayoutPage(parent)
 	page.IconShapeButton = iconShapeButton
 	anchorTextAppearanceRow(iconShapeLabel, iconShapeButton, skinPresetButton)
 
+	local freeSlotDisplayLabel = textAppearanceCard:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	freeSlotDisplayLabel:SetText(L["settingsFreeSlotDisplayLabel"] or "Free slot display")
+	page.FreeSlotDisplayLabel = freeSlotDisplayLabel
+
+	local freeSlotDisplayButton = CreateFrame("Button", nil, textAppearanceCard, "UIPanelButtonTemplate")
+	freeSlotDisplayButton:SetSize(textAppearanceControlWidth, 22)
+	setButtonFontObject(freeSlotDisplayButton, GameFontNormalSmall)
+	freeSlotDisplayButton:SetScript("OnClick", function(self)
+		openSimpleRadioMenu(self, addon.GetFreeSlotDisplayModeOptions and addon.GetFreeSlotDisplayModeOptions() or {}, addon.GetFreeSlotDisplayMode and addon.GetFreeSlotDisplayMode() or "icons", function(value)
+			if addon.SetFreeSlotDisplayMode and addon.SetFreeSlotDisplayMode(value) then
+				addon.RefreshSettingsFrame("layout")
+				requestBagRefresh(true)
+			end
+		end)
+	end)
+	page.FreeSlotDisplayButton = freeSlotDisplayButton
+	anchorTextAppearanceRow(freeSlotDisplayLabel, freeSlotDisplayButton, iconShapeButton)
+
+	local freeSlotNormalColorLabel = textAppearanceCard:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	freeSlotNormalColorLabel:SetText(L["settingsFreeSlotNormalColor"] or "Bag free slot color")
+	page.FreeSlotNormalColorLabel = freeSlotNormalColorLabel
+
+	local freeSlotNormalColorSwatch = CreateFrame("Button", nil, textAppearanceCard, "ColorSwatchTemplate")
+	freeSlotNormalColorSwatch:SetSize(22, 22)
+	freeSlotNormalColorSwatch:SetScript("OnClick", function()
+		if addon.GetFreeSlotDisplayMode and addon.GetFreeSlotDisplayMode() ~= "colors" then
+			return
+		end
+		openColorPicker(addon.GetFreeSlotColor and addon.GetFreeSlotColor("normal") or { 1, 1, 1 }, function(r, g, b)
+			if addon.SetFreeSlotColor and addon.SetFreeSlotColor("normal", r, g, b) then
+				addon.RefreshSettingsFrame("layout")
+				requestBagRefresh(true)
+			end
+		end)
+	end)
+	page.FreeSlotNormalColorSwatch = freeSlotNormalColorSwatch
+	anchorTextAppearanceRow(freeSlotNormalColorLabel, freeSlotNormalColorSwatch, freeSlotDisplayButton)
+
+	local freeSlotReagentColorLabel = textAppearanceCard:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	freeSlotReagentColorLabel:SetText(L["settingsFreeSlotReagentColor"] or "Reagent free slot color")
+	page.FreeSlotReagentColorLabel = freeSlotReagentColorLabel
+
+	local freeSlotReagentColorSwatch = CreateFrame("Button", nil, textAppearanceCard, "ColorSwatchTemplate")
+	freeSlotReagentColorSwatch:SetSize(22, 22)
+	freeSlotReagentColorSwatch:SetScript("OnClick", function()
+		if addon.GetFreeSlotDisplayMode and addon.GetFreeSlotDisplayMode() ~= "colors" then
+			return
+		end
+		openColorPicker(addon.GetFreeSlotColor and addon.GetFreeSlotColor("reagent") or { 1, 1, 1 }, function(r, g, b)
+			if addon.SetFreeSlotColor and addon.SetFreeSlotColor("reagent", r, g, b) then
+				addon.RefreshSettingsFrame("layout")
+				requestBagRefresh(true)
+			end
+		end)
+	end)
+	page.FreeSlotReagentColorSwatch = freeSlotReagentColorSwatch
+	anchorTextAppearanceRow(freeSlotReagentColorLabel, freeSlotReagentColorSwatch, freeSlotNormalColorSwatch)
+
 	local frameBackgroundLabel = textAppearanceCard:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	frameBackgroundLabel:SetText(L["settingsFrameBackgroundLabel"] or "Background")
 	page.FrameBackgroundLabel = frameBackgroundLabel
@@ -3413,7 +3471,7 @@ local function createLayoutPage(parent)
 		end)
 	end)
 	page.FrameBackgroundButton = frameBackgroundButton
-	anchorTextAppearanceRow(frameBackgroundLabel, frameBackgroundButton, iconShapeButton)
+	anchorTextAppearanceRow(frameBackgroundLabel, frameBackgroundButton, freeSlotReagentColorSwatch)
 
 	local frameBackgroundColorLabel = textAppearanceCard:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	frameBackgroundColorLabel:SetText(L["Background color"] or "Background color")
@@ -3722,6 +3780,29 @@ refreshLayoutPage = function(page)
 	end
 	if page.IconShapeButton then
 		page.IconShapeButton:SetText(getOptionLabel(addon.GetIconShapeOptions and addon.GetIconShapeOptions() or {}, addon.GetIconShape and addon.GetIconShape() or "preset", L["settingsIconShapeLabel"] or "Icon shape"))
+	end
+	if page.FreeSlotDisplayButton then
+		local mode = addon.GetFreeSlotDisplayMode and addon.GetFreeSlotDisplayMode() or "icons"
+		page.FreeSlotDisplayButton:SetText(getOptionLabel(addon.GetFreeSlotDisplayModeOptions and addon.GetFreeSlotDisplayModeOptions() or {}, mode, mode))
+	end
+	local colorModeEnabled = addon.GetFreeSlotDisplayMode and addon.GetFreeSlotDisplayMode() == "colors"
+	if page.FreeSlotNormalColorSwatch then
+		local color = addon.GetFreeSlotColor and addon.GetFreeSlotColor("normal") or { 0.18, 0.12, 0.06 }
+		page.FreeSlotNormalColorSwatch:SetColorRGB(color[1] or 1, color[2] or 1, color[3] or 1)
+		page.FreeSlotNormalColorSwatch:SetEnabled(colorModeEnabled)
+		page.FreeSlotNormalColorSwatch:SetAlpha(colorModeEnabled and 1 or 0.45)
+	end
+	if page.FreeSlotReagentColorSwatch then
+		local color = addon.GetFreeSlotColor and addon.GetFreeSlotColor("reagent") or { 0.36, 0.27, 0.08 }
+		page.FreeSlotReagentColorSwatch:SetColorRGB(color[1] or 1, color[2] or 1, color[3] or 1)
+		page.FreeSlotReagentColorSwatch:SetEnabled(colorModeEnabled)
+		page.FreeSlotReagentColorSwatch:SetAlpha(colorModeEnabled and 1 or 0.45)
+	end
+	if page.FreeSlotNormalColorLabel then
+		page.FreeSlotNormalColorLabel:SetAlpha(colorModeEnabled and 1 or 0.5)
+	end
+	if page.FreeSlotReagentColorLabel then
+		page.FreeSlotReagentColorLabel:SetAlpha(colorModeEnabled and 1 or 0.5)
 	end
 	if page.FrameBackgroundButton then
 		page.FrameBackgroundButton:SetText(getOptionLabel(addon.GetFrameBackgroundOptions and addon.GetFrameBackgroundOptions() or {}, addon.GetFrameBackground and addon.GetFrameBackground() or "solid", L["settingsFrameBackgroundLabel"] or "Background"))
@@ -4232,7 +4313,10 @@ applyLayoutPageMode = function(page)
 
 	anchorTextAppearanceControl(page.TextAppearanceCard, page.TextAppearanceHint, page.SkinPresetLabel, page.SkinPresetButton)
 	anchorTextAppearanceControl(page.TextAppearanceCard, page.TextAppearanceHint, page.IconShapeLabel, page.IconShapeButton, page.SkinPresetButton)
-	anchorTextAppearanceControl(page.TextAppearanceCard, page.TextAppearanceHint, page.FrameBackgroundLabel, page.FrameBackgroundButton, page.IconShapeButton)
+	anchorTextAppearanceControl(page.TextAppearanceCard, page.TextAppearanceHint, page.FreeSlotDisplayLabel, page.FreeSlotDisplayButton, page.IconShapeButton)
+	anchorTextAppearanceControl(page.TextAppearanceCard, page.TextAppearanceHint, page.FreeSlotNormalColorLabel, page.FreeSlotNormalColorSwatch, page.FreeSlotDisplayButton)
+	anchorTextAppearanceControl(page.TextAppearanceCard, page.TextAppearanceHint, page.FreeSlotReagentColorLabel, page.FreeSlotReagentColorSwatch, page.FreeSlotNormalColorSwatch)
+	anchorTextAppearanceControl(page.TextAppearanceCard, page.TextAppearanceHint, page.FrameBackgroundLabel, page.FrameBackgroundButton, page.FreeSlotReagentColorSwatch)
 	anchorTextAppearanceControl(page.TextAppearanceCard, page.TextAppearanceHint, page.FrameBackgroundColorLabel, page.FrameBackgroundColorSwatch, page.FrameBackgroundButton)
 	anchorTextAppearanceControl(page.TextAppearanceCard, page.TextAppearanceHint, page.FrameBackgroundOpacityLabel, page.FrameBackgroundOpacityStepper, page.FrameBackgroundColorSwatch)
 	anchorTextAppearanceControl(page.TextAppearanceCard, page.TextAppearanceHint, page.TextFontLabel, page.TextFontButton, page.FrameBackgroundOpacityStepper)

@@ -428,7 +428,7 @@ local function getFooterHeight(settings)
 end
 
 local function getContentBottomGap(settings)
-	return settings and settings.showFooterSlotSummary == false and (Core.FOOTER_DIVIDER_OFFSET + 6) or 0
+	return Core.FOOTER_DIVIDER_OFFSET + 6
 end
 
 local function getLayoutContentHeight(settings, rawContentHeight)
@@ -1958,7 +1958,9 @@ updateReagentBagVisuals = function(button)
 	if renderTexture == nil then
 		renderTexture = button._bagsRenderTexture
 	end
-	local shouldShowReagentSlotIcon = isReagentBag and renderTexture == nil
+	local freeSlotDisplayMode = button._bagsFreeSlotDisplayMode
+	local isColoredFreeSlot = freeSlotDisplayMode == "colors" and button._bagsFreeSlotGroup ~= nil
+	local shouldShowReagentSlotIcon = isReagentBag and renderTexture == nil and freeSlotDisplayMode ~= "texture" and not isColoredFreeSlot
 	local skin = getActiveFrameSkin()
 	local accentR, accentG, accentB = unpackSkinColor(skin and skin.accentColor, 0.72, 1, 0.78, 1)
 	if button.ReagentTint then
@@ -1967,7 +1969,9 @@ updateReagentBagVisuals = function(button)
 	end
 
 	if button.ItemSlotBackground then
-		if isReagentBag then
+		if isColoredFreeSlot and button._bagsFreeSlotColor then
+			button.ItemSlotBackground:SetVertexColor(button._bagsFreeSlotColor[1] or 1, button._bagsFreeSlotColor[2] or 1, button._bagsFreeSlotColor[3] or 1)
+		elseif isReagentBag then
 			button.ItemSlotBackground:SetVertexColor(
 				math.min(1, 0.55 + (accentR * 0.45)),
 				math.min(1, 0.55 + (accentG * 0.45)),
@@ -1993,6 +1997,26 @@ updateReagentBagVisuals = function(button)
 	end
 end
 
+local function getFreeSlotRenderSignature(freeSlotGroup)
+	if not freeSlotGroup then
+		return ""
+	end
+
+	local displayMode = addon.GetFreeSlotDisplayMode and addon.GetFreeSlotDisplayMode() or "icons"
+	if displayMode ~= "colors" then
+		return tostring(freeSlotGroup) .. ":" .. tostring(displayMode)
+	end
+
+	local color = addon.GetFreeSlotColor and addon.GetFreeSlotColor(freeSlotGroup) or nil
+	return string.format(
+		"%s:colors:%.3f:%.3f:%.3f",
+		tostring(freeSlotGroup),
+		tonumber(color and color[1]) or 0,
+		tonumber(color and color[2]) or 0,
+		tonumber(color and color[3]) or 0
+	)
+end
+
 local function hasMatchingButtonRenderState(
 	button,
 	bagID,
@@ -2011,7 +2035,8 @@ local function hasMatchingButtonRenderState(
 	questIsActive,
 	isNewItem,
 	overlayVersion,
-	fontSignature
+	fontSignature,
+	freeSlotSignature
 )
 	return button._bagsRenderBagID == bagID
 		and button._bagsRenderSlotID == slotID
@@ -2030,6 +2055,7 @@ local function hasMatchingButtonRenderState(
 		and button._bagsRenderNewItem == isNewItem
 		and button._bagsRenderOverlayVersion == overlayVersion
 		and button._bagsRenderFontSignature == fontSignature
+		and button._bagsRenderFreeSlotSignature == freeSlotSignature
 end
 
 local function updateButtonSearchState(button, isFiltered)
@@ -2056,7 +2082,8 @@ local function storeButtonRenderState(
 	questIsActive,
 	isNewItem,
 	overlayVersion,
-	fontSignature
+	fontSignature,
+	freeSlotSignature
 )
 	button._bagsRenderBagID = bagID
 	button._bagsRenderSlotID = slotID
@@ -2076,6 +2103,7 @@ local function storeButtonRenderState(
 	button._bagsRenderNewItem = isNewItem
 	button._bagsRenderOverlayVersion = overlayVersion
 	button._bagsRenderFontSignature = fontSignature
+	button._bagsRenderFreeSlotSignature = freeSlotSignature
 end
 
 local function getCurrentItemButtonSkinSignature()
@@ -2127,6 +2155,8 @@ local function updateButtonData(button, mapping, overlayRuntime, textAppearance,
 	local questID = questInfo and questInfo.questID or nil
 	local questIsActive = questInfo and questInfo.isActive or false
 	local isNewItem = isNewItemAtSlot(bagID, slotID)
+	local freeSlotGroup = mapping and mapping.freeSlotGroup or nil
+	local freeSlotSignature = getFreeSlotRenderSignature(freeSlotGroup)
 	overlayRuntime = overlayRuntime or getOverlayRuntimeConfig()
 	fontSignature = fontSignature or getTextAppearanceSignature(textAppearance)
 	local overlayVersion = overlayRuntime and overlayRuntime.version or 0
@@ -2149,7 +2179,8 @@ local function updateButtonData(button, mapping, overlayRuntime, textAppearance,
 		questIsActive,
 		isNewItem,
 		overlayVersion,
-		fontSignature
+		fontSignature,
+		freeSlotSignature
 	) then
 		if not button:IsShown() then
 			button:Show()
@@ -2186,6 +2217,9 @@ local function updateButtonData(button, mapping, overlayRuntime, textAppearance,
 	button:UpdateCooldown(texture)
 	button:SetReadable(readable)
 	updateButtonSearchState(button, isFiltered)
+	button._bagsFreeSlotGroup = freeSlotGroup
+	button._bagsFreeSlotDisplayMode = freeSlotGroup and addon.GetFreeSlotDisplayMode and addon.GetFreeSlotDisplayMode() or nil
+	button._bagsFreeSlotColor = button._bagsFreeSlotDisplayMode == "colors" and addon.GetFreeSlotColor and addon.GetFreeSlotColor(freeSlotGroup) or nil
 
 	if tooltipOwner then
 		button:CheckUpdateTooltip(tooltipOwner)
@@ -2218,7 +2252,8 @@ local function updateButtonData(button, mapping, overlayRuntime, textAppearance,
 		questIsActive,
 		isNewItem,
 		overlayVersion,
-		fontSignature
+		fontSignature,
+		freeSlotSignature
 	)
 	button._bagsPendingRenderTexture = nil
 	button._bagsHasPendingRenderTexture = nil
@@ -3017,6 +3052,13 @@ local function getDefaultCategoryForItem(info, questInfo, equipLoc, classID)
 
 	equipLoc = equipLoc or select(4, GetItemInfoInstant(itemRef))
 	classID = classID or select(6, GetItemInfoInstant(itemRef))
+
+	if C_Item and C_Item.IsCosmeticItem then
+		local ok, isCosmetic = pcall(C_Item.IsCosmeticItem, itemRef)
+		if ok and isCosmetic then
+			return "equipment"
+		end
+	end
 
 	if equipLoc and equipLoc ~= "" and not Core.IGNORED_ITEM_LEVEL_EQUIP_LOCS[equipLoc] then
 		return "equipment"
