@@ -3035,7 +3035,7 @@ local function createLayoutPage(parent)
 	scrollFrame:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -28, 0)
 	page.ScrollFrame = scrollFrame
 	page.Content = content
-	page.LayoutContentHeight = 1080
+	page.LayoutContentHeight = 1200
 
 	local contentParent = content
 
@@ -3322,7 +3322,7 @@ local function createLayoutPage(parent)
 	local textAppearanceCard = CreateFrame("Frame", nil, contentParent, "BackdropTemplate")
 	textAppearanceCard:SetPoint("TOPLEFT", paddingCard, "BOTTOMLEFT", 0, -18)
 	textAppearanceCard:SetPoint("RIGHT", contentParent, "RIGHT", -12, 0)
-	textAppearanceCard:SetHeight(468)
+	textAppearanceCard:SetHeight(552)
 	createCardBackdrop(textAppearanceCard)
 	page.TextAppearanceCard = textAppearanceCard
 
@@ -4275,7 +4275,7 @@ applyLayoutPageMode = function(page)
 	end
 
 	if page.TextAppearanceCard then
-		page.TextAppearanceCard:SetHeight(430)
+		page.TextAppearanceCard:SetHeight(552)
 	end
 	if page.TextAppearanceTitle then
 		page.TextAppearanceTitle:SetText((basicMode and (L["settingsBasicLookTitle"] or "Look")) or (L["settingsTextAppearanceTitle"] or "Text appearance"))
