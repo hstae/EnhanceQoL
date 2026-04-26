@@ -293,6 +293,10 @@ local frames = {
 		group = "system",
 		names = { "TransmogFrame" },
 		addon = "Blizzard_Transmog",
+		handlesRelative = { "TitleContainer" },
+		handlesOnly = true,
+		ignoreFramePositionManager = true,
+		userPlaced = true,
 		defaultEnabled = true,
 	},
 	{
