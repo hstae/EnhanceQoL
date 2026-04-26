@@ -28,6 +28,9 @@ function addon.Mover.functions.InitDB()
 	initDbValue("scaleModifier", "CTRL")
 	initDbValue("positionPersistence", "reset")
 	initDbValue("frames", {})
+	if type(db.frames) ~= "table" then db.frames = {} end
+	db.frames.LFGDungeonReadyDialog = nil
+	db.frames.LFGListInviteDialog = nil
 end
 
 local function normalizeDbVarFromId(id)
@@ -372,6 +375,37 @@ addon.Mover.variables.scaleMouseover = addon.Mover.variables.scaleMouseover or {
 addon.Mover.variables.moveHandles = addon.Mover.variables.moveHandles or {}
 addon.Mover.variables.scaleCaptureFrame = addon.Mover.variables.scaleCaptureFrame or nil
 
+local validAnchorPoints = {
+	TOPLEFT = true,
+	TOP = true,
+	TOPRIGHT = true,
+	LEFT = true,
+	CENTER = true,
+	RIGHT = true,
+	BOTTOMLEFT = true,
+	BOTTOM = true,
+	BOTTOMRIGHT = true,
+}
+
+local function isFiniteNumber(value)
+	return type(value) == "number" and value == value and value > -100000 and value < 100000
+end
+
+local function isUsablePositionData(posData)
+	return type(posData) == "table" and validAnchorPoints[posData.point] and isFiniteNumber(posData.x) and isFiniteNumber(posData.y)
+end
+
+local function isFrameMostlyOnScreen(frame)
+	if not frame or not frame.GetLeft or not frame.GetRight or not frame.GetTop or not frame.GetBottom then return true end
+	local left, right, top, bottom = frame:GetLeft(), frame:GetRight(), frame:GetTop(), frame:GetBottom()
+	if not (isFiniteNumber(left) and isFiniteNumber(right) and isFiniteNumber(top) and isFiniteNumber(bottom)) then return false end
+	local screenWidth = GetScreenWidth and GetScreenWidth() or UIParent:GetWidth()
+	local screenHeight = GetScreenHeight and GetScreenHeight() or UIParent:GetHeight()
+	if not (isFiniteNumber(screenWidth) and isFiniteNumber(screenHeight) and screenWidth > 0 and screenHeight > 0) then return true end
+	local minVisible = 24
+	return right >= minVisible and left <= (screenWidth - minVisible) and top >= minVisible and bottom <= (screenHeight - minVisible)
+end
+
 -- Determine a valid scale target without stealing wheel from scrollable/clickable frames.
 local function findScaleTargetUnderMouse()
 	if not GetMouseFoci then return nil end
@@ -697,7 +731,7 @@ function addon.Mover.functions.applyFrameSettings(frame, entry)
 	if not isEntryActive(resolved) then return end
 	local frameDb = ensureFrameDb(resolved)
 	local posData = getPositionData(resolved, frameDb)
-	local hasPoint = posData and posData.point and posData.x ~= nil and posData.y ~= nil
+	local hasPoint = isUsablePositionData(posData)
 	local targetScale = resolveScale(frame, frameDb)
 	if not hasPoint and not targetScale then return end
 	if InCombatLockdown() and frame:IsProtected() then
@@ -723,7 +757,8 @@ function addon.Mover.functions.StoreFramePosition(frame, entry)
 	local frameDb = ensureFrameDb(resolved)
 	if not frameDb then return end
 	local point, _, _, xOfs, yOfs = frame:GetPoint()
-	if not point then return end
+	if not isUsablePositionData({ point = point, x = xOfs, y = yOfs }) then return end
+	if not isFrameMostlyOnScreen(frame) then return end
 	setPositionData(resolved, frameDb, point, xOfs, yOfs)
 end
 
@@ -753,16 +788,19 @@ function addon.Mover.functions.createHooks(frame, entry)
 		if not isEntryActive(resolved) then return end
 		if not modifierPressed() then return end
 		if InCombatLockdown() and frame:IsProtected() then return end
+		local userPlaced = frame.IsUserPlaced and frame:IsUserPlaced()
 		frame._eqol_isDragging = true
 		frame:StartMoving()
+		if userPlaced ~= nil and frame.SetUserPlaced then frame:SetUserPlaced(userPlaced) end
 	end
 
 	local function onStopDrag(_, button)
 		if button and button ~= "LeftButton" then return end
-		if not isEntryActive(resolved) then return end
+		if not frame._eqol_isDragging then return end
 		if InCombatLockdown() and frame:IsProtected() then return end
 		frame:StopMovingOrSizing()
 		frame._eqol_isDragging = nil
+		if not isEntryActive(resolved) then return end
 		addon.Mover.functions.StoreFramePosition(frame, resolved)
 		if resolved.keepTwoPointSize then addon.Mover.functions.applyFrameSettings(frame, resolved) end
 	end
@@ -970,7 +1008,7 @@ function addon.Mover.functions.createHooks(frame, entry)
 		if self._eqol_isDragging or self._eqol_isApplying then return end
 		local frameDb = ensureFrameDb(resolved)
 		local posData = getPositionData(resolved, frameDb)
-		local hasPoint = posData and posData.point and posData.x ~= nil and posData.y ~= nil
+		local hasPoint = isUsablePositionData(posData)
 		local targetScale = resolveScale(self, frameDb)
 		if not hasPoint and not targetScale then return end
 		if InCombatLockdown() and self:IsProtected() then

@@ -5,7 +5,9 @@
 ### 🐛 Fixed
 
 - Cooldown Panels / Bars: Fixed Assisted Combat highlights appearing on hidden ghost icons used by fixed-layout bar entries.
+- Group Frames / Healer Buffs: Fixed the Cooldown Swipe, Draw Edge, and Draw Bling options not being applied to active healer buff indicators.
 - Loot: Fixed moved group loot anchors causing bonus roll prompts to overlap group loot roll frames.
+- Mover: Fixed LFG popup dialogs sometimes being restored to the top-left corner by removing unsupported LFG dialogs from the mover registry, clearing their stored positions, and only saving positions after a real drag.
 
 ---
 
