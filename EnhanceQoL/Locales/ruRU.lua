@@ -1776,6 +1776,7 @@ L["mythicPlusBloodlustTrackerDebuffSound"] = "Звук активной блок
 L["mythicPlusBloodlustTrackerEditModeHint"] = "Показывает вашу блокировку Bloodlust (Пресыщение/Истощение). Положение и размер настраиваются в режиме редактирования."
 L["mythicPlusBloodlustTrackerEnabled"] = "Включить трекер блокировки Bloodlust"
 L["mythicPlusBloodlustTrackerFadeSound"] = "Звук окончания блокировки"
+L["mythicPlusBloodlustTrackerOnlyInInstances"] = "Показывать только в подземельях и рейдах"
 L["mythicPlusBloodlustTrackerReadyLabel"] = "ГОТОВО"
 L["mythicPlusBloodlustTrackerReadySound"] = "Звук напоминания о готовности"
 L["mythicPlusBloodlustTrackerReadySoundOnEncounterStart"] = "Воспроизводить звук при ENCOUNTER_START, когда Bloodlust готов"

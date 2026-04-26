@@ -82,6 +82,7 @@ local BLOODLUST_FALLBACK_ICON = BLOODLUST_DEFAULT_ICON_IDS[1]
 local BLOODLUST_LOCKOUT_DURATION_SECONDS = 600
 local BLOODLUST_ACTIVE_SOUND_GRACE_SECONDS = 10
 local BLOODLUST_ACTIVE_SOUND_MIN_REMAINING = BLOODLUST_LOCKOUT_DURATION_SECONDS - BLOODLUST_ACTIVE_SOUND_GRACE_SECONDS
+local BLOODLUST_DELVE_DIFFICULTY_ID = 208
 local BLOODLUST_READY_CLASSES = {
 	SHAMAN = true,
 	HUNTER = true,
@@ -2176,6 +2177,25 @@ local function ensureBloodlustAnchor()
 
 			settings = {
 				{
+					name = L["General"] or "General",
+					kind = settingType.Collapsible,
+					id = "mythicPlusBloodlustTrackerGeneral",
+					defaultCollapsed = false,
+				},
+				{
+					name = L["mythicPlusBloodlustTrackerOnlyInInstances"] or "Only show in instances",
+					kind = settingType.Checkbox,
+					parentId = "mythicPlusBloodlustTrackerGeneral",
+					get = function() return addon.db and addon.db["mythicPlusBloodlustTrackerOnlyInInstances"] == true end,
+					set = function(_, value)
+						if addon.db then addon.db["mythicPlusBloodlustTrackerOnlyInInstances"] = value == true end
+						if addon.MythicPlus and addon.MythicPlus.functions and addon.MythicPlus.functions.createBloodlustFrame then
+							addon.MythicPlus.functions.createBloodlustFrame()
+							if addon.MythicPlus.functions.refreshBloodlustTracker then addon.MythicPlus.functions.refreshBloodlustTracker(false) end
+						end
+					end,
+				},
+				{
 					name = L["Anchor"] or "Anchor",
 					kind = settingType.Collapsible,
 					id = "mythicPlusBloodlustTrackerAnchor",
@@ -2851,12 +2871,25 @@ end
 
 local function shouldShowBloodlustTracker()
 	if not addon.db["mythicPlusBloodlustTrackerEnabled"] then return false end
-	if not IsInGroup() then return false end
 	if not IsInInstance() then return false end
 	local _, _, diff = GetInstanceInfo()
+	if diff == BLOODLUST_DELVE_DIFFICULTY_ID then return true end
+	if not IsInGroup() then return false end
 	if diff == 8 then return true end
 	if isRaidDifficulty(diff) then return C_InstanceEncounter.IsEncounterInProgress() end
 	return false
+end
+
+local function shouldAllowBloodlustActiveDebuffDisplay()
+	if not addon.db["mythicPlusBloodlustTrackerOnlyInInstances"] then return true end
+	local inInstance, instanceType = IsInInstance()
+	if not inInstance then return false end
+	local _, _, diff = GetInstanceInfo()
+	return instanceType == "party" or instanceType == "raid" or instanceType == "scenario" or diff == BLOODLUST_DELVE_DIFFICULTY_ID
+end
+
+local function shouldShowBloodlustFrame()
+	return shouldShowBloodlustTracker() or (bloodlustStateActive and shouldAllowBloodlustActiveDebuffDisplay())
 end
 
 local function getBloodlustDefaultIcon()
@@ -2880,7 +2913,7 @@ local function createBloodlustFrame()
 
 	local layout = buildBloodlustLayoutSnapshot()
 	ensureBloodlustAnchor()
-	if shouldShowBloodlustTracker() or bloodlustStateActive then
+	if shouldShowBloodlustFrame() then
 		local point = layout.point or "CENTER"
 		local relativePoint = layout.relativePoint or point
 		local xOfs = layout.x or 0
@@ -3419,7 +3452,7 @@ local function eventHandler(self, event, arg1, arg2, arg3, arg4)
 
 		-- Refresh state first so visibility logic can react to newly applied/removed lockout auras.
 		refreshBloodlustTracker(false)
-		if not shouldShowBloodlustTracker() and not bloodlustStateActive then
+		if not shouldShowBloodlustFrame() then
 			removeBloodlustFrame()
 			return
 		end
@@ -3435,7 +3468,7 @@ local function eventHandler(self, event, arg1, arg2, arg3, arg4)
 		if addon.db["mythicPlusBloodlustTrackerEnabled"] then
 			-- Ready reminder sound should run on encounter start even when the frame is currently hidden.
 			refreshBloodlustTracker(true)
-			if shouldShowBloodlustTracker() or bloodlustStateActive then
+			if shouldShowBloodlustFrame() then
 				if not bloodlustButton or not bloodlustButton.cooldownFrame then createBloodlustFrame() end
 				refreshBloodlustTracker(false)
 			else
@@ -3445,7 +3478,17 @@ local function eventHandler(self, event, arg1, arg2, arg3, arg4)
 	elseif event == "ENCOUNTER_END" then
 		-- In raids we hide after encounter; in M+ we keep showing
 		if not shouldShowBRTracker() then removeBRFrame() end
-		if not shouldShowBloodlustTracker() and not bloodlustStateActive then removeBloodlustFrame() end
+		if not shouldShowBloodlustFrame() then removeBloodlustFrame() end
+	elseif event == "PLAYER_ENTERING_WORLD" then
+		if addon.db["mythicPlusBloodlustTrackerEnabled"] then
+			refreshBloodlustTracker(false)
+			if shouldShowBloodlustFrame() then
+				if not bloodlustButton or not bloodlustButton.cooldownFrame then createBloodlustFrame() end
+				refreshBloodlustTracker(false)
+			else
+				removeBloodlustFrame()
+			end
+		end
 	end
 end
 
@@ -3461,6 +3504,7 @@ function addon.MythicPlus.functions.InitMain()
 	frameLoad:RegisterEvent("SPELL_UPDATE_CHARGES")
 	frameLoad:RegisterEvent("ENCOUNTER_END")
 	frameLoad:RegisterEvent("ENCOUNTER_START")
+	frameLoad:RegisterEvent("PLAYER_ENTERING_WORLD")
 
 	-- Setze den Event-Handler
 	frameLoad:SetScript("OnEvent", eventHandler)
