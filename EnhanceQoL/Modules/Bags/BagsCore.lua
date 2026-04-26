@@ -620,11 +620,13 @@ local function getTextAppearanceSignature(appearance)
 	local baseSize = tonumber(appearance and appearance.size) or 12
 	local overlaySize = tonumber(appearance and appearance.overlaySize) or baseSize
 	return string.format(
-		"%s:%s:%s:%s",
+		"%s:%s:%s:%s:%s:%s",
 		tostring(appearance and appearance.fontPath or ""),
 		tostring(baseSize),
 		tostring(overlaySize),
-		tostring(appearance and appearance.outlineFlags or "")
+		tostring(appearance and appearance.outline or ""),
+		tostring(appearance and appearance.outlineFlags or ""),
+		tostring(appearance and appearance.globalVersion or "")
 	)
 end
 
@@ -719,19 +721,13 @@ applyConfiguredItemButtonFonts = function(button, appearance, signature)
 	if button.ItemLevelText then
 		applyConfiguredFont(button.ItemLevelText, overlayBaseSize)
 		button.ItemLevelText:SetJustifyH("RIGHT")
-		button.ItemLevelText:SetShadowOffset(1, -1)
-		button.ItemLevelText:SetShadowColor(0, 0, 0, 1)
 	end
 	if button.ItemUpgradeText then
 		applyConfiguredFont(button.ItemUpgradeText, math.max(8, overlayBaseSize - 2))
 		button.ItemUpgradeText:SetJustifyH("RIGHT")
-		button.ItemUpgradeText:SetShadowOffset(1, -1)
-		button.ItemUpgradeText:SetShadowColor(0, 0, 0, 1)
 	end
 	if button.Count then
 		applyConfiguredFont(button.Count, math.max(8, overlayBaseSize - 2))
-		button.Count:SetShadowOffset(1, -1)
-		button.Count:SetShadowColor(0, 0, 0, 1)
 	end
 end
 
@@ -775,15 +771,9 @@ local function applyConfiguredFrameFonts()
 	local baseSize = tonumber(appearance and appearance.size) or 12
 	if state.frame.Title then
 		applyConfiguredFont(state.frame.Title, baseSize + 2)
-		state.frame.Title:SetShadowOffset(1, -1)
-		state.frame.Title:SetShadowColor(0, 0, 0, 1)
 	end
 	if state.frame.SearchBox and state.frame.SearchBox.SetFont then
-		state.frame.SearchBox:SetFont(
-			appearance.fontPath or STANDARD_TEXT_FONT,
-			math.max(10, baseSize - 1),
-			appearance.outlineFlags or "OUTLINE"
-		)
+		applyConfiguredFont(state.frame.SearchBox, math.max(10, baseSize - 1))
 		if state.frame.SearchBox.Instructions then
 			applyConfiguredFont(state.frame.SearchBox.Instructions, math.max(10, baseSize - 1))
 		end
@@ -804,16 +794,12 @@ local function applyConfiguredFrameFonts()
 	for _, button in ipairs(state.currencyButtons or {}) do
 		if button.Count then
 			applyConfiguredFont(button.Count, math.max(8, baseSize - 2))
-			button.Count:SetShadowOffset(1, -1)
-			button.Count:SetShadowColor(0, 0, 0, 1)
 		end
 	end
 
 	for _, header in ipairs(state.sectionHeaders or {}) do
 		if header.Text then
 			applyConfiguredFont(header.Text, baseSize + 1)
-			header.Text:SetShadowOffset(1, -1)
-			header.Text:SetShadowColor(0, 0, 0, 1)
 		end
 	end
 
@@ -1081,8 +1067,6 @@ local function configureSectionHeader(header, options)
 	header.Text:SetText(options.label or "")
 	header.Text:SetTextColor(color[1] or 1, color[2] or 1, color[3] or 1)
 	applyConfiguredFont(header.Text, baseSize + 1)
-	header.Text:SetShadowOffset(1, -1)
-	header.Text:SetShadowColor(0, 0, 0, 1)
 
 	if header.AssignButton then
 		header.AssignButton.sectionID = options.sectionID
@@ -1123,8 +1107,6 @@ local function acquireSectionHeader(index)
 	text:SetPoint("RIGHT", header, "RIGHT", 0, 0)
 	text:SetJustifyH("LEFT")
 	text:SetWordWrap(false)
-	text:SetShadowOffset(1, -1)
-	text:SetShadowColor(0, 0, 0, 1)
 	header.Text = text
 
 	local assignButton = CreateFrame("Button", nil, header, "BackdropTemplate")
@@ -1346,8 +1328,6 @@ local function acquireCurrencyButton(index)
 	button.Count = button:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	button.Count:SetPoint("LEFT", button.Icon, "RIGHT", 4, 0)
 	button.Count:SetJustifyH("LEFT")
-	button.Count:SetShadowOffset(1, -1)
-	button.Count:SetShadowColor(0, 0, 0, 1)
 
 	button:SetScript("OnEnter", function(self)
 		showFooterCurrencyTooltip(self)

@@ -6552,6 +6552,7 @@ local function setAllHooks()
 				if panel and panel.ApplyTextStyle then panel:ApplyTextStyle() end
 			end
 		end
+		if addon.Bags and addon.Bags.functions and addon.Bags.functions.RefreshGlobalFont then addon.Bags.functions.RefreshGlobalFont() end
 		if addon.InstanceDifficulty and addon.InstanceDifficulty.Update then addon.InstanceDifficulty:Update() end
 		if addon.Aura then
 			local xpBar = addon.Aura.ExperienceBar

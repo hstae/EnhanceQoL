@@ -53,7 +53,7 @@ local CATEGORY_MODE_DEFAULTS = {
 	presetVersionApplied = 0,
 }
 
-local INTEGRATED_DEFAULTS_VERSION = 1
+local INTEGRATED_DEFAULTS_VERSION = 2
 
 local defaultSettings = {
 	manualVisible = false,
@@ -78,6 +78,7 @@ local defaultSettings = {
 	skinPreset = "default",
 	iconShape = "default",
 	frameBackground = "parchment",
+	frameBackgroundColor = { 0.03, 0.03, 0.04 },
 	frameBackgroundOpacity = 100,
 	showWatchedCurrencies = true,
 	showTrackedCurrencyCharacterBreakdown = false,
@@ -93,60 +94,12 @@ local defaultSettings = {
 	collapsedSections = {},
 	trackedCurrencyIDs = {},
 	textAppearance = {
-		font = "standard",
+		font = addon.functions and addon.functions.GetGlobalFontConfigKey and addon.functions.GetGlobalFontConfigKey() or "__EQOL_GLOBAL_FONT__",
 		size = 15,
 		overlaySize = 15,
-		outline = "OUTLINE",
+		outline = addon.functions and addon.functions.GetGlobalFontStyleConfigKey and addon.functions.GetGlobalFontStyleConfigKey() or "__EQOL_GLOBAL_FONT_STYLE__",
 	},
 }
-
-local TEXT_FONT_OPTIONS = {
-	{
-		value = "standard",
-		labelKey = "settingsTextFontStandard",
-		getFontPath = function()
-			return STANDARD_TEXT_FONT
-		end,
-	},
-	{
-		value = "arial",
-		labelKey = "settingsTextFontArial",
-		fontPath = "Fonts\\ARIALN.TTF",
-	},
-	{
-		value = "morpheus",
-		labelKey = "settingsTextFontMorpheus",
-		fontPath = "Fonts\\MORPHEUS.ttf",
-	},
-}
-
-local TEXT_FONT_OPTION_LOOKUP = {}
-for _, option in ipairs(TEXT_FONT_OPTIONS) do
-	TEXT_FONT_OPTION_LOOKUP[option.value] = option
-end
-
-local TEXT_OUTLINE_OPTIONS = {
-	{
-		value = "NONE",
-		labelKey = "settingsTextOutlineNone",
-		flags = "",
-	},
-	{
-		value = "OUTLINE",
-		labelKey = "settingsTextOutlineRegular",
-		flags = "OUTLINE",
-	},
-	{
-		value = "THICKOUTLINE",
-		labelKey = "settingsTextOutlineThick",
-		flags = "THICKOUTLINE",
-	},
-}
-
-local TEXT_OUTLINE_OPTION_LOOKUP = {}
-for _, option in ipairs(TEXT_OUTLINE_OPTIONS) do
-	TEXT_OUTLINE_OPTION_LOOKUP[option.value] = option
-end
 
 local TRACKED_CURRENCY_TOOLTIP_TOTAL_POSITION_OPTIONS = {
 	{
@@ -194,6 +147,8 @@ local resolvedTextAppearanceCache = {
 	outline = nil,
 	size = nil,
 	overlaySize = nil,
+	globalVersion = nil,
+	fontMediaVersion = nil,
 }
 
 local TRACKED_CURRENCY_DATA_REQUEST_THROTTLE = 5
@@ -227,6 +182,16 @@ end
 local function ensureTextAppearanceDefaults(appearance)
 	if textAppearanceDefaultsCache.table ~= appearance then
 		applyDefaults(appearance, defaultSettings.textAppearance)
+		local globalFontKey = addon.functions and addon.functions.GetGlobalFontConfigKey and addon.functions.GetGlobalFontConfigKey() or defaultSettings.textAppearance.font
+		local globalStyleKey = addon.functions and addon.functions.GetGlobalFontStyleConfigKey and addon.functions.GetGlobalFontStyleConfigKey() or defaultSettings.textAppearance.outline
+		if appearance.font == "standard" or appearance.font == "arial" or appearance.font == "morpheus" then
+			appearance.font = globalFontKey
+		end
+		if appearance.outline == nil or appearance.outline == "" then
+			appearance.outline = globalStyleKey
+		elseif addon.functions and addon.functions.NormalizeFontStyleChoice then
+			appearance.outline = addon.functions.NormalizeFontStyleChoice(appearance.outline, globalStyleKey, true)
+		end
 		textAppearanceDefaultsCache.table = appearance
 		resolvedTextAppearanceCache.appearance = nil
 	end
@@ -240,24 +205,13 @@ local function applyIntegratedDefaults(settings)
 		return false
 	end
 
-	settings.compactCategoryLayout = true
-	settings.compactCategoryGap = 8
-	settings.combineUnstackableItems = true
-	settings.showFooterSlotSummary = false
-	settings.skinPreset = "default"
-	settings.iconShape = "default"
-	settings.frameBackground = "parchment"
-	settings.frameBackgroundOpacity = 100
-
 	settings.textAppearance = settings.textAppearance or {}
-	settings.textAppearance.font = settings.textAppearance.font or defaultSettings.textAppearance.font
-	settings.textAppearance.size = 15
-	settings.textAppearance.overlaySize = 15
-	settings.textAppearance.outline = settings.textAppearance.outline or defaultSettings.textAppearance.outline
+	if settings.textAppearance.font == "standard" or settings.textAppearance.font == "arial" or settings.textAppearance.font == "morpheus" then
+		settings.textAppearance.font = defaultSettings.textAppearance.font
+	end
 
 	settings.overlayElements = settings.overlayElements or {}
 	settings.overlayElements.upgradeTrack = settings.overlayElements.upgradeTrack or {}
-	settings.overlayElements.upgradeTrack.enabled = false
 
 	settings.integratedDefaultsVersion = INTEGRATED_DEFAULTS_VERSION
 	settingsDefaultsCache.table = nil
@@ -1109,42 +1063,69 @@ end
 
 function addon.GetTextFontOptions()
 	local options = {}
-	for _, option in ipairs(TEXT_FONT_OPTIONS) do
-		options[#options + 1] = {
-			value = option.value,
-			label = (addon.L and addon.L[option.labelKey]) or option.labelKey or option.value,
-		}
+	local globalFontKey = addon.functions and addon.functions.GetGlobalFontConfigKey and addon.functions.GetGlobalFontConfigKey() or defaultSettings.textAppearance.font
+	options[#options + 1] = {
+		value = globalFontKey,
+		label = addon.functions and addon.functions.GetGlobalFontConfigLabel and addon.functions.GetGlobalFontConfigLabel() or "Use global font config",
+	}
+
+	local defaultFont = addon.variables and addon.variables.defaultFont or STANDARD_TEXT_FONT
+	options[#options + 1] = {
+		value = defaultFont,
+		label = addon.L and addon.L["actionBarFontDefault"] or "Blizzard font",
+	}
+
+	local names = addon.functions and addon.functions.GetLSMMediaNames and addon.functions.GetLSMMediaNames("font") or {}
+	local hash = addon.functions and addon.functions.GetLSMMediaHash and addon.functions.GetLSMMediaHash("font") or {}
+	for i = 1, #names do
+		local name = names[i]
+		local path = hash[name]
+		if type(path) == "string" and path ~= "" and path ~= defaultFont then
+			options[#options + 1] = {
+				value = path,
+				label = tostring(name),
+			}
+		end
 	end
 	return options
 end
 
 function addon.GetTextOutlineOptions()
-	local options = {}
-	for _, option in ipairs(TEXT_OUTLINE_OPTIONS) do
-		options[#options + 1] = {
-			value = option.value,
-			label = (addon.L and addon.L[option.labelKey]) or option.labelKey or option.value,
-		}
+	if addon.functions and addon.functions.GetFontStyleOptionList then
+		return addon.functions.GetFontStyleOptionList(true)
 	end
+	local options = {}
+	options[#options + 1] = {
+		value = addon.functions and addon.functions.GetGlobalFontStyleConfigKey and addon.functions.GetGlobalFontStyleConfigKey() or defaultSettings.textAppearance.outline,
+		label = addon.functions and addon.functions.GetGlobalFontStyleConfigLabel and addon.functions.GetGlobalFontStyleConfigLabel() or "Use global font styling",
+	}
+	options[#options + 1] = {
+		value = "NONE",
+		label = _G.NONE or "None",
+	}
+	options[#options + 1] = {
+		value = "OUTLINE",
+		label = addon.L and addon.L["Outline"] or "Outline",
+	}
 	return options
 end
 
 function addon.GetTextFontPath(fontID)
-	local option = TEXT_FONT_OPTION_LOOKUP[fontID] or TEXT_FONT_OPTION_LOOKUP[defaultSettings.textAppearance.font]
-	if not option then
-		return STANDARD_TEXT_FONT
+	local fallback = addon.variables and addon.variables.defaultFont or STANDARD_TEXT_FONT
+	if addon.functions and addon.functions.ResolveFontFace then
+		return addon.functions.ResolveFontFace(fontID, fallback) or fallback
 	end
-
-	if option.getFontPath then
-		return option.getFontPath() or STANDARD_TEXT_FONT
-	end
-
-	return option.fontPath or STANDARD_TEXT_FONT
+	return (type(fontID) == "string" and fontID ~= "" and fontID) or fallback
 end
 
 function addon.GetTextOutlineFlags(outlineID)
-	local option = TEXT_OUTLINE_OPTION_LOOKUP[outlineID] or TEXT_OUTLINE_OPTION_LOOKUP[defaultSettings.textAppearance.outline]
-	return option and option.flags or "OUTLINE"
+	if addon.functions and addon.functions.GetFontFlagsForStyle then
+		return addon.functions.GetFontFlagsForStyle(outlineID, defaultSettings.textAppearance.outline)
+	end
+	if outlineID == "NONE" then
+		return nil
+	end
+	return outlineID or "OUTLINE"
 end
 
 function addon.GetResolvedTextAppearance()
@@ -1153,18 +1134,24 @@ function addon.GetResolvedTextAppearance()
 	local outlineID = appearance.outline or defaultSettings.textAppearance.outline
 	local size = math.floor((tonumber(appearance.size) or defaultSettings.textAppearance.size) + 0.5)
 	local overlaySize = math.floor((tonumber(appearance.overlaySize) or size) + 0.5)
+	local globalVersion = addon.functions and addon.functions.GetGlobalFontStateVersion and addon.functions.GetGlobalFontStateVersion() or 0
+	local fontMediaVersion = addon.functions and addon.functions.GetLSMMediaVersion and addon.functions.GetLSMMediaVersion("font") or 0
 
 	if resolvedTextAppearanceCache.appearance ~= appearance
 		or resolvedTextAppearanceCache.font ~= fontID
 		or resolvedTextAppearanceCache.outline ~= outlineID
 		or resolvedTextAppearanceCache.size ~= size
 		or resolvedTextAppearanceCache.overlaySize ~= overlaySize
+		or resolvedTextAppearanceCache.globalVersion ~= globalVersion
+		or resolvedTextAppearanceCache.fontMediaVersion ~= fontMediaVersion
 	then
 		resolvedTextAppearanceCache.appearance = appearance
 		resolvedTextAppearanceCache.font = fontID
 		resolvedTextAppearanceCache.outline = outlineID
 		resolvedTextAppearanceCache.size = size
 		resolvedTextAppearanceCache.overlaySize = overlaySize
+		resolvedTextAppearanceCache.globalVersion = globalVersion
+		resolvedTextAppearanceCache.fontMediaVersion = fontMediaVersion
 		resolvedTextAppearanceCache.fontPath = addon.GetTextFontPath(fontID)
 		resolvedTextAppearanceCache.outlineFlags = addon.GetTextOutlineFlags(outlineID)
 	end
@@ -1173,12 +1160,13 @@ function addon.GetResolvedTextAppearance()
 end
 
 function addon.SetTextAppearanceFont(fontID)
-	if not TEXT_FONT_OPTION_LOOKUP[fontID] then
+	if type(fontID) ~= "string" or fontID == "" then
 		return false
 	end
 
 	local appearance = addon.GetTextAppearance()
 	appearance.font = fontID
+	resolvedTextAppearanceCache.appearance = nil
 	return true
 end
 
@@ -1229,12 +1217,16 @@ function addon.SetTextAppearanceOverlaySize(size)
 end
 
 function addon.SetTextAppearanceOutline(outlineID)
-	if not TEXT_OUTLINE_OPTION_LOOKUP[outlineID] then
-		return false
+	local globalStyleKey = addon.functions and addon.functions.GetGlobalFontStyleConfigKey and addon.functions.GetGlobalFontStyleConfigKey() or defaultSettings.textAppearance.outline
+	if addon.functions and addon.functions.NormalizeFontStyleChoice then
+		outlineID = addon.functions.NormalizeFontStyleChoice(outlineID, globalStyleKey, true)
+	elseif type(outlineID) ~= "string" or outlineID == "" then
+		outlineID = globalStyleKey
 	end
 
 	local appearance = addon.GetTextAppearance()
 	appearance.outline = outlineID
+	resolvedTextAppearanceCache.appearance = nil
 	return true
 end
 
@@ -1249,7 +1241,25 @@ function addon.ApplyConfiguredFont(fontString, size)
 		fontSize = 6
 	end
 
+	if addon.functions and addon.functions.ApplyFontString then
+		addon.functions.ApplyFontString(fontString, appearance.font, fontSize, appearance.outline, defaultSettings.textAppearance.font, defaultSettings.textAppearance.outline)
+		return
+	end
+
 	fontString:SetFont(appearance.fontPath or STANDARD_TEXT_FONT, fontSize, appearance.outlineFlags or "OUTLINE")
+end
+
+function addon.Bags.functions.RefreshGlobalFont()
+	resolvedTextAppearanceCache.appearance = nil
+	if addon.Bags.functions.RequestLayoutUpdate then
+		addon.Bags.functions.RequestLayoutUpdate(false, true)
+	end
+	if addon.Bags.functions.RequestBankLayoutUpdate then
+		addon.Bags.functions.RequestBankLayoutUpdate(false, true)
+	end
+	if addon.RefreshSettingsFrame then
+		addon.RefreshSettingsFrame()
+	end
 end
 
 local initFrame = addon.Bags.variables.initFrame or CreateFrame("Frame")

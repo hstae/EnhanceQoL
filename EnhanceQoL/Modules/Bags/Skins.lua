@@ -799,6 +799,38 @@ function addon.GetFrameBackgroundOpacity()
 	return value
 end
 
+function addon.GetFrameBackgroundColor()
+	local settings = getSettings()
+	local color = settings and settings.frameBackgroundColor
+	if type(color) ~= "table" then
+		color = { 0.03, 0.03, 0.04 }
+		if settings then
+			settings.frameBackgroundColor = color
+		end
+	end
+
+	local r = tonumber(color[1]) or 0.03
+	local g = tonumber(color[2]) or 0.03
+	local b = tonumber(color[3]) or 0.04
+	if r < 0 then
+		r = 0
+	elseif r > 1 then
+		r = 1
+	end
+	if g < 0 then
+		g = 0
+	elseif g > 1 then
+		g = 1
+	end
+	if b < 0 then
+		b = 0
+	elseif b > 1 then
+		b = 1
+	end
+	color[1], color[2], color[3] = r, g, b
+	return color
+end
+
 function addon.SetIconShape(value)
 	local shapeID = normalizeIconShapeID(value)
 	if not shapeID then
@@ -855,6 +887,43 @@ function addon.SetFrameBackgroundOpacity(value)
 	end
 
 	settings.frameBackgroundOpacity = value
+	return true
+end
+
+function addon.SetFrameBackgroundColor(r, g, b)
+	local settings = getSettings()
+	if not settings then
+		return false
+	end
+
+	r = tonumber(r) or 0.03
+	g = tonumber(g) or 0.03
+	b = tonumber(b) or 0.04
+	if r < 0 then
+		r = 0
+	elseif r > 1 then
+		r = 1
+	end
+	if g < 0 then
+		g = 0
+	elseif g > 1 then
+		g = 1
+	end
+	if b < 0 then
+		b = 0
+	elseif b > 1 then
+		b = 1
+	end
+
+	local color = addon.GetFrameBackgroundColor and addon.GetFrameBackgroundColor() or {}
+	if math.abs((color[1] or 0) - r) < 0.001
+		and math.abs((color[2] or 0) - g) < 0.001
+		and math.abs((color[3] or 0) - b) < 0.001
+	then
+		return false
+	end
+
+	settings.frameBackgroundColor = { r, g, b }
 	return true
 end
 
@@ -954,7 +1023,9 @@ function addon.GetSkinSignature()
 		presetID,
 		iconShapeSetting,
 		resolvedIconShapeID,
+		tostring(addon.GetItemScale and addon.GetItemScale() or 100),
 		addon.GetFrameBackground and addon.GetFrameBackground() or "solid",
+		colorToSignature(addon.GetFrameBackgroundColor and addon.GetFrameBackgroundColor() or {}),
 		tostring(addon.GetFrameBackgroundOpacity and addon.GetFrameBackgroundOpacity() or 60),
 		frame.backdropAtlas or "",
 		colorToSignature(frame.backdropColor or {}),
@@ -982,6 +1053,10 @@ function addon.ApplyFrameBackgroundSkin(frame, skin)
 
 	local definition = FRAME_BACKGROUND_DEFINITIONS[addon.GetFrameBackground and addon.GetFrameBackground() or "solid"] or FRAME_BACKGROUND_DEFINITIONS.solid
 	local backdropR, backdropG, backdropB, backdropA = unpackColor(skin.backdropColor, 0.94)
+	if definition == FRAME_BACKGROUND_DEFINITIONS.solid and addon.GetFrameBackgroundColor then
+		local color = addon.GetFrameBackgroundColor()
+		backdropR, backdropG, backdropB = color[1] or backdropR, color[2] or backdropG, color[3] or backdropB
+	end
 	local requestedOpacity = (addon.GetFrameBackgroundOpacity and addon.GetFrameBackgroundOpacity() or 60) / 100
 	local textureBaseAlpha = 0
 	local shadeBaseAlpha = 0

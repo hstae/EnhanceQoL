@@ -1,5 +1,18 @@
 # Changelog
 
+## [10.9.0-beta2] - 2026-04-26
+
+### ✨ Added
+
+- Bags: Added a solid background color picker for the integrated Bags and Warband Bank frames.
+- Data Panels / Combat Time: Added an option to show the boss timer above the combat timer when timers are stacked.
+
+### 🐛 Fixed
+
+- Bags: Improved text appearance handling so the integrated Bags and Warband Bank frames follow global font and font-style changes more reliably.
+
+---
+
 ## [10.9.0-beta1] - 2026-04-26
 
 ### ✨ Added

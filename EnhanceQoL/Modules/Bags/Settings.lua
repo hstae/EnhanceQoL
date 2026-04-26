@@ -1974,9 +1974,11 @@ local function createOverlayAnchorCard(parent, definition)
 	card.PreviewSlotIcon = slotIcon
 
 	local previewOverlay = previewSlot:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
-	previewOverlay:SetFont(STANDARD_TEXT_FONT, 12, "OUTLINE")
-	previewOverlay:SetShadowOffset(1, -1)
-	previewOverlay:SetShadowColor(0, 0, 0, 1)
+	if addon.ApplyConfiguredFont then
+		addon.ApplyConfiguredFont(previewOverlay, 12)
+	else
+		previewOverlay:SetFont(STANDARD_TEXT_FONT, 12, "OUTLINE")
+	end
 	previewOverlay:SetText(definition.previewText or "278")
 	if definition.previewColor then
 		previewOverlay:SetTextColor(definition.previewColor[1], definition.previewColor[2], definition.previewColor[3])
@@ -3413,6 +3415,32 @@ local function createLayoutPage(parent)
 	page.FrameBackgroundButton = frameBackgroundButton
 	anchorTextAppearanceRow(frameBackgroundLabel, frameBackgroundButton, iconShapeButton)
 
+	local frameBackgroundColorLabel = textAppearanceCard:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	frameBackgroundColorLabel:SetText(L["Background color"] or "Background color")
+	page.FrameBackgroundColorLabel = frameBackgroundColorLabel
+
+	local frameBackgroundColorSwatch = CreateFrame("Button", nil, textAppearanceCard, "ColorSwatchTemplate")
+	frameBackgroundColorSwatch:SetSize(22, 22)
+	frameBackgroundColorSwatch:SetScript("OnClick", function()
+		local color = addon.GetFrameBackgroundColor and addon.GetFrameBackgroundColor() or { 0.03, 0.03, 0.04 }
+		openColorPicker(color, function(r, g, b)
+			if addon.SetFrameBackgroundColor and addon.SetFrameBackgroundColor(r, g, b) then
+				addon.RefreshSettingsFrame("layout")
+				requestBagRefresh(true)
+			end
+		end)
+	end)
+	frameBackgroundColorSwatch:HookScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+		GameTooltip:SetText(L["Background color"] or "Background color")
+		GameTooltip:Show()
+	end)
+	frameBackgroundColorSwatch:HookScript("OnLeave", function()
+		GameTooltip:Hide()
+	end)
+	page.FrameBackgroundColorSwatch = frameBackgroundColorSwatch
+	anchorTextAppearanceRow(frameBackgroundColorLabel, frameBackgroundColorSwatch, frameBackgroundButton)
+
 	local backgroundOpacityLabel = textAppearanceCard:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	backgroundOpacityLabel:SetText(L["settingsFrameBackgroundOpacityLabel"] or "Background opacity")
 	page.FrameBackgroundOpacityLabel = backgroundOpacityLabel
@@ -3420,7 +3448,7 @@ local function createLayoutPage(parent)
 	local backgroundOpacityStepper = CreateFrame("Frame", nil, textAppearanceCard)
 	backgroundOpacityStepper:SetSize(textAppearanceControlWidth, 22)
 	page.FrameBackgroundOpacityStepper = backgroundOpacityStepper
-	anchorTextAppearanceRow(backgroundOpacityLabel, backgroundOpacityStepper, frameBackgroundButton)
+	anchorTextAppearanceRow(backgroundOpacityLabel, backgroundOpacityStepper, frameBackgroundColorSwatch)
 
 	local backgroundOpacityDownButton = CreateFrame("Button", nil, backgroundOpacityStepper, "UIPanelButtonTemplate")
 	backgroundOpacityDownButton:SetSize(24, 22)
@@ -3698,6 +3726,14 @@ refreshLayoutPage = function(page)
 	if page.FrameBackgroundButton then
 		page.FrameBackgroundButton:SetText(getOptionLabel(addon.GetFrameBackgroundOptions and addon.GetFrameBackgroundOptions() or {}, addon.GetFrameBackground and addon.GetFrameBackground() or "solid", L["settingsFrameBackgroundLabel"] or "Background"))
 	end
+	if page.FrameBackgroundColorSwatch then
+		local color = addon.GetFrameBackgroundColor and addon.GetFrameBackgroundColor() or { 0.03, 0.03, 0.04 }
+		local isSolidBackground = (addon.GetFrameBackground and addon.GetFrameBackground() or "solid") == "solid"
+		page.FrameBackgroundColorSwatch:SetColorRGB(color[1] or 0.03, color[2] or 0.03, color[3] or 0.04)
+		page.FrameBackgroundColorSwatch:SetEnabled(isSolidBackground)
+		page.FrameBackgroundColorSwatch:SetAlpha(isSolidBackground and 1 or 0.45)
+		page.FrameBackgroundColorLabel:SetAlpha(isSolidBackground and 1 or 0.45)
+	end
 	if page.FrameBackgroundOpacityValue then
 		local backgroundOpacity = addon.GetFrameBackgroundOpacity and addon.GetFrameBackgroundOpacity() or 60
 		page.FrameBackgroundOpacityValue:SetText(string.format("%d%%", backgroundOpacity))
@@ -3716,8 +3752,6 @@ refreshLayoutPage = function(page)
 	end
 	if page.TextPreview and addon.ApplyConfiguredFont then
 		addon.ApplyConfiguredFont(page.TextPreview, tonumber(appearance.size) or 12)
-		page.TextPreview:SetShadowOffset(1, -1)
-		page.TextPreview:SetShadowColor(0, 0, 0, 1)
 		local skin = addon.GetActiveSkinDefinition and addon.GetActiveSkinDefinition() or nil
 		local titleColor = skin and skin.frame and skin.frame.titleColor or nil
 		page.TextPreview:SetTextColor(titleColor and titleColor[1] or 1, titleColor and titleColor[2] or 0.82, titleColor and titleColor[3] or 0.16)
@@ -3725,8 +3759,6 @@ refreshLayoutPage = function(page)
 	if page.TextOverlayPreview and addon.ApplyConfiguredFont then
 		local overlaySize = addon.GetTextAppearanceOverlaySize and addon.GetTextAppearanceOverlaySize() or tonumber(appearance.overlaySize) or tonumber(appearance.size) or 12
 		addon.ApplyConfiguredFont(page.TextOverlayPreview, overlaySize)
-		page.TextOverlayPreview:SetShadowOffset(1, -1)
-		page.TextOverlayPreview:SetShadowColor(0, 0, 0, 1)
 		page.TextOverlayPreview:SetTextColor(0.8, 0.34, 1)
 	end
 	if page.ScrollFrame and page.Content and page.LayoutContentHeight then
@@ -4162,7 +4194,7 @@ applyLayoutPageMode = function(page)
 	end
 
 	if page.TextAppearanceCard then
-		page.TextAppearanceCard:SetHeight(396)
+		page.TextAppearanceCard:SetHeight(430)
 	end
 	if page.TextAppearanceTitle then
 		page.TextAppearanceTitle:SetText((basicMode and (L["settingsBasicLookTitle"] or "Look")) or (L["settingsTextAppearanceTitle"] or "Text appearance"))
@@ -4201,7 +4233,8 @@ applyLayoutPageMode = function(page)
 	anchorTextAppearanceControl(page.TextAppearanceCard, page.TextAppearanceHint, page.SkinPresetLabel, page.SkinPresetButton)
 	anchorTextAppearanceControl(page.TextAppearanceCard, page.TextAppearanceHint, page.IconShapeLabel, page.IconShapeButton, page.SkinPresetButton)
 	anchorTextAppearanceControl(page.TextAppearanceCard, page.TextAppearanceHint, page.FrameBackgroundLabel, page.FrameBackgroundButton, page.IconShapeButton)
-	anchorTextAppearanceControl(page.TextAppearanceCard, page.TextAppearanceHint, page.FrameBackgroundOpacityLabel, page.FrameBackgroundOpacityStepper, page.FrameBackgroundButton)
+	anchorTextAppearanceControl(page.TextAppearanceCard, page.TextAppearanceHint, page.FrameBackgroundColorLabel, page.FrameBackgroundColorSwatch, page.FrameBackgroundButton)
+	anchorTextAppearanceControl(page.TextAppearanceCard, page.TextAppearanceHint, page.FrameBackgroundOpacityLabel, page.FrameBackgroundOpacityStepper, page.FrameBackgroundColorSwatch)
 	anchorTextAppearanceControl(page.TextAppearanceCard, page.TextAppearanceHint, page.TextFontLabel, page.TextFontButton, page.FrameBackgroundOpacityStepper)
 	anchorTextAppearanceControl(page.TextAppearanceCard, page.TextAppearanceHint, page.TextSizeLabel, page.TextSizeStepper, page.TextFontButton)
 	anchorTextAppearanceControl(page.TextAppearanceCard, page.TextAppearanceHint, page.TextOverlaySizeLabel, page.TextOverlaySizeStepper, page.TextSizeStepper)
