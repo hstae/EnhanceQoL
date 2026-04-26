@@ -54,6 +54,26 @@ local CATEGORY_MODE_DEFAULTS = {
 }
 
 local INTEGRATED_DEFAULTS_VERSION = 2
+local TEXT_ELEMENT_INHERIT_KEY = "__inherit__"
+local TEXT_ELEMENT_ORDER = {
+	"categoryHeader",
+	"subcategoryHeader",
+	"overlays",
+}
+local TEXT_ELEMENT_DEFINITIONS = {
+	categoryHeader = {
+		labelKey = "settingsTextElementCategoryHeader",
+		size = 16,
+	},
+	subcategoryHeader = {
+		labelKey = "settingsTextElementSubcategoryHeader",
+		size = 16,
+	},
+	overlays = {
+		labelKey = "settingsTextElementOverlays",
+		size = 13,
+	},
+}
 
 local defaultSettings = {
 	manualVisible = false,
@@ -74,6 +94,7 @@ local defaultSettings = {
 	showGold = true,
 	showCurrencies = true,
 	showFooterSlotSummary = false,
+	moneyFormat = "symbols",
 	freeSlotDisplayMode = "icons",
 	freeSlotNormalColor = { 0.18, 0.12, 0.06 },
 	freeSlotReagentColor = { 0.36, 0.27, 0.08 },
@@ -101,6 +122,27 @@ local defaultSettings = {
 		size = 15,
 		overlaySize = 15,
 		outline = addon.functions and addon.functions.GetGlobalFontStyleConfigKey and addon.functions.GetGlobalFontStyleConfigKey() or "__EQOL_GLOBAL_FONT_STYLE__",
+		subcategoryFullLabels = false,
+		elements = {
+			categoryHeader = {
+				font = TEXT_ELEMENT_INHERIT_KEY,
+				size = TEXT_ELEMENT_DEFINITIONS.categoryHeader.size,
+				case = "default",
+				outline = TEXT_ELEMENT_INHERIT_KEY,
+			},
+			subcategoryHeader = {
+				font = TEXT_ELEMENT_INHERIT_KEY,
+				size = TEXT_ELEMENT_DEFINITIONS.subcategoryHeader.size,
+				case = "default",
+				outline = TEXT_ELEMENT_INHERIT_KEY,
+			},
+			overlays = {
+				font = TEXT_ELEMENT_INHERIT_KEY,
+				size = TEXT_ELEMENT_DEFINITIONS.overlays.size,
+				case = "default",
+				outline = TEXT_ELEMENT_INHERIT_KEY,
+			},
+		},
 	},
 }
 
@@ -136,6 +178,42 @@ for _, option in ipairs(TRACKED_CURRENCY_TOOLTIP_COLOR_MODE_OPTIONS) do
 	TRACKED_CURRENCY_TOOLTIP_COLOR_MODE_LOOKUP[option.value] = option
 end
 
+local TEXT_CASE_OPTIONS = {
+	{
+		value = "default",
+		labelKey = "settingsTextCaseDefault",
+	},
+	{
+		value = "lower",
+		labelKey = "settingsTextCaseLower",
+	},
+	{
+		value = "upper",
+		labelKey = "settingsTextCaseUpper",
+	},
+}
+
+local TEXT_CASE_LOOKUP = {}
+for _, option in ipairs(TEXT_CASE_OPTIONS) do
+	TEXT_CASE_LOOKUP[option.value] = option
+end
+
+local MONEY_FORMAT_OPTIONS = {
+	{
+		value = "symbols",
+		labelKey = "settingsMoneyFormatSymbols",
+	},
+	{
+		value = "letters",
+		labelKey = "settingsMoneyFormatLetters",
+	},
+}
+
+local MONEY_FORMAT_LOOKUP = {}
+for _, option in ipairs(MONEY_FORMAT_OPTIONS) do
+	MONEY_FORMAT_LOOKUP[option.value] = option
+end
+
 local settingsDefaultsCache = {
 	table = nil,
 }
@@ -146,6 +224,7 @@ local textAppearanceDefaultsCache = {
 
 local resolvedTextAppearanceCache = {
 	appearance = nil,
+	elementID = nil,
 	font = nil,
 	outline = nil,
 	size = nil,
@@ -194,6 +273,31 @@ local function ensureTextAppearanceDefaults(appearance)
 			appearance.outline = globalStyleKey
 		elseif addon.functions and addon.functions.NormalizeFontStyleChoice then
 			appearance.outline = addon.functions.NormalizeFontStyleChoice(appearance.outline, globalStyleKey, true)
+		end
+		appearance.elements = appearance.elements or {}
+		for elementID, definition in pairs(TEXT_ELEMENT_DEFINITIONS) do
+			local element = appearance.elements[elementID]
+			if type(element) ~= "table" then
+				element = {}
+				appearance.elements[elementID] = element
+			end
+			if element.font == nil or element.font == "" then
+				element.font = TEXT_ELEMENT_INHERIT_KEY
+			end
+			if element.outline == nil or element.outline == "" then
+				element.outline = TEXT_ELEMENT_INHERIT_KEY
+			elseif element.outline ~= TEXT_ELEMENT_INHERIT_KEY and addon.functions and addon.functions.NormalizeFontStyleChoice then
+				element.outline = addon.functions.NormalizeFontStyleChoice(element.outline, globalStyleKey, true)
+			end
+			element.size = math.floor((tonumber(element.size) or definition.size or defaultSettings.textAppearance.size) + 0.5)
+			if element.size < 8 then
+				element.size = 8
+			elseif element.size > 24 then
+				element.size = 24
+			end
+			if not TEXT_CASE_LOOKUP[element.case] then
+				element.case = "default"
+			end
 		end
 		textAppearanceDefaultsCache.table = appearance
 		resolvedTextAppearanceCache.appearance = nil
@@ -1024,7 +1128,7 @@ function addon.GetFreeSlotDisplayModeOptions()
 		},
 		{
 			value = "texture",
-			label = addon.L and addon.L["settingsFreeSlotDisplayTexture"] or "Empty texture",
+			label = addon.L and addon.L["settingsFreeSlotDisplayTexture"] or "Without icon",
 		},
 	}
 end
@@ -1207,16 +1311,175 @@ function addon.GetTextOutlineFlags(outlineID)
 	return outlineID or "OUTLINE"
 end
 
-function addon.GetResolvedTextAppearance()
+function addon.GetTextElementOptions()
+	local options = {}
+	for _, elementID in ipairs(TEXT_ELEMENT_ORDER) do
+		local definition = TEXT_ELEMENT_DEFINITIONS[elementID]
+		options[#options + 1] = {
+			value = elementID,
+			label = addon.L and addon.L[definition.labelKey] or definition.labelKey or elementID,
+		}
+	end
+	return options
+end
+
+function addon.GetTextElementFontOptions()
+	local options = {
+		{
+			value = TEXT_ELEMENT_INHERIT_KEY,
+			label = addon.L and addon.L["settingsTextElementUseBaseFont"] or "Use base font",
+		},
+	}
+	local baseOptions = addon.GetTextFontOptions and addon.GetTextFontOptions() or {}
+	for _, option in ipairs(baseOptions) do
+		options[#options + 1] = option
+	end
+	return options
+end
+
+function addon.GetTextElementOutlineOptions()
+	local options = {
+		{
+			value = TEXT_ELEMENT_INHERIT_KEY,
+			label = addon.L and addon.L["settingsTextElementUseBaseOutline"] or "Use base outline",
+		},
+	}
+	local baseOptions = addon.GetTextOutlineOptions and addon.GetTextOutlineOptions() or {}
+	for _, option in ipairs(baseOptions) do
+		options[#options + 1] = option
+	end
+	return options
+end
+
+function addon.GetTextCaseOptions()
+	local options = {}
+	for _, option in ipairs(TEXT_CASE_OPTIONS) do
+		options[#options + 1] = {
+			value = option.value,
+			label = addon.L and addon.L[option.labelKey] or option.labelKey or option.value,
+		}
+	end
+	return options
+end
+
+function addon.GetTextElementAppearance(elementID)
+	if not TEXT_ELEMENT_DEFINITIONS[elementID] then
+		return nil
+	end
 	local appearance = addon.GetTextAppearance()
-	local fontID = appearance.font or defaultSettings.textAppearance.font
-	local outlineID = appearance.outline or defaultSettings.textAppearance.outline
-	local size = math.floor((tonumber(appearance.size) or defaultSettings.textAppearance.size) + 0.5)
+	appearance.elements = appearance.elements or {}
+	if type(appearance.elements[elementID]) ~= "table" then
+		appearance.elements[elementID] = {}
+		textAppearanceDefaultsCache.table = nil
+	end
+	return ensureTextAppearanceDefaults(appearance).elements[elementID]
+end
+
+function addon.SetTextElementFont(elementID, fontID)
+	local element = addon.GetTextElementAppearance(elementID)
+	if not element then
+		return false
+	end
+	if type(fontID) ~= "string" or fontID == "" then
+		fontID = TEXT_ELEMENT_INHERIT_KEY
+	end
+	element.font = fontID
+	resolvedTextAppearanceCache.appearance = nil
+	return true
+end
+
+function addon.SetTextElementSize(elementID, size)
+	local element = addon.GetTextElementAppearance(elementID)
+	if not element then
+		return false
+	end
+	size = math.floor((tonumber(size) or element.size or defaultSettings.textAppearance.size) + 0.5)
+	if size < 8 then
+		size = 8
+	elseif size > 24 then
+		size = 24
+	end
+	if tonumber(element.size) == size then
+		return false
+	end
+	element.size = size
+	resolvedTextAppearanceCache.appearance = nil
+	return true
+end
+
+function addon.SetTextElementCase(elementID, caseMode)
+	local element = addon.GetTextElementAppearance(elementID)
+	if not element then
+		return false
+	end
+	caseMode = TEXT_CASE_LOOKUP[caseMode] and caseMode or "default"
+	if element.case == caseMode then
+		return false
+	end
+	element.case = caseMode
+	return true
+end
+
+function addon.SetTextElementOutline(elementID, outlineID)
+	local element = addon.GetTextElementAppearance(elementID)
+	if not element then
+		return false
+	end
+	local globalStyleKey = addon.functions and addon.functions.GetGlobalFontStyleConfigKey and addon.functions.GetGlobalFontStyleConfigKey() or defaultSettings.textAppearance.outline
+	if outlineID ~= TEXT_ELEMENT_INHERIT_KEY then
+		if addon.functions and addon.functions.NormalizeFontStyleChoice then
+			outlineID = addon.functions.NormalizeFontStyleChoice(outlineID, globalStyleKey, true)
+		elseif type(outlineID) ~= "string" or outlineID == "" then
+			outlineID = TEXT_ELEMENT_INHERIT_KEY
+		end
+	end
+	element.outline = outlineID
+	resolvedTextAppearanceCache.appearance = nil
+	return true
+end
+
+function addon.GetSubcategoryFullLabels()
+	local appearance = addon.GetTextAppearance()
+	appearance.subcategoryFullLabels = not not appearance.subcategoryFullLabels
+	return appearance.subcategoryFullLabels
+end
+
+function addon.SetSubcategoryFullLabels(enabled)
+	local appearance = addon.GetTextAppearance()
+	enabled = not not enabled
+	if appearance.subcategoryFullLabels == enabled then
+		return false
+	end
+	appearance.subcategoryFullLabels = enabled
+	return true
+end
+
+function addon.FormatTextElement(elementID, text)
+	if type(text) ~= "string" or not TEXT_ELEMENT_DEFINITIONS[elementID] then
+		return text
+	end
+	local element = addon.GetTextElementAppearance and addon.GetTextElementAppearance(elementID) or nil
+	local caseMode = element and element.case or "default"
+	if caseMode == "lower" then
+		return string.lower(text)
+	elseif caseMode == "upper" then
+		return string.upper(text)
+	end
+	return text
+end
+
+function addon.GetResolvedTextAppearance(elementID)
+	local appearance = addon.GetTextAppearance()
+	local element = TEXT_ELEMENT_DEFINITIONS[elementID] and addon.GetTextElementAppearance(elementID) or nil
+	local fontID = element and element.font ~= TEXT_ELEMENT_INHERIT_KEY and element.font or appearance.font or defaultSettings.textAppearance.font
+	local outlineID = element and element.outline ~= TEXT_ELEMENT_INHERIT_KEY and element.outline or appearance.outline or defaultSettings.textAppearance.outline
+	local size = math.floor((tonumber(element and element.size) or tonumber(appearance.size) or defaultSettings.textAppearance.size) + 0.5)
 	local overlaySize = math.floor((tonumber(appearance.overlaySize) or size) + 0.5)
 	local globalVersion = addon.functions and addon.functions.GetGlobalFontStateVersion and addon.functions.GetGlobalFontStateVersion() or 0
 	local fontMediaVersion = addon.functions and addon.functions.GetLSMMediaVersion and addon.functions.GetLSMMediaVersion("font") or 0
 
 	if resolvedTextAppearanceCache.appearance ~= appearance
+		or resolvedTextAppearanceCache.elementID ~= elementID
 		or resolvedTextAppearanceCache.font ~= fontID
 		or resolvedTextAppearanceCache.outline ~= outlineID
 		or resolvedTextAppearanceCache.size ~= size
@@ -1225,6 +1488,7 @@ function addon.GetResolvedTextAppearance()
 		or resolvedTextAppearanceCache.fontMediaVersion ~= fontMediaVersion
 	then
 		resolvedTextAppearanceCache.appearance = appearance
+		resolvedTextAppearanceCache.elementID = elementID
 		resolvedTextAppearanceCache.font = fontID
 		resolvedTextAppearanceCache.outline = outlineID
 		resolvedTextAppearanceCache.size = size
@@ -1309,12 +1573,12 @@ function addon.SetTextAppearanceOutline(outlineID)
 	return true
 end
 
-function addon.ApplyConfiguredFont(fontString, size)
+function addon.ApplyConfiguredFont(fontString, size, elementID)
 	if not fontString or not fontString.SetFont then
 		return
 	end
 
-	local appearance = addon.GetResolvedTextAppearance()
+	local appearance = addon.GetResolvedTextAppearance(elementID)
 	local fontSize = math.floor((tonumber(size) or appearance.size or defaultSettings.textAppearance.size) + 0.5)
 	if fontSize < 6 then
 		fontSize = 6
@@ -1326,6 +1590,39 @@ function addon.ApplyConfiguredFont(fontString, size)
 	end
 
 	fontString:SetFont(appearance.fontPath or STANDARD_TEXT_FONT, fontSize, appearance.outlineFlags or "OUTLINE")
+end
+
+function addon.GetMoneyFormatOptions()
+	local options = {}
+	for _, option in ipairs(MONEY_FORMAT_OPTIONS) do
+		options[#options + 1] = {
+			value = option.value,
+			label = addon.L and addon.L[option.labelKey] or option.labelKey or option.value,
+		}
+	end
+	return options
+end
+
+function addon.GetMoneyFormat()
+	local settings = addon.GetSettings()
+	local format = tostring(settings.moneyFormat or defaultSettings.moneyFormat)
+	if not MONEY_FORMAT_LOOKUP[format] then
+		format = defaultSettings.moneyFormat
+		settings.moneyFormat = format
+	end
+	return format
+end
+
+function addon.SetMoneyFormat(format)
+	if not MONEY_FORMAT_LOOKUP[format] then
+		return false
+	end
+	local settings = addon.GetSettings()
+	if settings.moneyFormat == format then
+		return false
+	end
+	settings.moneyFormat = format
+	return true
 end
 
 function addon.Bags.functions.RefreshGlobalFont()

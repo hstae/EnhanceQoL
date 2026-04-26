@@ -208,7 +208,7 @@ end
 local function normalizeAlwaysShowMode(value, fallback)
 	if CooldownPanels and CooldownPanels.NormalizeCDMAuraAlwaysShowMode then return CooldownPanels:NormalizeCDMAuraAlwaysShowMode(value, fallback) end
 	local mode = type(value) == "string" and string.upper(value) or nil
-	if mode == "SHOW" or mode == "DESATURATE" or mode == "HIDE" then return mode end
+	if mode == "SHOW" or mode == "DESATURATE" or mode == "DESATURATE_ACTIVE" or mode == "HIDE" then return mode end
 	return fallback or "HIDE"
 end
 
@@ -1995,6 +1995,7 @@ function CDMAuras:BuildRuntimeData(panelId, entryId, entry, entryLayout, alwaysS
 	data.show = show
 	data.active = active
 	data.inactiveDesaturate = alwaysShowMode == "DESATURATE" and not active
+	data.activeDesaturate = alwaysShowMode == "DESATURATE_ACTIVE" and active
 	data.durationActive = durationActive
 	data.cooldownStart = cooldownStart
 	data.cooldownDuration = cooldownDuration

@@ -47,6 +47,7 @@ CooldownPanels.CDM_AURA_ALWAYS_SHOW_MODE = CooldownPanels.CDM_AURA_ALWAYS_SHOW_M
 	HIDE = "HIDE",
 	SHOW = "SHOW",
 	DESATURATE = "DESATURATE",
+	DESATURATE_ACTIVE = "DESATURATE_ACTIVE",
 }
 if CooldownPanels._eqolSpellCooldownIgnoreGCDSupported == nil then
 	-- TODO: Remove this pre-12.0.5 compatibility gate once 12.0.5+ is the minimum supported client.
@@ -332,7 +333,7 @@ curveAlpha:AddPoint(0.1, 0)
 function CooldownPanels:NormalizeCDMAuraAlwaysShowMode(value, fallback)
 	local mode = type(value) == "string" and string.upper(value) or nil
 	local values = self.CDM_AURA_ALWAYS_SHOW_MODE or {}
-	if mode == values.SHOW or mode == values.DESATURATE or mode == values.HIDE then return mode end
+	if mode == values.SHOW or mode == values.DESATURATE or mode == values.DESATURATE_ACTIVE or mode == values.HIDE then return mode end
 	return fallback or values.HIDE or "HIDE"
 end
 
@@ -350,6 +351,10 @@ function CooldownPanels:GetCDMAuraAlwaysShowOptions()
 		{
 			value = values.DESATURATE or "DESATURATE",
 			label = L["CooldownPanelCDMAuraAlwaysShowModeDesaturate"] or "Always show (desaturate if inactive)",
+		},
+		{
+			value = values.DESATURATE_ACTIVE or "DESATURATE_ACTIVE",
+			label = L["CooldownPanelCDMAuraAlwaysShowModeDesaturateActive"] or "Always show (desaturate when active)",
 		},
 	}
 end
@@ -16043,6 +16048,8 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 				data.cdmAuraActive = cdmAuraData and cdmAuraData.active == true
 				data.cdmAuraInactiveDesaturate = cdmAuraData and cdmAuraData.inactiveDesaturate == true
 					or cdmAuraAlwaysShowMode == (CooldownPanels.CDM_AURA_ALWAYS_SHOW_MODE and CooldownPanels.CDM_AURA_ALWAYS_SHOW_MODE.DESATURATE or "DESATURATE")
+				data.cdmAuraActiveDesaturate = cdmAuraData and cdmAuraData.activeDesaturate == true
+					or cdmAuraAlwaysShowMode == (CooldownPanels.CDM_AURA_ALWAYS_SHOW_MODE and CooldownPanels.CDM_AURA_ALWAYS_SHOW_MODE.DESATURATE_ACTIVE or "DESATURATE_ACTIVE")
 				data.cdmAuraDurationObject = cdmAuraData and cdmAuraData.cooldownDurationObject or nil
 				if fixedGroupCenterGrowth and fixedGroup then
 					local centerList = fixedCenterGroupVisibleData[fixedGroup.id]
@@ -16362,6 +16369,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 
 			if data.emptyItem then desaturate = true end
 			if data.resolvedType == "CDM_AURA" and data.cdmAuraInactiveDesaturate == true and not cdmAuraActive and not cdmAuraDurationActive then desaturate = true end
+			if data.resolvedType == "CDM_AURA" and data.cdmAuraActiveDesaturate == true and cdmAuraActive then desaturate = true end
 
 			if not isSafeNumber(cooldownRate) then cooldownRate = 1 end
 			CooldownPanels.SetIconDesaturatedRuntime(icon.texture, desaturate, entryNoDesaturation)
@@ -16515,6 +16523,10 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 				if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", nil) end
 				setExampleCooldown(icon.cooldown)
 				icon:SetAlpha(1)
+			end
+			if data.resolvedType == "CDM_AURA" and data.cdmAuraActiveDesaturate == true and cdmAuraActive then
+				desaturate = true
+				CooldownPanels.SetIconDesaturatedRuntime(icon.texture, true, entryNoDesaturation)
 			end
 			local cooldownDefaultFontPath, cooldownDefaultFontSize, cooldownDefaultFontStyle = cdp.RUNTIME.EnsureCooldownTextDefaults(icon)
 			if

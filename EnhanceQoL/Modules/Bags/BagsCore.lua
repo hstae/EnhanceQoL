@@ -1,4 +1,4 @@
--- luacheck: globals BagsItemButton_OnLoad ItemButtonUtil ContainerFrameItemButtonMixin ScrollFrameTemplate_OnMouseWheel IsAnyStandardHeldBagOpen BackpackTokenFrame BagItemAutoSortButton ITEM_SEARCHBAR_LIST BagSearch_OnHide BagSearch_OnTextChanged BagSearch_OnChar UIPanelScrollFrame_OnLoad ClearItemButtonOverlay SetItemButtonQuality ContainerFrame_AllowedToOpenBags
+-- luacheck: globals BagsItemButton_OnLoad ItemButtonUtil ContainerFrameItemButtonMixin ScrollFrameTemplate_OnMouseWheel IsAnyStandardHeldBagOpen BackpackTokenFrame BagItemAutoSortButton ITEM_SEARCHBAR_LIST BagSearch_OnHide BagSearch_OnTextChanged BagSearch_OnChar UIPanelScrollFrame_OnLoad ClearItemButtonOverlay SetItemButtonQuality ContainerFrame_AllowedToOpenBags COPPER_PER_GOLD COPPER_PER_SILVER
 local addonName, addon = ...
 addon = addon or {}
 _G[addonName] = addon
@@ -286,17 +286,17 @@ local function getOverlayElements()
 	return addon.GetOverlayElements and addon.GetOverlayElements() or {}
 end
 
-local function applyConfiguredFont(fontString, size)
+local function applyConfiguredFont(fontString, size, elementID)
 	if addon.ApplyConfiguredFont then
-		addon.ApplyConfiguredFont(fontString, size)
+		addon.ApplyConfiguredFont(fontString, size, elementID)
 	elseif fontString and fontString.SetFont then
 		fontString:SetFont(STANDARD_TEXT_FONT, size or 12, "OUTLINE")
 	end
 end
 
-local function getResolvedTextAppearance()
+local function getResolvedTextAppearance(elementID)
 	if addon.GetResolvedTextAppearance then
-		return addon.GetResolvedTextAppearance()
+		return addon.GetResolvedTextAppearance(elementID)
 	end
 
 	return {
@@ -642,7 +642,8 @@ local function getTextAppearanceSignature(appearance)
 	local baseSize = tonumber(appearance and appearance.size) or 12
 	local overlaySize = tonumber(appearance and appearance.overlaySize) or baseSize
 	return string.format(
-		"%s:%s:%s:%s:%s:%s",
+		"%s:%s:%s:%s:%s:%s:%s",
+		tostring(appearance and appearance.elementID or ""),
 		tostring(appearance and appearance.fontPath or ""),
 		tostring(baseSize),
 		tostring(overlaySize),
@@ -731,9 +732,8 @@ applyConfiguredItemButtonFonts = function(button, appearance, signature)
 		return
 	end
 
-	appearance = appearance or getResolvedTextAppearance()
-	local baseSize = tonumber(appearance and appearance.size) or 12
-	local overlayBaseSize = tonumber(appearance and appearance.overlaySize) or baseSize
+	appearance = appearance or getResolvedTextAppearance("overlays")
+	local overlayBaseSize = tonumber(appearance and appearance.size) or 12
 	signature = signature or getTextAppearanceSignature(appearance)
 	if button._bagsFontSignature == signature then
 		return
@@ -741,15 +741,15 @@ applyConfiguredItemButtonFonts = function(button, appearance, signature)
 
 	button._bagsFontSignature = signature
 	if button.ItemLevelText then
-		applyConfiguredFont(button.ItemLevelText, overlayBaseSize)
+		applyConfiguredFont(button.ItemLevelText, overlayBaseSize, "overlays")
 		button.ItemLevelText:SetJustifyH("RIGHT")
 	end
 	if button.ItemUpgradeText then
-		applyConfiguredFont(button.ItemUpgradeText, math.max(8, overlayBaseSize - 2))
+		applyConfiguredFont(button.ItemUpgradeText, math.max(8, overlayBaseSize - 2), "overlays")
 		button.ItemUpgradeText:SetJustifyH("RIGHT")
 	end
 	if button.Count then
-		applyConfiguredFont(button.Count, math.max(8, overlayBaseSize - 2))
+		applyConfiguredFont(button.Count, math.max(8, overlayBaseSize - 2), "overlays")
 	end
 end
 
@@ -821,7 +821,7 @@ local function applyConfiguredFrameFonts()
 
 	for _, header in ipairs(state.sectionHeaders or {}) do
 		if header.Text then
-			applyConfiguredFont(header.Text, baseSize + 1)
+			applyConfiguredFont(header.Text, nil, header._bagsTextElementID or "subcategoryHeader")
 		end
 	end
 
@@ -1062,7 +1062,6 @@ local function configureSectionHeader(header, options)
 	local isCollapsed = not not options.collapsed
 	local isCollapsible = options.collapsible ~= false
 	local color = options.color or { 1, 1, 1 }
-	local baseSize = getConfiguredBaseTextSize()
 	local showAssignButton = options.isCustom and isCategoryAssignModeActive()
 
 	header:SetHeight(Core.SECTION_HEADER_HEIGHT)
@@ -1072,6 +1071,7 @@ local function configureSectionHeader(header, options)
 	header.categoryColor = color
 	header.isCustomCategory = not not options.isCustom
 	header.canCollapse = isCollapsible
+	header._bagsTextElementID = options.textElementID or "subcategoryHeader"
 	if isCollapsible then
 		header.Icon:SetAtlas(isCollapsed and Core.SECTION_TOGGLE_COLLAPSED_ATLAS or Core.SECTION_TOGGLE_EXPANDED_ATLAS, true)
 		header.Icon:SetVertexColor(color[1] or 1, color[2] or 1, color[3] or 1, 1)
@@ -1082,9 +1082,9 @@ local function configureSectionHeader(header, options)
 	if header.HighlightTexture then
 		header.HighlightTexture:SetShown(isCollapsible)
 	end
-	header.Text:SetText(options.label or "")
+	header.Text:SetText(addon.FormatTextElement and addon.FormatTextElement(header._bagsTextElementID, options.label or "") or options.label or "")
 	header.Text:SetTextColor(color[1] or 1, color[2] or 1, color[3] or 1)
-	applyConfiguredFont(header.Text, baseSize + 1)
+	applyConfiguredFont(header.Text, nil, header._bagsTextElementID)
 
 	if header.AssignButton then
 		header.AssignButton.sectionID = options.sectionID
@@ -1364,13 +1364,20 @@ local function acquireCurrencyButton(index)
 end
 
 local function formatFooterMoneyString(amount)
+	amount = math.max(0, tonumber(amount) or 0)
+	if addon.GetMoneyFormat and addon.GetMoneyFormat() == "letters" then
+		local gold = math.floor(amount / COPPER_PER_GOLD)
+		local silver = math.floor((amount % COPPER_PER_GOLD) / COPPER_PER_SILVER)
+		local copper = amount % COPPER_PER_SILVER
+		return string.format("%dg %ds %db", gold, silver, copper)
+	end
 	if type(GetMoneyString) == "function" then
-		return GetMoneyString(amount or 0, true)
+		return GetMoneyString(amount, true)
 	elseif C_CurrencyInfo and C_CurrencyInfo.GetCoinTextureString then
-		return C_CurrencyInfo.GetCoinTextureString(amount or 0, 12)
+		return C_CurrencyInfo.GetCoinTextureString(amount, 12)
 	end
 
-	return tostring(amount or 0)
+	return tostring(amount)
 end
 
 local function getTrackedCharacterDisplayName(entry)
@@ -1842,7 +1849,7 @@ local function updateItemLevelText(button, itemLink, itemID, quality, overlayRun
 			return
 		end
 
-		text:SetText(keystoneLevel)
+		text:SetText(addon.FormatTextElement and addon.FormatTextElement("overlays", tostring(keystoneLevel)) or keystoneLevel)
 		local r, g, b = getKeystoneLevelTextColor(keystoneLevel)
 		if r then
 			text:SetTextColor(r, g, b)
@@ -1879,7 +1886,7 @@ local function updateItemLevelText(button, itemLink, itemID, quality, overlayRun
 		return
 	end
 
-	text:SetText(itemLevel)
+	text:SetText(addon.FormatTextElement and addon.FormatTextElement("overlays", tostring(itemLevel)) or itemLevel)
 	if overlayEntry and overlayEntry.colorMode == "custom" and type(overlayEntry.customColor) == "table" then
 		text:SetTextColor(
 			tonumber(overlayEntry.customColor[1]) or 1,
@@ -1937,7 +1944,7 @@ local function updateItemUpgradeText(button, itemLink, itemID, overlayRuntime)
 		return
 	end
 
-	text:SetText(upgradeInfo.displayText)
+	text:SetText(addon.FormatTextElement and addon.FormatTextElement("overlays", upgradeInfo.displayText) or upgradeInfo.displayText)
 	if addon.GetUpgradeTrackColor then
 		local r, g, b = addon.GetUpgradeTrackColor(upgradeInfo.key)
 		text:SetTextColor(r or 1, g or 1, b or 1)
@@ -3770,7 +3777,7 @@ local function setSectionMappingsCollapsed(section, isCollapsed)
 	end
 end
 
-local function getMeasuredSectionHeaderWidth(label, isCustom)
+local function getMeasuredSectionHeaderWidth(label, isCustom, textElementID)
 	if not label or label == "" then
 		return Core.BUTTON_SIZE
 	end
@@ -3781,9 +3788,8 @@ local function getMeasuredSectionHeaderWidth(label, isCustom)
 	end
 
 	local measure = state.sectionHeaderMeasure
-	local baseSize = getConfiguredBaseTextSize()
-	applyConfiguredFont(measure, baseSize + 1)
-	measure:SetText(label)
+	applyConfiguredFont(measure, nil, textElementID or "subcategoryHeader")
+	measure:SetText(addon.FormatTextElement and addon.FormatTextElement(textElementID or "subcategoryHeader", label) or label)
 
 	local width = math.ceil((measure:GetStringWidth() or 0) + 0.5)
 	local totalWidth = width + 22
@@ -3802,12 +3808,16 @@ local function getSectionLayoutMetrics(section, showSectionHeader, sectionCollap
 	local visibleColumns = 1
 	local rows = 0
 	local sectionWidth = buttonSize
+	local headerWidth = buttonSize
 	local blockHeight = 0
+	local textElementID = section and section.groupID and "subcategoryHeader" or "categoryHeader"
+	local preferFullHeaderWidth = addon.GetSubcategoryFullLabels and addon.GetSubcategoryFullLabels()
 
 	if showSectionHeader then
 		blockHeight = blockHeight + Core.SECTION_HEADER_HEIGHT
 		if not sectionCollapsed then
-			sectionWidth = math.max(sectionWidth, getMeasuredSectionHeaderWidth(section.label, section.isCustom))
+			headerWidth = getMeasuredSectionHeaderWidth(section.label, section.isCustom, textElementID)
+			sectionWidth = math.max(sectionWidth, headerWidth)
 		end
 	end
 
@@ -3815,6 +3825,9 @@ local function getSectionLayoutMetrics(section, showSectionHeader, sectionCollap
 		visibleColumns = math.max(1, math.min(sectionColumnCount, itemCount))
 		rows = math.max(1, math.ceil(itemCount / sectionColumnCount))
 		sectionWidth = (visibleColumns * buttonSize) + (math.max(0, visibleColumns - 1) * buttonSpacing)
+		if showSectionHeader and preferFullHeaderWidth then
+			sectionWidth = math.max(sectionWidth, headerWidth)
+		end
 		if showSectionHeader then
 			blockHeight = blockHeight + Core.SECTION_CONTENT_TOP_PADDING
 		end
@@ -3892,6 +3905,7 @@ local function renderSectionGroupHeader(section, currentHeaderCount, yOffset, is
 		color = getSectionGroupHeaderColor(section),
 		collapsed = isCollapsed,
 		collapsible = section.groupCollapseID ~= nil,
+		textElementID = "categoryHeader",
 	})
 	header:ClearAllPoints()
 	header:SetPoint("TOPLEFT", state.content, "TOPLEFT", 0, -yOffset)
@@ -4009,6 +4023,7 @@ local function layoutFrame(layoutData)
 						isCustom = rowSection.isCustom,
 						collapsed = entry.collapsed,
 						collapsible = rowSection.collapsible,
+						textElementID = rowSection.groupID and "subcategoryHeader" or "categoryHeader",
 					})
 					header:ClearAllPoints()
 					header:SetPoint("TOPLEFT", state.content, "TOPLEFT", blockX, -yOffset)
@@ -4050,6 +4065,7 @@ local function layoutFrame(layoutData)
 						isCustom = section.isCustom,
 						collapsed = sectionCollapsed,
 						collapsible = section.collapsible,
+						textElementID = section.groupID and "subcategoryHeader" or "categoryHeader",
 					})
 					header:ClearAllPoints()
 					header:SetPoint("TOPLEFT", state.content, "TOPLEFT", 0, -yOffset)
@@ -4136,7 +4152,7 @@ local function rebuildLayout()
 
 	layoutFrame(layoutData)
 	local overlayRuntime = getOverlayRuntimeConfig()
-	local textAppearance = getResolvedTextAppearance()
+	local textAppearance = getResolvedTextAppearance("overlays")
 	local fontSignature = getTextAppearanceSignature(textAppearance)
 	local tooltipOwner = GameTooltip and GameTooltip.GetOwner and GameTooltip:GetOwner() or nil
 	local forceDynamicUpdate = state.forceDynamicRefresh
@@ -4197,7 +4213,7 @@ local function refreshButtons()
 	end
 
 	local overlayRuntime = getOverlayRuntimeConfig()
-	local textAppearance = getResolvedTextAppearance()
+	local textAppearance = getResolvedTextAppearance("overlays")
 	local fontSignature = getTextAppearanceSignature(textAppearance)
 	if state.currentTextAppearanceSignature ~= nil and state.currentTextAppearanceSignature ~= fontSignature then
 		return rebuildLayout()

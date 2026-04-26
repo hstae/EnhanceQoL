@@ -4,6 +4,7 @@
 
 ### ✨ Added
 
+- Cooldown Panels: Added a tracked aura display mode to always show the aura and desaturate it while active.
 - Group Frames / Hover Highlight: Added a frame level control alongside the existing strata control.
 
 ### 🐛 Fixed
