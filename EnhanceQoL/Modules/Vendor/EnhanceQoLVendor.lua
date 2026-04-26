@@ -250,6 +250,7 @@ local function inventoryOpen()
 	for _, frame in ipairs(frames) do
 		if frame and frame:IsShown() then return true end
 	end
+	if addon.Bags and addon.Bags.functions and addon.Bags.functions.IsInventoryOpenForVendor and addon.Bags.functions.IsInventoryOpenForVendor() then return true end
 	if isBaganatorBackpackShown() then return true end
 	if baganatorVisibleBackpackButtonCount > 0 then
 		for itemButton in pairs(baganatorVisibleItemButtons) do
@@ -458,6 +459,13 @@ local function anchorDestroyButton(button)
 		requestBaganatorLayoutUpdate()
 		return
 	end
+	local customBagAnchor = addon.Bags and addon.Bags.functions and addon.Bags.functions.GetVendorDestroyButtonAnchor and addon.Bags.functions.GetVendorDestroyButtonAnchor() or nil
+	if customBagAnchor then
+		button:SetParent(customBagAnchor:GetParent() or UIParent)
+		button:ClearAllPoints()
+		button:SetPoint("RIGHT", customBagAnchor, "LEFT", -8, 0)
+		return
+	end
 	local searchBox = _G.BagItemSearchBox
 	if searchBox and searchBox.GetParent then
 		button:SetParent(searchBox:GetParent() or UIParent)
@@ -658,6 +666,20 @@ applySellDestroyOverlaysToBaganatorButtons = function()
 	local overlayDestroy = addon.db["vendorDestroyEnable"] and addon.db["vendorShowDestroyOverlay"]
 	for button in pairs(baganatorTrackedItemButtons) do
 		applySellDestroyOverlayToItemButton(button, overlaySell, overlayDestroy)
+	end
+end
+
+function addon.Vendor.functions.ApplySellDestroyOverlayToItemButton(itemButton, overlaySell, overlayDestroy)
+	applySellDestroyOverlayToItemButton(itemButton, overlaySell, overlayDestroy)
+end
+
+function addon.Vendor.functions.HideSellDestroyOverlays(itemButton)
+	hideSellDestroyOverlays(itemButton)
+end
+
+function addon.Vendor.functions.RefreshIntegratedBagsVendorMarks()
+	if addon.Bags and addon.Bags.functions and addon.Bags.functions.ApplyVendorMarks then
+		addon.Bags.functions.ApplyVendorMarks()
 	end
 end
 
@@ -1421,6 +1443,9 @@ local eventHandlers = {
 		for _, frame in ipairs(frames) do
 			applySellDestroyOverlaysToFrame(frame)
 		end
+		if addon.Bags and addon.Bags.functions and addon.Bags.functions.ApplyVendorMarks then
+			addon.Bags.functions.ApplyVendorMarks()
+		end
 		applySellDestroyOverlaysToBaganatorButtons()
 	end,
 	["PLAYER_REGEN_ENABLED"] = function()
@@ -1959,6 +1984,9 @@ local function performUpdateSellMarks(resetCache)
 		for _, frame in ipairs(frames) do
 			clearFrame(frame)
 		end
+		if addon.Bags and addon.Bags.functions and addon.Bags.functions.ApplyVendorMarks then
+			addon.Bags.functions.ApplyVendorMarks(false, false)
+		end
 		applySellDestroyOverlaysToBaganatorButtons()
 		requestBaganatorItemWidgetRefresh()
 		wipe(sellMarkLookup)
@@ -1984,6 +2012,9 @@ local function performUpdateSellMarks(resetCache)
 	applySellDestroyOverlaysToFrame(ContainerFrameCombinedBags)
 	for _, frame in ipairs(frames) do
 		applySellDestroyOverlaysToFrame(frame)
+	end
+	if addon.Bags and addon.Bags.functions and addon.Bags.functions.ApplyVendorMarks then
+		addon.Bags.functions.ApplyVendorMarks(overlaySell, overlayDestroy)
 	end
 	applySellDestroyOverlaysToBaganatorButtons()
 	requestBaganatorItemWidgetRefresh()
@@ -2066,6 +2097,10 @@ AltClickHook = function(self, button)
 			end)
 		end
 	end
+end
+
+function addon.Vendor.functions.HandleItemButtonClick(self, button)
+	if AltClickHook then AltClickHook(self, button) end
 end
 
 local function hookBagFrame(frame)

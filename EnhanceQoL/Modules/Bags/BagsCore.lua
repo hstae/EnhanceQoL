@@ -178,6 +178,14 @@ function BagsItemButton_OnLoad(self)
 		end)
 		self._bagsManagedPreClickHookInstalled = true
 	end
+	if not self._bagsVendorClickHookInstalled and self.HookScript then
+		self:HookScript("OnClick", function(button, mouseButton)
+			if addon.Vendor and addon.Vendor.functions and addon.Vendor.functions.HandleItemButtonClick then
+				addon.Vendor.functions.HandleItemButtonClick(button, mouseButton)
+			end
+		end)
+		self._bagsVendorClickHookInstalled = true
+	end
 
 	applyConfiguredItemButtonFonts(self)
 	self.ItemLevelText:Hide()
@@ -4278,8 +4286,17 @@ local function processUpdate()
 			Bags.functions.PositionFrame()
 		end
 		state.frame:Show()
+		if updateApplied and Bags.functions.ApplyVendorMarks then
+			Bags.functions.ApplyVendorMarks()
+		end
+		if openingFrame and addon.Vendor and addon.Vendor.functions and addon.Vendor.functions.refreshSellMarks then
+			addon.Vendor.functions.refreshSellMarks()
+		end
 	else
 		state.frame:Hide()
+		if wasVisible and addon.Vendor and addon.Vendor.functions and addon.Vendor.functions.refreshSellMarks then
+			addon.Vendor.functions.refreshSellMarks()
+		end
 	end
 end
 
@@ -4307,6 +4324,43 @@ end
 
 function Bags.functions.RequestLayoutUpdate(requestRebuild, forceWhenHidden)
 	scheduleUpdate(true, requestRebuild, forceWhenHidden)
+end
+
+function Bags.functions.IsInventoryOpenForVendor()
+	return state.frame and state.frame:IsShown() or false
+end
+
+function Bags.functions.GetVendorDestroyButtonAnchor()
+	if not (state.frame and state.frame:IsShown()) then
+		return nil
+	end
+	local footer = state.frame.Footer
+	if footer and footer.MoneyButton and footer.MoneyButton:IsShown() then
+		return footer.MoneyButton
+	end
+	return footer or state.frame
+end
+
+function Bags.functions.ApplyVendorMarks(overlaySell, overlayDestroy)
+	local vendorFunctions = addon.Vendor and addon.Vendor.functions or nil
+	if not vendorFunctions then
+		return
+	end
+
+	local applyMark = vendorFunctions.ApplySellDestroyOverlayToItemButton
+	local hideMark = vendorFunctions.HideSellDestroyOverlays
+	for index, button in ipairs(state.buttons or {}) do
+		if button and button:IsShown() and index <= (state.currentLayoutCount or 0) then
+			if applyMark then
+				applyMark(button, overlaySell, overlayDestroy)
+			end
+			if applyItemButtonSkinIfNeeded then
+				applyItemButtonSkinIfNeeded(button, button._bagsRenderQuality, true)
+			end
+		elseif button and hideMark then
+			hideMark(button)
+		end
+	end
 end
 
 function Bags.functions.ShowFrame()

@@ -33,6 +33,7 @@ local DEFAULT_BUTTON_SIZE = 37
 local DEFAULT_ITEM_COUNT_ANCHOR_POINT = "BOTTOMRIGHT"
 local DEFAULT_ITEM_COUNT_ANCHOR_X = -5
 local DEFAULT_ITEM_COUNT_ANCHOR_Y = 2
+local DEFAULT_ITEM_COUNT_DRAW_SUBLEVEL = 8
 local DEFAULT_NORMAL_TEXTURE = "Interface\\Buttons\\UI-Quickslot2"
 local DEFAULT_ICON_BORDER_TEXTURE = "Interface\\Common\\WhiteIconFrame"
 local DEFAULT_PUSHED_TEXTURE = "Interface\\Buttons\\UI-Quickslot-Depress"
@@ -48,6 +49,8 @@ local ITEM_ICON_MASK_KEYS = {
 	"IconOverlay",
 	"IconOverlay2",
 	"ReagentTint",
+	"SellOverlay",
+	"DestroyOverlay",
 }
 
 local ITEM_FRAME_MASK_KEYS = {
@@ -393,6 +396,9 @@ local function applyCountAnchorForShape(button, shapeDefinition)
 	end
 	if count.SetScale then
 		count:SetScale(1)
+	end
+	if count.SetDrawLayer then
+		count:SetDrawLayer("OVERLAY", DEFAULT_ITEM_COUNT_DRAW_SUBLEVEL)
 	end
 end
 
