@@ -3317,7 +3317,10 @@ function Bags.functions.PositionBankFrame()
 		return
 	end
 
-	local anchor = addon.GetBankAnchorTargetFrame and addon.GetBankAnchorTargetFrame()
+	local anchor = addon.GetCustomBagsAnchorTargetFrame and addon.GetCustomBagsAnchorTargetFrame() or nil
+	if not anchor and addon.GetBankAnchorTargetFrame then
+		anchor = addon.GetBankAnchorTargetFrame()
+	end
 	state.frame:ClearAllPoints()
 	if anchor then
 		state.frame:SetPoint("TOPRIGHT", anchor, "TOPLEFT", -CLUSTER_GAP, 0)

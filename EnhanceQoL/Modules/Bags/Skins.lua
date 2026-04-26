@@ -459,7 +459,7 @@ local function ensureItemButtonShapeElements(button)
 	end
 end
 
-local function resetItemButtonShape(button)
+local function resetItemButtonShape(button, qualityOverride)
 	if not button then
 		return
 	end
@@ -561,7 +561,10 @@ local function resetItemButtonShape(button)
 		button.IconBorder:SetSize(buttonWidth, buttonHeight)
 		button.IconBorder:SetTexture(DEFAULT_ICON_BORDER_TEXTURE)
 		button.IconBorder:SetAlpha(1)
-		local quality = button._bagsRenderQuality
+		local quality = qualityOverride
+		if quality == nil then
+			quality = button._bagsRenderQuality
+		end
 		if quality == nil then
 			quality = button._bagsWarbandRenderQuality
 		end
@@ -1127,7 +1130,7 @@ end
 function addon.ApplyItemButtonSkin(button, quality)
 	local shapeDefinition = addon.GetActiveIconShapeDefinition and addon.GetActiveIconShapeDefinition() or ICON_SHAPE_DEFINITIONS.default
 	if not shapeDefinition or shapeDefinition.useSystemStyle then
-		resetItemButtonShape(button)
+		resetItemButtonShape(button, quality)
 		return
 	end
 

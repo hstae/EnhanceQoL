@@ -9,44 +9,46 @@ addon.Bags.variables = addon.Bags.variables or {}
 
 local Bags = addon.Bags
 local L = addon.L or {}
+Bags.Core = Bags.Core or {}
+local Core = Bags.Core
 
-local BACKPACK_ID = Enum and Enum.BagIndex and Enum.BagIndex.Backpack or 0
-local LAST_CHARACTER_BAG_ID = NUM_TOTAL_EQUIPPED_BAG_SLOTS or 5
-local REAGENT_BAG_ID = Enum and Enum.BagIndex and Enum.BagIndex.ReagentBag or 5
-local ITEM_CLASS = Enum and Enum.ItemClass or {}
-local ITEM_QUALITY_POOR = Enum and Enum.ItemQuality and Enum.ItemQuality.Poor or 0
+Core.BACKPACK_ID = Enum and Enum.BagIndex and Enum.BagIndex.Backpack or 0
+Core.LAST_CHARACTER_BAG_ID = NUM_TOTAL_EQUIPPED_BAG_SLOTS or 5
+Core.REAGENT_BAG_ID = Enum and Enum.BagIndex and Enum.BagIndex.ReagentBag or 5
+Core.ITEM_CLASS = Enum and Enum.ItemClass or {}
+Core.ITEM_QUALITY_POOR = Enum and Enum.ItemQuality and Enum.ItemQuality.Poor or 0
 
-local BUTTON_SIZE = 37
-local BUTTON_SPACING = 4
-local COLUMN_COUNT = 10
-local FRAME_PADDING = 10
-local HEADER_HEIGHT = 34
-local FOOTER_BASE_HEIGHT = 42
-local FOOTER_ROW_HEIGHT = 18
-local FOOTER_ROW_SPACING = 4
-local FOOTER_SECTION_SPACING = 6
-local FOOTER_DIVIDER_OFFSET = 6
-local SECTION_HEADER_HEIGHT = 18
-local GROUP_HEADER_HEIGHT = SECTION_HEADER_HEIGHT
-local GROUP_HEADER_GAP = 4
-local SECTION_CONTENT_TOP_PADDING = 6
-local SECTION_GAP = 10
-local SECTION_HORIZONTAL_GAP = 8
-local CLUSTER_GAP = 12
-local MIN_FRAME_WIDTH = 240
-local MIN_SCROLL_CONTENT_HEIGHT = 160
-local MAX_FRAME_SCREEN_MARGIN = 120
-local SCROLL_BAR_RESERVED_WIDTH = 22
-local FOOTER_MONEY_RIGHT_PADDING = 6
-local CATEGORY_ASSIGN_BUTTON_SIZE = 22
-local MIN_SEARCH_BOX_WIDTH = 120
-local MAX_WATCHED_CURRENCIES = 12
-local MIN_ITEM_LEVEL_COLOR_QUALITY = Enum and Enum.ItemQuality and Enum.ItemQuality.Uncommon or 2
-local SECTION_TOGGLE_COLLAPSED_ATLAS = "Options_ListExpand_Right"
-local SECTION_TOGGLE_EXPANDED_ATLAS = "Options_ListExpand_Right_Expanded"
-local REAGENT_SLOT_ICON_ATLAS = "bags-icon-reagents"
-local GET_BAG_ITEM_TOOLTIP = C_TooltipInfo and C_TooltipInfo.GetBagItem
-local ACTIVE_BAG_EVENTS = {
+Core.BUTTON_SIZE = 37
+Core.BUTTON_SPACING = 4
+Core.COLUMN_COUNT = 10
+Core.FRAME_PADDING = 10
+Core.HEADER_HEIGHT = 34
+Core.FOOTER_BASE_HEIGHT = 42
+Core.FOOTER_ROW_HEIGHT = 18
+Core.FOOTER_ROW_SPACING = 4
+Core.FOOTER_SECTION_SPACING = 6
+Core.FOOTER_DIVIDER_OFFSET = 6
+Core.SECTION_HEADER_HEIGHT = 18
+Core.GROUP_HEADER_HEIGHT = Core.SECTION_HEADER_HEIGHT
+Core.GROUP_HEADER_GAP = 4
+Core.SECTION_CONTENT_TOP_PADDING = 6
+Core.SECTION_GAP = 10
+Core.SECTION_HORIZONTAL_GAP = 8
+Core.CLUSTER_GAP = 12
+Core.MIN_FRAME_WIDTH = 240
+Core.MIN_SCROLL_CONTENT_HEIGHT = 160
+Core.MAX_FRAME_SCREEN_MARGIN = 120
+Core.SCROLL_BAR_RESERVED_WIDTH = 22
+Core.FOOTER_MONEY_RIGHT_PADDING = 6
+Core.CATEGORY_ASSIGN_BUTTON_SIZE = 22
+Core.MIN_SEARCH_BOX_WIDTH = 120
+Core.MAX_WATCHED_CURRENCIES = 12
+Core.MIN_ITEM_LEVEL_COLOR_QUALITY = Enum and Enum.ItemQuality and Enum.ItemQuality.Uncommon or 2
+Core.SECTION_TOGGLE_COLLAPSED_ATLAS = "Options_ListExpand_Right"
+Core.SECTION_TOGGLE_EXPANDED_ATLAS = "Options_ListExpand_Right_Expanded"
+Core.REAGENT_SLOT_ICON_ATLAS = "bags-icon-reagents"
+Core.GET_BAG_ITEM_TOOLTIP = C_TooltipInfo and C_TooltipInfo.GetBagItem
+Core.ACTIVE_BAG_EVENTS = {
 	"BAG_UPDATE_DELAYED",
 	"BAG_NEW_ITEMS_UPDATED",
 	"ITEM_DATA_LOAD_RESULT",
@@ -60,7 +62,7 @@ local ACTIVE_BAG_EVENTS = {
 	"MODIFIER_STATE_CHANGED",
 	"PLAYER_LEVEL_UP",
 }
-local ACTIVE_BAG_UNIT_EVENTS = {
+Core.ACTIVE_BAG_UNIT_EVENTS = {
 	{
 		name = "UNIT_INVENTORY_CHANGED",
 		unit = "player",
@@ -70,27 +72,27 @@ local ACTIVE_BAG_UNIT_EVENTS = {
 		unit = "player",
 	},
 }
-local DEFAULT_FRAME_POINT = {
+Core.DEFAULT_FRAME_POINT = {
 	point = "RIGHT",
 	relativePoint = "RIGHT",
 	x = -420,
 	y = 0,
 }
 
-local FREE_SLOTS_SECTION_ID = "freeSlots"
-local FREE_SLOTS_DEFINITION = {
-	id = FREE_SLOTS_SECTION_ID,
+Core.FREE_SLOTS_SECTION_ID = "freeSlots"
+Core.FREE_SLOTS_DEFINITION = {
+	id = Core.FREE_SLOTS_SECTION_ID,
 	labelKey = "categoryFreeSlots",
 	color = { 0.9, 0.78, 0.28 },
 }
 
-local HEARTHSTONE_ITEM_IDS = {
+Core.HEARTHSTONE_ITEM_IDS = {
 	[6948] = true,
 	[110560] = true,
 	[140192] = true,
 }
 
-local IGNORED_ITEM_LEVEL_EQUIP_LOCS = {
+Core.IGNORED_ITEM_LEVEL_EQUIP_LOCS = {
 	[""] = true,
 	INVTYPE_BAG = true,
 	INVTYPE_BODY = true,
@@ -99,7 +101,7 @@ local IGNORED_ITEM_LEVEL_EQUIP_LOCS = {
 	INVTYPE_TABARD = true,
 }
 
-local EQUIP_LOCATION_COMPARISON_SLOTS = {
+Core.EQUIP_LOCATION_COMPARISON_SLOTS = {
 	INVTYPE_HEAD = { INVSLOT_HEAD or 1 },
 	INVTYPE_NECK = { INVSLOT_NECK or 2 },
 	INVTYPE_SHOULDER = { INVSLOT_SHOULDER or 3 },
@@ -357,7 +359,7 @@ local function getOutsideFooterPadding(settings)
 		return addon.GetOutsideFooterPadding()
 	end
 
-	local padding = math.floor((tonumber(settings and settings.outsideFooterPadding) or tonumber(settings and settings.outerPadding) or FRAME_PADDING) + 0.5)
+	local padding = math.floor((tonumber(settings and settings.outsideFooterPadding) or tonumber(settings and settings.outerPadding) or Core.FRAME_PADDING) + 0.5)
 	if padding < 0 then
 		padding = 0
 	elseif padding > 24 then
@@ -372,7 +374,7 @@ local function getInsideHorizontalPadding(settings)
 		return addon.GetInsideHorizontalPadding()
 	end
 
-	local padding = math.floor((tonumber(settings and settings.insideHorizontalPadding) or tonumber(settings and settings.outerPadding) or FRAME_PADDING) + 0.5)
+	local padding = math.floor((tonumber(settings and settings.insideHorizontalPadding) or tonumber(settings and settings.outerPadding) or Core.FRAME_PADDING) + 0.5)
 	if padding < 0 then
 		padding = 0
 	elseif padding > 24 then
@@ -387,7 +389,7 @@ local function getInsideTopPadding(settings)
 		return addon.GetInsideTopPadding()
 	end
 
-	local legacyPadding = (tonumber(settings and settings.outerPadding) or FRAME_PADDING) + (tonumber(settings and settings.headerPadding) or 0)
+	local legacyPadding = (tonumber(settings and settings.outerPadding) or Core.FRAME_PADDING) + (tonumber(settings and settings.headerPadding) or 0)
 	local padding = math.floor((tonumber(settings and settings.insideTopPadding) or legacyPadding) + 0.5)
 	if padding < 0 then
 		padding = 0
@@ -414,11 +416,23 @@ local function getInsideBottomPadding(settings)
 end
 
 local function getMinimumFooterHeight(settings)
-	return FOOTER_BASE_HEIGHT + (getOutsideFooterPadding(settings) * 2)
+	local padding = getOutsideFooterPadding(settings)
+	if settings and settings.showFooterSlotSummary == false then
+		return Core.FOOTER_ROW_HEIGHT + Core.FOOTER_DIVIDER_OFFSET + (padding * 2)
+	end
+	return Core.FOOTER_BASE_HEIGHT + (padding * 2)
 end
 
 local function getFooterHeight(settings)
 	return math.max(getMinimumFooterHeight(settings), tonumber(state.desiredFooterHeight) or 0)
+end
+
+local function getContentBottomGap(settings)
+	return settings and settings.showFooterSlotSummary == false and (Core.FOOTER_DIVIDER_OFFSET + 6) or 0
+end
+
+local function getLayoutContentHeight(settings, rawContentHeight)
+	return math.max(1, (tonumber(rawContentHeight) or 1) + getContentBottomGap(settings))
 end
 
 local function getItemScale(settings)
@@ -434,7 +448,7 @@ local function getMaxColumns(settings)
 		return addon.GetMaxColumns()
 	end
 
-	local value = math.floor((tonumber(settings and settings.maxColumns) or COLUMN_COUNT) + 0.5)
+	local value = math.floor((tonumber(settings and settings.maxColumns) or Core.COLUMN_COUNT) + 0.5)
 	if value < 4 then
 		value = 4
 	elseif value > 24 then
@@ -447,7 +461,7 @@ end
 local function getScreenMaxFrameWidth()
 	local parentWidth = UIParent and UIParent:GetWidth() or nil
 	local screenWidth = (parentWidth and parentWidth > 0) and parentWidth or 1440
-	return math.max(MIN_FRAME_WIDTH, math.floor(screenWidth - MAX_FRAME_SCREEN_MARGIN))
+	return math.max(Core.MIN_FRAME_WIDTH, math.floor(screenWidth - Core.MAX_FRAME_SCREEN_MARGIN))
 end
 
 local function getMinimumFrameWidth(settings)
@@ -462,19 +476,19 @@ local function getMinimumFrameWidth(settings)
 	end
 
 	return math.max(
-		MIN_FRAME_WIDTH,
-		(insideHorizontalPadding * 2) + titleWidth + 18 + MIN_SEARCH_BOX_WIDTH + 10 + settingsButtonWidth
+		Core.MIN_FRAME_WIDTH,
+		(insideHorizontalPadding * 2) + titleWidth + 18 + Core.MIN_SEARCH_BOX_WIDTH + 10 + settingsButtonWidth
 	)
 end
 
 local function getButtonSize(settings)
 	local scale = getItemScale(settings) / 100
-	return math.max(24, math.floor((BUTTON_SIZE * scale) + 0.5))
+	return math.max(24, math.floor((Core.BUTTON_SIZE * scale) + 0.5))
 end
 
 local function getButtonSpacing(settings)
 	local scale = getItemScale(settings) / 100
-	return math.max(2, math.floor((BUTTON_SPACING * scale) + 0.5))
+	return math.max(2, math.floor((Core.BUTTON_SPACING * scale) + 0.5))
 end
 
 local function getFramePaddingSignature(settings)
@@ -488,7 +502,7 @@ local function getFramePaddingSignature(settings)
 		getItemScale(settings),
 		getMaxColumns(settings),
 		(addon.GetCompactCategoryLayout and addon.GetCompactCategoryLayout()) and 1 or 0,
-		addon.GetCompactCategoryGap and addon.GetCompactCategoryGap() or SECTION_HORIZONTAL_GAP
+		addon.GetCompactCategoryGap and addon.GetCompactCategoryGap() or Core.SECTION_HORIZONTAL_GAP
 	)
 end
 
@@ -513,8 +527,8 @@ local function applyFramePadding(settings)
 
 	if frame.Divider then
 		frame.Divider:ClearAllPoints()
-		frame.Divider:SetPoint("TOPLEFT", frame, "TOPLEFT", insideHorizontalPadding, -(HEADER_HEIGHT + outsideHeaderPadding))
-		frame.Divider:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -insideHorizontalPadding, -(HEADER_HEIGHT + outsideHeaderPadding))
+		frame.Divider:SetPoint("TOPLEFT", frame, "TOPLEFT", insideHorizontalPadding, -(Core.HEADER_HEIGHT + outsideHeaderPadding))
+		frame.Divider:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -insideHorizontalPadding, -(Core.HEADER_HEIGHT + outsideHeaderPadding))
 	end
 
 	if frame.Footer then
@@ -633,7 +647,7 @@ end
 local function getMaxFrameHeight()
 	local parentHeight = UIParent and UIParent:GetHeight() or nil
 	local screenHeight = (parentHeight and parentHeight > 0) and parentHeight or 900
-	return math.max(320, math.floor(screenHeight - MAX_FRAME_SCREEN_MARGIN))
+	return math.max(320, math.floor(screenHeight - Core.MAX_FRAME_SCREEN_MARGIN))
 end
 
 local function updateScrollFrameLayout(contentWidth, contentHeight)
@@ -648,11 +662,11 @@ local function updateScrollFrameLayout(contentWidth, contentHeight)
 	local insideHorizontalPadding = getInsideHorizontalPadding(settings)
 	local insideTopPadding = getInsideTopPadding(settings)
 	local insideBottomPadding = getInsideBottomPadding(settings)
-	local fixedHeight = HEADER_HEIGHT + outsideHeaderPadding + insideTopPadding + insideBottomPadding + FOOTER_DIVIDER_OFFSET + getFooterHeight(settings)
-	local maxContentHeight = math.max(MIN_SCROLL_CONTENT_HEIGHT, getMaxFrameHeight() - fixedHeight)
+	local fixedHeight = Core.HEADER_HEIGHT + outsideHeaderPadding + insideTopPadding + insideBottomPadding + Core.FOOTER_DIVIDER_OFFSET + getFooterHeight(settings)
+	local maxContentHeight = math.max(Core.MIN_SCROLL_CONTENT_HEIGHT, getMaxFrameHeight() - fixedHeight)
 	local viewportHeight = math.max(1, math.min(contentHeight, maxContentHeight))
 	local needsScroll = contentHeight > viewportHeight
-	local reservedWidth = needsScroll and SCROLL_BAR_RESERVED_WIDTH or 0
+	local reservedWidth = needsScroll and Core.SCROLL_BAR_RESERVED_WIDTH or 0
 	local minimumFrameWidth = getMinimumFrameWidth(settings)
 	local frameWidth = math.max(
 		minimumFrameWidth,
@@ -672,7 +686,7 @@ local function updateScrollFrameLayout(contentWidth, contentHeight)
 		or state.scrollLayoutFrameHeight ~= frameHeight
 	then
 		state.scrollFrame:ClearAllPoints()
-		state.scrollFrame:SetPoint("TOPLEFT", state.frame, "TOPLEFT", insideHorizontalPadding, -(HEADER_HEIGHT + outsideHeaderPadding + insideTopPadding))
+		state.scrollFrame:SetPoint("TOPLEFT", state.frame, "TOPLEFT", insideHorizontalPadding, -(Core.HEADER_HEIGHT + outsideHeaderPadding + insideTopPadding))
 		state.scrollFrame:SetSize(viewportWidth, viewportHeight)
 		state.content:SetSize(resolvedContentWidth, resolvedContentHeight)
 		state.scrollFrame:UpdateScrollChildRect()
@@ -869,7 +883,7 @@ local function shouldShowSimpleBags()
 	for _, frame in ipairs(frames) do
 		if frame and frame:IsShown() and frame.GetBagID then
 			local bagID = frame:GetBagID()
-			if type(bagID) == "number" and bagID >= BACKPACK_ID and bagID <= LAST_CHARACTER_BAG_ID then
+			if type(bagID) == "number" and bagID >= Core.BACKPACK_ID and bagID <= Core.LAST_CHARACTER_BAG_ID then
 				return true
 			end
 		end
@@ -921,14 +935,14 @@ local function setActiveBagEventRegistration(enabled)
 	end
 
 	state.activeBagEventsRegistered = enabled
-	for _, eventName in ipairs(ACTIVE_BAG_EVENTS) do
+	for _, eventName in ipairs(Core.ACTIVE_BAG_EVENTS) do
 		if enabled then
 			state.eventFrame:RegisterEvent(eventName)
 		else
 			state.eventFrame:UnregisterEvent(eventName)
 		end
 	end
-	for _, entry in ipairs(ACTIVE_BAG_UNIT_EVENTS) do
+	for _, entry in ipairs(Core.ACTIVE_BAG_UNIT_EVENTS) do
 		if enabled then
 			state.eventFrame:RegisterUnitEvent(entry.name, entry.unit)
 		else
@@ -950,7 +964,7 @@ local function getAnchorTargetFrame()
 	for _, frame in ipairs(frames) do
 		if frame and frame:IsShown() and frame.GetBagID then
 			local bagID = frame:GetBagID()
-			if type(bagID) == "number" and bagID >= BACKPACK_ID and bagID <= LAST_CHARACTER_BAG_ID then
+			if type(bagID) == "number" and bagID >= Core.BACKPACK_ID and bagID <= Core.LAST_CHARACTER_BAG_ID then
 				fallbackFrame = fallbackFrame or frame
 				local left = frame:GetLeft()
 				if left and (not bestLeft or left < bestLeft) then
@@ -965,22 +979,12 @@ local function getAnchorTargetFrame()
 		return bestFrame or fallbackFrame
 	end
 
-	if shouldShowBankManagedBags() and addon.GetBankAnchorTargetFrame then
-		if addon.GetCustomBankAnchorTargetFrame then
-			local customBankFrame = addon.GetCustomBankAnchorTargetFrame()
-			if customBankFrame then
-				return customBankFrame
-			end
-		end
-		return addon.GetBankAnchorTargetFrame()
-	end
-
 	return nil
 end
 
 local function getTotalSlotCount()
 	local total = 0
-	for bagID = BACKPACK_ID, LAST_CHARACTER_BAG_ID do
+	for bagID = Core.BACKPACK_ID, Core.LAST_CHARACTER_BAG_ID do
 		total = total + (C_Container.GetContainerNumSlots(bagID) or 0)
 	end
 	for _, context in ipairs(getVisibleFlatBankContexts()) do
@@ -1014,11 +1018,11 @@ local function applySavedFramePosition(frame)
 
 	frame:ClearAllPoints()
 	frame:SetPoint(
-		frameDB.point or DEFAULT_FRAME_POINT.point,
+		frameDB.point or Core.DEFAULT_FRAME_POINT.point,
 		UIParent,
-		frameDB.relativePoint or DEFAULT_FRAME_POINT.relativePoint,
-		frameDB.x or DEFAULT_FRAME_POINT.x,
-		frameDB.y or DEFAULT_FRAME_POINT.y
+		frameDB.relativePoint or Core.DEFAULT_FRAME_POINT.relativePoint,
+		frameDB.x or Core.DEFAULT_FRAME_POINT.x,
+		frameDB.y or Core.DEFAULT_FRAME_POINT.y
 	)
 	state.userMoved = true
 	return true
@@ -1053,7 +1057,7 @@ local function configureSectionHeader(header, options)
 	local baseSize = getConfiguredBaseTextSize()
 	local showAssignButton = options.isCustom and isCategoryAssignModeActive()
 
-	header:SetHeight(SECTION_HEADER_HEIGHT)
+	header:SetHeight(Core.SECTION_HEADER_HEIGHT)
 	header.sectionID = options.collapseID or options.sectionID
 	header.categoryID = options.sectionID
 	header.categoryLabel = options.label or ""
@@ -1061,7 +1065,7 @@ local function configureSectionHeader(header, options)
 	header.isCustomCategory = not not options.isCustom
 	header.canCollapse = isCollapsible
 	if isCollapsible then
-		header.Icon:SetAtlas(isCollapsed and SECTION_TOGGLE_COLLAPSED_ATLAS or SECTION_TOGGLE_EXPANDED_ATLAS, true)
+		header.Icon:SetAtlas(isCollapsed and Core.SECTION_TOGGLE_COLLAPSED_ATLAS or Core.SECTION_TOGGLE_EXPANDED_ATLAS, true)
 		header.Icon:SetVertexColor(color[1] or 1, color[2] or 1, color[3] or 1, 1)
 		header.Icon:Show()
 	else
@@ -1091,7 +1095,7 @@ local function acquireSectionHeader(index)
 	end
 
 	header = CreateFrame("Button", nil, state.content)
-	header:SetHeight(SECTION_HEADER_HEIGHT)
+	header:SetHeight(Core.SECTION_HEADER_HEIGHT)
 	header:RegisterForClicks("LeftButtonUp")
 	header:EnableMouseWheel(true)
 	header:SetScript("OnMouseWheel", function(_, delta)
@@ -1116,7 +1120,7 @@ local function acquireSectionHeader(index)
 	header.Text = text
 
 	local assignButton = CreateFrame("Button", nil, header, "BackdropTemplate")
-	assignButton:SetSize(CATEGORY_ASSIGN_BUTTON_SIZE, CATEGORY_ASSIGN_BUTTON_SIZE)
+	assignButton:SetSize(Core.CATEGORY_ASSIGN_BUTTON_SIZE, Core.CATEGORY_ASSIGN_BUTTON_SIZE)
 	assignButton:SetPoint("RIGHT", header, "RIGHT", 0, 0)
 	assignButton:RegisterForClicks("LeftButtonUp")
 	assignButton:SetBackdrop({
@@ -1495,7 +1499,7 @@ local function createMainFrame()
 	})
 	frame:SetBackdropColor(0.05, 0.06, 0.08, 0.94)
 	frame:SetBackdropBorderColor(0.35, 0.35, 0.42, 1)
-	frame:SetSize(MIN_FRAME_WIDTH, 1)
+	frame:SetSize(Core.MIN_FRAME_WIDTH, 1)
 	frame:Hide()
 
 	local backgroundTexture = frame:CreateTexture(nil, "BACKGROUND", nil, -8)
@@ -1520,13 +1524,13 @@ local function createMainFrame()
 	end)
 
 	local title = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-	title:SetPoint("TOPLEFT", frame, "TOPLEFT", FRAME_PADDING, -10)
+	title:SetPoint("TOPLEFT", frame, "TOPLEFT", Core.FRAME_PADDING, -10)
 	title:SetText(L["simpleBagsTitle"] or addonName)
 	frame.Title = title
 
 	local settingsButton = CreateFrame("Button", nil, frame)
 	settingsButton:SetSize(18, 18)
-	settingsButton:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -FRAME_PADDING, -8)
+	settingsButton:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -Core.FRAME_PADDING, -8)
 	settingsButton:SetHitRectInsets(-4, -4, -4, -4)
 	settingsButton:RegisterForClicks("LeftButtonUp")
 	settingsButton.Icon = settingsButton:CreateTexture(nil, "ARTWORK")
@@ -1604,8 +1608,8 @@ local function createMainFrame()
 	local divider = frame:CreateTexture(nil, "BORDER")
 	divider:SetColorTexture(1, 1, 1, 0.08)
 	divider:SetHeight(1)
-	divider:SetPoint("TOPLEFT", frame, "TOPLEFT", FRAME_PADDING, -HEADER_HEIGHT)
-	divider:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -FRAME_PADDING, -HEADER_HEIGHT)
+	divider:SetPoint("TOPLEFT", frame, "TOPLEFT", Core.FRAME_PADDING, -Core.HEADER_HEIGHT)
+	divider:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -Core.FRAME_PADDING, -Core.HEADER_HEIGHT)
 	frame.Divider = divider
 
 	local scrollFrame = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
@@ -1614,7 +1618,7 @@ local function createMainFrame()
 	scrollFrame:SetClipsChildren(true)
 	UIPanelScrollFrame_OnLoad(scrollFrame)
 	if scrollFrame.ScrollBar then
-		scrollFrame.ScrollBar.scrollStep = BUTTON_SIZE + BUTTON_SPACING
+		scrollFrame.ScrollBar.scrollStep = Core.BUTTON_SIZE + Core.BUTTON_SPACING
 	end
 	frame.ScrollFrame = scrollFrame
 
@@ -1626,16 +1630,16 @@ local function createMainFrame()
 	frame.Content = content
 
 	local footer = CreateFrame("Frame", nil, frame)
-	footer:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", FRAME_PADDING, 0)
-	footer:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -FRAME_PADDING, 0)
+	footer:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", Core.FRAME_PADDING, 0)
+	footer:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -Core.FRAME_PADDING, 0)
 	footer:SetHeight(getFooterHeight(getSettings()))
 	frame.Footer = footer
 
 	local footerDivider = frame:CreateTexture(nil, "BORDER")
 	footerDivider:SetColorTexture(1, 1, 1, 0.08)
 	footerDivider:SetHeight(1)
-	footerDivider:SetPoint("BOTTOMLEFT", footer, "TOPLEFT", 0, FOOTER_DIVIDER_OFFSET)
-	footerDivider:SetPoint("BOTTOMRIGHT", footer, "TOPRIGHT", 0, FOOTER_DIVIDER_OFFSET)
+	footerDivider:SetPoint("BOTTOMLEFT", footer, "TOPLEFT", 0, Core.FOOTER_DIVIDER_OFFSET)
+	footerDivider:SetPoint("BOTTOMRIGHT", footer, "TOPRIGHT", 0, Core.FOOTER_DIVIDER_OFFSET)
 	frame.FooterDivider = footerDivider
 
 	footer.NormalSlotsText = footer:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -1648,11 +1652,11 @@ local function createMainFrame()
 
 	footer.CurrencyContainer = CreateFrame("Frame", nil, footer)
 	footer.CurrencyContainer:SetPoint("BOTTOMLEFT", footer, "BOTTOMLEFT", 0, 0)
-	footer.CurrencyContainer:SetHeight(FOOTER_ROW_HEIGHT)
+	footer.CurrencyContainer:SetHeight(Core.FOOTER_ROW_HEIGHT)
 
 	footer.MoneyButton = CreateFrame("Button", nil, footer)
 	footer.MoneyButton:SetPoint("BOTTOMRIGHT", footer, "BOTTOMRIGHT", 0, 0)
-	footer.MoneyButton:SetHeight(FOOTER_ROW_HEIGHT)
+	footer.MoneyButton:SetHeight(Core.FOOTER_ROW_HEIGHT)
 	footer.MoneyButton:SetScript("OnEnter", function(self)
 		showFooterMoneyTooltip(self)
 	end)
@@ -1661,7 +1665,7 @@ local function createMainFrame()
 	end)
 
 	footer.MoneyText = footer.MoneyButton:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-	footer.MoneyText:SetPoint("RIGHT", footer.MoneyButton, "RIGHT", -FOOTER_MONEY_RIGHT_PADDING, 0)
+	footer.MoneyText:SetPoint("RIGHT", footer.MoneyButton, "RIGHT", -Core.FOOTER_MONEY_RIGHT_PADDING, 0)
 	footer.MoneyText:SetJustifyH("RIGHT")
 
 	state.frame = frame
@@ -1672,11 +1676,11 @@ local function createMainFrame()
 
 	if not applySavedFramePosition(frame) then
 		frame:SetPoint(
-			DEFAULT_FRAME_POINT.point,
+			Core.DEFAULT_FRAME_POINT.point,
 			UIParent,
-			DEFAULT_FRAME_POINT.relativePoint,
-			DEFAULT_FRAME_POINT.x,
-			DEFAULT_FRAME_POINT.y
+			Core.DEFAULT_FRAME_POINT.relativePoint,
+			Core.DEFAULT_FRAME_POINT.x,
+			Core.DEFAULT_FRAME_POINT.y
 		)
 	end
 
@@ -1698,7 +1702,7 @@ local function shouldDisplayItemLevel(itemRef)
 	end
 
 	local equipLoc = select(4, GetItemInfoInstant(itemRef))
-	local shouldDisplay = equipLoc ~= nil and not IGNORED_ITEM_LEVEL_EQUIP_LOCS[equipLoc]
+	local shouldDisplay = equipLoc ~= nil and not Core.IGNORED_ITEM_LEVEL_EQUIP_LOCS[equipLoc]
 	itemLevelEligibilityCache[cacheKey] = shouldDisplay
 	return shouldDisplay
 end
@@ -1791,7 +1795,7 @@ end
 
 local function isRuleHearthstoneItem(itemID)
 	itemID = tonumber(itemID)
-	return itemID ~= nil and HEARTHSTONE_ITEM_IDS[itemID] == true or false
+	return itemID ~= nil and Core.HEARTHSTONE_ITEM_IDS[itemID] == true or false
 end
 
 local function updateJunkCoinIcon(button, quality)
@@ -1799,7 +1803,7 @@ local function updateJunkCoinIcon(button, quality)
 		return
 	end
 
-	if quality == ITEM_QUALITY_POOR then
+	if quality == Core.ITEM_QUALITY_POOR then
 		button.JunkIcon:SetAtlas("bags-junkcoin", true)
 		button.JunkIcon:Show()
 	else
@@ -1874,7 +1878,7 @@ local function updateItemLevelText(button, itemLink, itemID, quality, overlayRun
 			tonumber(overlayEntry.customColor[2]) or 1,
 			tonumber(overlayEntry.customColor[3]) or 1
 		)
-	elseif quality and quality >= MIN_ITEM_LEVEL_COLOR_QUALITY and C_Item.GetItemQualityColor then
+	elseif quality and quality >= Core.MIN_ITEM_LEVEL_COLOR_QUALITY and C_Item.GetItemQualityColor then
 		local r, g, b = C_Item.GetItemQualityColor(quality)
 		if r then
 			text:SetTextColor(r, g, b)
@@ -1948,7 +1952,7 @@ updateReagentBagVisuals = function(button)
 		button.BagsReagentSlotIcon = icon
 	end
 
-	local isReagentBag = button:GetBagID() == REAGENT_BAG_ID
+	local isReagentBag = button:GetBagID() == Core.REAGENT_BAG_ID
 	local pendingTexture = button._bagsHasPendingRenderTexture and button._bagsPendingRenderTexture or nil
 	local renderTexture = pendingTexture
 	if renderTexture == nil then
@@ -1979,7 +1983,7 @@ updateReagentBagVisuals = function(button)
 			local iconSize = math.max(14, math.floor(((button.GetWidth and button:GetWidth() or 37) * 0.48) + 0.5))
 			button.BagsReagentSlotIcon:ClearAllPoints()
 			button.BagsReagentSlotIcon:SetPoint("CENTER", button, "CENTER", 0, 0)
-			button.BagsReagentSlotIcon:SetAtlas(REAGENT_SLOT_ICON_ATLAS)
+			button.BagsReagentSlotIcon:SetAtlas(Core.REAGENT_SLOT_ICON_ATLAS)
 			button.BagsReagentSlotIcon:SetSize(iconSize, iconSize)
 			button.BagsReagentSlotIcon:SetVertexColor(1, 1, 1, 0.92)
 			button.BagsReagentSlotIcon:Show()
@@ -2231,7 +2235,7 @@ local function buildCurrencyEntries()
 	end
 
 	if settings.showWatchedCurrencies then
-		for index = 1, MAX_WATCHED_CURRENCIES do
+		for index = 1, Core.MAX_WATCHED_CURRENCIES do
 			local info = C_CurrencyInfo.GetBackpackCurrencyInfo(index)
 			if not info then
 				break
@@ -2300,9 +2304,9 @@ local function buildSectionDefinitions()
 	end
 
 	local freeSlotsDefinition = {
-		id = FREE_SLOTS_DEFINITION.id,
-		label = L[FREE_SLOTS_DEFINITION.labelKey] or FREE_SLOTS_DEFINITION.labelKey,
-		color = FREE_SLOTS_DEFINITION.color,
+		id = Core.FREE_SLOTS_DEFINITION.id,
+		label = L[Core.FREE_SLOTS_DEFINITION.labelKey] or Core.FREE_SLOTS_DEFINITION.labelKey,
+		color = Core.FREE_SLOTS_DEFINITION.color,
 	}
 	orderedDefinitions[#orderedDefinitions + 1] = freeSlotsDefinition
 	definitionMap[freeSlotsDefinition.id] = freeSlotsDefinition
@@ -2734,7 +2738,7 @@ local function isOneHandWeaponEquipLoc(equipLoc)
 end
 
 local function getTooltipResolvedBindType(bagID, slotID, info, runtimeContext)
-	if not runtimeContext or not GET_BAG_ITEM_TOOLTIP or bagID == nil or slotID == nil then
+	if not runtimeContext or not Core.GET_BAG_ITEM_TOOLTIP or bagID == nil or slotID == nil then
 		return nil
 	end
 
@@ -2760,7 +2764,7 @@ local function getTooltipResolvedBindType(bagID, slotID, info, runtimeContext)
 	end
 
 	local resolvedBindType
-	local tooltipData = GET_BAG_ITEM_TOOLTIP(bagID, slotID)
+	local tooltipData = Core.GET_BAG_ITEM_TOOLTIP(bagID, slotID)
 	local lines = tooltipData and tooltipData.lines
 	if lines then
 		for _, line in ipairs(lines) do
@@ -2851,7 +2855,7 @@ local function getUpgradeComparisonSlots(equipLoc, runtimeContext)
 		end
 	end
 
-	return EQUIP_LOCATION_COMPARISON_SLOTS[equipLoc], "any"
+	return Core.EQUIP_LOCATION_COMPARISON_SLOTS[equipLoc], "any"
 end
 
 local function getRuleUpgradeTrackKey(itemRef, runtimeContext)
@@ -3014,17 +3018,17 @@ local function getDefaultCategoryForItem(info, questInfo, equipLoc, classID)
 	equipLoc = equipLoc or select(4, GetItemInfoInstant(itemRef))
 	classID = classID or select(6, GetItemInfoInstant(itemRef))
 
-	if equipLoc and equipLoc ~= "" and not IGNORED_ITEM_LEVEL_EQUIP_LOCS[equipLoc] then
+	if equipLoc and equipLoc ~= "" and not Core.IGNORED_ITEM_LEVEL_EQUIP_LOCS[equipLoc] then
 		return "equipment"
 	end
 
-	if classID == ITEM_CLASS.Weapon or classID == ITEM_CLASS.Armor then
+	if classID == Core.ITEM_CLASS.Weapon or classID == Core.ITEM_CLASS.Armor then
 		return "equipment"
-	elseif classID == ITEM_CLASS.Consumable then
+	elseif classID == Core.ITEM_CLASS.Consumable then
 		return "consumables"
-	elseif classID == ITEM_CLASS.Tradegoods then
+	elseif classID == Core.ITEM_CLASS.Tradegoods then
 		return "tradegoods"
-	elseif classID == ITEM_CLASS.Recipe then
+	elseif classID == Core.ITEM_CLASS.Recipe then
 		return "recipes"
 	end
 
@@ -3321,9 +3325,9 @@ local function buildLayoutData()
 	}
 	layoutData.sectionDefinitions, layoutData.sectionDefinitionsByID = buildSectionDefinitions()
 
-	for bagID = BACKPACK_ID, LAST_CHARACTER_BAG_ID do
+	for bagID = Core.BACKPACK_ID, Core.LAST_CHARACTER_BAG_ID do
 		local slotCount = C_Container.GetContainerNumSlots(bagID) or 0
-		local isReagentBag = bagID == REAGENT_BAG_ID
+		local isReagentBag = bagID == Core.REAGENT_BAG_ID
 
 		layoutData.totalSlotCount = layoutData.totalSlotCount + slotCount
 
@@ -3402,7 +3406,7 @@ local function buildLayoutData()
 				end
 
 				if not settings.combineFreeSlots then
-					local sectionID = settings.showCategories and FREE_SLOTS_SECTION_ID or "misc"
+					local sectionID = settings.showCategories and Core.FREE_SLOTS_SECTION_ID or "misc"
 					addSlotMapping(layoutData, sectionID, bagID, slotID)
 				end
 			end
@@ -3410,7 +3414,7 @@ local function buildLayoutData()
 	end
 
 	if settings.combineFreeSlots then
-		local sectionID = settings.showCategories and FREE_SLOTS_SECTION_ID or "misc"
+		local sectionID = settings.showCategories and Core.FREE_SLOTS_SECTION_ID or "misc"
 
 		if layoutData.footer.normalFree > 0 and layoutData.combinedFreeSlots.normal.bagID then
 			addSlotMapping(
@@ -3558,7 +3562,7 @@ local function layoutFooter(layoutData, frameWidth)
 
 	if settings.showGold then
 		footer.MoneyText:SetText(formatFooterMoneyString(footerData.money or 0))
-		footer.MoneyButton:SetWidth(math.max(120, footer.MoneyText:GetStringWidth() + 24 + FOOTER_MONEY_RIGHT_PADDING))
+		footer.MoneyButton:SetWidth(math.max(120, footer.MoneyText:GetStringWidth() + 24 + Core.FOOTER_MONEY_RIGHT_PADDING))
 		footer.MoneyButton:Show()
 		footer.MoneyText:Show()
 	else
@@ -3623,7 +3627,7 @@ local function layoutFooter(layoutData, frameWidth)
 	end
 
 	if currencyRowCount > 0 then
-		currencyRowsHeight = (currencyRowCount * FOOTER_ROW_HEIGHT) + ((currencyRowCount - 1) * FOOTER_ROW_SPACING)
+		currencyRowsHeight = (currencyRowCount * Core.FOOTER_ROW_HEIGHT) + ((currencyRowCount - 1) * Core.FOOTER_ROW_SPACING)
 	end
 
 	local summaryHeight = 0
@@ -3635,12 +3639,12 @@ local function layoutFooter(layoutData, frameWidth)
 		)
 	end
 
-	local moneyRowHeight = settings.showGold and FOOTER_ROW_HEIGHT or 0
+	local moneyRowHeight = settings.showGold and Core.FOOTER_ROW_HEIGHT or 0
 	local bottomBlockHeight
 	if moneyOnSeparateRow then
 		bottomBlockHeight = currencyRowsHeight
 		if currencyRowsHeight > 0 and moneyRowHeight > 0 then
-			bottomBlockHeight = bottomBlockHeight + FOOTER_SECTION_SPACING
+			bottomBlockHeight = bottomBlockHeight + Core.FOOTER_SECTION_SPACING
 		end
 		bottomBlockHeight = bottomBlockHeight + moneyRowHeight
 	else
@@ -3651,7 +3655,7 @@ local function layoutFooter(layoutData, frameWidth)
 	if showFooterSlotSummary then
 		desiredFooterHeight = footerPadding + summaryHeight + footerPadding
 		if bottomBlockHeight > 0 then
-			desiredFooterHeight = desiredFooterHeight + FOOTER_SECTION_SPACING + bottomBlockHeight
+			desiredFooterHeight = desiredFooterHeight + Core.FOOTER_SECTION_SPACING + bottomBlockHeight
 		end
 	else
 		desiredFooterHeight = bottomBlockHeight + (footerPadding * 2)
@@ -3670,7 +3674,7 @@ local function layoutFooter(layoutData, frameWidth)
 	if moneyOnSeparateRow and moneyRowHeight > 0 then
 		currencyBottomOffset = footerPadding + moneyRowHeight
 		if currencyRowsHeight > 0 then
-			currencyBottomOffset = currencyBottomOffset + FOOTER_SECTION_SPACING
+			currencyBottomOffset = currencyBottomOffset + Core.FOOTER_SECTION_SPACING
 		end
 	end
 
@@ -3686,7 +3690,7 @@ local function layoutFooter(layoutData, frameWidth)
 	for index = 1, visibleCurrencyCount do
 		local button = currencyButtons[index]
 		local assignment = rowAssignments[index]
-		local rowBottomOffset = currencyRowsHeight - FOOTER_ROW_HEIGHT - ((assignment.row - 1) * (FOOTER_ROW_HEIGHT + FOOTER_ROW_SPACING))
+		local rowBottomOffset = currencyRowsHeight - Core.FOOTER_ROW_HEIGHT - ((assignment.row - 1) * (Core.FOOTER_ROW_HEIGHT + Core.FOOTER_ROW_SPACING))
 		button:ClearAllPoints()
 		button:SetPoint("BOTTOMLEFT", footer.CurrencyContainer, "BOTTOMLEFT", assignment.x, rowBottomOffset)
 		button:Show()
@@ -3718,7 +3722,7 @@ end
 
 local function getMeasuredSectionHeaderWidth(label, isCustom)
 	if not label or label == "" then
-		return BUTTON_SIZE
+		return Core.BUTTON_SIZE
 	end
 
 	if not state.sectionHeaderMeasure then
@@ -3734,10 +3738,10 @@ local function getMeasuredSectionHeaderWidth(label, isCustom)
 	local width = math.ceil((measure:GetStringWidth() or 0) + 0.5)
 	local totalWidth = width + 22
 	if isCustom and isCategoryAssignModeActive() then
-		totalWidth = totalWidth + CATEGORY_ASSIGN_BUTTON_SIZE + 6
+		totalWidth = totalWidth + Core.CATEGORY_ASSIGN_BUTTON_SIZE + 6
 	end
 
-	return math.max(BUTTON_SIZE, totalWidth)
+	return math.max(Core.BUTTON_SIZE, totalWidth)
 end
 
 local function getSectionLayoutMetrics(section, showSectionHeader, sectionCollapsed, buttonSize, buttonSpacing, maxColumns, maxColumnsThatFitWidth)
@@ -3751,7 +3755,7 @@ local function getSectionLayoutMetrics(section, showSectionHeader, sectionCollap
 	local blockHeight = 0
 
 	if showSectionHeader then
-		blockHeight = blockHeight + SECTION_HEADER_HEIGHT
+		blockHeight = blockHeight + Core.SECTION_HEADER_HEIGHT
 		if not sectionCollapsed then
 			sectionWidth = math.max(sectionWidth, getMeasuredSectionHeaderWidth(section.label, section.isCustom))
 		end
@@ -3762,7 +3766,7 @@ local function getSectionLayoutMetrics(section, showSectionHeader, sectionCollap
 		rows = math.max(1, math.ceil(itemCount / sectionColumnCount))
 		sectionWidth = (visibleColumns * buttonSize) + (math.max(0, visibleColumns - 1) * buttonSpacing)
 		if showSectionHeader then
-			blockHeight = blockHeight + SECTION_CONTENT_TOP_PADDING
+			blockHeight = blockHeight + Core.SECTION_CONTENT_TOP_PADDING
 		end
 		blockHeight = blockHeight + (rows * buttonSize) + (math.max(0, rows - 1) * buttonSpacing)
 	end
@@ -3776,7 +3780,7 @@ local function getSectionLayoutMetrics(section, showSectionHeader, sectionCollap
 		rows = rows,
 		sectionWidth = sectionWidth,
 		blockWidth = sectionWidth,
-		blockHeight = math.max(blockHeight, showSectionHeader and SECTION_HEADER_HEIGHT or 1),
+		blockHeight = math.max(blockHeight, showSectionHeader and Core.SECTION_HEADER_HEIGHT or 1),
 	}
 end
 
@@ -3785,7 +3789,7 @@ local function isCompactableSection(section, metrics, settings)
 		return false
 	end
 
-	if not section or section.id == FREE_SLOTS_SECTION_ID then
+	if not section or section.id == Core.FREE_SLOTS_SECTION_ID then
 		return false
 	end
 
@@ -3844,7 +3848,7 @@ local function renderSectionGroupHeader(section, currentHeaderCount, yOffset, is
 	header:SetPoint("RIGHT", state.content, "RIGHT", 0, 0)
 	header:Show()
 
-	return currentHeaderCount, yOffset + GROUP_HEADER_HEIGHT + GROUP_HEADER_GAP
+	return currentHeaderCount, yOffset + Core.GROUP_HEADER_HEIGHT + Core.GROUP_HEADER_GAP
 end
 
 local function layoutFrame(layoutData)
@@ -3856,10 +3860,10 @@ local function layoutFrame(layoutData)
 	local yOffset = 0
 	local activeGroupID = nil
 	local maxColumns = getMaxColumns(settings)
-	local compactSectionGap = addon.GetCompactCategoryGap and addon.GetCompactCategoryGap() or SECTION_HORIZONTAL_GAP
+	local compactSectionGap = addon.GetCompactCategoryGap and addon.GetCompactCategoryGap() or Core.SECTION_HORIZONTAL_GAP
 	local screenMaxContentWidth = math.max(
 		buttonSize,
-		getScreenMaxFrameWidth() - (getInsideHorizontalPadding(settings) * 2) - SCROLL_BAR_RESERVED_WIDTH
+		getScreenMaxFrameWidth() - (getInsideHorizontalPadding(settings) * 2) - Core.SCROLL_BAR_RESERVED_WIDTH
 	)
 	local maxColumnsThatFitWidth = math.max(1, math.floor((screenMaxContentWidth + buttonSpacing) / (buttonSize + buttonSpacing)))
 	local effectiveMaxColumns = math.max(1, math.min(maxColumns, maxColumnsThatFitWidth))
@@ -3893,7 +3897,7 @@ local function layoutFrame(layoutData)
 				sectionIndex = sectionIndex + 1
 			end
 			if sectionIndex <= #layoutData.sections then
-				yOffset = yOffset + SECTION_GAP
+				yOffset = yOffset + Core.SECTION_GAP
 			end
 		else
 			local sectionCollapsed = getSectionCollapsedState(section, showSectionHeader)
@@ -3961,7 +3965,7 @@ local function layoutFrame(layoutData)
 					header:SetWidth(rowMetrics.blockWidth)
 					header:Show()
 
-					local buttonYOffset = yOffset + SECTION_HEADER_HEIGHT + SECTION_CONTENT_TOP_PADDING
+					local buttonYOffset = yOffset + Core.SECTION_HEADER_HEIGHT + Core.SECTION_CONTENT_TOP_PADDING
 					for visualIndex, mappingIndex in ipairs(rowSection.slotIndices) do
 						local button = state.buttons[mappingIndex]
 						local row = math.floor((visualIndex - 1) / rowMetrics.sectionColumnCount)
@@ -3983,7 +3987,7 @@ local function layoutFrame(layoutData)
 
 				yOffset = yOffset + rowHeight
 				if sectionIndex <= #layoutData.sections then
-					yOffset = yOffset + SECTION_GAP
+					yOffset = yOffset + Core.SECTION_GAP
 				end
 			else
 				if showSectionHeader then
@@ -4001,12 +4005,12 @@ local function layoutFrame(layoutData)
 					header:SetPoint("TOPLEFT", state.content, "TOPLEFT", 0, -yOffset)
 					header:SetPoint("RIGHT", state.content, "RIGHT", 0, 0)
 					header:Show()
-					yOffset = yOffset + SECTION_HEADER_HEIGHT
+					yOffset = yOffset + Core.SECTION_HEADER_HEIGHT
 				end
 
 				if metrics.itemCount > 0 and not sectionCollapsed then
 					if showSectionHeader then
-						yOffset = yOffset + SECTION_CONTENT_TOP_PADDING
+						yOffset = yOffset + Core.SECTION_CONTENT_TOP_PADDING
 					end
 					contentWidth = math.max(contentWidth, metrics.sectionWidth)
 
@@ -4029,7 +4033,7 @@ local function layoutFrame(layoutData)
 				end
 
 				if sectionIndex < #layoutData.sections then
-					yOffset = yOffset + SECTION_GAP
+					yOffset = yOffset + Core.SECTION_GAP
 				end
 				sectionIndex = sectionIndex + 1
 			end
@@ -4040,8 +4044,9 @@ local function layoutFrame(layoutData)
 		state.sectionHeaders[index]:Hide()
 	end
 
-	local contentHeight = math.max(1, yOffset)
+	local contentHeight = getLayoutContentHeight(settings, yOffset)
 	state.lastLayoutContentWidth = contentWidth
+	state.lastLayoutRawContentHeight = yOffset
 	state.lastLayoutContentHeight = contentHeight
 
 	local initialFooterHeight = getFooterHeight(settings)
@@ -4128,10 +4133,15 @@ local function refreshButtons()
 	local footerLayoutSignature = getFooterLayoutSignature(settings, footerWidth)
 	if state.footerDirty or state.footerLayoutSignature ~= footerLayoutSignature then
 		local previousFooterHeight = getFooterHeight(settings)
+		local previousContentHeight = state.lastLayoutContentHeight
 		refreshFooterData(state.layoutData)
 		local measuredFooterHeight = layoutFooter(state.layoutData, footerWidth)
-		if measuredFooterHeight ~= previousFooterHeight and state.lastLayoutContentWidth and state.lastLayoutContentHeight then
-			updateScrollFrameLayout(state.lastLayoutContentWidth, state.lastLayoutContentHeight)
+		local contentHeight = getLayoutContentHeight(settings, state.lastLayoutRawContentHeight or state.lastLayoutContentHeight)
+		if state.lastLayoutRawContentHeight then
+			state.lastLayoutContentHeight = contentHeight
+		end
+		if (measuredFooterHeight ~= previousFooterHeight or contentHeight ~= previousContentHeight) and state.lastLayoutContentWidth and state.lastLayoutContentHeight then
+			updateScrollFrameLayout(state.lastLayoutContentWidth, contentHeight)
 			layoutFooter(state.layoutData, math.max(1, state.frame.Footer and state.frame.Footer:GetWidth() or footerWidth))
 		end
 	end
@@ -4171,16 +4181,26 @@ function Bags.functions.PositionFrame()
 	local anchor = getAnchorTargetFrame()
 	state.frame:ClearAllPoints()
 	if anchor then
-		state.frame:SetPoint("TOPRIGHT", anchor, "TOPLEFT", -CLUSTER_GAP, 0)
+		state.frame:SetPoint("TOPRIGHT", anchor, "TOPLEFT", -Core.CLUSTER_GAP, 0)
 	else
 		state.frame:SetPoint(
-			DEFAULT_FRAME_POINT.point,
+			Core.DEFAULT_FRAME_POINT.point,
 			UIParent,
-			DEFAULT_FRAME_POINT.relativePoint,
-			DEFAULT_FRAME_POINT.x,
-			DEFAULT_FRAME_POINT.y
+			Core.DEFAULT_FRAME_POINT.relativePoint,
+			Core.DEFAULT_FRAME_POINT.x,
+			Core.DEFAULT_FRAME_POINT.y
 		)
 	end
+end
+
+function addon.GetCustomBagsAnchorTargetFrame()
+	if not state.frame or not state.initialized then
+		return nil
+	end
+	if state.frame:IsShown() or state.manualVisible or state.explicitToggleVisible or shouldShowManagedContainerFrame() then
+		return state.frame
+	end
+	return nil
 end
 
 local function processUpdate()
@@ -4284,11 +4304,11 @@ function Bags.functions.ResetFramePosition()
 	if state.frame then
 		state.frame:ClearAllPoints()
 		state.frame:SetPoint(
-			DEFAULT_FRAME_POINT.point,
+			Core.DEFAULT_FRAME_POINT.point,
 			UIParent,
-			DEFAULT_FRAME_POINT.relativePoint,
-			DEFAULT_FRAME_POINT.x,
-			DEFAULT_FRAME_POINT.y
+			Core.DEFAULT_FRAME_POINT.relativePoint,
+			Core.DEFAULT_FRAME_POINT.x,
+			Core.DEFAULT_FRAME_POINT.y
 		)
 	end
 
@@ -4381,7 +4401,7 @@ Bags.functions.SynchronizeContextOpenedBagToggleState = function()
 	end
 
 	local hasOpenStandardBag = false
-	for bagID = BACKPACK_ID, LAST_CHARACTER_BAG_ID do
+	for bagID = Core.BACKPACK_ID, Core.LAST_CHARACTER_BAG_ID do
 		if IsBagOpen(bagID) then
 			hasOpenStandardBag = true
 			break
@@ -4391,11 +4411,11 @@ Bags.functions.SynchronizeContextOpenedBagToggleState = function()
 		return
 	end
 
-	if not IsBagOpen(BACKPACK_ID) and type(OpenBackpack) == "function" then
+	if not IsBagOpen(Core.BACKPACK_ID) and type(OpenBackpack) == "function" then
 		OpenBackpack()
 	end
 
-	for bagID = 1, LAST_CHARACTER_BAG_ID do
+	for bagID = 1, Core.LAST_CHARACTER_BAG_ID do
 		local slotCount = C_Container and C_Container.GetContainerNumSlots and C_Container.GetContainerNumSlots(bagID) or 0
 		if slotCount > 0 and not IsBagOpen(bagID) then
 			OpenBag(bagID)

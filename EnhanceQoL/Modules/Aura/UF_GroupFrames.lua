@@ -1229,11 +1229,15 @@ function GF.SyncDispelTintLayer(st)
 	if not (st and st.dispelTint) then return end
 	local anchor = st.barGroup or st.health or st.frame
 	if not anchor then return end
+	local cfg = st.frame and st.frame._eqolCfg or nil
+	local dispelCfg = cfg and cfg.status and cfg.status.dispelTint or EMPTY
 	local parent = st.statusIconLayer or st.layoutAnchor or anchor
 	if st.dispelTint.GetParent and st.dispelTint:GetParent() ~= parent then st.dispelTint:SetParent(parent) end
 	st.dispelTint:ClearAllPoints()
 	st.dispelTint:SetAllPoints(anchor)
-	setFrameLevelAbove(st.dispelTint, st.statusIconLayer or st.healthTextLayer or st.powerTextLayer or anchor, 1)
+	local levelOffset = tonumber(dispelCfg.frameLevelOffset)
+	if levelOffset == nil then levelOffset = 1 end
+	GF.SyncFrameLayerAbove(st.dispelTint, st.statusIconLayer or st.healthTextLayer or st.powerTextLayer or anchor, levelOffset, dispelCfg.strata)
 end
 
 local function syncTextFrameLevels(st)
@@ -6619,8 +6623,21 @@ function GF:LayoutButton(self)
 				st.portraitHolder:SetPoint("CENTER", holderParent, "LEFT", holderX, 0)
 			end
 			if holderParent and st.portraitHolder.SetFrameStrata and holderParent.GetFrameStrata then
-				st.portraitHolder:SetFrameStrata(holderParent:GetFrameStrata())
-				st.portraitHolder:SetFrameLevel((holderParent:GetFrameLevel() or 0) + 1)
+				local portraitCfg = cfg.portrait or EMPTY
+				local portraitStrata = portraitDetached and GF.NormalizeFrameStrataToken(portraitCfg.detachedStrata) or nil
+				if portraitStrata then
+					st.portraitHolder:SetFrameStrata(portraitStrata)
+				else
+					st.portraitHolder:SetFrameStrata(holderParent:GetFrameStrata())
+				end
+				local levelOffset = 1
+				if portraitDetached and portraitCfg.detachedFrameLevelOffset ~= nil then
+					levelOffset = clampNumber(portraitCfg.detachedFrameLevelOffset, -20, 1000, 1)
+					levelOffset = floor(levelOffset + (levelOffset >= 0 and 0.5 or -0.5))
+				end
+				local portraitLevel = (holderParent:GetFrameLevel() or 0) + levelOffset
+				if portraitLevel < 0 then portraitLevel = 0 end
+				st.portraitHolder:SetFrameLevel(portraitLevel)
 			end
 			if st.portrait then
 				if Pixel and Pixel.SetSize then
@@ -7247,7 +7264,7 @@ function GF:LayoutButton(self)
 
 	local baseLevel = (st.barGroup:GetFrameLevel() or 0)
 	st.health:SetFrameLevel(baseLevel + 1)
-	st.power:SetFrameLevel(baseLevel + 1)
+	if not powerDetached then st.power:SetFrameLevel(baseLevel + 1) end
 	syncTextFrameLevels(st)
 
 	st._lastHealthPx = nil
@@ -15745,6 +15762,14 @@ local function buildEditModeSettings(kind, editModeId)
 		local cfg = getCfg(kind)
 		return select(1, GF.ResolveGroupPortraitDetachedConfig(cfg, kind))
 	end
+	local function isDispelTintEnabled()
+		local cfg = getCfg(kind)
+		local sc = cfg and cfg.status or {}
+		local dt = sc.dispelTint or {}
+		local def = (DEFAULTS[kind] and DEFAULTS[kind].status and DEFAULTS[kind].status.dispelTint) or {}
+		if dt.enabled == nil then return def.enabled ~= false end
+		return dt.enabled == true
+	end
 	local function isPowerTextEnabled(key, fallback) return getPowerTextMode(key, fallback) ~= "NONE" end
 	local function anyHealthTextEnabled() return isHealthTextEnabled("textLeft") or isHealthTextEnabled("textCenter") or isHealthTextEnabled("textRight") end
 	local function healthDelimiterCount() return maxDelimiterCount(getHealthTextMode("textLeft"), getHealthTextMode("textCenter"), getHealthTextMode("textRight")) end
@@ -17774,6 +17799,63 @@ local function buildEditModeSettings(kind, editModeId)
 				cfg.portrait.detachedOffset = cfg.portrait.detachedOffset or {}
 				cfg.portrait.detachedOffset.y = clampNumber(value, -1000, 1000, cfg.portrait.detachedOffset.y or 0)
 				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "portraitDetachedOffsetY", cfg.portrait.detachedOffset.y, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			isEnabled = function() return isPortraitEnabled() and isPortraitDetached() end,
+		},
+		{
+			name = "Portrait detached strata",
+			kind = SettingType.Dropdown,
+			field = "portraitDetachedStrata",
+			parentId = "portrait",
+			isShown = function() return kind == "party" and isPortraitDetached() end,
+			get = function()
+				local cfg = getCfg(kind)
+				local pcfg = cfg and cfg.portrait or {}
+				return GF.NormalizeFrameStrataToken(pcfg.detachedStrata) or ""
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.portrait = cfg.portrait or {}
+				cfg.portrait.detachedStrata = GF.NormalizeFrameStrataToken(value)
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "portraitDetachedStrata", cfg.portrait.detachedStrata or "", nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			getValueText = function()
+				local cfg = getCfg(kind)
+				local pcfg = cfg and cfg.portrait or {}
+				return GF.DropdownOptionLabel(GF._FRAME_STRATA_OPTIONS_WITH_DEFAULT, GF.NormalizeFrameStrataToken(pcfg.detachedStrata) or "", DEFAULT or "Default")
+			end,
+			generator = GF.DropdownRadioGenerator(GF._FRAME_STRATA_OPTIONS_WITH_DEFAULT),
+			isEnabled = function() return isPortraitEnabled() and isPortraitDetached() end,
+		},
+		{
+			name = "Portrait detached level",
+			kind = SettingType.Slider,
+			allowInput = true,
+			field = "portraitDetachedFrameLevelOffset",
+			parentId = "portrait",
+			isShown = function() return kind == "party" and isPortraitDetached() end,
+			minValue = -20,
+			maxValue = 1000,
+			valueStep = 1,
+			get = function()
+				local cfg = getCfg(kind)
+				local pcfg = cfg and cfg.portrait or {}
+				local value = pcfg.detachedFrameLevelOffset
+				if value == nil then value = 1 end
+				value = clampNumber(value, -20, 1000, 1)
+				return floor(value + (value >= 0 and 0.5 or -0.5))
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.portrait = cfg.portrait or {}
+				local levelOffset = clampNumber(value, -20, 1000, cfg.portrait.detachedFrameLevelOffset or 1)
+				levelOffset = floor(levelOffset + (levelOffset >= 0 and 0.5 or -0.5))
+				cfg.portrait.detachedFrameLevelOffset = levelOffset
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "portraitDetachedFrameLevelOffset", cfg.portrait.detachedFrameLevelOffset, nil, true) end
 				GF:ApplyHeaderAttributes(kind)
 			end,
 			isEnabled = function() return isPortraitEnabled() and isPortraitDetached() end,
@@ -21068,13 +21150,68 @@ local function buildEditModeSettings(kind, editModeId)
 				GF:RefreshDispelTint()
 			end,
 			isEnabled = function()
+				return isDispelTintEnabled()
+			end,
+		},
+		{
+			name = "Dispel indicator strata",
+			kind = SettingType.Dropdown,
+			field = "dispelTintStrata",
+			parentId = "dispeltint",
+			get = function()
 				local cfg = getCfg(kind)
 				local sc = cfg and cfg.status or {}
 				local dt = sc.dispelTint or {}
-				local def = (DEFAULTS[kind] and DEFAULTS[kind].status and DEFAULTS[kind].status.dispelTint) or {}
-				if dt.enabled == nil then return def.enabled ~= false end
-				return dt.enabled == true
+				return GF.NormalizeFrameStrataToken(dt.strata) or ""
 			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.status = cfg.status or {}
+				cfg.status.dispelTint = cfg.status.dispelTint or {}
+				cfg.status.dispelTint.strata = GF.NormalizeFrameStrataToken(value)
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "dispelTintStrata", cfg.status.dispelTint.strata or "", nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			getValueText = function()
+				local cfg = getCfg(kind)
+				local sc = cfg and cfg.status or {}
+				local dt = sc.dispelTint or {}
+				return GF.DropdownOptionLabel(GF._FRAME_STRATA_OPTIONS_WITH_DEFAULT, GF.NormalizeFrameStrataToken(dt.strata) or "", DEFAULT or "Default")
+			end,
+			generator = GF.DropdownRadioGenerator(GF._FRAME_STRATA_OPTIONS_WITH_DEFAULT),
+			isEnabled = isDispelTintEnabled,
+		},
+		{
+			name = "Dispel indicator level",
+			kind = SettingType.Slider,
+			allowInput = true,
+			field = "dispelTintFrameLevelOffset",
+			parentId = "dispeltint",
+			minValue = -20,
+			maxValue = 1000,
+			valueStep = 1,
+			get = function()
+				local cfg = getCfg(kind)
+				local sc = cfg and cfg.status or {}
+				local dt = sc.dispelTint or {}
+				local value = dt.frameLevelOffset
+				if value == nil then value = 1 end
+				value = clampNumber(value, -20, 1000, 1)
+				return floor(value + (value >= 0 and 0.5 or -0.5))
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.status = cfg.status or {}
+				cfg.status.dispelTint = cfg.status.dispelTint or {}
+				local levelOffset = clampNumber(value, -20, 1000, cfg.status.dispelTint.frameLevelOffset or 1)
+				levelOffset = floor(levelOffset + (levelOffset >= 0 and 0.5 or -0.5))
+				cfg.status.dispelTint.frameLevelOffset = levelOffset
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "dispelTintFrameLevelOffset", cfg.status.dispelTint.frameLevelOffset, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			isEnabled = isDispelTintEnabled,
 		},
 		{
 			name = L["Background color"] or "Background color",
@@ -27723,6 +27860,8 @@ local function applyEditModeData(kind, data)
 		or data.dispelTintFillEnabled ~= nil
 		or data.dispelTintFillAlpha ~= nil
 		or data.dispelTintFillColor ~= nil
+		or data.dispelTintStrata ~= nil
+		or data.dispelTintFrameLevelOffset ~= nil
 		or data.dispelTintSample ~= nil
 		or data.dispelTintGlowEnabled ~= nil
 		or data.dispelTintGlowColorMode ~= nil
@@ -27862,6 +28001,8 @@ local function applyEditModeData(kind, data)
 		or data.dispelTintFillEnabled ~= nil
 		or data.dispelTintFillAlpha ~= nil
 		or data.dispelTintFillColor ~= nil
+		or data.dispelTintStrata ~= nil
+		or data.dispelTintFrameLevelOffset ~= nil
 		or data.dispelTintSample ~= nil
 		or data.dispelTintGlowEnabled ~= nil
 		or data.dispelTintGlowColorMode ~= nil
@@ -27879,6 +28020,12 @@ local function applyEditModeData(kind, data)
 		if data.dispelTintFillEnabled ~= nil then cfg.status.dispelTint.fillEnabled = data.dispelTintFillEnabled and true or false end
 		if data.dispelTintFillAlpha ~= nil then cfg.status.dispelTint.fillAlpha = clampNumber(data.dispelTintFillAlpha, 0, 1, cfg.status.dispelTint.fillAlpha or 0.2) end
 		if data.dispelTintFillColor ~= nil then cfg.status.dispelTint.fillColor = data.dispelTintFillColor end
+		if data.dispelTintStrata ~= nil then cfg.status.dispelTint.strata = GF.NormalizeFrameStrataToken(data.dispelTintStrata) end
+		if data.dispelTintFrameLevelOffset ~= nil then
+			local levelOffset = clampNumber(data.dispelTintFrameLevelOffset, -20, 1000, cfg.status.dispelTint.frameLevelOffset or 1)
+			levelOffset = floor(levelOffset + (levelOffset >= 0 and 0.5 or -0.5))
+			cfg.status.dispelTint.frameLevelOffset = levelOffset
+		end
 		if data.dispelTintSample ~= nil then cfg.status.dispelTint.showSample = data.dispelTintSample and true or false end
 		if data.dispelTintGlowEnabled ~= nil then cfg.status.dispelTint.glowEnabled = data.dispelTintGlowEnabled and true or false end
 		if data.dispelTintGlowColorMode ~= nil then cfg.status.dispelTint.glowColorMode = data.dispelTintGlowColorMode end
@@ -28833,6 +28980,8 @@ function GF:EnsureEditMode()
 					or ((sc.dispelTint == nil or sc.dispelTint.fillEnabled == nil) and defDispel.fillEnabled ~= false),
 				dispelTintFillAlpha = (sc.dispelTint and sc.dispelTint.fillAlpha) or defDispel.fillAlpha or 0.2,
 				dispelTintFillColor = (sc.dispelTint and sc.dispelTint.fillColor) or defDispel.fillColor or { 0, 0, 0, 1 },
+				dispelTintStrata = GF.NormalizeFrameStrataToken(sc.dispelTint and sc.dispelTint.strata) or "",
+				dispelTintFrameLevelOffset = (sc.dispelTint and sc.dispelTint.frameLevelOffset) or 1,
 				dispelTintSample = (sc.dispelTint and sc.dispelTint.showSample ~= nil) and (sc.dispelTint.showSample == true)
 					or ((sc.dispelTint == nil or sc.dispelTint.showSample == nil) and defDispel.showSample == true),
 				dispelTintGlowEnabled = (sc.dispelTint and sc.dispelTint.glowEnabled ~= nil) and (sc.dispelTint.glowEnabled == true)

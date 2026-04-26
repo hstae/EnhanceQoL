@@ -7,8 +7,9 @@
 - Bags: Added a solid background color picker for the integrated Bags and Warband Bank frames.
 - Data Panels / Combat Time: Added an option to show the boss timer above the combat timer when timers are stacked.
 - Group Frames / Party: Added detachable Power Bar controls with global party-frame positioning, custom width, height, offsets, growth-from-center, strata, frame level, and optional detached border settings.
-- Group Frames / Party: Added detachable Portrait controls with custom size and offsets, including smarter default placement based on party frame growth direction.
+- Group Frames / Party: Added detachable Portrait controls with custom size, offsets, strata, and frame level, including smarter default placement based on party frame growth direction.
 - Group Frames / Party: Detached portraits now support the existing Extend border over portrait behavior with a separate portrait border, while separator settings are disabled because detached portraits no longer use separators.
+- Group Frames / Dispel Indicator: Added optional strata and frame level controls without changing the default indicator layering.
 
 ### 🐛 Fixed
 
