@@ -1,5 +1,14 @@
 # Changelog
 
+## [10.9.0-beta4] - 2026-04-26
+
+### 🐛 Fixed
+
+- Bags: Fixed Advanced Add Group/Add Category creating ID collisions with existing preset groups, which could mirror categories under the new group and remove too many entries when deleting.
+- Group Frames / Hover Highlight: Fixed frame level changes not reliably layering above other unit frame elements by moving highlight frames out of the bar group parent while keeping their visual anchor on the bar group.
+
+---
+
 ## [10.9.0-beta3] - 2026-04-26
 
 ### ✨ Added

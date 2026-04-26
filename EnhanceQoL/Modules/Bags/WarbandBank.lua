@@ -3121,9 +3121,9 @@ local function createMainFrame()
 	frame.SettingsButton = settingsButton
 
 	local searchBox = CreateFrame("EditBox", "BagsWarbandBankSearchBox", frame, "BagSearchBoxTemplate")
-	searchBox.instructionText = SEARCH
+	searchBox.instructionText = ""
 	if searchBox.Instructions then
-		searchBox.Instructions:SetText(SEARCH)
+		searchBox.Instructions:SetText("")
 	end
 	if ITEM_SEARCHBAR_LIST then
 		local alreadyRegistered = false

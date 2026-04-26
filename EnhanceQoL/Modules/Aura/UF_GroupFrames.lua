@@ -745,10 +745,13 @@ local function ensureHighlightFrame(st, key)
 	if not (st and st.barGroup) then return nil end
 	st._highlightFrames = st._highlightFrames or {}
 	local frame = st._highlightFrames[key]
+	local parent = st.layoutAnchor or st.frame or st.barGroup
 	if not frame then
-		frame = CreateFrame("Frame", nil, st.barGroup, "BackdropTemplate")
+		frame = CreateFrame("Frame", nil, parent, "BackdropTemplate")
 		frame:EnableMouse(false)
 		st._highlightFrames[key] = frame
+	elseif parent and frame.GetParent and frame:GetParent() ~= parent then
+		frame:SetParent(parent)
 	end
 	return frame
 end

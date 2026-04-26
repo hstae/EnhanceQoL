@@ -2403,12 +2403,12 @@ end
 
 function addon.CreateCustomCategory(parentGroupID)
 	local categories = ensureCustomCategoryState()
-	local settings = getSettings()
+	local modeState = customCategoryStateModeState or getCategoryModeState()
 	local validGroupLookup = {}
 	for _, group in ipairs(addon.GetCustomCategoryGroups and addon.GetCustomCategoryGroups() or {}) do
 		validGroupLookup[group.id] = true
 	end
-	local category = sanitizeCategory(settings, {
+	local category = sanitizeCategory(modeState, {
 		name = string.format("%s %d", L["settingsCategoryCustomDefaultName"] or "Category", #categories + 1),
 		priority = 0,
 		color = getDefaultCategoryColor(#categories + 1),
@@ -2427,9 +2427,10 @@ function addon.CreateCustomCategory(parentGroupID)
 end
 
 function addon.CreateCustomCategoryGroup()
-	local groups = addon.GetCustomCategoryGroups and addon.GetCustomCategoryGroups() or getCustomCategoryGroupsTable()
-	local settings = getSettings()
-	local group = sanitizeCustomGroup(settings, {
+	ensureCustomCategoryState()
+	local groups = customCategoryStateGroups or getCustomCategoryGroupsTable()
+	local modeState = customCategoryStateModeState or getCategoryModeState()
+	local group = sanitizeCustomGroup(modeState, {
 		name = string.format("%s %d", L["settingsCategoryGroupLabel"] or "Group", #groups + 1),
 		color = getDefaultCategoryColor(#groups + 1),
 	}, #groups + 1)
