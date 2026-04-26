@@ -6449,7 +6449,7 @@ function GF:LayoutButton(self)
 	local portraitEnabled, portraitSide, portraitSquareBackground, portraitBorderWithFrame = GF.ResolveGroupPortraitConfig(cfg, kind)
 	local portraitDetached, portraitDetachedX, portraitDetachedY, portraitDetachedSize = GF.ResolveGroupPortraitDetachedConfig(cfg, kind)
 	portraitDetached = portraitEnabled and portraitDetached == true
-	local portraitBaseSize = max(1, portraitDetachedSize or availH)
+	local portraitBaseSize = max(1, portraitDetached and portraitDetachedSize or availH)
 	local portraitSize = portraitEnabled and roundToEvenPixel(portraitBaseSize, scale) or 0
 	if portraitDetached and (portraitDetachedX == nil or portraitDetachedY == nil) then
 		local defaultPortraitX, defaultPortraitY = GF.GetDefaultDetachedPortraitOffset(cfg, kind, w, h, portraitSize)
