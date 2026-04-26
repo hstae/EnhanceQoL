@@ -2069,9 +2069,37 @@ local cInventory = addon.SettingsLayout.rootGENERAL
 
 local expandable = addon.functions.SettingsCreateExpandableSection(cInventory, {
 	name = L["ItemsInventory"],
+	newTagID = "BagsInventory",
 	expanded = false,
 	colorizeTitle = false,
 })
+addon.SettingsLayout.bagsInventorySection = expandable
+
+if addon.Bags then
+	addon.Bags.integrated = true
+	addon.functions.SettingsCreateCheckbox(cInventory, {
+		var = "enableBagsModule",
+		text = L["bagsModuleEnable"] or "Enable Bags module",
+		desc = L["bagsModuleEnableDesc"] or "Opt-in replacement for the default bag window. Disabling after it was enabled takes full effect after a UI reload.",
+		default = false,
+		parentSection = expandable,
+		get = function()
+			return addon.db and addon.db.enableBagsModule == true
+		end,
+		func = function(value)
+			addon.db = addon.db or {}
+			addon.db.enableBagsModule = value == true
+			if addon.Bags and addon.Bags.functions then
+				if addon.db.enableBagsModule and addon.Bags.functions.Enable then
+					addon.Bags.functions.Enable()
+				elseif not addon.db.enableBagsModule and addon.Bags.functions.Disable then
+					addon.Bags.functions.Disable()
+					addon.variables.requireReload = true
+				end
+			end
+		end,
+	})
+end
 
 addon.functions.SettingsCreateHeadline(cInventory, BAGSLOT, { parentSection = expandable })
 

@@ -644,6 +644,11 @@ local function captureMoverExportState()
 	}
 end
 
+local function captureBagsExportState()
+	if type(EnhanceQoLBagsDB) ~= "table" or not next(EnhanceQoLBagsDB) then return nil end
+	return sanitizeProfileData(EnhanceQoLBagsDB)
+end
+
 local function applyImportedMoverState(meta)
 	local mover = type(meta) == "table" and meta.mover or nil
 	if type(mover) ~= "table" or type(mover.enabled) ~= "boolean" then return end
@@ -658,14 +663,26 @@ local function applyImportedMoverState(meta)
 	end
 end
 
+local function applyImportedBagsState(meta)
+	local bags = type(meta) == "table" and meta.bags or nil
+	if type(bags) ~= "table" then return end
+
+	EnhanceQoLBagsDB = sanitizeProfileData(bags)
+	if addon.Bags then
+		addon.DB = EnhanceQoLBagsDB
+		if addon.InitializeSavedVariables then addon.InitializeSavedVariables() end
+	end
+end
+
 local function exportActiveProfile(profileName)
 	if not serializer or not deflate then return nil, "NO_LIB" end
 	profileName = resolveExportProfileName(profileName)
 	if not profileName then return nil, "NO_ACTIVE" end
 	local source = EnhanceQoLDB and EnhanceQoLDB.profiles and EnhanceQoLDB.profiles[profileName]
 	local moverState = captureMoverExportState()
+	local bagsState = captureBagsExportState()
 	if type(source) ~= "table" then return nil, "NO_DATA" end
-	if not next(source) and not moverState then return nil, "NO_DATA" end
+	if not next(source) and not moverState and not bagsState then return nil, "NO_DATA" end
 	if next(source) then normalizeProfileStorage(source) end
 
 	local payload = {
@@ -673,10 +690,11 @@ local function exportActiveProfile(profileName)
 			addon = addonName,
 			kind = PROFILE_EXPORT_KIND,
 			version = tostring(C_AddOns.GetAddOnMetadata(addonName, "Version") or ""),
-			profileVersion = 3,
+			profileVersion = 4,
 			profile = profileName,
 			ufCharacter = captureUFCharacterImportState(source),
 			mover = moverState,
+			bags = bagsState,
 		},
 		data = sanitizeProfileData(source),
 	}
@@ -719,6 +737,7 @@ local function importProfile(encoded, options)
 	normalizeProfileStorage(sanitized, meta)
 	EnhanceQoLDB.profiles[target] = sanitized
 	applyImportedMoverState(meta)
+	applyImportedBagsState(meta)
 
 	if useImportedTarget then
 		if options.setImportedProfileActive == true then
