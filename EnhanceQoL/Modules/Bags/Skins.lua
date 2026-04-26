@@ -1,3 +1,4 @@
+-- luacheck: globals GetItemButtonIconTexture ColorManager
 local addonName, addon = ...
 addon = addon or {}
 _G[addonName] = addon

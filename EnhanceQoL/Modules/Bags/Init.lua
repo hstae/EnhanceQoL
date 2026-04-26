@@ -1,3 +1,4 @@
+-- luacheck: globals C_Bank
 local addonName, addon = ...
 addon = addon or {}
 _G[addonName] = addon

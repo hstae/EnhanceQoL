@@ -1,3 +1,4 @@
+-- luacheck: globals BIND_TO_ACCOUNT BIND_TO_BNETACCOUNT BIND_TO_ACCOUNT_UNTIL_EQUIP GetExpansionName
 local addonName, addon = ...
 addon = addon or {}
 _G[addonName] = addon

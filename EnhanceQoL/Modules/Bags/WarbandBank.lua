@@ -1,3 +1,4 @@
+-- luacheck: globals ACCOUNT_BANK_TITLE ACCOUNT_BANK_DEPOSIT_BUTTON_LABEL CHARACTER_BANK_DEPOSIT_BUTTON_LABEL C_Bank ItemUtil ScrollFrameTemplate_OnMouseWheel BANK_DEPOSIT_INCLUDE_REAGENTS_CHECKBOX_LABEL ClearItemButtonOverlay SetItemButtonQuality ItemButtonUtil PanelTemplates_TabResize ITEM_SEARCHBAR_LIST BagSearch_OnHide BagSearch_OnTextChanged BagSearch_OnChar BankPanelIncludeReagentsCheckboxMixin UIPanelScrollFrame_OnLoad
 local addonName, addon = ...
 addon = addon or {}
 _G[addonName] = addon

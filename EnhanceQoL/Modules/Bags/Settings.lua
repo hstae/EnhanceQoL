@@ -595,7 +595,10 @@ local function tryAddTrackedCurrencyFromPage(page)
 		return
 	end
 
-	local added, reason = addon.AddTrackedCurrencyID and addon.AddTrackedCurrencyID(currencyID)
+	local added, reason
+	if addon.AddTrackedCurrencyID then
+		added, reason = addon.AddTrackedCurrencyID(currencyID)
+	end
 	if not added then
 		if reason == "duplicate" then
 			setTrackedCurrencyFeedback(page, L["settingsTrackedCurrencyAddDuplicate"] or "That currency is already tracked.", 1, 0.82, 0)
@@ -2874,7 +2877,7 @@ refreshCategoriesPage = function(page)
 		updateScrollContainer(page.DetailScrollFrame, page.DetailContent, page.DetailScrollFrame:GetHeight())
 		return
 	end
-	
+
 	if not page.NameBox:HasFocus() then
 		page.NameBox:SetText((selectedCategory and selectedCategory.name) or (selectedGroup and selectedGroup.name) or "")
 	end
@@ -3006,7 +3009,7 @@ refreshCategoriesPage = function(page)
 		contentHeight = 156 + page.ItemsCard:GetHeight() + 12 + page.RulesCard:GetHeight()
 	end
 	updateScrollContainer(page.DetailScrollFrame, page.DetailContent, contentHeight)
-	
+
 	if page.AddGroupButton then
 		page.AddGroupButton:SetText(L["settingsCategoryAddGroup"] or "Add group")
 	end
@@ -4050,7 +4053,7 @@ local function createOverlaysPage(parent)
 	return page
 end
 
-local function refreshOverlaysPage(page)
+refreshOverlaysPage = function(page)
 	if not page then
 		return
 	end

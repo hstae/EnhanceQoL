@@ -1,3 +1,4 @@
+-- luacheck: globals BagsItemButton_OnLoad ItemButtonUtil ContainerFrameItemButtonMixin ScrollFrameTemplate_OnMouseWheel IsAnyStandardHeldBagOpen BackpackTokenFrame BagItemAutoSortButton ITEM_SEARCHBAR_LIST BagSearch_OnHide BagSearch_OnTextChanged BagSearch_OnChar UIPanelScrollFrame_OnLoad ClearItemButtonOverlay SetItemButtonQuality ContainerFrame_AllowedToOpenBags
 local addonName, addon = ...
 addon = addon or {}
 _G[addonName] = addon

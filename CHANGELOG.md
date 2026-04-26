@@ -1,5 +1,13 @@
 # Changelog
 
+## [10.9.0-beta1] - 2026-04-26
+
+### ✨ Added
+
+- Bags: Added the integrated custom Bags and Warband Bank module as a beta-only, opt-in feature.
+
+---
+
 ## [10.8.0] - 2026-04-26
 
 ### ✨ Added
