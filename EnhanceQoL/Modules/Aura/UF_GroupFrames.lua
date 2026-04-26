@@ -6932,7 +6932,7 @@ function GF:LayoutButton(self)
 			baseOffset = (cfg.health and cfg.health.offsetCenter) or {}
 		end
 		local nameOffset = tc.nameOffset or {}
-		local namePad = (nameAnchor and nameAnchor:find("LEFT")) and rolePad or 0
+		local namePad = (nameAnchor == "LEFT") and rolePad or 0
 		local nameX = ((nameOffset.x ~= nil and nameOffset.x or baseOffset.x or 6) * contentScale) + namePad
 		local nameY = (nameOffset.y ~= nil and nameOffset.y or baseOffset.y or 0) * contentScale
 		local nameAnchorFrame = layoutAnchor or st.health
@@ -6947,13 +6947,14 @@ function GF:LayoutButton(self)
 			end
 		end
 		st.nameText:ClearAllPoints()
+		local justifyV = "MIDDLE"
+		if nameAnchor and nameAnchor:find("TOP") then
+			justifyV = "TOP"
+		elseif nameAnchor and nameAnchor:find("BOTTOM") then
+			justifyV = "BOTTOM"
+		end
 		if nameMaxChars <= 0 then
-			local vert = "CENTER"
-			if nameAnchor and nameAnchor:find("TOP") then
-				vert = "TOP"
-			elseif nameAnchor and nameAnchor:find("BOTTOM") then
-				vert = "BOTTOM"
-			end
+			local vert = justifyV == "MIDDLE" and "CENTER" or justifyV
 			local leftPoint = (vert == "CENTER") and "LEFT" or (vert .. "LEFT")
 			local rightPad = 4 * contentScale
 			local nameWidth = max(1, nameFrameWidth - nameX - rightPad)
@@ -6979,6 +6980,7 @@ function GF:LayoutButton(self)
 			justify = "RIGHT"
 		end
 		st.nameText:SetJustifyH(justify)
+		if st.nameText.SetJustifyV then st.nameText:SetJustifyV(justifyV) end
 		local showName = tc.showName ~= false
 		st.nameText:SetShown(showName)
 		if not showName then

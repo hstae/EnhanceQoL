@@ -1,5 +1,13 @@
 # Changelog
 
+## [10.9.0-beta3] - 2026-04-26
+
+### 🐛 Fixed
+
+- Group Frames / Party: Fixed name TOPLEFT/TOPRIGHT style anchors being shifted by role-icon padding instead of using the selected corner literally.
+
+---
+
 ## [10.9.0-beta2] - 2026-04-26
 
 ### ✨ Added
@@ -7,14 +15,14 @@
 - Bags: Added a solid background color picker for the integrated Bags and Warband Bank frames.
 - Data Panels / Combat Time: Added an option to show the boss timer above the combat timer when timers are stacked.
 - Group Frames / Party: Added detachable Power Bar controls with global party-frame positioning, custom width, height, offsets, growth-from-center, strata, frame level, and optional detached border settings.
-- Group Frames / Party: Added detachable Portrait controls with custom size, offsets, strata, and frame level, including smarter default placement based on party frame growth direction.
+- Group Frames / Party: Added detachable Portrait controls with custom size and offsets, including smarter default placement based on party frame growth direction.
 - Group Frames / Party: Detached portraits now support the existing Extend border over portrait behavior with a separate portrait border, while separator settings are disabled because detached portraits no longer use separators.
-- Group Frames / Dispel Indicator: Added optional strata and frame level controls without changing the default indicator layering.
 
 ### 🐛 Fixed
 
 - Bags: Improved text appearance handling so the integrated Bags and Warband Bank frames follow global font and font-style changes more reliably.
 - Group Frames / Party: Fixed attached portraits expanding the layout anchor, which caused names, markers, and status icons anchored to TOPLEFT to use the portrait area instead of the original frame area.
+- Group Frames / Party: Fixed detached Power Bar borders clearing the bar backdrop, making configured bar backdrop colors appear transparent.
 
 ---
 
