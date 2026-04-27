@@ -5,6 +5,7 @@
 ### 🐛 Fixed
 
 - Group Frames / Healer Buff Placement: Fixed healer buff indicators disappearing on unrelated aura updates and limited tracked healer buff re-filtering to the required player-owned helpful aura check.
+- Group Frames: Restored `AnyUp` click registration on secure group unit buttons so right-click unit menus work again.
 
 ---
 

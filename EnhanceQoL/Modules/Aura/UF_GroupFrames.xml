@@ -14,6 +14,7 @@
 	<Button name="EQOLUFGroupUnitButtonTemplate" virtual="true" inherits="BackdropTemplate,SecureUnitButtonTemplate,PingableUnitFrameTemplate">
 		<Scripts>
 			<OnLoad>
+				self:RegisterForClicks("AnyUp");
 				EnhanceQoL.Aura.UF.GroupFrames.UnitButton_OnLoad(self);
 			</OnLoad>
 			<OnEvent>
