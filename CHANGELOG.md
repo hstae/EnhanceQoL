@@ -7,6 +7,11 @@
 - Class Buff Reminder: Fixed missing flask, food, and weapon buff reminders not showing in current-season Mythic dungeons from older expansions, such as seasonal Mythic+ pool dungeons before the key is started.
 - Class Buff Reminder: Fixed a Lua error when aura updates were processed while augment rune candidates were unavailable.
 - Gear & Upgrades: Fixed Character Frame gem slot tooltips not opening, gem overlays staying visible after disabling the gem display option, and Indecipherable Eversong Diamonds missing from the gem tracker summary.
+- Cooldown Panels: Fixed tracked aura display "Always show (desaturate when active)" showing inactive CDM auras that Blizzard marks as unlearned.
+- Cooldown Panels: Fixed tracked aura learned-state updates after talent changes so the correct CDM aura icon appears without a UI reload.
+- Cooldown Panels: Fixed tracked aura state texture icons sometimes staying invisible after loading screens until the layout was edited or the UI reloaded.
+
+---
 
 ## [10.9.0-beta6] - 2026-04-27
 

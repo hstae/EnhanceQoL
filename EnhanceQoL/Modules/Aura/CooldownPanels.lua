@@ -15473,10 +15473,12 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 		end
 		if frame.icons then
 			for i = 1, #frame.icons do
-				CooldownPanels:HideEditorGhostIcon(frame.icons[i])
-				if frame.icons[i].stateTexture then frame.icons[i].stateTexture:Hide() end
-				if frame.icons[i].stateTextureSecond then frame.icons[i].stateTextureSecond:Hide() end
-				setAssistedHighlight(frame.icons[i], false)
+				local icon = frame.icons[i]
+				cdp.RUNTIME.ClearIconSnapshot(icon)
+				CooldownPanels:HideEditorGhostIcon(icon)
+				if icon.stateTexture then icon.stateTexture:Hide() end
+				if icon.stateTextureSecond then icon.stateTextureSecond:Hide() end
+				setAssistedHighlight(icon, false)
 			end
 		end
 		ensureIconCount(frame, 0)
