@@ -1,5 +1,13 @@
 # Changelog
 
+## [10.9.0-beta5] - 2026-04-27
+
+### 🐛 Fixed
+
+- Performance improvements of Unit Frames
+
+---
+
 ## [10.9.0-beta4] - 2026-04-26
 
 ### 🐛 Fixed
