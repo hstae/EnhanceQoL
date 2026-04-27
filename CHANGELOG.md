@@ -2,6 +2,10 @@
 
 ## [10.9.0-beta7] - 2026-04-27
 
+### ✨ Added
+
+- Cooldown Panels: Added an "Only show when active (desaturated)" tracked aura display option.
+
 ### 🐛 Fixed
 
 - Class Buff Reminder: Fixed missing flask, food, and weapon buff reminders not showing in current-season Mythic dungeons from older expansions, such as seasonal Mythic+ pool dungeons before the key is started.

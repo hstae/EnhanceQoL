@@ -45,6 +45,7 @@ CooldownPanels.ENTRY_TYPE = {
 
 CooldownPanels.CDM_AURA_ALWAYS_SHOW_MODE = CooldownPanels.CDM_AURA_ALWAYS_SHOW_MODE or {
 	HIDE = "HIDE",
+	HIDE_DESATURATE_ACTIVE = "HIDE_DESATURATE_ACTIVE",
 	SHOW = "SHOW",
 	DESATURATE = "DESATURATE",
 	DESATURATE_ACTIVE = "DESATURATE_ACTIVE",
@@ -333,8 +334,14 @@ curveAlpha:AddPoint(0.1, 0)
 function CooldownPanels:NormalizeCDMAuraAlwaysShowMode(value, fallback)
 	local mode = type(value) == "string" and string.upper(value) or nil
 	local values = self.CDM_AURA_ALWAYS_SHOW_MODE or {}
-	if mode == values.SHOW or mode == values.DESATURATE or mode == values.DESATURATE_ACTIVE or mode == values.HIDE then return mode end
+	if mode == values.SHOW or mode == values.DESATURATE or mode == values.DESATURATE_ACTIVE or mode == values.HIDE or mode == values.HIDE_DESATURATE_ACTIVE then return mode end
 	return fallback or values.HIDE or "HIDE"
+end
+
+function CooldownPanels:IsCDMAuraAlwaysShowModeVisibleWhenInactive(value)
+	local values = self.CDM_AURA_ALWAYS_SHOW_MODE or {}
+	local mode = self:NormalizeCDMAuraAlwaysShowMode(value, values.HIDE or "HIDE")
+	return mode ~= (values.HIDE or "HIDE") and mode ~= (values.HIDE_DESATURATE_ACTIVE or "HIDE_DESATURATE_ACTIVE")
 end
 
 function CooldownPanels:GetCDMAuraAlwaysShowOptions()
@@ -343,6 +350,10 @@ function CooldownPanels:GetCDMAuraAlwaysShowOptions()
 		{
 			value = values.HIDE or "HIDE",
 			label = L["CooldownPanelCDMAuraAlwaysShowModeHide"] or "Only show when active",
+		},
+		{
+			value = values.HIDE_DESATURATE_ACTIVE or "HIDE_DESATURATE_ACTIVE",
+			label = L["CooldownPanelCDMAuraAlwaysShowModeHideDesaturateActive"] or "Only show when active (desaturated)",
 		},
 		{
 			value = values.SHOW or "SHOW",
@@ -9786,8 +9797,7 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 		if currentEntry.cdmAuraAlwaysShowUseGlobal == useGlobal then return end
 		if not useGlobal then currentEntry.cdmAuraAlwaysShowMode = CooldownPanels:ResolveEntryCDMAuraAlwaysShowMode(layout, currentEntry) end
 		currentEntry.cdmAuraAlwaysShowUseGlobal = useGlobal
-		currentEntry.alwaysShow = CooldownPanels:ResolveEntryCDMAuraAlwaysShowMode(layout, currentEntry)
-			~= (CooldownPanels.CDM_AURA_ALWAYS_SHOW_MODE and CooldownPanels.CDM_AURA_ALWAYS_SHOW_MODE.HIDE or "HIDE")
+		currentEntry.alwaysShow = CooldownPanels:IsCDMAuraAlwaysShowModeVisibleWhenInactive(CooldownPanels:ResolveEntryCDMAuraAlwaysShowMode(layout, currentEntry))
 		refreshEntryViews()
 	end
 
@@ -9797,7 +9807,7 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 		local normalized = CooldownPanels:NormalizeCDMAuraAlwaysShowMode(value, CooldownPanels.CDM_AURA_ALWAYS_SHOW_MODE and CooldownPanels.CDM_AURA_ALWAYS_SHOW_MODE.HIDE or "HIDE")
 		if currentEntry.cdmAuraAlwaysShowMode == normalized then return end
 		currentEntry.cdmAuraAlwaysShowMode = normalized
-		currentEntry.alwaysShow = normalized ~= (CooldownPanels.CDM_AURA_ALWAYS_SHOW_MODE and CooldownPanels.CDM_AURA_ALWAYS_SHOW_MODE.HIDE or "HIDE")
+		currentEntry.alwaysShow = CooldownPanels:IsCDMAuraAlwaysShowModeVisibleWhenInactive(normalized)
 		refreshEntryViews()
 	end
 
@@ -14652,8 +14662,7 @@ local function refreshInspector(editor, panel, entry)
 		else
 			local alwaysShowChecked = effectiveType == "ITEM" and entry.alwaysShow ~= false
 			if effectiveType == "CDM_AURA" then
-				alwaysShowChecked = CooldownPanels:ResolveEntryCDMAuraAlwaysShowMode(panel and panel.layout or nil, entry)
-					~= (CooldownPanels.CDM_AURA_ALWAYS_SHOW_MODE and CooldownPanels.CDM_AURA_ALWAYS_SHOW_MODE.HIDE or "HIDE")
+				alwaysShowChecked = CooldownPanels:IsCDMAuraAlwaysShowModeVisibleWhenInactive(CooldownPanels:ResolveEntryCDMAuraAlwaysShowMode(panel and panel.layout or nil, entry))
 			end
 			inspector.cbAlwaysShow:SetChecked(alwaysShowChecked)
 		end
@@ -16071,6 +16080,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 					or cdmAuraAlwaysShowMode == (CooldownPanels.CDM_AURA_ALWAYS_SHOW_MODE and CooldownPanels.CDM_AURA_ALWAYS_SHOW_MODE.DESATURATE or "DESATURATE")
 				data.cdmAuraActiveDesaturate = cdmAuraData and cdmAuraData.activeDesaturate == true
 					or cdmAuraAlwaysShowMode == (CooldownPanels.CDM_AURA_ALWAYS_SHOW_MODE and CooldownPanels.CDM_AURA_ALWAYS_SHOW_MODE.DESATURATE_ACTIVE or "DESATURATE_ACTIVE")
+					or cdmAuraAlwaysShowMode == (CooldownPanels.CDM_AURA_ALWAYS_SHOW_MODE and CooldownPanels.CDM_AURA_ALWAYS_SHOW_MODE.HIDE_DESATURATE_ACTIVE or "HIDE_DESATURATE_ACTIVE")
 				data.cdmAuraDurationObject = cdmAuraData and cdmAuraData.cooldownDurationObject or nil
 				if fixedGroupCenterGrowth and fixedGroup then
 					local centerList = fixedCenterGroupVisibleData[fixedGroup.id]

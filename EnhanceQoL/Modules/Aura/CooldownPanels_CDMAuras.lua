@@ -208,7 +208,7 @@ end
 local function normalizeAlwaysShowMode(value, fallback)
 	if CooldownPanels and CooldownPanels.NormalizeCDMAuraAlwaysShowMode then return CooldownPanels:NormalizeCDMAuraAlwaysShowMode(value, fallback) end
 	local mode = type(value) == "string" and string.upper(value) or nil
-	if mode == "SHOW" or mode == "DESATURATE" or mode == "DESATURATE_ACTIVE" or mode == "HIDE" then return mode end
+	if mode == "SHOW" or mode == "DESATURATE" or mode == "DESATURATE_ACTIVE" or mode == "HIDE" or mode == "HIDE_DESATURATE_ACTIVE" then return mode end
 	return fallback or "HIDE"
 end
 
@@ -1420,7 +1420,7 @@ function CDMAuras:NormalizeEntry(entry)
 	local hadExplicitMode = entry.cdmAuraAlwaysShowMode ~= nil
 	if type(entry.cdmAuraAlwaysShowUseGlobal) ~= "boolean" then entry.cdmAuraAlwaysShowUseGlobal = not (legacyAlwaysShow or hadExplicitMode) end
 	entry.cdmAuraAlwaysShowMode = normalizeAlwaysShowMode(entry.cdmAuraAlwaysShowMode, legacyAlwaysShow and "SHOW" or "HIDE")
-	entry.alwaysShow = entry.cdmAuraAlwaysShowMode ~= "HIDE"
+	entry.alwaysShow = entry.cdmAuraAlwaysShowMode ~= "HIDE" and entry.cdmAuraAlwaysShowMode ~= "HIDE_DESATURATE_ACTIVE"
 	entry.showCooldown = entry.showCooldown ~= false
 	entry.showCooldownText = entry.showCooldownText ~= false
 	if entry.showStacks == nil then
@@ -2009,12 +2009,13 @@ function CDMAuras:BuildRuntimeData(panelId, entryId, entry, entryLayout, alwaysS
 	alwaysShowMode = normalizeAlwaysShowMode(alwaysShowMode, fallbackAlwaysShowMode)
 	local isKnown = scanInfo and scanInfo.isKnown
 	if isKnown == nil then isKnown = getCooldownInfoIsKnown(resolvedCooldownID or entry.cooldownID, chosenFrame or fallbackFrame) end
-	local show = active or (isKnown ~= false and alwaysShowMode ~= "HIDE")
+	local hideWhenInactive = alwaysShowMode == "HIDE" or alwaysShowMode == "HIDE_DESATURATE_ACTIVE"
+	local show = active or (isKnown ~= false and not hideWhenInactive)
 	data.show = show
 	data.active = active
 	data.isKnown = isKnown ~= false
 	data.inactiveDesaturate = alwaysShowMode == "DESATURATE" and not active
-	data.activeDesaturate = alwaysShowMode == "DESATURATE_ACTIVE" and active
+	data.activeDesaturate = (alwaysShowMode == "DESATURATE_ACTIVE" or alwaysShowMode == "HIDE_DESATURATE_ACTIVE") and active
 	data.durationActive = durationActive
 	data.cooldownStart = cooldownStart
 	data.cooldownDuration = cooldownDuration

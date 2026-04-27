@@ -707,6 +707,7 @@ L["CooldownPanelCDMAuraAlwaysShowMode"] = "Отображение отслежи
 L["CooldownPanelCDMAuraAlwaysShowModeDesaturate"] = "Всегда отображать (если неактивна, обесцвечивать)"
 L["CooldownPanelCDMAuraAlwaysShowModeDesaturateActive"] = "Всегда отображать (если активна, обесцвечивать)"
 L["CooldownPanelCDMAuraAlwaysShowModeHide"] = "Показывать только когда активна"
+L["CooldownPanelCDMAuraAlwaysShowModeHideDesaturateActive"] = "Показывать только когда активна (обесцвечено)"
 L["CooldownPanelCDMAuraCooldownID"] = "ID восстановления: %s"
 L["CooldownPanelCDMAuraNoBuffs"] = "Отслеживаемые баффы не найдены."
 L["CooldownPanelCDMAuraNotFound"] = "Отслеживаемый бафф не найден в Cooldown Manager."
