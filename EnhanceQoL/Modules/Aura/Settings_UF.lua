@@ -572,14 +572,12 @@ local function ensureAuraSettingsConfig(unit, auraDef)
 	else
 		ac.buff = ac.buff or {}
 		ac.debuff = ac.debuff or {}
-		ac.combineLayout = ac.combineLayout == true
 	end
 	ac.buff = ac.buff or {}
 	ac.debuff = ac.debuff or {}
 	ac.enabled = (ac.buff.enabled ~= false) or (ac.debuff.enabled ~= false)
 	ac.showBuffs = ac.buff.enabled ~= false
 	ac.showDebuffs = ac.debuff.enabled ~= false
-	ac.separateDebuffAnchor = ac.combineLayout ~= true
 	return ac
 end
 
@@ -685,7 +683,6 @@ local function appendUnitAuraSettings(list, unit, def, refreshSelf)
 		ac.enabled = (ac.buff.enabled ~= false) or (ac.debuff.enabled ~= false)
 		ac.showBuffs = ac.buff.enabled ~= false
 		ac.showDebuffs = ac.debuff.enabled ~= false
-		ac.separateDebuffAnchor = ac.combineLayout ~= true
 	end
 
 	local function getAuraSection(sectionKey)
@@ -704,11 +701,9 @@ local function appendUnitAuraSettings(list, unit, def, refreshSelf)
 		return cur
 	end
 
-	local function setAuraSectionValue(sectionKey, path, value, opts)
+	local function setAuraSectionValue(sectionKey, path, value)
 		local ac, section = getAuraSection(sectionKey)
-		if opts and opts.separatesLayout and sectionKey == "debuff" then ac.combineLayout = false end
 		setTablePathValue(section, path, cloneSettingValue(value))
-		if opts and opts.mirrorWhileCombined and sectionKey == "buff" and ac.combineLayout == true then setTablePathValue(ac.debuff, path, cloneSettingValue(value)) end
 		syncAuraState(ac)
 	end
 
@@ -723,7 +718,6 @@ local function appendUnitAuraSettings(list, unit, def, refreshSelf)
 
 	local function appendAuraSection(sectionKey, parentId, isDebuff)
 		local labelPrefix = isDebuff and (L["Debuff"] or "Debuff") or (L["Buff"] or "Buff")
-		local layoutOpts = isDebuff and { separatesLayout = true } or { mirrorWhileCombined = true }
 
 		local function isSectionEnabled() return getAuraSectionValue(sectionKey, { "enabled" }, auraDef.enabled ~= false) == true end
 		local function isEdgeBorderMode()
@@ -763,7 +757,7 @@ local function appendUnitAuraSettings(list, unit, def, refreshSelf)
 		list[#list].isEnabled = isSectionEnabled
 
 		list[#list + 1] = radioDropdown((labelPrefix .. " " .. (L["Anchor"] or "anchor")), anchorOpts, function() return getAuraAnchorValue(sectionKey) end, function(val)
-			setAuraSectionValue(sectionKey, { "anchor" }, val or "BOTTOM", layoutOpts)
+			setAuraSectionValue(sectionKey, { "anchor" }, val or "BOTTOM")
 			refreshSelf()
 		end, auraDef.anchor or "BOTTOM", parentId)
 		list[#list].isEnabled = isSectionEnabled
@@ -773,7 +767,7 @@ local function appendUnitAuraSettings(list, unit, def, refreshSelf)
 			growthOptions,
 			function() return (getAuraSectionValue(sectionKey, { "growth" }, defaultAuraGrowth(sectionKey)) or defaultAuraGrowth(sectionKey)):upper() end,
 			function(val)
-				setAuraSectionValue(sectionKey, { "growth" }, (val or defaultAuraGrowth(sectionKey)):upper(), layoutOpts)
+				setAuraSectionValue(sectionKey, { "growth" }, (val or defaultAuraGrowth(sectionKey)):upper())
 				refreshSelf()
 			end,
 			defaultAuraGrowth(sectionKey),
@@ -785,7 +779,7 @@ local function appendUnitAuraSettings(list, unit, def, refreshSelf)
 			local anchor = getAuraAnchorValue(sectionKey)
 			return getAuraSectionValue(sectionKey, { "offset", "x" }, defaultAuraOffsetX(anchor))
 		end, function(val)
-			setAuraSectionValue(sectionKey, { "offset", "x" }, val or 0, layoutOpts)
+			setAuraSectionValue(sectionKey, { "offset", "x" }, val or 0)
 			refreshSelf()
 		end, defaultAuraOffsetX(auraDef.anchor or "BOTTOM"), parentId, true)
 		list[#list].isEnabled = isSectionEnabled
@@ -794,7 +788,7 @@ local function appendUnitAuraSettings(list, unit, def, refreshSelf)
 			local anchor = getAuraAnchorValue(sectionKey)
 			return getAuraSectionValue(sectionKey, { "offset", "y" }, defaultAuraOffsetY(anchor))
 		end, function(val)
-			setAuraSectionValue(sectionKey, { "offset", "y" }, val or 0, layoutOpts)
+			setAuraSectionValue(sectionKey, { "offset", "y" }, val or 0)
 			refreshSelf()
 		end, defaultAuraOffsetY(auraDef.anchor or "BOTTOM"), parentId, true)
 		list[#list].isEnabled = isSectionEnabled
@@ -846,7 +840,7 @@ local function appendUnitAuraSettings(list, unit, def, refreshSelf)
 			function(val)
 				val = tonumber(val) or 0
 				if val < 0 then val = 0 end
-				setAuraSectionValue(sectionKey, { "perRow" }, math.floor(val + 0.5), layoutOpts)
+				setAuraSectionValue(sectionKey, { "perRow" }, math.floor(val + 0.5))
 				refreshSelf()
 			end,
 			auraDef.perRow or 0,
@@ -868,7 +862,7 @@ local function appendUnitAuraSettings(list, unit, def, refreshSelf)
 			function() return getAuraSectionValue(sectionKey, { "max" }, auraDef.max or 16) end,
 			function(val)
 				val = clampNumber(val, 1, 40, auraDef.max or 16)
-				setAuraSectionValue(sectionKey, { "max" }, val or auraDef.max or 16, layoutOpts)
+				setAuraSectionValue(sectionKey, { "max" }, val or auraDef.max or 16)
 				refreshSelf()
 			end,
 			auraDef.max or 16,
@@ -884,7 +878,7 @@ local function appendUnitAuraSettings(list, unit, def, refreshSelf)
 			1,
 			function() return getAuraSectionValue(sectionKey, { "spacing" }, auraDef.padding or 2) end,
 			function(val)
-				setAuraSectionValue(sectionKey, { "spacing" }, val or 0, layoutOpts)
+				setAuraSectionValue(sectionKey, { "spacing" }, val or 0)
 				refreshSelf()
 			end,
 			auraDef.padding or 2,

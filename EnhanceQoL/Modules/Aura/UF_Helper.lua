@@ -42,6 +42,85 @@ local C_UnitAuras = C_UnitAuras
 local UIParent = UIParent
 local DispelOverlayOrientation = EnumUtil and EnumUtil.MakeEnum("VerticalTopToBottom", "VerticalBottomToTop", "HorizontalLeftToRight")
 
+do
+local FILTER_HELPFUL = "HELPFUL|INCLUDE_NAME_PLATE_ONLY"
+local FILTER_HELPFUL_GROUP_RAID = "HELPFUL|INCLUDE_NAME_PLATE_ONLY|RAID|PLAYER"
+local FILTER_HELPFUL_GROUP_RAID_IN_COMBAT = "HELPFUL|INCLUDE_NAME_PLATE_ONLY|RAID_IN_COMBAT|PLAYER"
+local FILTER_HARMFUL = "HARMFUL|INCLUDE_NAME_PLATE_ONLY"
+local FILTER_HARMFUL_PLAYER = "HARMFUL|PLAYER|INCLUDE_NAME_PLATE_ONLY"
+local FILTER_HARMFUL_RAID = "HARMFUL|INCLUDE_NAME_PLATE_ONLY|RAID"
+local FILTER_HARMFUL_RAID_IN_COMBAT = "HARMFUL|INCLUDE_NAME_PLATE_ONLY|RAID_IN_COMBAT"
+local FILTER_HARMFUL_DISPELLABLE = "HARMFUL|INCLUDE_NAME_PLATE_ONLY|RAID_PLAYER_DISPELLABLE"
+local FILTER_HARMFUL_IMPORTANT = "HARMFUL|INCLUDE_NAME_PLATE_ONLY|IMPORTANT"
+local FILTER_HARMFUL_CROWD_CONTROL = "HARMFUL|INCLUDE_NAME_PLATE_ONLY|CROWD_CONTROL"
+local FILTER_BIG_DEFENSIVE = "HELPFUL|BIG_DEFENSIVE"
+
+local function allowNameplateOnly(aura, includeNameplateOnly)
+	return includeNameplateOnly == true or aura.isNameplateOnly ~= true
+end
+
+function H.IsHelpfulAura(aura, includeNameplateOnly)
+	return aura and aura.isHelpful == true and allowNameplateOnly(aura, includeNameplateOnly) or false
+end
+
+function H.IsHarmfulAura(aura, includeNameplateOnly)
+	return aura and aura.isHarmful == true and allowNameplateOnly(aura, includeNameplateOnly) or false
+end
+
+function H.IsRaidAura(aura)
+	return aura and aura.isRaid == true or false
+end
+
+function H.IsFromPlayerOrPlayerPetAura(aura)
+	return aura and aura.isFromPlayerOrPlayerPet == true or false
+end
+
+local function isApiMatch(unit, aura, specialFilter)
+	return unit
+		and aura
+		and aura.auraInstanceID
+		and C_UnitAuras
+		and C_UnitAuras.IsAuraFilteredOutByInstanceID
+		and not C_UnitAuras.IsAuraFilteredOutByInstanceID(unit, aura.auraInstanceID, specialFilter)
+		or false
+end
+
+local function isGroupHelpfulAura(unit, aura, filter)
+	if not H.IsHelpfulAura(aura, true) then return false end
+	if aura.isRaid ~= true and aura.isFromPlayerOrPlayerPet ~= true then return false end
+	return isApiMatch(unit, aura, filter)
+end
+
+function H.IsAuraFilteredIn(unit, aura, filter)
+	if not (aura and aura.auraInstanceID) then return false end
+	if type(filter) == "table" then
+		if #filter > 0 then
+			for _, auraFilter in ipairs(filter) do
+				if type(auraFilter) == "string" and H.IsAuraFilteredIn(unit, aura, auraFilter) then return true end
+			end
+			return false
+		end
+		for _, auraFilter in pairs(filter) do
+			if type(auraFilter) == "string" and H.IsAuraFilteredIn(unit, aura, auraFilter) then return true end
+		end
+		return false
+	end
+	if type(filter) ~= "string" then return false end
+
+	if filter == FILTER_HELPFUL then return H.IsHelpfulAura(aura, true) end
+	if filter == FILTER_HARMFUL then return H.IsHarmfulAura(aura, true) end
+	if filter == FILTER_HARMFUL_PLAYER then return H.IsHarmfulAura(aura, true) and H.IsFromPlayerOrPlayerPetAura(aura) and isApiMatch(unit, aura, filter) end
+	if filter == FILTER_HELPFUL_GROUP_RAID or filter == FILTER_HELPFUL_GROUP_RAID_IN_COMBAT then return isGroupHelpfulAura(unit, aura, filter) end
+	if filter == FILTER_HARMFUL_RAID or filter == FILTER_HARMFUL_RAID_IN_COMBAT then return H.IsHarmfulAura(aura, true) and H.IsRaidAura(aura) and isApiMatch(unit, aura, filter) end
+	if filter == FILTER_HARMFUL_DISPELLABLE then return H.IsHarmfulAura(aura, true) and isApiMatch(unit, aura, filter) end
+	if filter == FILTER_HARMFUL_IMPORTANT then return H.IsHarmfulAura(aura, true) and isApiMatch(unit, aura, filter) end
+	if filter == FILTER_HARMFUL_CROWD_CONTROL then return H.IsHarmfulAura(aura, true) and isApiMatch(unit, aura, filter) end
+	if filter == FILTER_BIG_DEFENSIVE then return H.IsHelpfulAura(aura, false) and isApiMatch(unit, aura, filter) end
+
+	return isApiMatch(unit, aura, filter)
+end
+end
+
 local atlasByPower = {
 	LUNAR_POWER = "Unit_Druid_AstralPower_Fill",
 	MAELSTROM = "Unit_Shaman_Maelstrom_Fill",
@@ -1120,14 +1199,10 @@ function H.ApplyBlizzardAuraContainer(container, unit, cfg, parent, levelFrame, 
 	container:EnableMouse(false)
 	container:Show()
 
-	H.SetBlizzardAuraContainerAttributes(container, cfg)
 	local signature = H.BuildBlizzardAuraSignature(effectiveUnit, cfg)
-	if container._eqolBlizzardAuraAnchorID and container._eqolBlizzardAuraSignature == signature then
-		container._eqolBlizzardAuraUpdateSerial = (container._eqolBlizzardAuraUpdateSerial or 0) + 1
-		container:SetAttribute("update-settings", container._eqolBlizzardAuraUpdateSerial)
-		return
-	end
+	if container._eqolBlizzardAuraAnchorID and container._eqolBlizzardAuraSignature == signature then return end
 
+	H.SetBlizzardAuraContainerAttributes(container, cfg)
 	if not H.RemoveBlizzardAuraContainer(container) then return end
 	local iconSize = tonumber(cfg.iconSize) or 16
 	local borderScale = tonumber(cfg.borderScale) or (iconSize / 11)

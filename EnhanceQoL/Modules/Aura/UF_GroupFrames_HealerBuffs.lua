@@ -2665,6 +2665,7 @@ function HB.UpdateFromAuras(btn, updateInfo, cache, changed, isFullUpdate, compi
 	end
 
 	local changedFamilies = applyDeltaToFamilyState(state, compiled, cache, updateInfo, unit)
+	if not next(changedFamilies) then return end
 	evaluateDeltaRulesAndGroups(state, compiled, changedFamilies, unit)
 	renderAll(btn, st, state, compiled, cfg, changedFamilies)
 end
