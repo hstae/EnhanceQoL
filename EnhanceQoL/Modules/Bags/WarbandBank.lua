@@ -1950,6 +1950,7 @@ local function resolveCategoryForItem(bagID, slotID, info, questInfo, settings, 
 			itemContext.classID = classID
 			itemContext.subClassID = subClassID
 			itemContext.subClassKey = classID and subClassID and string.format("%d:%d", classID, subClassID) or nil
+			itemContext.professionGroupKey = addon.GetProfessionGroupKeyForItem and addon.GetProfessionGroupKeyForItem(classID, subClassID) or nil
 			itemContext.bindType = resolvedBindType
 			itemContext.expansionID = ruleItemInfo and ruleItemInfo.expansionID or nil
 			itemContext.setID = ruleItemInfo and ruleItemInfo.setID or nil
@@ -2572,6 +2573,10 @@ local function layoutFrame(layoutData, context)
 	end
 
 	local function getSectionGroupHeaderColor(section)
+		if section and section.groupColor then
+			return section.groupColor
+		end
+
 		local skin = getActiveFrameSkin()
 		if skin and skin.titleColor then
 			return {
@@ -2581,7 +2586,7 @@ local function layoutFrame(layoutData, context)
 			}
 		end
 
-		return section and section.groupColor or { 1, 0.82, 0 }
+		return { 1, 0.82, 0 }
 	end
 
 	local function getSectionCollapsedState(section, showSectionHeader)

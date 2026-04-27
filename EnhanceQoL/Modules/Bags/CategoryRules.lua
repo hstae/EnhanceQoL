@@ -204,6 +204,37 @@ for _, definition in ipairs(CATEGORY_SORT_MODE_DEFINITIONS) do
 	CATEGORY_SORT_MODE_LOOKUP[definition.id] = true
 end
 
+local ITEM_CLASS_TRADEGOODS = Enum and Enum.ItemClass and Enum.ItemClass.Tradegoods or 7
+local PROFESSION_GROUP_DEFINITIONS = {
+	{ id = "alchemyHerbalism", labelKey = "professionGroupAlchemyHerbalism", fallback = "Herbalism / Alchemy" },
+	{ id = "miningSmithingEngineeringJewelcrafting", labelKey = "professionGroupMiningSmithingEngineeringJewelcrafting", fallback = "Mining / Blacksmithing / Engineering / Jewelcrafting" },
+	{ id = "enchanting", labelKey = "professionGroupEnchanting", fallback = "Enchanting" },
+	{ id = "inscription", labelKey = "professionGroupInscription", fallback = "Inscription" },
+	{ id = "tailoring", labelKey = "professionGroupTailoring", fallback = "Tailoring" },
+	{ id = "leatherworkingSkinning", labelKey = "professionGroupLeatherworkingSkinning", fallback = "Leatherworking / Skinning" },
+	{ id = "cookingFishing", labelKey = "professionGroupCookingFishing", fallback = "Cooking / Fishing" },
+	{ id = "craftingReagents", labelKey = "professionGroupCraftingReagents", fallback = "Crafting reagents" },
+	{ id = "otherCrafting", labelKey = "professionGroupOtherCrafting", fallback = "Other crafting" },
+}
+local TRADEGOODS_PROFESSION_GROUP_BY_SUBCLASS_ID = {
+	[0] = "otherCrafting", -- Trade Goods
+	[1] = "miningSmithingEngineeringJewelcrafting", -- Parts
+	[2] = "miningSmithingEngineeringJewelcrafting", -- Explosives
+	[3] = "miningSmithingEngineeringJewelcrafting", -- Devices
+	[4] = "miningSmithingEngineeringJewelcrafting", -- Jewelcrafting
+	[5] = "tailoring", -- Cloth
+	[6] = "leatherworkingSkinning", -- Leather
+	[7] = "miningSmithingEngineeringJewelcrafting", -- Metal & Stone
+	[8] = "cookingFishing", -- Cooking
+	[9] = "alchemyHerbalism", -- Herb
+	[10] = "otherCrafting", -- Elemental
+	[11] = "otherCrafting", -- Other
+	[12] = "enchanting",
+	[13] = "inscription",
+	[14] = "craftingReagents", -- Optional reagents
+	[15] = "craftingReagents", -- Finishing reagents
+}
+
 local function trimUpgradeTrackText(text)
 	if type(text) ~= "string" then
 		return nil
@@ -392,6 +423,27 @@ local function buildItemSubclassOptions()
 	return options
 end
 
+local function buildProfessionGroupOptions()
+	local options = {}
+	for _, definition in ipairs(PROFESSION_GROUP_DEFINITIONS) do
+		options[#options + 1] = {
+			value = definition.id,
+			label = L[definition.labelKey] or definition.fallback or definition.id,
+		}
+	end
+	return options
+end
+
+function addon.GetProfessionGroupKeyForItem(classID, subClassID)
+	classID = tonumber(classID)
+	subClassID = tonumber(subClassID)
+	if classID ~= ITEM_CLASS_TRADEGOODS or subClassID == nil then
+		return nil
+	end
+
+	return TRADEGOODS_PROFESSION_GROUP_BY_SUBCLASS_ID[subClassID]
+end
+
 local FIELD_DEFINITIONS = {
 	defaultCategory = {
 		labelKey = "settingsRuleFieldDefaultCategory",
@@ -429,6 +481,15 @@ local FIELD_DEFINITIONS = {
 		defaultOperator = "EQUALS",
 		contextKey = "subClassKey",
 		buildOptions = buildItemSubclassOptions,
+	},
+	professionGroupKey = {
+		labelKey = "settingsRuleFieldProfessionGroup",
+		groupID = "classification",
+		valueType = "enum",
+		operators = { "EQUALS", "NOT_EQUALS", "IN" },
+		defaultOperator = "EQUALS",
+		contextKey = "professionGroupKey",
+		buildOptions = buildProfessionGroupOptions,
 	},
 	quality = {
 		labelKey = "settingsRuleFieldQuality",
@@ -524,8 +585,20 @@ local FIELD_DEFINITIONS = {
 					options[#options + 1] = {
 						value = equipLoc,
 						label = label,
+						disambiguator = tostring(equipLoc):gsub("^INVTYPE_", ""),
 					}
 				end
+			end
+
+			local labelCounts = {}
+			for _, option in ipairs(options) do
+				labelCounts[option.label] = (labelCounts[option.label] or 0) + 1
+			end
+			for _, option in ipairs(options) do
+				if labelCounts[option.label] and labelCounts[option.label] > 1 then
+					option.label = string.format(L["settingsEquipLocDuplicateFormat"] or "%s (%s)", option.label, option.disambiguator)
+				end
+				option.disambiguator = nil
 			end
 
 			table.sort(options, function(a, b)
