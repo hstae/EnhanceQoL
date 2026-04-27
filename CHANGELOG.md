@@ -1,5 +1,14 @@
 # Changelog
 
+## [10.9.0-beta6] - 2026-04-27
+
+### 🐛 Fixed
+
+- Performance improvements of Unit Frames, Group Frames, Raid Frames, cooldown panels
+- Secret guard fixes
+
+---
+
 ## [10.9.0-beta5] - 2026-04-27
 
 ### 🐛 Fixed
