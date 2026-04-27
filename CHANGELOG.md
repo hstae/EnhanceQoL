@@ -10,6 +10,7 @@
 - Cooldown Panels: Fixed tracked aura display "Always show (desaturate when active)" showing inactive CDM auras that Blizzard marks as unlearned.
 - Cooldown Panels: Fixed tracked aura learned-state updates after talent changes so the correct CDM aura icon appears without a UI reload.
 - Cooldown Panels: Fixed tracked aura state texture icons sometimes staying invisible after loading screens until the layout was edited or the UI reloaded.
+- Group Frames: Fixed a Lua error when highlight, border, or overlay frame levels were derived outside WoW's valid frame-level range.
 
 ---
 

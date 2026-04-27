@@ -150,6 +150,13 @@ local max = math.max
 local min = math.min
 local floor = math.floor
 local hooksecurefunc = hooksecurefunc
+function GF.ClampFrameLevel(level)
+	level = tonumber(level) or 0
+	level = floor(level + (level >= 0 and 0.5 or -0.5))
+	if level < 0 then return 0 end
+	if level > 65535 then return 65535 end
+	return level
+end
 local BAR_TEX_INHERIT = "__PER_BAR__"
 local AURA_FILTERS = GFH.AuraFilters
 local FONT_DROPDOWN_SCROLL_HEIGHT = 220
@@ -191,8 +198,7 @@ function GF.SyncFrameLayerAbove(child, parent, offset, strata)
 	if not targetStrata and parent.GetFrameStrata then targetStrata = parent:GetFrameStrata() end
 	if child.SetFrameStrata and targetStrata and child:GetFrameStrata() ~= targetStrata then child:SetFrameStrata(targetStrata) end
 	if child.SetFrameLevel and parent.GetFrameLevel then
-		local targetLevel = (parent:GetFrameLevel() or 0) + (offset or 1)
-		if targetLevel < 0 then targetLevel = 0 end
+		local targetLevel = GF.ClampFrameLevel((parent:GetFrameLevel() or 0) + (offset or 1))
 		if child:GetFrameLevel() ~= targetLevel then child:SetFrameLevel(targetLevel) end
 	end
 end
@@ -540,8 +546,7 @@ local function ensureBorderFrame(frame, borderCfg)
 	local baseLevel = frame:GetFrameLevel() or 0
 	local levelOffset = clampNumber(tonumber(borderCfg and borderCfg.frameLevelOffset), -20, 1000, 3)
 	levelOffset = floor(levelOffset + (levelOffset >= 0 and 0.5 or -0.5))
-	local borderLevel = baseLevel + levelOffset
-	if borderLevel < 0 then borderLevel = 0 end
+	local borderLevel = GF.ClampFrameLevel(baseLevel + levelOffset)
 	border:SetFrameLevel(borderLevel)
 	border:ClearAllPoints()
 	border:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
@@ -701,8 +706,7 @@ function GF:ApplyPartyGroupBorder(cfg, header, anchor, growth, scale, spacing, u
 
 	local levelOffset = clampNumber(tonumber(borderCfg.frameLevelOffset), -20, 1000, 3)
 	levelOffset = floor(levelOffset + (levelOffset >= 0 and 0.5 or -0.5))
-	local level = (anchor:GetFrameLevel() or 1) + levelOffset
-	if level < 0 then level = 0 end
+	local level = GF.ClampFrameLevel((anchor:GetFrameLevel() or 1) + levelOffset)
 	if border.SetFrameLevel then border:SetFrameLevel(level) end
 
 	local totalW, totalH
@@ -824,11 +828,11 @@ local function applyHighlightStyle(st, cfg, key)
 		levelOffset = clampNumber(levelOffset, -20, 1000, 4)
 		levelOffset = floor(levelOffset + (levelOffset >= 0 and 0.5 or -0.5))
 		if key == "aggro" then levelOffset = levelOffset + 1 end
-		local targetLevel = baseLevel + levelOffset
+		local targetLevel = GF.ClampFrameLevel(baseLevel + levelOffset)
 		local border = st.barGroup._ufBorder
 		if layer ~= "BEHIND_BORDER" and border and border.GetFrameLevel and border.GetFrameStrata and frame.GetFrameStrata and border:GetFrameStrata() == frame:GetFrameStrata() then
 			local borderLevel = border:GetFrameLevel()
-			if borderLevel and targetLevel <= borderLevel then targetLevel = borderLevel + 1 end
+			if borderLevel and targetLevel <= borderLevel then targetLevel = GF.ClampFrameLevel(borderLevel + 1) end
 		end
 		frame:SetFrameLevel(targetLevel)
 	end
@@ -1232,7 +1236,7 @@ local layoutTexts = GFH.LayoutTexts
 local function setFrameLevelAbove(child, parent, offset)
 	if not child or not parent then return end
 	if child.SetFrameStrata and parent.GetFrameStrata then child:SetFrameStrata(parent:GetFrameStrata()) end
-	if child.SetFrameLevel and parent.GetFrameLevel then child:SetFrameLevel((parent:GetFrameLevel() or 0) + (offset or 1)) end
+	if child.SetFrameLevel and parent.GetFrameLevel then child:SetFrameLevel(GF.ClampFrameLevel((parent:GetFrameLevel() or 0) + (offset or 1))) end
 end
 
 function GF.SyncDispelTintLayer(st)
@@ -6544,7 +6548,7 @@ function GF:LayoutButton(self)
 		st.layoutAnchor:ClearAllPoints()
 		st.layoutAnchor:SetAllPoints(self)
 		if st.layoutAnchor.SetFrameStrata and st.barGroup.GetFrameStrata then st.layoutAnchor:SetFrameStrata(st.barGroup:GetFrameStrata()) end
-		if st.layoutAnchor.SetFrameLevel and st.barGroup.GetFrameLevel then st.layoutAnchor:SetFrameLevel(st.barGroup:GetFrameLevel() or 0) end
+		if st.layoutAnchor.SetFrameLevel and st.barGroup.GetFrameLevel then st.layoutAnchor:SetFrameLevel(GF.ClampFrameLevel(st.barGroup:GetFrameLevel() or 0)) end
 	end
 	setBackdrop(st.barGroup, cfg.border)
 
@@ -6598,15 +6602,14 @@ function GF:LayoutButton(self)
 		if st.power.SetFrameLevel and st.health.GetFrameLevel then
 			local levelOffset = clampNumber(pcfg.detachedFrameLevelOffset, -20, 1000, 2)
 			levelOffset = floor(levelOffset + (levelOffset >= 0 and 0.5 or -0.5))
-			local powerLevel = (st.health:GetFrameLevel() or 0) + levelOffset
-			if powerLevel < 0 then powerLevel = 0 end
+			local powerLevel = GF.ClampFrameLevel((st.health:GetFrameLevel() or 0) + levelOffset)
 			st.power:SetFrameLevel(powerLevel)
 		end
 	else
 		st.power:SetPoint("BOTTOMLEFT", st.barGroup, "BOTTOMLEFT", contentOffsetLeft, 0)
 		st.power:SetPoint("BOTTOMRIGHT", st.barGroup, "BOTTOMRIGHT", -contentOffsetRight, 0)
 		if st.power.SetFrameStrata and st.barGroup.GetFrameStrata then st.power:SetFrameStrata(st.barGroup:GetFrameStrata()) end
-		if st.power.SetFrameLevel and st.health.GetFrameLevel then st.power:SetFrameLevel((st.health:GetFrameLevel() or 0) + 1) end
+		if st.power.SetFrameLevel and st.health.GetFrameLevel then st.power:SetFrameLevel(GF.ClampFrameLevel((st.health:GetFrameLevel() or 0) + 1)) end
 	end
 	local detachedPowerBorderCfg
 	if powerDetached and pcfg.detachedBorder == true then
@@ -6672,8 +6675,7 @@ function GF:LayoutButton(self)
 					levelOffset = clampNumber(portraitCfg.detachedFrameLevelOffset, -20, 1000, 1)
 					levelOffset = floor(levelOffset + (levelOffset >= 0 and 0.5 or -0.5))
 				end
-				local portraitLevel = (holderParent:GetFrameLevel() or 0) + levelOffset
-				if portraitLevel < 0 then portraitLevel = 0 end
+				local portraitLevel = GF.ClampFrameLevel((holderParent:GetFrameLevel() or 0) + levelOffset)
 				st.portraitHolder:SetFrameLevel(portraitLevel)
 			end
 			if st.portrait then
@@ -7302,8 +7304,8 @@ function GF:LayoutButton(self)
 	end
 
 	local baseLevel = (st.barGroup:GetFrameLevel() or 0)
-	st.health:SetFrameLevel(baseLevel + 1)
-	if not powerDetached then st.power:SetFrameLevel(baseLevel + 1) end
+	st.health:SetFrameLevel(GF.ClampFrameLevel(baseLevel + 1))
+	if not powerDetached then st.power:SetFrameLevel(GF.ClampFrameLevel(baseLevel + 1)) end
 	syncTextFrameLevels(st)
 
 	st._lastHealthPx = nil
@@ -7438,7 +7440,7 @@ local function ensureAuraContainer(st, key)
 	local base = st.statusIconLayer or st.healthTextLayer or parent or st.barGroup or st.frame or st[key]:GetParent()
 	if base then
 		if st[key].SetFrameStrata and base.GetFrameStrata then st[key]:SetFrameStrata(base:GetFrameStrata()) end
-		if st[key].SetFrameLevel and base.GetFrameLevel then st[key]:SetFrameLevel((base:GetFrameLevel() or 0) + 10) end
+		if st[key].SetFrameLevel and base.GetFrameLevel then st[key]:SetFrameLevel(GF.ClampFrameLevel((base:GetFrameLevel() or 0) + 10)) end
 	end
 	return st[key]
 end
@@ -11630,7 +11632,7 @@ function GF:EnsurePreviewFrames(kind)
 		-- Preview buttons use synthetic unit assignment via self.unit, not secure header attributes.
 		btn._eqolUseSecureUnitAttribute = false
 		btn:SetFrameStrata(anchor:GetFrameStrata())
-		btn:SetFrameLevel((anchor:GetFrameLevel() or 1) + 1)
+		btn:SetFrameLevel(GF.ClampFrameLevel((anchor:GetFrameLevel() or 1) + 1))
 		local st = getState(btn)
 		local sample = samples[i] or {}
 		st._previewRole = sample.role or "DAMAGER"
