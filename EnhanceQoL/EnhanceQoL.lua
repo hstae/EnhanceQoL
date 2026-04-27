@@ -231,6 +231,7 @@ addon.functions.RefreshAllActionBarAnchors = RefreshAllActionBarAnchors
 local hookedATT = false -- need to hook ATT because of the way the minimap button is created
 
 hooksecurefunc("LFGListSearchEntry_OnClick", function(s, button)
+	if addon.functions.isRestrictedContent(true) then return end
 	local panel = LFGListFrame.SearchPanel
 	if button ~= "RightButton" and LFGListSearchPanelUtil_CanSelectResult(s.resultID) and panel.SignUpButton:IsEnabled() then
 		if panel.selectedResult ~= s.resultID then LFGListSearchPanel_SelectResult(panel, s.resultID) end
