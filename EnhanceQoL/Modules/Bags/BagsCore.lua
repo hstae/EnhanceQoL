@@ -2427,6 +2427,7 @@ local function sortLayoutSections(layoutData)
 			quality = quality,
 			count = count,
 			totalSellPrice = sellPrice * math.max(1, count),
+			expansionID = tonumber(ruleItemInfo and ruleItemInfo.expansionID) or -1,
 			itemLevel = 0,
 			keystoneLevel = 0,
 		}
@@ -2473,6 +2474,9 @@ local function sortLayoutSections(layoutData)
 		end
 		if sortMode == "sellPrice" and leftData.totalSellPrice ~= rightData.totalSellPrice then
 			return leftData.totalSellPrice > rightData.totalSellPrice
+		end
+		if sortMode == "expansion" and leftData.expansionID ~= rightData.expansionID then
+			return leftData.expansionID > rightData.expansionID
 		end
 		if sortMode == "keystoneLevel" and leftData.keystoneLevel ~= rightData.keystoneLevel then
 			return leftData.keystoneLevel > rightData.keystoneLevel

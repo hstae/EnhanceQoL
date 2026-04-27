@@ -3246,6 +3246,7 @@ L["settingsCategoryPriorityHint"] = "La priorità più alta vince quando un ogge
 L["settingsCategorySortLabel"] = "Ordine"
 L["settingsCategorySortHint"] = "Controlla come gli oggetti vengono ordinati in questa categoria."
 L["settingsCategorySortDefault"] = "Predefinito"
+L["settingsCategorySortModeExpansion"] = "Espansione"
 L["settingsCategorySortModeItemLevel"] = "Livello oggetto"
 L["settingsCategorySortModeQuality"] = "Qualità"
 L["settingsCategorySortModeName"] = "Nome"

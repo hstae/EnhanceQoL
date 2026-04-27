@@ -191,6 +191,7 @@ local NON_MISC_BUILTIN_CATEGORY_IDS = {
 }
 local CATEGORY_SORT_MODE_DEFINITIONS = {
 	{ id = "default", labelKey = "settingsCategorySortDefault", fallback = "Default" },
+	{ id = "expansion", labelKey = "settingsCategorySortModeExpansion", fallback = "Expansion" },
 	{ id = "itemLevel", labelKey = "settingsCategorySortModeItemLevel", fallback = "Item level" },
 	{ id = "quality", labelKey = "settingsCategorySortModeQuality", fallback = "Quality" },
 	{ id = "name", labelKey = "settingsCategorySortModeName", fallback = "Name" },

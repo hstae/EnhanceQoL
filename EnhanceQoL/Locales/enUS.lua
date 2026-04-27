@@ -3256,6 +3256,7 @@ L["settingsCategoryPriorityHint"] = "Higher priority wins when one item matches 
 L["settingsCategorySortLabel"] = "Sort"
 L["settingsCategorySortHint"] = "Controls how items are ordered inside this category."
 L["settingsCategorySortDefault"] = "Default"
+L["settingsCategorySortModeExpansion"] = "Expansion"
 L["settingsCategorySortModeItemLevel"] = "Item level"
 L["settingsCategorySortModeQuality"] = "Quality"
 L["settingsCategorySortModeName"] = "Name"
