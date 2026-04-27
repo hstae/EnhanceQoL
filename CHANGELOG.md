@@ -1,5 +1,13 @@
 # Changelog
 
+## [10.9.0-beta8] - 2026-04-27
+
+### 🐛 Fixed
+
+- Group Frames / Hover Highlight: Fixed explicit frame level values being raised above the frame border automatically, causing low levels such as 0 to still render above text and other unit frame elements.
+
+---
+
 ## [10.9.0-beta7] - 2026-04-27
 
 ### ✨ Added
