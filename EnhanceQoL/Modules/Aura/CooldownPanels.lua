@@ -7235,8 +7235,27 @@ local function updateCooldownDoneContext(cooldown, panelId, entryId, data)
 	cooldown._eqolGlowDuration = data.glowDuration
 end
 
+local function clearCooldownDoneState(cooldown)
+	if not cooldown then return end
+	cooldown._eqolSoundReady = nil
+	cooldown._eqolSoundReadyIgnoreGCD = nil
+	cooldown._eqolGlowReady = nil
+	if cooldown.SetScript then cooldown:SetScript("OnCooldownDone", nil) end
+end
+
+local function isCooldownPanelRuntimeActive(panelId)
+	local runtime = CooldownPanels and CooldownPanels.runtime
+	local enabledPanels = runtime and runtime.enabledPanels
+	if enabledPanels then return panelId and enabledPanels[panelId] == true end
+	return true
+end
+
 local function onCooldownDone(self)
 	if not self then return end
+	if not isCooldownPanelRuntimeActive(self._eqolPanelId) then
+		clearCooldownDoneState(self)
+		return
+	end
 
 	-- Never trigger sound/glow for GCD-only cooldowns.
 	local isGCD = self._eqolCooldownIsGCD == true
@@ -17110,6 +17129,12 @@ function CooldownPanels:RefreshPanel(panelId)
 		local frame = runtime and runtime.frame
 		if runtime then runtime.visibleCount = 0 end
 		if frame then
+			if frame.icons then
+				for i = 1, #frame.icons do
+					local cooldown = frame.icons[i] and frame.icons[i].cooldown
+					if cooldown then clearCooldownDoneState(cooldown) end
+				end
+			end
 			self:ApplyVisibilityDriverToFrame(frame, nil)
 			if InCombatLockdown and InCombatLockdown() then
 				self:UpdatePanelOpacity(panelId, 0)
@@ -21137,6 +21162,18 @@ CooldownPanels.UPDATE_FRAME_EVENTS = {
 	"CLIENT_SCENE_CLOSED",
 }
 
+CooldownPanels.UPDATE_FRAME_PASSIVE_EVENTS = {
+	"PLAYER_ENTERING_WORLD",
+	"PLAYER_LOGIN",
+	"ADDON_LOADED",
+	"SPELLS_CHANGED",
+	"ACTIVE_PLAYER_SPECIALIZATION_CHANGED",
+	"ACTIVE_TALENT_GROUP_CHANGED",
+	"PLAYER_TALENT_UPDATE",
+	"TRAIT_CONFIG_UPDATED",
+	"TRAIT_CONFIG_LIST_UPDATED",
+}
+
 local function hasEnabledPanels()
 	local runtime = CooldownPanels and CooldownPanels.runtime
 	local enabledPanels = runtime and runtime.enabledPanels
@@ -21152,8 +21189,10 @@ local function hasConfiguredEnabledPanels()
 	return false
 end
 
-local function shouldEnableUpdateFrame()
-	return hasEnabledPanels() or hasConfiguredEnabledPanels()
+local function getUpdateFrameRegistrationMode()
+	if hasEnabledPanels() then return "active" end
+	if hasConfiguredEnabledPanels() then return "passive" end
+	return nil
 end
 
 CooldownPanels.RequestEnabledPanelRefreshes = function()
@@ -21258,28 +21297,44 @@ end
 
 function CooldownPanels.SetUpdateFrameEnabled(frame, enabled)
 	if not frame then return end
-	if enabled then
-		if frame._eqolEventsRegistered then return end
-		for _, event in ipairs(CooldownPanels.UPDATE_FRAME_EVENTS or {}) do
-			frame:RegisterEvent(event)
-		end
-		frame:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
-		-- frame:RegisterUnitEvent("UNIT_SPELLCAST_START", "player")
-		-- frame:RegisterUnitEvent("UNIT_SPELLCAST_STOP", "player")
-		-- frame:RegisterUnitEvent("UNIT_SPELLCAST_FAILED", "player")
-		-- frame:RegisterUnitEvent("UNIT_SPELLCAST_INTERRUPTED", "player")
-		-- frame:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_START", "player")
-		-- frame:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_STOP", "player")
-		frame:RegisterUnitEvent("PLAYER_SPECIALIZATION_CHANGED", "player")
-		frame:RegisterUnitEvent("UNIT_ENTERED_VEHICLE", "player")
-		frame:RegisterUnitEvent("UNIT_EXITED_VEHICLE", "player")
-		frame._eqolEventsRegistered = true
-		if updatePowerEventRegistration then updatePowerEventRegistration() end
-	else
-		if not frame._eqolEventsRegistered then return end
+	local mode = enabled
+	if mode == true then
+		mode = "active"
+	elseif mode == false then
+		mode = nil
+	end
+	if mode ~= "active" and mode ~= "passive" then mode = nil end
+	if frame._eqolEventMode == mode then return end
+
+	if frame._eqolEventsRegistered then
 		frame:UnregisterAllEvents()
 		frame._eqolEventsRegistered = false
+		local runtime = CooldownPanels.runtime
+		if runtime then runtime.powerEventRegistered = nil end
 	end
+
+	if mode then
+		local events = mode == "active" and CooldownPanels.UPDATE_FRAME_EVENTS or CooldownPanels.UPDATE_FRAME_PASSIVE_EVENTS
+		for _, event in ipairs(events or {}) do
+			frame:RegisterEvent(event)
+		end
+		frame:RegisterUnitEvent("PLAYER_SPECIALIZATION_CHANGED", "player")
+		if mode == "active" then
+			frame:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
+			-- frame:RegisterUnitEvent("UNIT_SPELLCAST_START", "player")
+			-- frame:RegisterUnitEvent("UNIT_SPELLCAST_STOP", "player")
+			-- frame:RegisterUnitEvent("UNIT_SPELLCAST_FAILED", "player")
+			-- frame:RegisterUnitEvent("UNIT_SPELLCAST_INTERRUPTED", "player")
+			-- frame:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_START", "player")
+			-- frame:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_STOP", "player")
+			frame:RegisterUnitEvent("UNIT_ENTERED_VEHICLE", "player")
+			frame:RegisterUnitEvent("UNIT_EXITED_VEHICLE", "player")
+		end
+		frame._eqolEventsRegistered = true
+		frame._eqolEventMode = mode
+		if mode == "active" and updatePowerEventRegistration then updatePowerEventRegistration() end
+	end
+	frame._eqolEventMode = mode
 end
 
 function CooldownPanels.IsAssistedCombatActionSlot(slot)
@@ -21292,7 +21347,7 @@ end
 function CooldownPanels:UpdateEventRegistration()
 	local frame = self.runtime and self.runtime.updateFrame
 	if not frame then return end
-	CooldownPanels.SetUpdateFrameEnabled(frame, shouldEnableUpdateFrame())
+	CooldownPanels.SetUpdateFrameEnabled(frame, getUpdateFrameRegistrationMode())
 end
 
 function CooldownPanels.EnsureUpdateFrame()

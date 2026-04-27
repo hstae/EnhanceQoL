@@ -40,6 +40,7 @@ local AURA_SLOT_SCAN_GUARD = 16
 local REMINDER_GLOW_KEY = "CLASS_BUFF_REMINDER"
 local SHARED_FOOD_AURA_ICON_ID = 136000
 local CURRENT_EXPANSION_INSTANCE_CACHE = {}
+Reminder.UPDATE_DELAY = 0.25
 
 local DB_ENABLED = "classBuffReminderEnabled"
 local DB_SHOW_PARTY = "classBuffReminderShowParty"
@@ -810,6 +811,10 @@ local function wipeTable(target)
 	for key in pairs(target) do
 		target[key] = nil
 	end
+end
+
+function Reminder.IsRelevantHelpfulPlayerAura(aura)
+	return aura and aura.isHelpful == true and aura.isFromPlayerOrPlayerPet == true
 end
 
 local function normalizeDisplayMode(value)
@@ -1712,6 +1717,9 @@ function Reminder:GetPlayerAuraPresenceSnapshot()
 		spellIds = {},
 		names = {},
 		icons = {},
+		instanceSpellIds = {},
+		instanceNames = {},
+		instanceIcons = {},
 	}
 
 	if not (C_UnitAuras and C_UnitAuras.GetAuraSlots and C_UnitAuras.GetAuraDataBySlot) then
@@ -1728,19 +1736,25 @@ function Reminder:GetPlayerAuraPresenceSnapshot()
 			if not (issecretvalue and issecretvalue(slot)) then
 				local aura = C_UnitAuras.GetAuraDataBySlot("player", slot)
 				if aura and not (issecretvalue and issecretvalue(aura)) then
-					local isHelpful = aura.isHelpful
-					if issecretvalue and issecretvalue(isHelpful) then isHelpful = nil end
-					if isHelpful ~= false then
+					if Reminder.IsRelevantHelpfulPlayerAura(aura) then
+						local auraId = normalizeAuraInstanceId(aura.auraInstanceID)
 						local auraSpellId = normalizeSpellId(aura.spellId)
-						if auraSpellId then snapshot.spellIds[auraSpellId] = true end
+						if auraSpellId then
+							snapshot.spellIds[auraSpellId] = true
+							if auraId then snapshot.instanceSpellIds[auraId] = auraSpellId end
+						end
 
 						local auraName = aura.name
 						if not (issecretvalue and issecretvalue(auraName)) and type(auraName) == "string" and auraName ~= "" then snapshot.names[auraName] = true end
+						if auraId and type(auraName) == "string" and auraName ~= "" then snapshot.instanceNames[auraId] = auraName end
 
 						local auraIcon = aura.icon
 						if issecretvalue and issecretvalue(auraIcon) then auraIcon = nil end
 						auraIcon = tonumber(auraIcon)
-						if auraIcon and auraIcon > 0 then snapshot.icons[auraIcon] = true end
+						if auraIcon and auraIcon > 0 then
+							snapshot.icons[auraIcon] = true
+							if auraId then snapshot.instanceIcons[auraId] = auraIcon end
+						end
 					end
 				end
 			end
@@ -3376,6 +3390,13 @@ end
 
 function Reminder:ClearPendingAuraUpdates() self.pendingAuraUpdates = nil end
 
+function Reminder.IsFullAuraUpdate(updateInfo)
+	if not updateInfo or (issecretvalue and issecretvalue(updateInfo)) then return true end
+	local isFullUpdate = updateInfo.isFullUpdate
+	if issecretvalue and issecretvalue(isFullUpdate) then return true end
+	return isFullUpdate == true
+end
+
 function Reminder:GetPendingAuraUpdate(unit)
 	if type(unit) ~= "string" or unit == "" then return nil end
 	local pending = self.pendingAuraUpdates
@@ -3398,6 +3419,68 @@ function Reminder:QueuePendingAuraReset(unit)
 	entry.reset = true
 	entry.fullRefresh = false
 	entry.updateInfo = nil
+	entry.addedAurasById = nil
+	entry.updatedAuraInstanceIDsById = nil
+	entry.removedAuraInstanceIDsById = nil
+end
+
+function Reminder.GetPendingAuraMap(entry, key)
+	local map = entry[key]
+	if type(map) ~= "table" then
+		map = {}
+		entry[key] = map
+	end
+	return map
+end
+
+function Reminder.ClearPendingAuraDeltaMaps(entry)
+	entry.addedAurasById = nil
+	entry.updatedAuraInstanceIDsById = nil
+	entry.removedAuraInstanceIDsById = nil
+end
+
+function Reminder.BuildPendingAuraUpdateInfo(entry)
+	if type(entry) ~= "table" then return nil end
+	local info
+	local addedMap = entry.addedAurasById
+	if type(addedMap) == "table" then
+		local added
+		for _, aura in pairs(addedMap) do
+			if aura then
+				added = added or {}
+				added[#added + 1] = aura
+			end
+		end
+		if added then
+			info = info or {}
+			info.addedAuras = added
+		end
+	end
+	local updatedMap = entry.updatedAuraInstanceIDsById
+	if type(updatedMap) == "table" then
+		local updated
+		for auraId in pairs(updatedMap) do
+			updated = updated or {}
+			updated[#updated + 1] = auraId
+		end
+		if updated then
+			info = info or {}
+			info.updatedAuraInstanceIDs = updated
+		end
+	end
+	local removedMap = entry.removedAuraInstanceIDsById
+	if type(removedMap) == "table" then
+		local removed
+		for auraId in pairs(removedMap) do
+			removed = removed or {}
+			removed[#removed + 1] = auraId
+		end
+		if removed then
+			info = info or {}
+			info.removedAuraInstanceIDs = removed
+		end
+	end
+	return info
 end
 
 function Reminder:QueuePendingAuraDelta(unit, updateInfo)
@@ -3406,27 +3489,52 @@ function Reminder:QueuePendingAuraDelta(unit, updateInfo)
 
 	entry.reset = false
 	if entry.fullRefresh == true then return end
-	if not updateInfo or (issecretvalue and issecretvalue(updateInfo)) then
+	if Reminder.IsFullAuraUpdate(updateInfo) then
 		entry.fullRefresh = true
 		entry.updateInfo = nil
+		Reminder.ClearPendingAuraDeltaMaps(entry)
 		return
 	end
 
-	local isFullUpdate = updateInfo.isFullUpdate
-	if issecretvalue and issecretvalue(isFullUpdate) then isFullUpdate = true end
-	if isFullUpdate == true then
-		entry.fullRefresh = true
-		entry.updateInfo = nil
-		return
+	local unitStates = self.unitAuraStates
+	local state = type(unitStates) == "table" and unitStates[unit] or nil
+	local trackedByInstance = state and state.trackedByInstance
+	local removed = updateInfo.removedAuraInstanceIDs
+	if type(removed) == "table" then
+		for i = 1, #removed do
+			local auraId = normalizeAuraInstanceId(removed[i])
+			if auraId then
+				local addedMap = entry.addedAurasById
+				local updatedMap = entry.updatedAuraInstanceIDsById
+				if type(addedMap) == "table" then addedMap[auraId] = nil end
+				if type(updatedMap) == "table" then updatedMap[auraId] = nil end
+				if type(trackedByInstance) == "table" and trackedByInstance[auraId] ~= nil then Reminder.GetPendingAuraMap(entry, "removedAuraInstanceIDsById")[auraId] = true end
+			end
+		end
 	end
 
-	if entry.updateInfo then
-		entry.fullRefresh = true
-		entry.updateInfo = nil
-		return
+	local added = updateInfo.addedAuras
+	if type(added) == "table" then
+		for i = 1, #added do
+			local aura = added[i]
+			local auraId = aura and normalizeAuraInstanceId(aura.auraInstanceID)
+			if auraId and Reminder.IsRelevantHelpfulPlayerAura(aura) then
+				local removedMap = entry.removedAuraInstanceIDsById
+				local updatedMap = entry.updatedAuraInstanceIDsById
+				if type(removedMap) == "table" then removedMap[auraId] = nil end
+				if type(updatedMap) == "table" then updatedMap[auraId] = nil end
+				Reminder.GetPendingAuraMap(entry, "addedAurasById")[auraId] = aura
+			end
+		end
 	end
 
-	entry.updateInfo = updateInfo
+	local updated = updateInfo.updatedAuraInstanceIDs
+	if type(updated) == "table" then
+		for i = 1, #updated do
+			local auraId = normalizeAuraInstanceId(updated[i])
+			if auraId and type(trackedByInstance) == "table" and trackedByInstance[auraId] ~= nil and not (type(entry.addedAurasById) == "table" and entry.addedAurasById[auraId]) then Reminder.GetPendingAuraMap(entry, "updatedAuraInstanceIDsById")[auraId] = true end
+		end
+	end
 end
 
 function Reminder:FlushPendingAuraUpdates()
@@ -3457,9 +3565,12 @@ function Reminder:FlushPendingAuraUpdates()
 			elseif entry.fullRefresh == true then
 				self:FullRefreshUnitAuraState(unit, provider)
 				touched = true
-			elseif entry.updateInfo then
-				self:ApplyDeltaToUnitAuraState(unit, entry.updateInfo, provider)
-				touched = true
+			else
+				local mergedUpdateInfo = entry.updateInfo or Reminder.BuildPendingAuraUpdateInfo(entry)
+				if mergedUpdateInfo then
+					self:ApplyDeltaToUnitAuraState(unit, mergedUpdateInfo, provider)
+					touched = true
+				end
 			end
 
 			if touched == true and canRefreshGroupState == true then dirtyUnits = self:CollectGroupStateUnitsForUnit(dirtyUnits, unit) end
@@ -3523,10 +3634,7 @@ end
 function Reminder:GetTrackableProviderAuraData(aura, provider)
 	if not aura or (issecretvalue and issecretvalue(aura)) then return nil end
 	if not (provider and provider.spellSet) then return nil end
-
-	local isHelpful = aura.isHelpful
-	if issecretvalue and issecretvalue(isHelpful) then isHelpful = nil end
-	if isHelpful == false then return nil end
+	if not Reminder.IsRelevantHelpfulPlayerAura(aura) then return nil end
 
 	local auraId = normalizeAuraInstanceId(aura.auraInstanceID)
 	if not auraId then return nil end
@@ -3826,10 +3934,7 @@ end
 function Reminder:GetTrackableGroupBuffAuraData(aura, cache)
 	if not aura or (issecretvalue and issecretvalue(aura)) then return nil end
 	if type(cache) ~= "table" or type(cache.spellSet) ~= "table" then return nil end
-
-	local isHelpful = aura.isHelpful
-	if issecretvalue and issecretvalue(isHelpful) then isHelpful = nil end
-	if isHelpful == false then return nil end
+	if not Reminder.IsRelevantHelpfulPlayerAura(aura) then return nil end
 
 	local auraId = normalizeAuraInstanceId(aura.auraInstanceID)
 	if not auraId then return nil end
@@ -4035,6 +4140,149 @@ function Reminder:ApplyDeltaToGroupBuffStateCaches(unit, updateInfo)
 			end
 		end
 	end
+end
+
+function Reminder.AuraUpdateTouchesTrackedInstances(updateInfo, trackedByInstance)
+	if type(trackedByInstance) ~= "table" then return false end
+	local removed = updateInfo and updateInfo.removedAuraInstanceIDs
+	if type(removed) == "table" then
+		for i = 1, #removed do
+			local auraId = normalizeAuraInstanceId(removed[i])
+			if auraId and trackedByInstance[auraId] ~= nil then return true end
+		end
+	end
+	local updated = updateInfo and updateInfo.updatedAuraInstanceIDs
+	if type(updated) == "table" then
+		for i = 1, #updated do
+			local auraId = normalizeAuraInstanceId(updated[i])
+			if auraId and trackedByInstance[auraId] ~= nil then return true end
+		end
+	end
+	return false
+end
+
+function Reminder:ProviderAuraUpdateTouchesUnit(unit, updateInfo, provider)
+	if not (provider and provider.spellSet and type(unit) == "string" and unit ~= "") then return false end
+	if Reminder.IsFullAuraUpdate(updateInfo) then return true end
+
+	local unitStates = self.unitAuraStates
+	local state = type(unitStates) == "table" and unitStates[unit] or nil
+	if Reminder.AuraUpdateTouchesTrackedInstances(updateInfo, state and state.trackedByInstance) then return true end
+
+	local added = updateInfo.addedAuras
+	if type(added) == "table" then
+		for i = 1, #added do
+			if self:GetTrackableProviderAuraData(added[i], provider) then return true end
+		end
+	end
+	return false
+end
+
+function Reminder:GroupBuffCacheAuraUpdateTouchesUnit(unit, updateInfo)
+	local caches = self.groupBuffStateCaches
+	if type(caches) ~= "table" or type(unit) ~= "string" or unit == "" then return false end
+	if Reminder.IsFullAuraUpdate(updateInfo) then return true end
+
+	local added = updateInfo.addedAuras
+	for _, cache in pairs(caches) do
+		if type(cache) == "table" and self:IsGroupBuffStateCacheValid(cache) == true then
+			local state = cache.unitStates and cache.unitStates[unit]
+			if Reminder.AuraUpdateTouchesTrackedInstances(updateInfo, state and state.trackedByInstance) then return true end
+			if type(added) == "table" then
+				for i = 1, #added do
+					if self:GetTrackableGroupBuffAuraData(added[i], cache) then return true end
+				end
+			end
+		end
+	end
+	return false
+end
+
+function Reminder.PreparedAuraDataMatchesValues(prepared, spellId, auraName)
+	if type(prepared) ~= "table" then return false end
+	if spellId and type(prepared.spellIds) == "table" then
+		for i = 1, #prepared.spellIds do
+			if normalizeSpellId(prepared.spellIds[i]) == spellId then return true end
+		end
+	end
+	if type(auraName) == "string" and auraName ~= "" and type(prepared.auraNames) == "table" then
+		for i = 1, #prepared.auraNames do
+			if prepared.auraNames[i] == auraName then return true end
+		end
+	end
+	return false
+end
+
+function Reminder:SupplementalAuraMatches(aura)
+	if not Reminder.IsRelevantHelpfulPlayerAura(aura) then return false end
+	local spellId = normalizeSpellId(aura.spellId)
+	local auraName = aura.name
+	if issecretvalue and issecretvalue(auraName) then auraName = nil end
+
+	if self:CanCheckFlaskReminder() then
+		local candidates = self:GetFlaskCandidatesForCurrentSpec()
+		if Reminder.PreparedAuraDataMatchesValues(self:GetPreparedFlaskCandidateData(candidates), spellId, auraName) then return true end
+	end
+	if self:CanCheckFoodReminder() then
+		local candidates = self:GetFoodCandidatesForCurrentSpec()
+		if Reminder.PreparedAuraDataMatchesValues(self:GetPreparedFoodCandidateData(candidates), spellId, auraName) then return true end
+	end
+	if self:CanCheckRuneReminder() then
+		if spellId and type(Reminder.runeTracking.auraIds) == "table" then
+			for i = 1, #Reminder.runeTracking.auraIds do
+				if normalizeSpellId(Reminder.runeTracking.auraIds[i]) == spellId then return true end
+			end
+		end
+		local candidates = self:GetRuneCandidates()
+		if Reminder.PreparedAuraDataMatchesValues(self:GetPreparedRuneCandidateData(candidates), spellId, auraName) then return true end
+	end
+	return false
+end
+
+function Reminder:SupplementalAuraUpdateTouchesPlayer(updateInfo)
+	if not (self:CanCheckFlaskReminder() or self:CanCheckFoodReminder() or self:CanCheckRuneReminder()) then return false end
+	if Reminder.IsFullAuraUpdate(updateInfo) then return true end
+
+	local added = updateInfo.addedAuras
+	if type(added) == "table" then
+		for i = 1, #added do
+			if self:SupplementalAuraMatches(added[i]) then return true end
+		end
+	end
+
+	local snapshot = self.playerAuraPresenceSnapshot
+	if type(snapshot) ~= "table" then return false end
+	local function snapshotAuraIdMatches(auraId)
+		auraId = normalizeAuraInstanceId(auraId)
+		if not auraId then return false end
+		local spellId = snapshot.instanceSpellIds and normalizeSpellId(snapshot.instanceSpellIds[auraId]) or nil
+		local auraName = snapshot.instanceNames and snapshot.instanceNames[auraId] or nil
+		if self:CanCheckFlaskReminder() and Reminder.PreparedAuraDataMatchesValues(self:GetPreparedFlaskCandidateData(self:GetFlaskCandidatesForCurrentSpec()), spellId, auraName) then return true end
+		if self:CanCheckFoodReminder() and Reminder.PreparedAuraDataMatchesValues(self:GetPreparedFoodCandidateData(self:GetFoodCandidatesForCurrentSpec()), spellId, auraName) then return true end
+		if self:CanCheckRuneReminder() then
+			if spellId and type(Reminder.runeTracking.auraIds) == "table" then
+				for i = 1, #Reminder.runeTracking.auraIds do
+					if normalizeSpellId(Reminder.runeTracking.auraIds[i]) == spellId then return true end
+				end
+			end
+			if Reminder.PreparedAuraDataMatchesValues(self:GetPreparedRuneCandidateData(self:GetRuneCandidates()), spellId, auraName) then return true end
+		end
+		return false
+	end
+
+	local removed = updateInfo.removedAuraInstanceIDs
+	if type(removed) == "table" then
+		for i = 1, #removed do
+			if snapshotAuraIdMatches(removed[i]) then return true end
+		end
+	end
+	local updated = updateInfo.updatedAuraInstanceIDs
+	if type(updated) == "table" then
+		for i = 1, #updated do
+			if snapshotAuraIdMatches(updated[i]) then return true end
+		end
+	end
+	return false
 end
 
 function Reminder:CollectGroupStateUnitsForUnit(target, unit)
@@ -5066,7 +5314,7 @@ function Reminder:RequestUpdate(immediate)
 
 	if self.updatePending then return end
 	self.updatePending = true
-	self.updateTimer = C_Timer.NewTimer(0.08, Reminder.RunPendingUpdateTimer)
+	self.updateTimer = C_Timer.NewTimer(Reminder.UPDATE_DELAY, Reminder.RunPendingUpdateTimer)
 end
 
 function Reminder:HandleEvent(event, unit, updateInfo)
@@ -5205,30 +5453,50 @@ function Reminder:HandleEvent(event, unit, updateInfo)
 	if event == "UNIT_AURA" then
 		if not isTrackedUnit(unit) then return end
 		if self:IsRuntimeEvaluationBlockedByCombat() then return end
-		if isPlayerUnit(unit) then self:InvalidatePlayerAuraPresenceSnapshot() end
+		local playerUnit = isPlayerUnit(unit)
 		local provider = self:GetProvider()
+		local supplementalTouches = playerUnit and self:SupplementalAuraUpdateTouchesPlayer(updateInfo) or false
 		if provider and provider.scope == PROVIDER_SCOPE_GROUP and self:ShouldEvaluateGroupResponsibilities(provider) ~= true then
-			if isPlayerUnit(unit) and (self:CanCheckFlaskReminder() or self:CanCheckFoodReminder() or self:CanCheckRuneReminder() or self:CanCheckWeaponBuffReminder()) then self:RequestUpdate(false) end
+			if supplementalTouches then
+				self.playerAuraPresenceSnapshot = nil
+				self:RequestUpdate(false)
+			end
 			return
 		end
 		if provider and provider.scope == PROVIDER_SCOPE_SELF then
-			if isPlayerUnit(unit) or provider.tracksExternalUnitAuras == true then self:ApplyDeltaToGroupBuffStateCaches(unit, updateInfo) end
-			if not isPlayerUnit(unit) and provider.tracksExternalUnitAuras == true then self:InvalidateSelfProviderStatus() end
-			if isPlayerUnit(unit) then self:InvalidateSelfProviderStatus() end
-			if isPlayerUnit(unit) or provider.tracksExternalUnitAuras == true then self:RequestUpdate(false) end
+			local needsUpdate = false
+			local providerTouches = playerUnit and self:ProviderAuraUpdateTouchesUnit(unit, updateInfo, provider) or false
+			local groupCacheTouches = provider.tracksExternalUnitAuras == true and self:GroupBuffCacheAuraUpdateTouchesUnit(unit, updateInfo) or false
+			if groupCacheTouches then
+				self:ApplyDeltaToGroupBuffStateCaches(unit, updateInfo)
+				self:InvalidateSelfProviderStatus()
+				needsUpdate = true
+			end
+			if providerTouches then
+				self:InvalidateSelfProviderStatus()
+				needsUpdate = true
+			end
+			if supplementalTouches then
+				self.playerAuraPresenceSnapshot = nil
+				needsUpdate = true
+			end
+			if needsUpdate then self:RequestUpdate(false) end
 			return
 		end
-		if isAIFollowerUnit(unit) then
+		if provider and isAIFollowerUnit(unit) then
 			self:QueuePendingAuraReset(unit)
 			self:RequestUpdate(false)
 			return
 		end
-		if provider then
+		if provider and self:ProviderAuraUpdateTouchesUnit(unit, updateInfo, provider) then
 			self:QueuePendingAuraDelta(unit, updateInfo)
-		else
-			self:QueuePendingAuraReset(unit)
+			self:RequestUpdate(false)
+			return
 		end
-		self:RequestUpdate(false)
+		if supplementalTouches then
+			self.playerAuraPresenceSnapshot = nil
+			self:RequestUpdate(false)
+		end
 		return
 	end
 end
