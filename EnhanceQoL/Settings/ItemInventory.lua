@@ -303,6 +303,20 @@ local function applyGemLayout(element, slot, displayCount, outsideWithIlvl)
 	end
 end
 
+local function clearGemFrame(gemFrame)
+	if not gemFrame then return end
+	if gemFrame.EnableMouse then gemFrame:EnableMouse(false) end
+	gemFrame:SetScript("OnEnter", nil)
+	gemFrame:SetScript("OnUpdate", nil)
+	gemFrame:UnregisterAllEvents()
+	gemFrame:Hide()
+end
+
+local function setGemFrameTooltip(gemFrame, enabled)
+	if not gemFrame then return end
+	if gemFrame.EnableMouse then gemFrame:EnableMouse(enabled == true) end
+end
+
 local function getMissingEnchantOverlayColor()
 	local c = addon.db and addon.db["missingEnchantOverlayColor"]
 	local r = (c and c.r) or 1
@@ -443,11 +457,17 @@ local function CheckItemGems(element, itemLink, emptySocketsCount, key, pdElemen
 	for i = 1, emptySocketsCount do
 		local gemName, gemLink = C_Item.GetItemGem(itemLink, i)
 		element.gems[i]:SetScript("OnEnter", nil)
+		setGemFrameTooltip(element.gems[i], false)
 
 		if gemName then
 			local icon = C_Item.GetItemIconByID(gemLink)
 			element.gems[i].icon:SetTexture(icon)
 			element.gems[i].icon:SetVertexColor(1, 1, 1)
+			if pdElement == InspectPaperDollFrame then
+				setGemFrameTooltip(element.gems[i], InspectOpt("gemtip"))
+			else
+				setGemFrameTooltip(element.gems[i], CharOpt("gemtip"))
+			end
 			element.gems[i]:SetScript("OnEnter", function(self)
 				local showTip
 				if pdElement == InspectPaperDollFrame then
@@ -613,9 +633,7 @@ local function removeInspectElements()
 			if element.borderGradient then element.borderGradient:Hide() end
 			if element.gems and #element.gems > 0 then
 				for i = 1, #element.gems do
-					element.gems[i]:UnregisterAllEvents()
-					element.gems[i]:SetScript("OnUpdate", nil)
-					element.gems[i]:Hide()
+					clearGemFrame(element.gems[i])
 				end
 			end
 		end
@@ -737,9 +755,7 @@ local function onInspect(arg1)
 								displayCount = math.max(socketCount, neededSockets)
 								if element.gems and #element.gems > displayCount then
 									for i = displayCount + 1, #element.gems do
-										element.gems[i]:UnregisterAllEvents()
-										element.gems[i]:SetScript("OnUpdate", nil)
-										element.gems[i]:Hide()
+										clearGemFrame(element.gems[i])
 									end
 								end
 								if not element.gems then element.gems = {} end
@@ -759,6 +775,7 @@ local function onInspect(arg1)
 									if i > socketCount then
 										element.gems[i].icon:SetVertexColor(1, 0, 0)
 										element.gems[i]:SetScript("OnEnter", nil)
+										setGemFrameTooltip(element.gems[i], false)
 									else
 										element.gems[i].icon:SetVertexColor(1, 1, 1)
 									end
@@ -767,9 +784,7 @@ local function onInspect(arg1)
 								if socketCount > 0 then CheckItemGems(element, itemLink, socketCount, key, pdElement) end
 							elseif element.gems and #element.gems > 0 then
 								for i = 1, #element.gems do
-									element.gems[i]:UnregisterAllEvents()
-									element.gems[i]:SetScript("OnUpdate", nil)
-									element.gems[i]:Hide()
+									clearGemFrame(element.gems[i])
 								end
 							end
 
@@ -920,9 +935,8 @@ local function setIlvlText(element, slot)
 		if element.gems then
 			for i = 1, 3 do
 				if element.gems[i] then
-					element.gems[i]:Hide()
+					clearGemFrame(element.gems[i])
 					element.gems[i].icon:SetTexture("Interface\\ItemSocketingFrame\\UI-EmptySocket-Prismatic")
-					element.gems[i]:SetScript("OnEnter", nil)
 					element.gems[i].icon:SetVertexColor(1, 1, 1)
 				end
 			end
@@ -970,19 +984,18 @@ local function setIlvlText(element, slot)
 							if i > socketCount then
 								element.gems[i].icon:SetVertexColor(1, 0, 0)
 								element.gems[i]:SetScript("OnEnter", nil)
+								setGemFrameTooltip(element.gems[i], false)
 							else
 								element.gems[i].icon:SetVertexColor(1, 1, 1)
 							end
 						else
-							element.gems[i]:Hide()
-							element.gems[i]:SetScript("OnEnter", nil)
+							clearGemFrame(element.gems[i])
 						end
 					end
 					if socketCount > 0 then CheckItemGems(element, link, socketCount, slot) end
 				else
 					for i = 1, #element.gems do
-						element.gems[i]:Hide()
-						element.gems[i]:SetScript("OnEnter", nil)
+						clearGemFrame(element.gems[i])
 					end
 				end
 
@@ -2049,6 +2062,7 @@ function addon.functions.initItemInventory()
 
 			value.gems[i]:SetFrameStrata("DIALOG")
 			value.gems[i]:SetFrameLevel(value:GetFrameLevel() + 20)
+			value.gems[i]:EnableMouse(false)
 
 			value.gems[i]:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
 

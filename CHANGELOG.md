@@ -1,5 +1,13 @@
 # Changelog
 
+## [10.9.0-beta7] - 2026-04-27
+
+### 🐛 Fixed
+
+- Class Buff Reminder: Fixed missing flask, food, and weapon buff reminders not showing in current-season Mythic dungeons from older expansions, such as seasonal Mythic+ pool dungeons before the key is started.
+- Class Buff Reminder: Fixed a Lua error when aura updates were processed while augment rune candidates were unavailable.
+- Gear & Upgrades: Fixed Character Frame gem slot tooltips not opening, gem overlays staying visible after disabling the gem display option, and Indecipherable Eversong Diamonds missing from the gem tracker summary.
+
 ## [10.9.0-beta6] - 2026-04-27
 
 ### 🐛 Fixed

@@ -41,6 +41,9 @@ local REMINDER_GLOW_KEY = "CLASS_BUFF_REMINDER"
 local SHARED_FOOD_AURA_ICON_ID = 136000
 local CURRENT_EXPANSION_INSTANCE_CACHE = {}
 Reminder.UPDATE_DELAY = 0.25
+Reminder.AURA_UPDATE_DELAY = 0.5
+Reminder.RUNTIME_UPDATE_DELAY = 0.5
+Reminder.ROSTER_UPDATE_DELAY = 0.75
 
 local DB_ENABLED = "classBuffReminderEnabled"
 local DB_SHOW_PARTY = "classBuffReminderShowParty"
@@ -1371,10 +1374,37 @@ function Reminder:IsCurrentExpansionDungeonOrRaidInstance()
 	return journalInstanceID ~= nil and cache.instances[journalInstanceID] == true
 end
 
+function Reminder:IsCurrentSeasonMythicPlusDungeon()
+	if not GetInstanceInfo then return false end
+
+	local _, _, difficultyID, _, _, _, _, instanceMapID = GetInstanceInfo()
+	local ids = (_G.DifficultyUtil and _G.DifficultyUtil.ID) or {}
+	if difficultyID ~= (ids.DungeonMythic or 23) then return false end
+	if issecretvalue and issecretvalue(instanceMapID) then return false end
+	if type(instanceMapID) ~= "number" then return false end
+
+	local mythicPlus = addon.MythicPlus
+	local variables = mythicPlus and mythicPlus.variables or nil
+	if type(variables) ~= "table" then return false end
+
+	if (type(variables.seasonMapHash) ~= "table" or not next(variables.seasonMapHash)) and mythicPlus.functions and type(mythicPlus.functions.createSeasonInfo) == "function" then
+		mythicPlus.functions.createSeasonInfo()
+	end
+
+	local seasonMapHash = variables.seasonMapHash
+	if type(seasonMapHash) ~= "table" then return false end
+	if seasonMapHash[instanceMapID] then return true end
+
+	local zoneID = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player") or nil
+	if issecretvalue and issecretvalue(zoneID) then zoneID = nil end
+	if type(zoneID) == "number" and seasonMapHash[instanceMapID .. "_" .. zoneID] then return true end
+	return false
+end
+
 function Reminder:IsTrackingContentSelected(selection, requireCurrentExpansionInstance)
 	local token = self:GetConsumableTrackingContentToken()
 	if not token or type(selection) ~= "table" then return false end
-	if requireCurrentExpansionInstance == true and self:IsCurrentExpansionDungeonOrRaidInstance() ~= true then return false end
+	if requireCurrentExpansionInstance == true and self:IsCurrentExpansionDungeonOrRaidInstance() ~= true and self:IsCurrentSeasonMythicPlusDungeon() ~= true then return false end
 	return selection[token] == true
 end
 
@@ -1617,6 +1647,11 @@ function Reminder:PrepareConsumableCandidateAuraData(candidates, fallbackLabel)
 		if not spellId or seen[spellId] then return end
 		seen[spellId] = true
 		list[#list + 1] = spellId
+	end
+
+	if type(candidates) ~= "table" then
+		if type(prepared.displayLabel) ~= "string" or prepared.displayLabel == "" then prepared.displayLabel = fallbackLabel end
+		return prepared
 	end
 
 	for i = 1, #candidates do
@@ -3170,6 +3205,7 @@ end
 function Reminder.RunPendingUpdateTimer()
 	Reminder.updateTimer = nil
 	Reminder.updatePending = false
+	Reminder.updateDelay = nil
 	Reminder:UpdateDisplay()
 end
 
@@ -3187,7 +3223,7 @@ function Reminder.RunDeferredAuraResyncTimer()
 	if not Reminder:ShouldRegisterRuntimeEvents() then return end
 
 	Reminder:MarkAuraStatesDirty()
-	Reminder:RequestUpdate(false)
+	Reminder:RequestUpdate(false, Reminder.ROSTER_UPDATE_DELAY, true)
 end
 
 function Reminder:RequestProviderPresentationRefresh(provider)
@@ -3609,7 +3645,12 @@ end
 
 function Reminder:InvalidateGroupMissingState() self.groupMissingState = nil end
 
-function Reminder:InvalidateGroupBuffStateCaches() self.groupBuffStateCaches = nil end
+function Reminder:InvalidateGroupBuffStateCaches()
+	self.groupBuffStateCaches = nil
+	self.groupBuffAggregateSpellSetSource = nil
+	self.groupBuffAggregateSpellSetDirty = true
+	self.groupBuffAggregateSpellSetHasAny = false
+end
 
 function Reminder:MarkAuraStatesDirty()
 	self:ClearPendingAuraUpdates()
@@ -3878,11 +3919,43 @@ function Reminder:GetGroupBuffStateCache(spellIds, includeAIFollowers)
 			unitStates = {},
 		}
 		self.groupBuffStateCaches[key] = cache
+		self.groupBuffAggregateSpellSetDirty = true
 	else
 		cache.includeAIFollowers = includeAIFollowers == true
 	end
 
 	return cache
+end
+
+function Reminder:GetGroupBuffAggregateSpellSet()
+	local caches = self.groupBuffStateCaches
+	if type(caches) ~= "table" then return nil end
+
+	local aggregate = self.groupBuffAggregateSpellSet
+	if type(aggregate) ~= "table" then
+		aggregate = {}
+		self.groupBuffAggregateSpellSet = aggregate
+	end
+
+	if self.groupBuffAggregateSpellSetSource == caches and self.groupBuffAggregateSpellSetDirty ~= true then
+		return self.groupBuffAggregateSpellSetHasAny == true and aggregate or nil
+	end
+
+	wipeTable(aggregate)
+	local hasAny = false
+	for _, cache in pairs(caches) do
+		if type(cache) == "table" and type(cache.spellSet) == "table" then
+			for spellId in pairs(cache.spellSet) do
+				aggregate[spellId] = true
+				hasAny = true
+			end
+		end
+	end
+
+	self.groupBuffAggregateSpellSetSource = caches
+	self.groupBuffAggregateSpellSetDirty = false
+	self.groupBuffAggregateSpellSetHasAny = hasAny
+	return hasAny and aggregate or nil
 end
 
 function Reminder:GetGroupBuffUnitState(cache, unit)
@@ -4015,31 +4088,34 @@ function Reminder:ApplyDeltaToGroupBuffUnitState(cache, unit, updateInfo)
 	if not state then return nil end
 
 	if isAIFollowerUnit(unit) then
+		local changed = state.initialized == true or (tonumber(state.trackedCount) or 0) > 0 or state.hasBuff == true
 		self:ResetGroupBuffUnitState(state)
 		state.initialized = true
-		return state
+		return state, changed
 	end
 	if not UnitExists or not UnitExists(unit) then
+		local changed = state.initialized == true or (tonumber(state.trackedCount) or 0) > 0 or state.hasBuff == true
 		self:ResetGroupBuffUnitState(state)
-		return state
+		return state, changed
 	end
 
-	if not updateInfo or (issecretvalue and issecretvalue(updateInfo)) then return self:FullRefreshGroupBuffUnitState(cache, unit) end
+	if not updateInfo or (issecretvalue and issecretvalue(updateInfo)) then return self:FullRefreshGroupBuffUnitState(cache, unit), true end
 	local isFullUpdate = updateInfo.isFullUpdate
 	if issecretvalue and issecretvalue(isFullUpdate) then isFullUpdate = true end
-	if isFullUpdate == true or state.initialized ~= true then return self:FullRefreshGroupBuffUnitState(cache, unit) end
+	if isFullUpdate == true or state.initialized ~= true then return self:FullRefreshGroupBuffUnitState(cache, unit), true end
 
+	local changed = false
 	local removed = updateInfo.removedAuraInstanceIDs
 	if type(removed) == "table" then
 		for i = 1, #removed do
-			self:RemoveGroupBuffAuraFromState(state, removed[i])
+			if self:RemoveGroupBuffAuraFromState(state, removed[i]) then changed = true end
 		end
 	end
 
 	local added = updateInfo.addedAuras
 	if type(added) == "table" then
 		for i = 1, #added do
-			self:AddGroupBuffAuraToState(state, added[i], cache)
+			if self:AddGroupBuffAuraToState(state, added[i], cache) then changed = true end
 		end
 	end
 
@@ -4051,9 +4127,9 @@ function Reminder:ApplyDeltaToGroupBuffUnitState(cache, unit, updateInfo)
 				local aura = C_UnitAuras.GetAuraDataByAuraInstanceID(unit, auraId)
 				if aura then
 					local trackedAuraId = self:GetTrackableGroupBuffAuraData(aura, cache)
-					if trackedAuraId ~= auraId then self:RemoveGroupBuffAuraFromState(state, auraId) end
+					if trackedAuraId ~= auraId and self:RemoveGroupBuffAuraFromState(state, auraId) then changed = true end
 				else
-					self:RemoveGroupBuffAuraFromState(state, auraId)
+					if self:RemoveGroupBuffAuraFromState(state, auraId) then changed = true end
 				end
 			end
 		end
@@ -4061,7 +4137,7 @@ function Reminder:ApplyDeltaToGroupBuffUnitState(cache, unit, updateInfo)
 
 	state.hasBuff = (state.trackedCount or 0) > 0
 	state.initialized = true
-	return state
+	return state, changed
 end
 
 function Reminder:IsGroupBuffStateCacheValid(cache)
@@ -4082,10 +4158,10 @@ function Reminder:GetGroupBuffUnitMissingStatus(cache, unit)
 end
 
 function Reminder:ApplyGroupBuffUnitMissingStatus(cache, unit, nextStatus)
-	if type(cache) ~= "table" or type(unit) ~= "string" or unit == "" then return end
+	if type(cache) ~= "table" or type(unit) ~= "string" or unit == "" then return false end
 	cache.unitStatus = cache.unitStatus or {}
 	local previous = cache.unitStatus[unit]
-	if previous == nextStatus then return end
+	if previous == nextStatus then return false end
 
 	if previous == GROUP_UNIT_STATUS_PRESENT or previous == GROUP_UNIT_STATUS_MISSING then cache.total = math.max(0, (tonumber(cache.total) or 0) - 1) end
 	if previous == GROUP_UNIT_STATUS_MISSING then cache.missing = math.max(0, (tonumber(cache.missing) or 0) - 1) end
@@ -4094,12 +4170,14 @@ function Reminder:ApplyGroupBuffUnitMissingStatus(cache, unit, nextStatus)
 	if nextStatus == GROUP_UNIT_STATUS_MISSING then cache.missing = (tonumber(cache.missing) or 0) + 1 end
 
 	cache.unitStatus[unit] = nextStatus
+	return true
 end
 
 function Reminder:RebuildGroupBuffStateCache(cache)
 	if type(cache) ~= "table" then return nil end
 
 	cache.rosterVersion = tonumber(self.rosterUnitsVersion) or 0
+	self.groupBuffAggregateSpellSetDirty = true
 	cache.total = 0
 	cache.missing = 0
 	cache.unitStatus = cache.unitStatus or {}
@@ -4120,26 +4198,28 @@ function Reminder:GetGroupBuffState(cache)
 end
 
 function Reminder:RefreshGroupBuffStateCacheUnit(cache, unit)
-	if type(cache) ~= "table" or type(unit) ~= "string" or unit == "" then return end
-	if self:IsGroupBuffStateCacheValid(cache) ~= true then return end
-	self:ApplyGroupBuffUnitMissingStatus(cache, unit, self:GetGroupBuffUnitMissingStatus(cache, unit))
+	if type(cache) ~= "table" or type(unit) ~= "string" or unit == "" then return false end
+	if self:IsGroupBuffStateCacheValid(cache) ~= true then return false end
+	return self:ApplyGroupBuffUnitMissingStatus(cache, unit, self:GetGroupBuffUnitMissingStatus(cache, unit))
 end
 
 function Reminder:ApplyDeltaToGroupBuffStateCaches(unit, updateInfo)
 	local caches = self.groupBuffStateCaches
-	if type(caches) ~= "table" or type(unit) ~= "string" or unit == "" then return end
+	if type(caches) ~= "table" or type(unit) ~= "string" or unit == "" then return false end
 
 	local touchedUnits = self:CollectGroupStateUnitsForUnit(nil, unit)
-	if type(touchedUnits) ~= "table" then return end
+	if type(touchedUnits) ~= "table" then return false end
 
+	local changed = false
 	for _, cache in pairs(caches) do
 		if type(cache) == "table" and self:IsGroupBuffStateCacheValid(cache) == true then
 			for rosterUnit in pairs(touchedUnits) do
-				self:ApplyDeltaToGroupBuffUnitState(cache, rosterUnit, updateInfo)
-				self:RefreshGroupBuffStateCacheUnit(cache, rosterUnit)
+				local _, stateChanged = self:ApplyDeltaToGroupBuffUnitState(cache, rosterUnit, updateInfo)
+				if stateChanged == true and self:RefreshGroupBuffStateCacheUnit(cache, rosterUnit) == true then changed = true end
 			end
 		end
 	end
+	return changed
 end
 
 function Reminder.AuraUpdateTouchesTrackedInstances(updateInfo, trackedByInstance)
@@ -4183,15 +4263,21 @@ function Reminder:GroupBuffCacheAuraUpdateTouchesUnit(unit, updateInfo)
 	if type(caches) ~= "table" or type(unit) ~= "string" or unit == "" then return false end
 	if Reminder.IsFullAuraUpdate(updateInfo) then return true end
 
-	local added = updateInfo.addedAuras
 	for _, cache in pairs(caches) do
 		if type(cache) == "table" and self:IsGroupBuffStateCacheValid(cache) == true then
 			local state = cache.unitStates and cache.unitStates[unit]
 			if Reminder.AuraUpdateTouchesTrackedInstances(updateInfo, state and state.trackedByInstance) then return true end
-			if type(added) == "table" then
-				for i = 1, #added do
-					if self:GetTrackableGroupBuffAuraData(added[i], cache) then return true end
-				end
+		end
+	end
+
+	local added = updateInfo.addedAuras
+	local aggregateSpellSet = self:GetGroupBuffAggregateSpellSet()
+	if type(added) == "table" and type(aggregateSpellSet) == "table" then
+		for i = 1, #added do
+			local aura = added[i]
+			if Reminder.IsRelevantHelpfulPlayerAura(aura) then
+				local spellId = normalizeSpellId(aura.spellId)
+				if spellId and aggregateSpellSet[spellId] == true then return true end
 			end
 		end
 	end
@@ -4221,11 +4307,11 @@ function Reminder:SupplementalAuraMatches(aura)
 
 	if self:CanCheckFlaskReminder() then
 		local candidates = self:GetFlaskCandidatesForCurrentSpec()
-		if Reminder.PreparedAuraDataMatchesValues(self:GetPreparedFlaskCandidateData(candidates), spellId, auraName) then return true end
+		if type(candidates) == "table" and Reminder.PreparedAuraDataMatchesValues(self:GetPreparedFlaskCandidateData(candidates), spellId, auraName) then return true end
 	end
 	if self:CanCheckFoodReminder() then
 		local candidates = self:GetFoodCandidatesForCurrentSpec()
-		if Reminder.PreparedAuraDataMatchesValues(self:GetPreparedFoodCandidateData(candidates), spellId, auraName) then return true end
+		if type(candidates) == "table" and Reminder.PreparedAuraDataMatchesValues(self:GetPreparedFoodCandidateData(candidates), spellId, auraName) then return true end
 	end
 	if self:CanCheckRuneReminder() then
 		if spellId and type(Reminder.runeTracking.auraIds) == "table" then
@@ -4234,7 +4320,7 @@ function Reminder:SupplementalAuraMatches(aura)
 			end
 		end
 		local candidates = self:GetRuneCandidates()
-		if Reminder.PreparedAuraDataMatchesValues(self:GetPreparedRuneCandidateData(candidates), spellId, auraName) then return true end
+		if type(candidates) == "table" and Reminder.PreparedAuraDataMatchesValues(self:GetPreparedRuneCandidateData(candidates), spellId, auraName) then return true end
 	end
 	return false
 end
@@ -5301,20 +5387,32 @@ function Reminder:UpdateDisplay()
 	self:Render(provider, missing, total, supplementalEntries, effectiveMissing)
 end
 
-function Reminder:RequestUpdate(immediate)
+function Reminder:RequestUpdate(immediate, delay, reschedule)
 	if immediate or not (C_Timer and C_Timer.After) then
 		if self.updateTimer then
 			self.updateTimer:Cancel()
 			self.updateTimer = nil
 		end
 		self.updatePending = false
+		self.updateDelay = nil
 		self:UpdateDisplay()
 		return
 	end
 
-	if self.updatePending then return end
+	local updateDelay = tonumber(delay) or Reminder.UPDATE_DELAY
+	if updateDelay < 0 then updateDelay = Reminder.UPDATE_DELAY end
+
+	if self.updatePending then
+		if reschedule == true and self.updateTimer then
+			self.updateTimer:Cancel()
+			self.updateDelay = updateDelay
+			self.updateTimer = C_Timer.NewTimer(updateDelay, Reminder.RunPendingUpdateTimer)
+		end
+		return
+	end
 	self.updatePending = true
-	self.updateTimer = C_Timer.NewTimer(Reminder.UPDATE_DELAY, Reminder.RunPendingUpdateTimer)
+	self.updateDelay = updateDelay
+	self.updateTimer = C_Timer.NewTimer(updateDelay, Reminder.RunPendingUpdateTimer)
 end
 
 function Reminder:HandleEvent(event, unit, updateInfo)
@@ -5337,8 +5435,8 @@ function Reminder:HandleEvent(event, unit, updateInfo)
 
 	if event == "GROUP_ROSTER_UPDATE" then
 		self:InvalidateRosterCache()
-		self:RequestUpdate(false)
-		self:ScheduleDeferredAuraResync(0.5)
+		self:RequestUpdate(false, Reminder.ROSTER_UPDATE_DELAY, true)
+		self:ScheduleDeferredAuraResync(1.0)
 		return
 	end
 
@@ -5348,7 +5446,7 @@ function Reminder:HandleEvent(event, unit, updateInfo)
 		self:InvalidateFoodCache()
 		self:InvalidateRuneCache()
 		self:InvalidateWeaponBuffCache()
-		self:RequestUpdate(true)
+		self:RequestUpdate(false, Reminder.RUNTIME_UPDATE_DELAY, true)
 		return
 	end
 
@@ -5358,7 +5456,7 @@ function Reminder:HandleEvent(event, unit, updateInfo)
 		self:InvalidateFoodCache()
 		self:InvalidateRuneCache()
 		self:InvalidateWeaponBuffCache()
-		self:RequestUpdate(true)
+		self:RequestUpdate(false, Reminder.RUNTIME_UPDATE_DELAY, true)
 		self:ScheduleDeferredAuraResync(0.2)
 		self:ScheduleDeferredAuraResync(1.0)
 		return
@@ -5367,12 +5465,12 @@ function Reminder:HandleEvent(event, unit, updateInfo)
 	if event == "PLAYER_REGEN_DISABLED" or event == "PLAYER_REGEN_ENABLED" then
 		self.consumableTrackingBlockedByCombat = (event == "PLAYER_REGEN_DISABLED")
 		if self:IsOnlyOutOfCombatEnabled() == true then self:MarkAuraStatesDirty() end
-		self:RequestUpdate(true)
+		self:RequestUpdate(false, Reminder.RUNTIME_UPDATE_DELAY, true)
 		return
 	end
 
 	if event == "PLAYER_UPDATE_RESTING" then
-		self:RequestUpdate(true)
+		self:RequestUpdate(false, Reminder.RUNTIME_UPDATE_DELAY, true)
 		return
 	end
 
@@ -5386,7 +5484,7 @@ function Reminder:HandleEvent(event, unit, updateInfo)
 		or event == "ENCOUNTER_START"
 		or event == "ENCOUNTER_END"
 	then
-		self:RequestUpdate(true)
+		self:RequestUpdate(false, Reminder.RUNTIME_UPDATE_DELAY, true)
 		return
 	end
 
@@ -5397,7 +5495,7 @@ function Reminder:HandleEvent(event, unit, updateInfo)
 		self:InvalidateFoodCache()
 		self:InvalidateRuneCache()
 		self:InvalidateWeaponBuffCache()
-		self:RequestUpdate(true)
+		self:RequestUpdate(false, Reminder.RUNTIME_UPDATE_DELAY, true)
 		return
 	end
 
@@ -5408,7 +5506,7 @@ function Reminder:HandleEvent(event, unit, updateInfo)
 			self:InvalidateFoodCache()
 			self:InvalidateRuneCache()
 			self:InvalidateWeaponBuffCache()
-			self:RequestUpdate(false)
+			self:RequestUpdate(false, Reminder.RUNTIME_UPDATE_DELAY)
 		end
 		return
 	end
@@ -5419,7 +5517,7 @@ function Reminder:HandleEvent(event, unit, updateInfo)
 		self:InvalidateFoodCache()
 		self:InvalidateRuneCache()
 		self:InvalidateWeaponBuffCache()
-		self:RequestUpdate(false)
+		self:RequestUpdate(false, Reminder.RUNTIME_UPDATE_DELAY)
 		return
 	end
 
@@ -5429,7 +5527,7 @@ function Reminder:HandleEvent(event, unit, updateInfo)
 		self:InvalidateFoodCache()
 		self:InvalidateRuneCache()
 		self:InvalidateWeaponBuffCache()
-		self:RequestUpdate(false)
+		self:RequestUpdate(false, Reminder.RUNTIME_UPDATE_DELAY)
 		return
 	end
 
@@ -5440,13 +5538,13 @@ function Reminder:HandleEvent(event, unit, updateInfo)
 		self:InvalidateFoodCache()
 		self:InvalidateRuneCache()
 		self:InvalidateWeaponBuffCache()
-		self:RequestUpdate(true)
+		self:RequestUpdate(false, Reminder.RUNTIME_UPDATE_DELAY, true)
 		return
 	end
 
 	if event == "PLAYER_DEAD" or event == "PLAYER_ALIVE" or event == "PLAYER_UNGHOST" then
 		self:MarkAuraStatesDirty()
-		self:RequestUpdate(true)
+		self:RequestUpdate(false, Reminder.RUNTIME_UPDATE_DELAY, true)
 		return
 	end
 
@@ -5459,43 +5557,44 @@ function Reminder:HandleEvent(event, unit, updateInfo)
 		if provider and provider.scope == PROVIDER_SCOPE_GROUP and self:ShouldEvaluateGroupResponsibilities(provider) ~= true then
 			if supplementalTouches then
 				self.playerAuraPresenceSnapshot = nil
-				self:RequestUpdate(false)
+				self:RequestUpdate(false, Reminder.AURA_UPDATE_DELAY)
 			end
 			return
-		end
-		if provider and provider.scope == PROVIDER_SCOPE_SELF then
-			local needsUpdate = false
-			local providerTouches = playerUnit and self:ProviderAuraUpdateTouchesUnit(unit, updateInfo, provider) or false
-			local groupCacheTouches = provider.tracksExternalUnitAuras == true and self:GroupBuffCacheAuraUpdateTouchesUnit(unit, updateInfo) or false
-			if groupCacheTouches then
-				self:ApplyDeltaToGroupBuffStateCaches(unit, updateInfo)
-				self:InvalidateSelfProviderStatus()
-				needsUpdate = true
 			end
-			if providerTouches then
-				self:InvalidateSelfProviderStatus()
-				needsUpdate = true
+			if provider and provider.scope == PROVIDER_SCOPE_SELF then
+				local needsUpdate = false
+				local providerTouches = playerUnit and self:ProviderAuraUpdateTouchesUnit(unit, updateInfo, provider) or false
+				local groupCacheTouches = provider.tracksExternalUnitAuras == true and self:GroupBuffCacheAuraUpdateTouchesUnit(unit, updateInfo) or false
+				if groupCacheTouches then
+					if self:ApplyDeltaToGroupBuffStateCaches(unit, updateInfo) == true then
+						self:InvalidateSelfProviderStatus()
+						needsUpdate = true
+					end
+				end
+				if providerTouches then
+					self:InvalidateSelfProviderStatus()
+					needsUpdate = true
 			end
 			if supplementalTouches then
 				self.playerAuraPresenceSnapshot = nil
 				needsUpdate = true
 			end
-			if needsUpdate then self:RequestUpdate(false) end
+			if needsUpdate then self:RequestUpdate(false, Reminder.AURA_UPDATE_DELAY) end
 			return
 		end
 		if provider and isAIFollowerUnit(unit) then
 			self:QueuePendingAuraReset(unit)
-			self:RequestUpdate(false)
+			self:RequestUpdate(false, Reminder.AURA_UPDATE_DELAY)
 			return
 		end
 		if provider and self:ProviderAuraUpdateTouchesUnit(unit, updateInfo, provider) then
 			self:QueuePendingAuraDelta(unit, updateInfo)
-			self:RequestUpdate(false)
+			self:RequestUpdate(false, Reminder.AURA_UPDATE_DELAY)
 			return
 		end
 		if supplementalTouches then
 			self.playerAuraPresenceSnapshot = nil
-			self:RequestUpdate(false)
+			self:RequestUpdate(false, Reminder.AURA_UPDATE_DELAY)
 		end
 		return
 	end
