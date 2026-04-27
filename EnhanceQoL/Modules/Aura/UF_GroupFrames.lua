@@ -10405,12 +10405,18 @@ function GF:UpdateHealthValue(self, unit, st)
 		if calc.SetDamageAbsorbClampMode and Enum.UnitDamageAbsorbClampMode then
 			local modes = Enum.UnitDamageAbsorbClampMode
 			local mode = absorbDontOverflow and modes.MissingHealthWithoutIncomingHeals or modes.MaximumHealth
-			if mode ~= nil then calc:SetDamageAbsorbClampMode(mode) end
+			if mode ~= nil and st._lastDamageAbsorbClampMode ~= mode then
+				st._lastDamageAbsorbClampMode = mode
+				calc:SetDamageAbsorbClampMode(mode)
+			end
 		end
 		if calc.SetHealAbsorbClampMode and Enum.UnitHealAbsorbClampMode then
 			local modes = Enum.UnitHealAbsorbClampMode
 			local mode = healAbsorbDontOverflow and modes.CurrentHealth or modes.MaximumHealth
-			if mode ~= nil then calc:SetHealAbsorbClampMode(mode) end
+			if mode ~= nil and st._lastHealAbsorbClampMode ~= mode then
+				st._lastHealAbsorbClampMode = mode
+				calc:SetHealAbsorbClampMode(mode)
+			end
 		end
 	end
 	if calc and UnitGetDetailedHealPrediction then UnitGetDetailedHealPrediction(unit, "player", calc) end
@@ -10432,7 +10438,14 @@ function GF:UpdateHealthValue(self, unit, st)
 	local deadOrGhost = (isDead == true) or (isGhost == true)
 	local suppressAuxHealthBars = (connected == false) or deadOrGhost
 	local smoothHealth = (hc.smoothFill ~= nil) and (hc.smoothFill == true) or (defH.smoothFill == true)
-	st.health:SetMinMaxValues(0, maxForValue)
+	local maxForValueSecret = issecretvalue and issecretvalue(maxForValue)
+	if maxForValueSecret then
+		st.health:SetMinMaxValues(0, maxForValue)
+		st._lastHealthMaxForValue = nil
+	elseif st._lastHealthMaxForValue ~= maxForValue then
+		st._lastHealthMaxForValue = maxForValue
+		st.health:SetMinMaxValues(0, maxForValue)
+	end
 	if connected == false then
 		GF.SetStatusBarValue(st.health, maxForValue, false, true)
 	elseif deadOrGhost then
@@ -11332,9 +11345,7 @@ end
 
 local function dispatchUnitHealth(btn, unit)
 	local st = getState(btn)
-	GF:UpdateHealthStyle(btn, unit, st)
 	GF:UpdateHealthValue(btn, unit, st)
-	GF:UpdateStatusText(btn, unit, st)
 end
 local function dispatchUnitAbsorb(btn, unit)
 	local st = getState(btn)
