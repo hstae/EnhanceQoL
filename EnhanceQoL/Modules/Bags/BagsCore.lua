@@ -483,10 +483,15 @@ local function getMinimumFrameWidth(settings)
 		settingsButtonWidth = math.max(settingsButtonWidth, math.ceil((state.frame.SettingsButton:GetWidth() or 0) + 0.5))
 	end
 
-	return math.max(
+	local minimumWidth = math.max(
 		Core.MIN_FRAME_WIDTH,
 		(insideHorizontalPadding * 2) + titleWidth + 18 + Core.MIN_SEARCH_BOX_WIDTH + 10 + settingsButtonWidth
 	)
+	local minimumFooterContentWidth = tonumber(state.minimumFooterContentWidth) or 0
+	if minimumFooterContentWidth > 0 then
+		minimumWidth = math.max(minimumWidth, minimumFooterContentWidth + (Core.FRAME_PADDING * 2))
+	end
+	return minimumWidth
 end
 
 local function getButtonSize(settings)
@@ -3595,6 +3600,7 @@ local function layoutFooter(layoutData, frameWidth)
 	local visibleCurrencyCount = 0
 	local currencyButtons = {}
 	local totalCurrencyWidth = 0
+	local maxCurrencyButtonWidth = 0
 	local currencyRowCount = 0
 	local currencyRowsHeight = 0
 	local moneyOnSeparateRow = false
@@ -3650,12 +3656,28 @@ local function layoutFooter(layoutData, frameWidth)
 		button:SetWidth(button.Count:GetStringWidth() + 24)
 		currencyButtons[index] = button
 
+		maxCurrencyButtonWidth = math.max(maxCurrencyButtonWidth, button:GetWidth())
 		totalCurrencyWidth = totalCurrencyWidth + button:GetWidth()
 		if index > 1 then
 			totalCurrencyWidth = totalCurrencyWidth + 10
 		end
 		visibleCurrencyCount = index
 	end
+
+	local minimumFooterContentWidth = 0
+	if showFooterSlotSummary then
+		minimumFooterContentWidth = math.max(
+			minimumFooterContentWidth,
+			math.ceil((footer.NormalSlotsText:GetStringWidth() or 0) + 18 + (footer.ReagentSlotsText:GetStringWidth() or 0))
+		)
+	end
+	if settings.showGold then
+		minimumFooterContentWidth = math.max(minimumFooterContentWidth, math.ceil(footer.MoneyButton:GetWidth() or 0))
+	end
+	if maxCurrencyButtonWidth > 0 then
+		minimumFooterContentWidth = math.max(minimumFooterContentWidth, math.ceil(maxCurrencyButtonWidth))
+	end
+	state.minimumFooterContentWidth = minimumFooterContentWidth
 
 	moneyOnSeparateRow = settings.showGold
 		and visibleCurrencyCount > 0
@@ -4131,7 +4153,8 @@ local function layoutFrame(layoutData)
 	local insideHorizontalPadding = getInsideHorizontalPadding(settings)
 	local frameWidth = updateScrollFrameLayout(contentWidth, contentHeight)
 	local measuredFooterHeight = layoutFooter(layoutData, frameWidth - (insideHorizontalPadding * 2))
-	if measuredFooterHeight ~= initialFooterHeight then
+	local minimumFooterFrameWidth = (tonumber(state.minimumFooterContentWidth) or 0) + (Core.FRAME_PADDING * 2)
+	if measuredFooterHeight ~= initialFooterHeight or minimumFooterFrameWidth > frameWidth then
 		frameWidth = updateScrollFrameLayout(contentWidth, contentHeight)
 		layoutFooter(layoutData, frameWidth - (insideHorizontalPadding * 2))
 	end
@@ -4219,6 +4242,9 @@ local function refreshButtons()
 			state.lastLayoutContentHeight = contentHeight
 		end
 		if (measuredFooterHeight ~= previousFooterHeight or contentHeight ~= previousContentHeight) and state.lastLayoutContentWidth and state.lastLayoutContentHeight then
+			updateScrollFrameLayout(state.lastLayoutContentWidth, contentHeight)
+			layoutFooter(state.layoutData, math.max(1, state.frame.Footer and state.frame.Footer:GetWidth() or footerWidth))
+		elseif state.lastLayoutContentWidth and ((tonumber(state.minimumFooterContentWidth) or 0) + (Core.FRAME_PADDING * 2)) > (state.frame:GetWidth() or 0) then
 			updateScrollFrameLayout(state.lastLayoutContentWidth, contentHeight)
 			layoutFooter(state.layoutData, math.max(1, state.frame.Footer and state.frame.Footer:GetWidth() or footerWidth))
 		end

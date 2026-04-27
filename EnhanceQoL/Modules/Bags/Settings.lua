@@ -764,12 +764,16 @@ local function buildCategoriesByGroupID(categories)
 end
 
 local function compareCategoryListTopLevelEntries(a, b)
-	local aPriority = tonumber(a and a.displayPriority)
-	local bPriority = tonumber(b and b.displayPriority)
-	if aPriority ~= bPriority then
-		return (aPriority or -1) > (bPriority or -1)
+	local aSortOrder = tonumber(a and a.sortOrder) or 0
+	local bSortOrder = tonumber(b and b.sortOrder) or 0
+	if aSortOrder ~= bSortOrder then
+		return aSortOrder < bSortOrder
 	end
 
+	return (a and a.name or "") < (b and b.name or "")
+end
+
+local function compareCategoryListEntriesBySortOrder(a, b)
 	local aSortOrder = tonumber(a and a.sortOrder) or 0
 	local bSortOrder = tonumber(b and b.sortOrder) or 0
 	if aSortOrder ~= bSortOrder then
@@ -888,7 +892,6 @@ local function buildCustomCategoryListEntries(groups, categories)
 			name = group.name,
 			color = group.color,
 			sortOrder = group.sortOrder,
-			displayPriority = childCategories[1] and childCategories[1].priority or nil,
 			childCategories = childCategories,
 		}
 	end
@@ -901,7 +904,6 @@ local function buildCustomCategoryListEntries(groups, categories)
 			color = category.color,
 			priority = category.priority,
 			sortOrder = category.sortOrder,
-			displayPriority = category.priority,
 			indent = 0,
 		}
 	end
@@ -911,12 +913,13 @@ local function buildCustomCategoryListEntries(groups, categories)
 	for _, entry in ipairs(topLevelEntries) do
 		if entry.type == "group" then
 			local childCategories = entry.childCategories or {}
+			table.sort(childCategories, compareCategoryListEntriesBySortOrder)
 			entries[#entries + 1] = {
 				type = "group",
 				id = entry.id,
 				name = entry.name,
 				color = entry.color,
-				childCount = #childCategories,
+				sortOrder = entry.sortOrder,
 			}
 			for _, category in ipairs(childCategories) do
 				entries[#entries + 1] = {
@@ -925,6 +928,7 @@ local function buildCustomCategoryListEntries(groups, categories)
 					name = category.name,
 					color = category.color,
 					priority = category.priority,
+					sortOrder = category.sortOrder,
 					indent = 1,
 				}
 			end
@@ -2537,10 +2541,34 @@ local function createCategoriesPage(parent)
 	priorityLabel:SetText(L["settingsCategoryPriorityLabel"] or "Priority")
 	page.PriorityLabel = priorityLabel
 
-	local priorityValue = detailContent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	local priorityValue = CreateFrame("EditBox", nil, detailContent, "InputBoxTemplate")
 	priorityValue:SetPoint("LEFT", priorityLabel, "RIGHT", 12, 0)
-	priorityValue:SetWidth(28)
+	priorityValue:SetSize(46, 20)
 	priorityValue:SetJustifyH("CENTER")
+	priorityValue:SetAutoFocus(false)
+	priorityValue:SetNumeric(true)
+	priorityValue:SetMaxLetters(3)
+	priorityValue:SetScript("OnEnterPressed", function(self)
+		self:ClearFocus()
+	end)
+	priorityValue:SetScript("OnEditFocusLost", function(self)
+		local selection = getCategoryPageSelection()
+		local value = tonumber(self:GetText())
+		if selection.selectedType == "group" and selection.selectedGroup then
+			if value and addon.SetCustomCategoryGroupSortOrder and addon.SetCustomCategoryGroupSortOrder(selection.selectedGroup.id, value) then
+				requestCategoryRefresh()
+			else
+				addon.RefreshSettingsFrame("categories")
+			end
+			return
+		end
+
+		if selection.selectedCategory and value and addon.SetCustomCategorySortOrder and addon.SetCustomCategorySortOrder(selection.selectedCategory.id, value) then
+			requestCategoryRefresh()
+		else
+			addon.RefreshSettingsFrame("categories")
+		end
+	end)
 	page.PriorityValue = priorityValue
 
 	local priorityDownButton = CreateFrame("Button", nil, detailContent, "UIPanelButtonTemplate")
@@ -2548,11 +2576,18 @@ local function createCategoriesPage(parent)
 	priorityDownButton:SetPoint("LEFT", priorityValue, "RIGHT", 4, 0)
 	priorityDownButton:SetText("-")
 	priorityDownButton:SetScript("OnClick", function()
-		local _, category = getSelectedCustomCategoryState()
-		if not category or not addon.SetCustomCategoryPriority then
+		local selection = getCategoryPageSelection()
+		if selection.selectedType == "group" and selection.selectedGroup and addon.SetCustomCategoryGroupSortOrder then
+			addon.SetCustomCategoryGroupSortOrder(selection.selectedGroup.id, (selection.selectedGroup.sortOrder or 0) - 1)
+			requestCategoryRefresh()
 			return
 		end
-		addon.SetCustomCategoryPriority(category.id, (category.priority or 0) - 1)
+
+		local category = selection.selectedCategory
+		if not category or not addon.SetCustomCategorySortOrder then
+			return
+		end
+		addon.SetCustomCategorySortOrder(category.id, (category.sortOrder or 0) - 1)
 		requestCategoryRefresh()
 	end)
 	page.PriorityDownButton = priorityDownButton
@@ -2562,11 +2597,18 @@ local function createCategoriesPage(parent)
 	priorityUpButton:SetPoint("LEFT", priorityDownButton, "RIGHT", 4, 0)
 	priorityUpButton:SetText("+")
 	priorityUpButton:SetScript("OnClick", function()
-		local _, category = getSelectedCustomCategoryState()
-		if not category or not addon.SetCustomCategoryPriority then
+		local selection = getCategoryPageSelection()
+		if selection.selectedType == "group" and selection.selectedGroup and addon.SetCustomCategoryGroupSortOrder then
+			addon.SetCustomCategoryGroupSortOrder(selection.selectedGroup.id, (selection.selectedGroup.sortOrder or 0) + 1)
+			requestCategoryRefresh()
 			return
 		end
-		addon.SetCustomCategoryPriority(category.id, (category.priority or 0) + 1)
+
+		local category = selection.selectedCategory
+		if not category or not addon.SetCustomCategorySortOrder then
+			return
+		end
+		addon.SetCustomCategorySortOrder(category.id, (category.sortOrder or 0) + 1)
 		requestCategoryRefresh()
 	end)
 	page.PriorityUpButton = priorityUpButton
@@ -2616,8 +2658,70 @@ local function createCategoriesPage(parent)
 	priorityHint:SetText(L["settingsCategoryPriorityHint"] or "Higher priority wins when one item matches multiple categories.")
 	page.PriorityHint = priorityHint
 
+	local matchPriorityLabel = detailContent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	matchPriorityLabel:SetPoint("TOPLEFT", priorityHint, "BOTTOMLEFT", 0, -16)
+	matchPriorityLabel:SetText(L["settingsCategoryPriorityLabel"] or "Priority")
+	page.MatchPriorityLabel = matchPriorityLabel
+
+	local matchPriorityValue = CreateFrame("EditBox", nil, detailContent, "InputBoxTemplate")
+	matchPriorityValue:SetPoint("LEFT", matchPriorityLabel, "RIGHT", 12, 0)
+	matchPriorityValue:SetSize(46, 20)
+	matchPriorityValue:SetJustifyH("CENTER")
+	matchPriorityValue:SetAutoFocus(false)
+	matchPriorityValue:SetNumeric(true)
+	matchPriorityValue:SetMaxLetters(3)
+	matchPriorityValue:SetScript("OnEnterPressed", function(self)
+		self:ClearFocus()
+	end)
+	matchPriorityValue:SetScript("OnEditFocusLost", function(self)
+		local _, category = getSelectedCustomCategoryState()
+		local value = tonumber(self:GetText())
+		if category and value and addon.SetCustomCategoryPriority and addon.SetCustomCategoryPriority(category.id, value) then
+			requestCategoryRefresh()
+		else
+			addon.RefreshSettingsFrame("categories")
+		end
+	end)
+	page.MatchPriorityValue = matchPriorityValue
+
+	local matchPriorityDownButton = CreateFrame("Button", nil, detailContent, "UIPanelButtonTemplate")
+	matchPriorityDownButton:SetSize(24, 20)
+	matchPriorityDownButton:SetPoint("LEFT", matchPriorityValue, "RIGHT", 4, 0)
+	matchPriorityDownButton:SetText("-")
+	matchPriorityDownButton:SetScript("OnClick", function()
+		local _, category = getSelectedCustomCategoryState()
+		if not category or not addon.SetCustomCategoryPriority then
+			return
+		end
+		addon.SetCustomCategoryPriority(category.id, (category.priority or 0) - 1)
+		requestCategoryRefresh()
+	end)
+	page.MatchPriorityDownButton = matchPriorityDownButton
+
+	local matchPriorityUpButton = CreateFrame("Button", nil, detailContent, "UIPanelButtonTemplate")
+	matchPriorityUpButton:SetSize(24, 20)
+	matchPriorityUpButton:SetPoint("LEFT", matchPriorityDownButton, "RIGHT", 4, 0)
+	matchPriorityUpButton:SetText("+")
+	matchPriorityUpButton:SetScript("OnClick", function()
+		local _, category = getSelectedCustomCategoryState()
+		if not category or not addon.SetCustomCategoryPriority then
+			return
+		end
+		addon.SetCustomCategoryPriority(category.id, (category.priority or 0) + 1)
+		requestCategoryRefresh()
+	end)
+	page.MatchPriorityUpButton = matchPriorityUpButton
+
+	local matchPriorityHint = detailContent:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+	matchPriorityHint:SetPoint("TOPLEFT", matchPriorityLabel, "BOTTOMLEFT", 0, -6)
+	matchPriorityHint:SetPoint("RIGHT", detailContent, "RIGHT", -14, 0)
+	matchPriorityHint:SetJustifyH("LEFT")
+	matchPriorityHint:SetJustifyV("TOP")
+	matchPriorityHint:SetText(L["settingsCategoryPriorityHint"] or "Higher priority wins when one item matches multiple categories.")
+	page.MatchPriorityHint = matchPriorityHint
+
 	local sortLabel = detailContent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-	sortLabel:SetPoint("TOPLEFT", priorityHint, "BOTTOMLEFT", 0, -16)
+	sortLabel:SetPoint("TOPLEFT", matchPriorityHint, "BOTTOMLEFT", 0, -16)
 	sortLabel:SetText(L["settingsCategorySortLabel"] or "Sort")
 	page.SortLabel = sortLabel
 
@@ -2825,8 +2929,8 @@ refreshCategoriesPage = function(page)
 		button.Name:SetText(entry.name)
 		button.Priority:SetText(
 			entry.type == "group"
-				and string.format("%d", entry.childCount or 0)
-				or string.format("P%d", entry.priority or 0)
+				and string.format("O%d", entry.sortOrder or 0)
+				or string.format("O%d", entry.sortOrder or 0)
 		)
 		local indentOffset = (entry.indent or 0) * CATEGORY_LIST_CHILD_INDENT
 		button.ColorBar:ClearAllPoints()
@@ -2865,10 +2969,15 @@ refreshCategoriesPage = function(page)
 	page.GroupLabel:SetShown(isCategorySelection)
 	page.GroupButton:SetShown(isCategorySelection)
 	page.GroupHint:SetShown(isCategorySelection)
-	page.PriorityLabel:SetShown(isCategorySelection)
-	page.PriorityValue:SetShown(isCategorySelection)
-	page.PriorityDownButton:SetShown(isCategorySelection)
-	page.PriorityUpButton:SetShown(isCategorySelection)
+	page.PriorityLabel:SetShown(hasSelection)
+	page.PriorityValue:SetShown(hasSelection)
+	page.PriorityDownButton:SetShown(hasSelection)
+	page.PriorityUpButton:SetShown(hasSelection)
+	page.MatchPriorityLabel:SetShown(isCategorySelection)
+	page.MatchPriorityValue:SetShown(isCategorySelection)
+	page.MatchPriorityDownButton:SetShown(isCategorySelection)
+	page.MatchPriorityUpButton:SetShown(isCategorySelection)
+	page.MatchPriorityHint:SetShown(isCategorySelection)
 	page.SortLabel:SetShown(isCategorySelection)
 	page.SortButton:SetShown(isCategorySelection)
 	page.SortHint:SetShown(isCategorySelection)
@@ -2899,15 +3008,23 @@ refreshCategoriesPage = function(page)
 	end
 
 	if isGroupSelection then
+		page.PriorityLabel:ClearAllPoints()
+		page.PriorityLabel:SetPoint("TOPLEFT", page.NameBox, "BOTTOMLEFT", 0, -18)
+		page.PriorityLabel:SetText(L["settingsCategoryOrderLabel"] or "Display order")
 		page.CategoryColorLabel:ClearAllPoints()
-		page.CategoryColorLabel:SetPoint("TOPLEFT", page.NameBox, "BOTTOMLEFT", 0, -18)
+		page.CategoryColorLabel:SetPoint("LEFT", page.PriorityUpButton, "RIGHT", 20, 0)
 		page.CategoryColorSwatch:ClearAllPoints()
 		page.CategoryColorSwatch:SetPoint("LEFT", page.CategoryColorLabel, "RIGHT", 8, 0)
 		page.PriorityHint:ClearAllPoints()
-		page.PriorityHint:SetPoint("TOPLEFT", page.CategoryColorLabel, "BOTTOMLEFT", 0, -8)
+		page.PriorityHint:SetPoint("TOPLEFT", page.PriorityLabel, "BOTTOMLEFT", 0, -6)
 		page.PriorityHint:SetPoint("RIGHT", page.DetailContent, "RIGHT", -14, 0)
-		page.PriorityHint:SetText(L["settingsCategoryGroupHint"] or "Categories inside the same parent group render under one shared header and collapse together in the bag and bank views.")
+		page.PriorityHint:SetText(L["settingsCategoryOrderHint"] or "Lower values render earlier. This only changes where the entry appears, not which items match its rules.")
 		page.SortButton:SetText(L["settingsCategorySortDefault"] or "Default")
+		if not page.PriorityValue:HasFocus() then
+			page.PriorityValue:SetText(tostring(selectedGroup.sortOrder or 0))
+		end
+		page.PriorityDownButton:SetEnabled((selectedGroup.sortOrder or 0) > 0)
+		page.PriorityUpButton:SetEnabled((selectedGroup.sortOrder or 0) < 999)
 
 		for index = 1, #page.AssignedItemRows do
 			page.AssignedItemRows[index]:Hide()
@@ -2928,6 +3045,9 @@ refreshCategoriesPage = function(page)
 		return
 	end
 
+	page.PriorityLabel:ClearAllPoints()
+	page.PriorityLabel:SetPoint("TOPLEFT", page.GroupHint, "BOTTOMLEFT", 0, -16)
+	page.PriorityLabel:SetText(L["settingsCategoryOrderLabel"] or "Display order")
 	page.CategoryColorLabel:ClearAllPoints()
 	page.CategoryColorLabel:SetPoint("LEFT", page.PriorityUpButton, "RIGHT", 20, 0)
 	page.CategoryColorSwatch:ClearAllPoints()
@@ -2935,7 +3055,7 @@ refreshCategoriesPage = function(page)
 	page.PriorityHint:ClearAllPoints()
 	page.PriorityHint:SetPoint("TOPLEFT", page.PriorityLabel, "BOTTOMLEFT", 0, -6)
 	page.PriorityHint:SetPoint("RIGHT", page.DetailContent, "RIGHT", -14, 0)
-	page.PriorityHint:SetText(L["settingsCategoryPriorityHint"] or "Higher priority wins when one item matches multiple categories.")
+	page.PriorityHint:SetText(L["settingsCategoryOrderHint"] or "Lower values render earlier. This only changes where the entry appears, not which items match its rules.")
 
 	local sortLabelText = L["settingsCategorySortDefault"] or "Default"
 	for _, option in ipairs(addon.GetCategorySortModeOptions and addon.GetCategorySortModeOptions() or {}) do
@@ -2956,9 +3076,16 @@ refreshCategoriesPage = function(page)
 		end
 	end
 	page.GroupButton:SetText(parentGroupName)
-	page.PriorityValue:SetText(tostring(selectedCategory.priority or 0))
-	page.PriorityDownButton:SetEnabled((selectedCategory.priority or 0) > 0)
-	page.PriorityUpButton:SetEnabled((selectedCategory.priority or 0) < 100)
+	if not page.PriorityValue:HasFocus() then
+		page.PriorityValue:SetText(tostring(selectedCategory.sortOrder or 0))
+	end
+	page.PriorityDownButton:SetEnabled((selectedCategory.sortOrder or 0) > 0)
+	page.PriorityUpButton:SetEnabled((selectedCategory.sortOrder or 0) < 999)
+	if not page.MatchPriorityValue:HasFocus() then
+		page.MatchPriorityValue:SetText(tostring(selectedCategory.priority or 0))
+	end
+	page.MatchPriorityDownButton:SetEnabled((selectedCategory.priority or 0) > 0)
+	page.MatchPriorityUpButton:SetEnabled((selectedCategory.priority or 0) < 100)
 
 	if not page.ItemInput:HasFocus() then
 		page.ItemInput:SetText("")

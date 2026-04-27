@@ -1150,13 +1150,7 @@ local function compareCategoriesByPriority(a, b)
 	return compareEntriesBySortOrder(a, b)
 end
 
-local function compareDisplayEntriesByPriority(a, b)
-	local aPriority = tonumber(a and a.displayPriority)
-	local bPriority = tonumber(b and b.displayPriority)
-	if aPriority ~= bPriority then
-		return (aPriority or -1) > (bPriority or -1)
-	end
-
+local function compareDisplayEntriesBySortOrder(a, b)
 	return compareEntriesBySortOrder(a, b)
 end
 
@@ -1243,7 +1237,6 @@ local function buildCompiledCustomCategoryState(categories, groups)
 			sortOrder = group.sortOrder,
 			name = group.name,
 			group = group,
-			displayPriority = -1,
 			afterBuiltins = group.renderAfterBuiltIns == true,
 		}
 	end
@@ -1258,23 +1251,15 @@ local function buildCompiledCustomCategoryState(categories, groups)
 				sortOrder = category.sortOrder,
 				name = category.name,
 				category = category,
-				displayPriority = category.priority,
 				afterBuiltins = category.renderAfterBuiltIns == true,
 			}
 		end
 	end
 
-	for groupID, groupedCategories in pairs(categoriesByGroupID) do
-		table.sort(groupedCategories, compareCategoriesByPriority)
-		local topPriority = groupedCategories[1] and groupedCategories[1].priority or nil
-		for _, entry in ipairs(topLevelEntries) do
-			if entry.kind == "group" and entry.group and entry.group.id == groupID then
-				entry.displayPriority = topPriority
-				break
-			end
-		end
+	for _, groupedCategories in pairs(categoriesByGroupID) do
+		table.sort(groupedCategories, compareEntriesBySortOrder)
 	end
-	table.sort(topLevelEntries, compareDisplayEntriesByPriority)
+	table.sort(topLevelEntries, compareDisplayEntriesBySortOrder)
 
 	for _, entry in ipairs(topLevelEntries) do
 		if not entry.afterBuiltins then
@@ -2476,6 +2461,50 @@ function addon.SetCustomCategoryPriority(categoryID, priority)
 	end
 
 	category.priority = sanitizePriority(priority)
+	markCustomCategoryStateDirty()
+	return true
+end
+
+function addon.SetCustomCategorySortOrder(categoryID, sortOrder)
+	local category = findCategoryByID(categoryID)
+	if not category then
+		return false
+	end
+
+	sortOrder = math.floor((tonumber(sortOrder) or 0) + 0.5)
+	if sortOrder < 0 then
+		sortOrder = 0
+	elseif sortOrder > 999 then
+		sortOrder = 999
+	end
+
+	if category.sortOrder == sortOrder then
+		return false
+	end
+
+	category.sortOrder = sortOrder
+	markCustomCategoryStateDirty()
+	return true
+end
+
+function addon.SetCustomCategoryGroupSortOrder(groupID, sortOrder)
+	local group = findGroupByID(groupID)
+	if not group then
+		return false
+	end
+
+	sortOrder = math.floor((tonumber(sortOrder) or 0) + 0.5)
+	if sortOrder < 0 then
+		sortOrder = 0
+	elseif sortOrder > 999 then
+		sortOrder = 999
+	end
+
+	if group.sortOrder == sortOrder then
+		return false
+	end
+
+	group.sortOrder = sortOrder
 	markCustomCategoryStateDirty()
 	return true
 end
