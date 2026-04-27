@@ -5929,6 +5929,16 @@ local function getUnit(self)
 	return self.unit
 end
 
+local function unitTokenExists(unit)
+	if unit == nil or unit == "" then return false end
+	local exists = UnitExists and UnitExists(unit)
+	if issecretvalue and issecretvalue(exists) then exists = nil end
+	if exists then return true end
+	local visible = UnitIsVisible and UnitIsVisible(unit)
+	if issecretvalue and issecretvalue(visible) then visible = nil end
+	return visible == true
+end
+
 local function getState(self)
 	local st = self and self._eqolUFState
 	if not st then
@@ -6041,9 +6051,185 @@ local function updateButtonConfig(self, cfg)
 	st._wantsHealerBuffPlacement = wantsHealerBuffPlacement
 end
 
+function GF.GetPendingAuraUpdateMap(st, key)
+	if not st then return nil end
+	local map = st[key]
+	if type(map) ~= "table" then
+		map = {}
+		st[key] = map
+	end
+	return map
+end
+
+function GF.ClearPendingAuraUpdate(st)
+	if not st then return end
+	st._pendingAuraFull = nil
+	st._pendingAuraUnit = nil
+	if type(st._pendingAuraAddedById) == "table" then wipe(st._pendingAuraAddedById) end
+	if type(st._pendingAuraUpdatedById) == "table" then wipe(st._pendingAuraUpdatedById) end
+	if type(st._pendingAuraRemovedById) == "table" then wipe(st._pendingAuraRemovedById) end
+end
+
+function GF.GetAuraUpdateId(value)
+	if value == nil then return nil end
+	if issecretvalue and issecretvalue(value) then return nil end
+	return value
+end
+
+function GF.IsFullAuraUpdate(updateInfo)
+	if not updateInfo or (issecretvalue and issecretvalue(updateInfo)) then return true end
+	if type(updateInfo) ~= "table" then return true end
+	local full = updateInfo.isFullUpdate
+	if issecretvalue and issecretvalue(full) then return true end
+	return full == true
+end
+
+function GF.MergePendingAuraUpdate(st, updateInfo)
+	if not st then return end
+	if GF.IsFullAuraUpdate(updateInfo) then
+		GF.ClearPendingAuraUpdate(st)
+		st._pendingAuraFull = true
+		return
+	end
+	if st._pendingAuraFull == true then return end
+
+	local removed = updateInfo.removedAuraInstanceIDs
+	if type(removed) == "table" then
+		for i = 1, #removed do
+			local auraId = GF.GetAuraUpdateId(removed[i])
+			if auraId then
+				if type(st._pendingAuraAddedById) == "table" then st._pendingAuraAddedById[auraId] = nil end
+				if type(st._pendingAuraUpdatedById) == "table" then st._pendingAuraUpdatedById[auraId] = nil end
+				GF.GetPendingAuraUpdateMap(st, "_pendingAuraRemovedById")[auraId] = true
+			end
+		end
+	end
+
+	local added = updateInfo.addedAuras
+	if type(added) == "table" then
+		for i = 1, #added do
+			local aura = added[i]
+			local auraId = GF.GetAuraUpdateId(aura and aura.auraInstanceID)
+			if auraId then
+				if type(st._pendingAuraRemovedById) == "table" then st._pendingAuraRemovedById[auraId] = nil end
+				if type(st._pendingAuraUpdatedById) == "table" then st._pendingAuraUpdatedById[auraId] = nil end
+				GF.GetPendingAuraUpdateMap(st, "_pendingAuraAddedById")[auraId] = aura
+			end
+		end
+	end
+
+	local updated = updateInfo.updatedAuraInstanceIDs
+	if type(updated) == "table" then
+		for i = 1, #updated do
+			local auraId = GF.GetAuraUpdateId(updated[i])
+			if auraId and not (type(st._pendingAuraAddedById) == "table" and st._pendingAuraAddedById[auraId]) then GF.GetPendingAuraUpdateMap(st, "_pendingAuraUpdatedById")[auraId] = true end
+		end
+	end
+end
+
+function GF.BuildPendingAuraUpdateInfo(st)
+	if not st then return nil end
+	local info
+	local addedMap = st._pendingAuraAddedById
+	if type(addedMap) == "table" then
+		local added
+		for _, aura in pairs(addedMap) do
+			if aura then
+				added = added or {}
+				added[#added + 1] = aura
+			end
+		end
+		if added then
+			info = info or {}
+			info.addedAuras = added
+		end
+	end
+	local updatedMap = st._pendingAuraUpdatedById
+	if type(updatedMap) == "table" then
+		local updated
+		for auraId in pairs(updatedMap) do
+			updated = updated or {}
+			updated[#updated + 1] = auraId
+		end
+		if updated then
+			info = info or {}
+			info.updatedAuraInstanceIDs = updated
+		end
+	end
+	local removedMap = st._pendingAuraRemovedById
+	if type(removedMap) == "table" then
+		local removed
+		for auraId in pairs(removedMap) do
+			removed = removed or {}
+			removed[#removed + 1] = auraId
+		end
+		if removed then
+			info = info or {}
+			info.removedAuraInstanceIDs = removed
+		end
+	end
+	return info
+end
+
+function GF.FlushPendingAuraUpdate(self)
+	if not self then return end
+	local st = getState(self)
+	if not st then return end
+	st._auraUpdateQueued = nil
+	local pendingUnit = st._pendingAuraUnit
+	if pendingUnit and pendingUnit ~= getUnit(self) then
+		GF.ClearPendingAuraUpdate(st)
+		return
+	end
+	if st._pendingAuraFull == true then
+		GF.ClearPendingAuraUpdate(st)
+		GF:UpdateAuras(self, nil)
+		return
+	end
+
+	local updateInfo = GF.BuildPendingAuraUpdateInfo(st)
+	GF.ClearPendingAuraUpdate(st)
+	if updateInfo then GF:UpdateAuras(self, updateInfo) end
+end
+
 function GF:RequestAuraUpdate(self, updateInfo)
 	if not self then return end
-	GF:UpdateAuras(self, updateInfo)
+	local st = getState(self)
+	if not (st and C_Timer and C_Timer.After) then
+		GF:UpdateAuras(self, updateInfo)
+		return
+	end
+	local unit = getUnit(self)
+	if st._pendingAuraUnit and st._pendingAuraUnit ~= unit then GF.ClearPendingAuraUpdate(st) end
+	GF.MergePendingAuraUpdate(st, updateInfo)
+	st._pendingAuraUnit = unit
+	if st._auraUpdateQueued then return end
+	st._auraUpdateQueued = true
+	C_Timer.After(0, function()
+		if self and self._eqolUFState == st then GF.FlushPendingAuraUpdate(self) end
+	end)
+end
+
+function GF:UnitButton_EvaluateUnit(self, forceUpdate)
+	if not self then return false end
+	local unit = getUnit(self)
+	if not unitTokenExists(unit) then return false end
+	if self.unit ~= unit then
+		GF:UnitButton_SetUnit(self, unit)
+		return true
+	end
+	if forceUpdate then
+		GF:UpdateAll(self)
+		return true
+	end
+	return false
+end
+
+function GF.UnitButton_OnShow(self)
+	local st = self and self._eqolUFState
+	if st then st._missedHiddenEvent = nil end
+
+	GF:UnitButton_EvaluateUnit(self, true)
 end
 
 function GF:CacheUnitStatic(self)
@@ -6129,6 +6315,10 @@ function GF:BuildButton(self)
 	local tc = cfg.text or {}
 
 	if self.RegisterForClicks then self:RegisterForClicks("AnyUp") end
+	if not self._eqolUnitButtonOnShowHooked and self.HookScript then
+		self._eqolUnitButtonOnShowHooked = true
+		self:HookScript("OnShow", GF.UnitButton_OnShow)
+	end
 
 	_G.ClickCastFrames = _G.ClickCastFrames or {}
 	_G.ClickCastFrames[self] = true
@@ -10956,6 +11146,7 @@ function GF:UnitButton_SetUnit(self, unit)
 	self.unit = unit
 	local st = self._eqolUFState
 	if st then
+		GF.ClearPendingAuraUpdate(st)
 		st._auraCache = nil
 		st._auraCacheByKey = nil
 		st._auraQueryMax = nil
@@ -10970,17 +11161,21 @@ function GF:UnitButton_SetUnit(self, unit)
 	GF:UpdateAll(self)
 end
 
+function GF:UnitButton_UnregisterUnitEvents(self)
+	if not (self and self._eqolRegEv) then return end
+	for ev in pairs(self._eqolRegEv) do
+		if self.UnregisterEvent then self:UnregisterEvent(ev) end
+		self._eqolRegEv[ev] = nil
+	end
+end
+
 function GF:UnitButton_ClearUnit(self)
 	if not self then return end
 	self.unit = nil
-	if self._eqolRegEv then
-		for ev in pairs(self._eqolRegEv) do
-			if self.UnregisterEvent then self:UnregisterEvent(ev) end
-			self._eqolRegEv[ev] = nil
-		end
-	end
+	GF:UnitButton_UnregisterUnitEvents(self)
 	local st = self._eqolUFState
 	if st then
+		GF.ClearPendingAuraUpdate(st)
 		GFH.CancelReadyCheckIconTimer(st)
 		hideDispelTint(st)
 		stopDispelGlow(st.barGroup or self, nil, st)
@@ -11026,19 +11221,35 @@ function GF:UnitButton_RegisterUnitEvents(self, unit)
 	updateButtonConfig(self, cfg)
 
 	self._eqolRegEv = self._eqolRegEv or {}
-	for ev in pairs(self._eqolRegEv) do
-		if self.UnregisterEvent then self:UnregisterEvent(ev) end
-		self._eqolRegEv[ev] = nil
+	local registered = self._eqolRegEv
+	local desired = self._eqolRegDesired
+	if type(desired) ~= "table" then
+		desired = {}
+		self._eqolRegDesired = desired
+	else
+		wipe(desired)
 	end
 
 	local function regUnit(ev)
-		self:RegisterUnitEvent(ev, unit)
-		self._eqolRegEv[ev] = true
+		desired[ev] = "unit"
+		local needsRegister = true
+		if self.IsEventRegistered then
+			local isRegistered, unit1 = self:IsEventRegistered(ev)
+			needsRegister = not isRegistered or unit1 ~= unit
+		end
+		if needsRegister then self:RegisterUnitEvent(ev, unit) end
+		registered[ev] = "unit"
 	end
 
 	local function reg(ev)
-		self:RegisterEvent(ev)
-		self._eqolRegEv[ev] = true
+		desired[ev] = "event"
+		local needsRegister = true
+		if self.IsEventRegistered then
+			local isRegistered, unit1 = self:IsEventRegistered(ev)
+			needsRegister = not isRegistered or unit1 ~= nil
+		end
+		if needsRegister then self:RegisterEvent(ev) end
+		registered[ev] = "event"
 	end
 
 	regUnit("UNIT_CONNECTION")
@@ -11094,17 +11305,29 @@ function GF:UnitButton_RegisterUnitEvents(self, unit)
 	regUnit("INCOMING_SUMMON_CHANGED")
 	regUnit("INCOMING_RESURRECT_CHANGED")
 	regUnit("UNIT_PHASE")
+
+	for ev in pairs(registered) do
+		if not desired[ev] then
+			if self.UnregisterEvent then self:UnregisterEvent(ev) end
+			registered[ev] = nil
+		end
+	end
+	wipe(desired)
 end
 
 function GF.UnitButton_OnAttributeChanged(self, name, value)
 	if name ~= "unit" then return end
 	if value == nil or value == "" then
+		if self._eqolUseSecureUnitAttribute == true then
+			local st = self._eqolUFState
+			if st then GF.ClearPendingAuraUpdate(st) end
+			return
+		end
 		GF:UnitButton_ClearUnit(self)
 		GF:UpdateAll(self)
 		return
 	end
-	if self.unit == value then return end
-	GF:UnitButton_SetUnit(self, value)
+	GF:UnitButton_EvaluateUnit(self, false)
 end
 
 local function dispatchUnitHealth(btn, unit)
@@ -11112,7 +11335,6 @@ local function dispatchUnitHealth(btn, unit)
 	GF:UpdateHealthStyle(btn, unit, st)
 	GF:UpdateHealthValue(btn, unit, st)
 	GF:UpdateStatusText(btn, unit, st)
-	GF:UpdateName(btn, unit, st)
 end
 local function dispatchUnitAbsorb(btn, unit)
 	local st = getState(btn)
@@ -11199,6 +11421,11 @@ local UNIT_DISPATCH = {
 
 function GF.UnitButton_OnEvent(self, event, unit, ...)
 	if not isFeatureEnabled() then return end
+	if self.IsVisible and not self:IsVisible() then
+		local st = self._eqolUFState
+		if st then st._missedHiddenEvent = true end
+		return
+	end
 	local u = getUnit(self)
 	if not u or (unit and unit ~= u) then return end
 
@@ -11455,16 +11682,10 @@ local function applyVisibility(header, kind, cfg)
 	if not RegisterStateDriver then return end
 	if InCombatLockdown and InCombatLockdown() then return end
 
-	if UnregisterStateDriver then UnregisterStateDriver(header, "visibility") end
-
-	if cfg.enabled ~= true then
-		RegisterStateDriver(header, "visibility", "hide")
-		header._eqolVisibilityCond = "hide"
-		return
-	end
-
 	local cond = "hide"
-	if header._eqolForceHide or header._eqolSpecialHide or forceClientSceneHide then
+	if cfg.enabled ~= true then
+		cond = "hide"
+	elseif header._eqolForceHide or header._eqolSpecialHide or forceClientSceneHide then
 		cond = "hide"
 	elseif header._eqolForceShow then
 		cond = "show"
@@ -11484,6 +11705,8 @@ local function applyVisibility(header, kind, cfg)
 		cond = "[group:raid] show; hide"
 	end
 
+	if header._eqolVisibilityCond == cond then return end
+	if UnregisterStateDriver then UnregisterStateDriver(header, "visibility") end
 	RegisterStateDriver(header, "visibility", cond)
 	header._eqolVisibilityCond = cond
 end
@@ -13335,9 +13558,11 @@ function GF:ApplyHeaderAttributes(kind, options)
 
 	local wStr = ("%.3f"):format(renderW)
 	local hStr = ("%.3f"):format(renderH)
-
-	local initConfigFunction = string.format(
-		[[
+	local initConfigKey = wStr .. "x" .. hStr
+	local initConfigFunction = header._eqolInitConfigFunction
+	if header._eqolInitConfigKey ~= initConfigKey then
+		initConfigFunction = string.format(
+			[[
 		self:ClearAllPoints()
 		self:SetWidth(%s)
 		self:SetHeight(%s)
@@ -13345,14 +13570,13 @@ function GF:ApplyHeaderAttributes(kind, options)
 		self:SetAttribute('*type2','togglemenu')
 		RegisterUnitWatch(self)
 	]],
-		wStr,
-		hStr
-	)
-	setAttr("initialConfigFunction", initConfigFunction)
-
-	local function syncHeaderChildren()
-		forEachChild(header, function(child) syncHeaderChild(child, kind, cfg, renderW, renderH) end)
+			wStr,
+			hStr
+		)
+		header._eqolInitConfigKey = initConfigKey
+		header._eqolInitConfigFunction = initConfigFunction
 	end
+	setAttr("initialConfigFunction", initConfigFunction)
 
 	header._eqolFitScale = (kind == "raid" and not useGroupHeaders) and (raidViewportScale or 1) or 1
 	if header.SetScale then
@@ -13372,7 +13596,11 @@ function GF:ApplyHeaderAttributes(kind, options)
 		useGroupHeaders and 1 or 0
 	)
 	local layoutChanged = GF.UpdateHeaderChildLayoutKey(header, headerChildLayoutKey)
-	if not skipChildSync or layoutChanged then syncHeaderChildren() end
+	if not skipChildSync or layoutChanged then
+		forEachChild(header, function(child)
+			syncHeaderChild(child, kind, cfg, renderW, renderH)
+		end)
+	end
 
 	local anchor = GF.anchors and GF.anchors[kind]
 	if anchor then
@@ -13789,7 +14017,13 @@ end
 
 function GF:RefreshChangedUnitButtons()
 	local updated = 0
-	local seen = {}
+	local seen = self._refreshChangedUnitSeen
+	if type(seen) ~= "table" then
+		seen = {}
+		self._refreshChangedUnitSeen = seen
+	else
+		wipe(seen)
+	end
 
 	local function syncChild(child)
 		if not child or seen[child] then return end
@@ -13859,6 +14093,7 @@ function GF:RefreshChangedUnitButtons()
 		end
 	end
 
+	wipe(seen)
 	return updated
 end
 
@@ -13868,8 +14103,9 @@ function GF:RefreshSplitRoleHeadersForViewerRoleChange()
 		GF:MarkPendingHeaderRefresh("ma")
 		return
 	end
-	GF:ApplyHeaderAttributes("mt")
-	GF:ApplyHeaderAttributes("ma")
+	local options = GF._lightHeaderRefreshOptions
+	GF:ApplyHeaderAttributes("mt", options)
+	GF:ApplyHeaderAttributes("ma", options)
 	GF:RefreshChangedUnitButtons()
 end
 
@@ -15287,14 +15523,43 @@ end
 function GF.SetGroupAnchorPointFromCfg(frame, kind, cfg)
 	if not (frame and cfg) then return end
 
-	local target = GF.ValidateGroupAnchorTarget(kind, cfg.relativeTo, cfg.relativeTo, true)
-	if cfg.relativeTo ~= target then cfg.relativeTo = target end
+	local rawTarget = cfg.relativeTo
+	local target
+	if frame._eqolAnchorRawTarget == rawTarget and frame._eqolAnchorValidatedTarget then
+		target = frame._eqolAnchorValidatedTarget
+	else
+		target = GF.ValidateGroupAnchorTarget(kind, rawTarget, rawTarget, true)
+		if cfg.relativeTo ~= target then
+			cfg.relativeTo = target
+			rawTarget = target
+		end
+		frame._eqolAnchorRawTarget = rawTarget
+		frame._eqolAnchorValidatedTarget = target
+		frame._eqolAnchorRelativeFrame = nil
+	end
 
 	local point = cfg.point or "CENTER"
 	local relativePoint = cfg.relativePoint or point
 	local x = tonumber(cfg.x) or 0
 	local y = tonumber(cfg.y) or 0
-	local relativeFrame = GF.ResolveGroupAnchorTargetFrame(kind, target)
+	local relativeFrame = frame._eqolAnchorRelativeFrame
+	if not relativeFrame then
+		local targetKind = GF.GetGroupAnchorTargetKind(target)
+		local sharedAnchors = addon.SharedAnchors
+		if targetKind then
+			relativeFrame = (GF.anchors and GF.anchors[targetKind]) or _G[target] or UIParent
+		elseif sharedAnchors and sharedAnchors.ResolveFrame then
+			relativeFrame = sharedAnchors:ResolveFrame(target)
+		elseif target == "UIParent" then
+			relativeFrame = UIParent
+		else
+			relativeFrame = _G[target] or UIParent
+		end
+		frame._eqolAnchorRelativeFrame = relativeFrame
+	end
+	local anchorKey = tostring(target or "") .. "\031" .. tostring(point or "") .. "\031" .. tostring(relativePoint or "") .. "\031" .. tostring(x) .. "\031" .. tostring(y)
+	if frame._eqolAnchorPointKey == anchorKey then return end
+	frame._eqolAnchorPointKey = anchorKey
 
 	frame:ClearAllPoints()
 	if Pixel and Pixel.SetPoint then
@@ -29599,11 +29864,11 @@ function GF:RunPostRosterRefreshPass()
 	if self._postRosterHeaderApplyPending then
 		self._postRosterHeaderApplyPending = false
 		appliedHeaders = true
-		-- Mirror the immediate structural refresh once after the secure header settles.
-		self:ApplyHeaderAttributes("party")
-		self:ApplyHeaderAttributes("raid")
-		self:ApplyHeaderAttributes("mt")
-		self:ApplyHeaderAttributes("ma")
+		local options = GF._lightHeaderRefreshOptions
+		self:ApplyHeaderAttributes("party", options)
+		self:ApplyHeaderAttributes("raid", options)
+		self:ApplyHeaderAttributes("mt", options)
+		self:ApplyHeaderAttributes("ma", options)
 	else
 		local function nudgeVisible(header)
 			if not (header and header.IsShown and header:IsShown()) then return end
@@ -29621,22 +29886,30 @@ function GF:RunPostRosterRefreshPass()
 		end
 	end
 	local updated = self:RefreshChangedUnitButtons() or 0
-	self:RefreshNames({ skipLayout = true })
-	if appliedHeaders or updated > 0 then self:RefreshGroupIndicators() end
+	if appliedHeaders or updated > 0 then
+		self:RefreshNames({ skipLayout = true })
+		self:RefreshGroupIndicators()
+	end
 end
 
 function GF:RunPostEnterWorldRefreshPass()
 	if not isFeatureEnabled() then return end
 	self:EnsureHeaders()
-	self.FullRefresh()
-	self:RefreshRangeFade()
-	self:RefreshRoleIcons()
-	self:RefreshNames()
-	self:RefreshGroupIcons()
-	self:RefreshStatusIcons()
-	self:RefreshStatusText()
-	self:RefreshGroupIndicators()
-	queueGroupIndicatorRefresh(0.05, 4)
+	local fullRepair = self._postEnterWorldDidFullPass ~= true
+	self._postEnterWorldDidFullPass = true
+	local updated = fullRepair and self.FullRefresh() or self.Refresh()
+	if fullRepair or (updated or 0) > 0 then
+		self:RefreshRangeFade()
+		self:RefreshRoleIcons()
+		self:RefreshNames({ skipLayout = true })
+		self:RefreshGroupIcons()
+		self:RefreshStatusIcons()
+		self:RefreshStatusText()
+		self:RefreshGroupIndicators()
+		if fullRepair then queueGroupIndicatorRefresh(0.05, 2) end
+	else
+		self:RefreshConnectionStateIfChanged()
+	end
 end
 
 function GF:SchedulePostRosterRefresh()
@@ -29671,7 +29944,7 @@ function GF:SchedulePostEnterWorldRefresh()
 			return
 		end
 		if not (InCombatLockdown and InCombatLockdown()) then GF:RunPostEnterWorldRefreshPass() end
-		if (GF._postEnterWorldRefreshPasses or 0) >= 8 then GF:CancelPostEnterWorldRefreshTicker() end
+		if (GF._postEnterWorldRefreshPasses or 0) >= 4 then GF:CancelPostEnterWorldRefreshTicker() end
 	end)
 end
 
@@ -29690,6 +29963,7 @@ do
 				GF:EnsureEditMode()
 			end
 		elseif event == "PLAYER_ENTERING_WORLD" then
+			GF._postEnterWorldDidFullPass = nil
 			GF:RunPostEnterWorldRefreshPass()
 			GF:SchedulePostEnterWorldRefresh()
 		elseif event == "PLAYER_REGEN_ENABLED" then
@@ -29742,21 +30016,22 @@ do
 			local sortMethod = cfg and resolveSortMethod(cfg) or "INDEX"
 			local updatedCount = 0
 			if headerStateChanged then
-				GF._postRosterHeaderApplyPending = true
 				if InCombatLockdown and InCombatLockdown() then
+					GF._postRosterHeaderApplyPending = true
 					GF:MarkPendingHeaderRefresh("party")
 					GF:MarkPendingHeaderRefresh("raid")
 					GF:MarkPendingHeaderRefresh("mt")
 					GF:MarkPendingHeaderRefresh("ma")
 				else
-					GF:ApplyHeaderAttributes("party")
-					GF:ApplyHeaderAttributes("raid")
-					GF:ApplyHeaderAttributes("mt")
-					GF:ApplyHeaderAttributes("ma")
+					local options = GF._lightHeaderRefreshOptions
+					GF:ApplyHeaderAttributes("party", options)
+					GF:ApplyHeaderAttributes("raid", options)
+					GF:ApplyHeaderAttributes("mt", options)
+					GF:ApplyHeaderAttributes("ma", options)
 				end
 			end
 			updatedCount = updatedCount + (GF:RefreshChangedUnitButtons() or 0)
-			GF:RefreshConnectionState()
+			GF:RefreshConnectionStateIfChanged()
 			GF:RefreshGroupIcons()
 			if headerStateChanged or updatedCount > 0 then
 				GF:RefreshStatusIcons()
@@ -29769,20 +30044,21 @@ do
 		elseif event == "RAID_ROSTER_UPDATE" then
 			local headerStateChanged = GF:DidRosterStateChange()
 			if headerStateChanged then
-				GF._postRosterHeaderApplyPending = true
 				if InCombatLockdown and InCombatLockdown() then
+					GF._postRosterHeaderApplyPending = true
 					GF:MarkPendingHeaderRefresh("party")
 					GF:MarkPendingHeaderRefresh("raid")
 					GF:MarkPendingHeaderRefresh("mt")
 					GF:MarkPendingHeaderRefresh("ma")
 				else
-					GF:ApplyHeaderAttributes("party")
-					GF:ApplyHeaderAttributes("raid")
-					GF:ApplyHeaderAttributes("mt")
-					GF:ApplyHeaderAttributes("ma")
+					local options = GF._lightHeaderRefreshOptions
+					GF:ApplyHeaderAttributes("party", options)
+					GF:ApplyHeaderAttributes("raid", options)
+					GF:ApplyHeaderAttributes("mt", options)
+					GF:ApplyHeaderAttributes("ma", options)
 				end
 			end
-			GF:RefreshConnectionState()
+			GF:RefreshConnectionStateIfChanged()
 			GF:RefreshGroupIcons()
 			GF:RefreshStatusIcons()
 			GF:ScheduleConnectionRefresh()
