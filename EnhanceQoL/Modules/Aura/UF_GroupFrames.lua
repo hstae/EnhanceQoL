@@ -8219,7 +8219,7 @@ local function getAuraKindFlags(unit, aura, helpfulFilter, harmfulFilter, extern
 	if wantBuff or wantsHealerBuffPlacement then
 		helpfulMatch = UFHelper.IsAuraFilteredIn(unit, aura, helpfulFilter)
 		if helpfulMatch then flags = setAuraFlag(flags, AURA_KIND_HELPFUL) end
-		if wantsHealerBuffPlacement and aura.spellId and UF.GroupFramesHealerBuffs and UF.GroupFramesHealerBuffs.GetFamilyFromSpell then
+		if wantsHealerBuffPlacement and UFHelper.IsHelpfulAura(aura, true) and aura.spellId and UF.GroupFramesHealerBuffs and UF.GroupFramesHealerBuffs.GetFamilyFromSpell then
 			local healerTracked = UF.GroupFramesHealerBuffs.GetFamilyFromSpell(aura.spellId) ~= nil
 			if healerTracked then flags = setAuraFlag(flags, 16) end
 		end
@@ -9360,7 +9360,7 @@ function GF:UpdateAuras(self, updateInfo)
 	if touchHealer and wantsHealerBuffPlacement and UF.GroupFramesHealerBuffs and UF.GroupFramesHealerBuffs.UpdateFromAuras then
 		UF.GroupFramesHealerBuffs.UpdateFromAuras(self, updateInfo, buffCache, changed, false, healerBuffCompiled)
 		st._healerBuffPlacementActive = true
-	elseif st._healerBuffPlacementActive and UF.GroupFramesHealerBuffs and UF.GroupFramesHealerBuffs.ClearButton then
+	elseif not wantsHealerBuffPlacement and st._healerBuffPlacementActive and UF.GroupFramesHealerBuffs and UF.GroupFramesHealerBuffs.ClearButton then
 		UF.GroupFramesHealerBuffs.ClearButton(self)
 		st._healerBuffPlacementActive = nil
 	end
