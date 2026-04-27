@@ -824,13 +824,14 @@ local function applyHighlightStyle(st, cfg, key)
 		else
 			levelOffset = 4
 		end
-		if cfg.frameLevelOffset ~= nil then levelOffset = cfg.frameLevelOffset end
+		local hasExplicitFrameLevel = cfg.frameLevelOffset ~= nil
+		if hasExplicitFrameLevel then levelOffset = cfg.frameLevelOffset end
 		levelOffset = clampNumber(levelOffset, -20, 1000, 4)
 		levelOffset = floor(levelOffset + (levelOffset >= 0 and 0.5 or -0.5))
 		if key == "aggro" then levelOffset = levelOffset + 1 end
 		local targetLevel = GF.ClampFrameLevel(baseLevel + levelOffset)
 		local border = st.barGroup._ufBorder
-		if layer ~= "BEHIND_BORDER" and border and border.GetFrameLevel and border.GetFrameStrata and frame.GetFrameStrata and border:GetFrameStrata() == frame:GetFrameStrata() then
+		if not hasExplicitFrameLevel and layer ~= "BEHIND_BORDER" and border and border.GetFrameLevel and border.GetFrameStrata and frame.GetFrameStrata and border:GetFrameStrata() == frame:GetFrameStrata() then
 			local borderLevel = border:GetFrameLevel()
 			if borderLevel and targetLevel <= borderLevel then targetLevel = GF.ClampFrameLevel(borderLevel + 1) end
 		end
