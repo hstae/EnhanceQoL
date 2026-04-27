@@ -3481,6 +3481,7 @@ function AuraUtil.cacheTargetAura(aura, unit, kind)
 	t.icon = aura.icon
 	t.isHelpful = aura.isHelpful
 	t.isHarmful = aura.isHarmful
+	t.isSample = aura.isSample == true
 	t.applications = aura.applications
 	t.duration = aura.duration
 	t.expirationTime = aura.expirationTime
@@ -3889,7 +3890,7 @@ function AuraUtil.applyAuraToButton(btn, aura, ac, isDebuff, unitToken, harmfulF
 	if showStacks == nil then showStacks = true end
 	if showStacks and (issecretvalue and issecretvalue(aura.applications) or aura.applications and aura.applications > 1) then
 		local appStacks = aura.applications
-		if not aura.isSample and C_UnitAuras.GetAuraApplicationDisplayCount then
+		if not aura.isSample and aura.auraInstanceID and aura.auraInstanceID > 0 and C_UnitAuras.GetAuraApplicationDisplayCount then
 			appStacks = C_UnitAuras.GetAuraApplicationDisplayCount(unitToken, aura.auraInstanceID, 2, 1000) -- TODO actual 4th param is required because otherwise it's always "*" this always get's the right stack shown
 		end
 
@@ -4238,9 +4239,7 @@ function AuraUtil.GetAuraRenderer(value)
 end
 
 function AuraUtil.isBlizzardAuraRenderer(ac, defAc)
-	local renderer = ac and ac.renderer
-	if renderer == nil and defAc then renderer = defAc.renderer end
-	return AuraUtil.GetAuraRenderer(renderer) == "BLIZZARD"
+	return false
 end
 
 function AuraUtil.ApplyBlizzardAuraRenderer(unit, st, cfg, def, allowSample)

@@ -1780,8 +1780,11 @@ function Reminder:GetPlayerAuraPresenceSnapshot()
 						end
 
 						local auraName = aura.name
-						if not (issecretvalue and issecretvalue(auraName)) and type(auraName) == "string" and auraName ~= "" then snapshot.names[auraName] = true end
-						if auraId and type(auraName) == "string" and auraName ~= "" then snapshot.instanceNames[auraId] = auraName end
+						if issecretvalue and issecretvalue(auraName) then auraName = nil end
+						if type(auraName) == "string" and auraName ~= "" then
+							snapshot.names[auraName] = true
+							if auraId then snapshot.instanceNames[auraId] = auraName end
+						end
 
 						local auraIcon = aura.icon
 						if issecretvalue and issecretvalue(auraIcon) then auraIcon = nil end
@@ -4286,6 +4289,8 @@ end
 
 function Reminder.PreparedAuraDataMatchesValues(prepared, spellId, auraName)
 	if type(prepared) ~= "table" then return false end
+	spellId = normalizeSpellId(spellId)
+	if issecretvalue and issecretvalue(auraName) then auraName = nil end
 	if spellId and type(prepared.spellIds) == "table" then
 		for i = 1, #prepared.spellIds do
 			if normalizeSpellId(prepared.spellIds[i]) == spellId then return true end

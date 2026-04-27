@@ -6,6 +6,9 @@
 
 - Group Frames / Healer Buff Placement: Fixed healer buff indicators disappearing on unrelated aura updates and limited tracked healer buff re-filtering to the required player-owned helpful aura check.
 - Group Frames: Restored `AnyUp` click registration on secure group unit buttons so right-click unit menus work again.
+- Class Buff Reminder: Added secret-value guards to supplemental consumable aura matching so fake restricted aura data no longer errors on secret aura names.
+- Unit Frames / Edit Mode: Fixed sample aura stack rendering treating preview auras as real unit aura instances, which could trigger `C_UnitAuras.GetAuraApplicationDisplayCount` errors.
+- Unit Frames / Auras: Removed the Blizzard aura renderer from normal unit frames while keeping it available for group and raid frames.
 
 ---
 

@@ -664,18 +664,6 @@ local function appendUnitAuraSettings(list, unit, def, refreshSelf)
 		{ value = "PLAYER", label = L["UFAuraEnemyDebuffFilterPlayer"] or "Only my debuffs" },
 		{ value = "ALL", label = L["UFAuraEnemyDebuffFilterAll"] or "All debuffs" },
 	}
-	local auraRendererOptions = {
-		{ value = "CUSTOM", label = L["UFAuraRendererCustom"] or "EnhanceQoL" },
-		{ value = "BLIZZARD", label = L["UFAuraRendererBlizzard"] or "Blizzard" },
-	}
-
-	local function getAuraRenderer()
-		local ac = ensureAuraSettingsConfig(unit, auraDef)
-		local renderer = tostring(ac.renderer or auraDef.renderer or "CUSTOM"):upper()
-		if renderer == "BLIZZARD" or renderer == "BLIZZARD_CONTAINER" then return "BLIZZARD" end
-		return "CUSTOM"
-	end
-
 	local function syncAuraState(ac)
 		if type(ac) ~= "table" then return end
 		ac.buff = ac.buff or {}
@@ -1114,20 +1102,6 @@ local function appendUnitAuraSettings(list, unit, def, refreshSelf)
 		)
 		list[#list].isEnabled = isSectionEnabled
 	end
-
-	list[#list + 1] = radioDropdown(
-		L["UFAuraRenderer"] or "Aura renderer",
-		auraRendererOptions,
-		getAuraRenderer,
-		function(val)
-			local ac = ensureAuraSettingsConfig(unit, auraDef)
-			ac.renderer = (val == "BLIZZARD") and "BLIZZARD" or "CUSTOM"
-			refreshSelf()
-			refreshAuras()
-		end,
-		"CUSTOM",
-		nil
-	)
 
 	list[#list + 1] = { name = L["Buffs"] or "Buffs", kind = UF.ui.settingType.Collapsible, id = "buffs", defaultCollapsed = true }
 	appendAuraSection("buff", "buffs", false)
