@@ -3441,7 +3441,7 @@ end
 
 function Reminder.BuildPendingAuraUpdateInfo(entry)
 	if type(entry) ~= "table" then return nil end
-	local info
+	local info = nil
 	local addedMap = entry.addedAurasById
 	if type(addedMap) == "table" then
 		local added
