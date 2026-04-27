@@ -6051,165 +6051,6 @@ local function updateButtonConfig(self, cfg)
 	st._wantsHealerBuffPlacement = wantsHealerBuffPlacement
 end
 
-function GF.GetPendingAuraUpdateMap(st, key)
-	if not st then return nil end
-	local map = st[key]
-	if type(map) ~= "table" then
-		map = {}
-		st[key] = map
-	end
-	return map
-end
-
-function GF.ClearPendingAuraUpdate(st)
-	if not st then return end
-	st._pendingAuraFull = nil
-	st._pendingAuraUnit = nil
-	if type(st._pendingAuraAddedById) == "table" then wipe(st._pendingAuraAddedById) end
-	if type(st._pendingAuraUpdatedById) == "table" then wipe(st._pendingAuraUpdatedById) end
-	if type(st._pendingAuraRemovedById) == "table" then wipe(st._pendingAuraRemovedById) end
-end
-
-function GF.GetAuraUpdateId(value)
-	if value == nil then return nil end
-	if issecretvalue and issecretvalue(value) then return nil end
-	return value
-end
-
-function GF.IsFullAuraUpdate(updateInfo)
-	if not updateInfo or (issecretvalue and issecretvalue(updateInfo)) then return true end
-	if type(updateInfo) ~= "table" then return true end
-	local full = updateInfo.isFullUpdate
-	if issecretvalue and issecretvalue(full) then return true end
-	return full == true
-end
-
-function GF.MergePendingAuraUpdate(st, updateInfo)
-	if not st then return end
-	if GF.IsFullAuraUpdate(updateInfo) then
-		GF.ClearPendingAuraUpdate(st)
-		st._pendingAuraFull = true
-		return
-	end
-	if st._pendingAuraFull == true then return end
-
-	local removed = updateInfo.removedAuraInstanceIDs
-	if type(removed) == "table" then
-		for i = 1, #removed do
-			local auraId = GF.GetAuraUpdateId(removed[i])
-			if auraId then
-				if type(st._pendingAuraAddedById) == "table" then st._pendingAuraAddedById[auraId] = nil end
-				if type(st._pendingAuraUpdatedById) == "table" then st._pendingAuraUpdatedById[auraId] = nil end
-				GF.GetPendingAuraUpdateMap(st, "_pendingAuraRemovedById")[auraId] = true
-			end
-		end
-	end
-
-	local added = updateInfo.addedAuras
-	if type(added) == "table" then
-		for i = 1, #added do
-			local aura = added[i]
-			local auraId = GF.GetAuraUpdateId(aura and aura.auraInstanceID)
-			if auraId then
-				if type(st._pendingAuraRemovedById) == "table" then st._pendingAuraRemovedById[auraId] = nil end
-				if type(st._pendingAuraUpdatedById) == "table" then st._pendingAuraUpdatedById[auraId] = nil end
-				GF.GetPendingAuraUpdateMap(st, "_pendingAuraAddedById")[auraId] = aura
-			end
-		end
-	end
-
-	local updated = updateInfo.updatedAuraInstanceIDs
-	if type(updated) == "table" then
-		for i = 1, #updated do
-			local auraId = GF.GetAuraUpdateId(updated[i])
-			if auraId and not (type(st._pendingAuraAddedById) == "table" and st._pendingAuraAddedById[auraId]) then GF.GetPendingAuraUpdateMap(st, "_pendingAuraUpdatedById")[auraId] = true end
-		end
-	end
-end
-
-function GF.BuildPendingAuraUpdateInfo(st)
-	if not st then return nil end
-	local info
-	local addedMap = st._pendingAuraAddedById
-	if type(addedMap) == "table" then
-		local added
-		for _, aura in pairs(addedMap) do
-			if aura then
-				added = added or {}
-				added[#added + 1] = aura
-			end
-		end
-		if added then
-			info = info or {}
-			info.addedAuras = added
-		end
-	end
-	local updatedMap = st._pendingAuraUpdatedById
-	if type(updatedMap) == "table" then
-		local updated
-		for auraId in pairs(updatedMap) do
-			updated = updated or {}
-			updated[#updated + 1] = auraId
-		end
-		if updated then
-			info = info or {}
-			info.updatedAuraInstanceIDs = updated
-		end
-	end
-	local removedMap = st._pendingAuraRemovedById
-	if type(removedMap) == "table" then
-		local removed
-		for auraId in pairs(removedMap) do
-			removed = removed or {}
-			removed[#removed + 1] = auraId
-		end
-		if removed then
-			info = info or {}
-			info.removedAuraInstanceIDs = removed
-		end
-	end
-	return info
-end
-
-function GF.FlushPendingAuraUpdate(self)
-	if not self then return end
-	local st = getState(self)
-	if not st then return end
-	st._auraUpdateQueued = nil
-	local pendingUnit = st._pendingAuraUnit
-	if pendingUnit and pendingUnit ~= getUnit(self) then
-		GF.ClearPendingAuraUpdate(st)
-		return
-	end
-	if st._pendingAuraFull == true then
-		GF.ClearPendingAuraUpdate(st)
-		GF:UpdateAuras(self, nil)
-		return
-	end
-
-	local updateInfo = GF.BuildPendingAuraUpdateInfo(st)
-	GF.ClearPendingAuraUpdate(st)
-	if updateInfo then GF:UpdateAuras(self, updateInfo) end
-end
-
-function GF:RequestAuraUpdate(self, updateInfo)
-	if not self then return end
-	local st = getState(self)
-	if not (st and C_Timer and C_Timer.After) then
-		GF:UpdateAuras(self, updateInfo)
-		return
-	end
-	local unit = getUnit(self)
-	if st._pendingAuraUnit and st._pendingAuraUnit ~= unit then GF.ClearPendingAuraUpdate(st) end
-	GF.MergePendingAuraUpdate(st, updateInfo)
-	st._pendingAuraUnit = unit
-	if st._auraUpdateQueued then return end
-	st._auraUpdateQueued = true
-	C_Timer.After(0, function()
-		if self and self._eqolUFState == st then GF.FlushPendingAuraUpdate(self) end
-	end)
-end
-
 function GF:UnitButton_EvaluateUnit(self, forceUpdate)
 	if not self then return false end
 	local unit = getUnit(self)
@@ -6314,7 +6155,6 @@ function GF:BuildButton(self)
 	local pcfg = cfg.power or {}
 	local tc = cfg.text or {}
 
-	if self.RegisterForClicks then self:RegisterForClicks("AnyUp") end
 	if not self._eqolUnitButtonOnShowHooked and self.HookScript then
 		self._eqolUnitButtonOnShowHooked = true
 		self:HookScript("OnShow", GF.UnitButton_OnShow)
@@ -6600,9 +6440,6 @@ function GF:BuildButton(self)
 			stopDispelGlow((s and s.barGroup) or btn, nil, s)
 		end)
 	end
-
-	self:SetClampedToScreen(true)
-	self:SetScript("OnMouseDown", nil)
 
 	if not st._menuHooked then
 		st._menuHooked = true
@@ -9116,13 +8953,9 @@ local function fullScanGroupAuras(
 	end
 end
 
-local function updateGroupAuraCache(unit, st, updateInfo, ac, helpfulFilter, harmfulFilter, externalFilter, dispelFilter, wantsHealerBuffPlacement, contextKind)
+local function updateGroupAuraCache(unit, st, updateInfo, helpfulFilter, harmfulFilter, externalFilter, dispelFilter, wantBuff, wantDebuff, wantExternals, wantsDispel, wantsHealerBuffPlacement, contextKind)
 	if not (unit and st and updateInfo) then return end
 
-	local wantBuff = ((ac and (ac.buff and ac.buff.enabled ~= false)) or wantsHealerBuffPlacement) and true or false
-	local wantDebuff = ac and (ac.debuff and ac.debuff.enabled ~= false) or false
-	local wantExternals = ac and (ac.externals and ac.externals.enabled ~= false) or false
-	local wantsDispel = st._wantsDispelTint == true
 	local wantsAny = wantBuff or wantDebuff or wantExternals or wantsDispel
 	local buffCache = getAuraCache(st, "buff")
 	local debuffCache = getAuraCache(st, "debuff")
@@ -9162,18 +8995,13 @@ local function updateGroupAuraCache(unit, st, updateInfo, ac, helpfulFilter, har
 		for i = 1, #updateInfo.updatedAuraInstanceIDs do
 			local auraId = updateInfo.updatedAuraInstanceIDs[i]
 			if auraId then
-				local cachedAura = buffCache.auras[auraId] or debuffCache.auras[auraId]
 				local cachedFlags = flagsById and flagsById[auraId]
-				local wasKnown = cachedAura or cachedFlags
+				local wasKnown = buffCache.auras[auraId] or debuffCache.auras[auraId] or cachedFlags
 				if wasKnown then
 					local aura = C_UnitAuras.GetAuraDataByAuraInstanceID(unit, auraId)
 					if aura then
-						if cachedFlags then
-							cacheAuraWithFlags(st, flagsById, aura, cachedFlags)
-						else
-							if buffCache.auras[auraId] then buffCache.auras[auraId] = aura end
-							if debuffCache.auras[auraId] then debuffCache.auras[auraId] = aura end
-						end
+						local flags = getAuraKindFlags(unit, aura, helpfulFilter, harmfulFilter, externalFilter, dispelFilter, wantBuff, wantDebuff, wantExternals, wantsDispel, wantsHealerBuffPlacement, contextKind)
+						cacheAuraWithFlags(st, flagsById, aura, flags)
 					elseif wasKnown then
 						markDispelAuraDirty(st, auraId)
 						removeAuraFromGroupStore(buffCache, nil, auraId)
@@ -9400,12 +9228,14 @@ function GF:UpdateAuras(self, updateInfo)
 		end
 		return
 	end
-	local touchBuff, touchDebuff, touchExternals
+	local touchBuff, touchDebuff, touchExternals, touchDispel, touchHealer
 	local function markKinds(flags)
 		if not flags then return end
 		if hasAuraFlag(flags, AURA_KIND_HELPFUL) then touchBuff = true end
 		if hasAuraFlag(flags, AURA_KIND_HARMFUL) then touchDebuff = true end
 		if hasAuraFlag(flags, AURA_KIND_EXTERNAL) then touchExternals = true end
+		if hasAuraFlag(flags, AURA_KIND_DISPEL) then touchDispel = true end
+		if hasAuraFlag(flags, 16) then touchHealer = true end
 	end
 	if updateInfo then
 		local preFlags = st._auraKindById
@@ -9415,23 +9245,53 @@ function GF:UpdateAuras(self, updateInfo)
 			if preFlags then
 				if removed then
 					for i = 1, #removed do
-						markKinds(preFlags[removed[i]])
+						local auraId = removed[i]
+						local flags = preFlags[auraId]
+						if flags then
+							markKinds(flags)
+						elseif auraId then
+							if buffCache.auras[auraId] then
+								touchBuff = wantBuff
+								touchExternals = wantExternals
+								touchHealer = wantsHealerBuffPlacement
+							end
+							if debuffCache.auras[auraId] then
+								touchDebuff = wantDebuff
+								touchDispel = wantsDispelTint
+							end
+						end
 					end
 				end
 				if updated then
 					for i = 1, #updated do
-						markKinds(preFlags[updated[i]])
+						local auraId = updated[i]
+						local flags = preFlags[auraId]
+						if flags then
+							markKinds(flags)
+						elseif auraId then
+							if buffCache.auras[auraId] then
+								touchBuff = wantBuff
+								touchExternals = wantExternals
+								touchHealer = wantsHealerBuffPlacement
+							end
+							if debuffCache.auras[auraId] then
+								touchDebuff = wantDebuff
+								touchDispel = wantsDispelTint
+							end
+						end
 					end
 				end
 			else
 				touchBuff = wantBuff
 				touchDebuff = wantDebuff
 				touchExternals = wantExternals
+				touchDispel = wantsDispelTint
+				touchHealer = wantsHealerBuffPlacement
 			end
 		end
 	end
 
-	updateGroupAuraCache(unit, st, updateInfo, ac, helpfulFilter, harmfulFilter, externalFilter, dispelFilter, wantsHealerBuffPlacement, auraContextKind)
+	updateGroupAuraCache(unit, st, updateInfo, helpfulFilter, harmfulFilter, externalFilter, dispelFilter, wantBuff, wantDebuff, wantExternals, wantsDispelTint, wantsHealerBuffPlacement, auraContextKind)
 	local changed = st._auraChanged
 	if updateInfo then
 		if not changed then
@@ -9461,10 +9321,12 @@ function GF:UpdateAuras(self, updateInfo)
 		end
 		local flags = st._auraKindById
 		if not flags then
-			if not (touchBuff or touchDebuff or touchExternals) then
+			if not (touchBuff or touchDebuff or touchExternals or touchDispel or touchHealer) then
 				touchBuff = wantBuff
 				touchDebuff = wantDebuff
 				touchExternals = wantExternals
+				touchDispel = wantsDispelTint
+				touchHealer = wantsHealerBuffPlacement
 			end
 		else
 			if added then
@@ -9488,11 +9350,11 @@ function GF:UpdateAuras(self, updateInfo)
 		if wantExternals and touchExternals then updateAuraType(self, unit, st, ac, "externals", buffCache, changed, healerBuffCompiled) end
 	end
 	if wantsDispelTint then
-		GF:UpdateDispelTint(self, debuffCache, dispelFilter, nil, AURA_KIND_DISPEL)
-	else
+		if touchDispel then GF:UpdateDispelTint(self, debuffCache, dispelFilter, nil, AURA_KIND_DISPEL) end
+	elseif st._dispelTintShown ~= false or st._dispelGlowActive or st._dispelAuraId or st._dispelAuraIdDirty then
 		GF:UpdateDispelTint(self, nil, nil)
 	end
-	if wantsHealerBuffPlacement and UF.GroupFramesHealerBuffs and UF.GroupFramesHealerBuffs.UpdateFromAuras then
+	if touchHealer and wantsHealerBuffPlacement and UF.GroupFramesHealerBuffs and UF.GroupFramesHealerBuffs.UpdateFromAuras then
 		UF.GroupFramesHealerBuffs.UpdateFromAuras(self, updateInfo, buffCache, changed, false, healerBuffCompiled)
 		st._healerBuffPlacementActive = true
 	elseif st._healerBuffPlacementActive and UF.GroupFramesHealerBuffs and UF.GroupFramesHealerBuffs.ClearButton then
@@ -11159,7 +11021,6 @@ function GF:UnitButton_SetUnit(self, unit)
 	self.unit = unit
 	local st = self._eqolUFState
 	if st then
-		GF.ClearPendingAuraUpdate(st)
 		st._auraCache = nil
 		st._auraCacheByKey = nil
 		st._auraQueryMax = nil
@@ -11188,7 +11049,6 @@ function GF:UnitButton_ClearUnit(self)
 	GF:UnitButton_UnregisterUnitEvents(self)
 	local st = self._eqolUFState
 	if st then
-		GF.ClearPendingAuraUpdate(st)
 		GFH.CancelReadyCheckIconTimer(st)
 		hideDispelTint(st)
 		stopDispelGlow(st.barGroup or self, nil, st)
@@ -11332,8 +11192,6 @@ function GF.UnitButton_OnAttributeChanged(self, name, value)
 	if name ~= "unit" then return end
 	if value == nil or value == "" then
 		if self._eqolUseSecureUnitAttribute == true then
-			local st = self._eqolUFState
-			if st then GF.ClearPendingAuraUpdate(st) end
 			return
 		end
 		GF:UnitButton_ClearUnit(self)
@@ -11386,7 +11244,7 @@ local function dispatchUnitFlags(btn, unit)
 	GF:UpdateName(btn, unit, st)
 end
 local function dispatchUnitRange(btn, _, inRange) GF:UpdateRange(btn, inRange) end
-local function dispatchUnitAura(btn, _, updateInfo) GF:RequestAuraUpdate(btn, updateInfo) end
+local function dispatchUnitAura(btn, _, updateInfo) GF:UpdateAuras(btn, updateInfo) end
 local function dispatchUnitPortrait(btn, unit)
 	local st = getState(btn)
 	GF:UpdatePortrait(btn, unit, st)
