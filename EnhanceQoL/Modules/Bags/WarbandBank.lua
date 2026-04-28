@@ -2656,12 +2656,10 @@ local function layoutFrame(layoutData, context)
 		local sectionWidth = (visibleColumns * buttonSize) + (math.max(0, visibleColumns - 1) * buttonSpacing)
 		local blockHeight = 0
 		local textElementID = section and section.groupID and "subcategoryHeader" or "categoryHeader"
-		local preferFullHeaderWidth = addon.GetSubcategoryFullLabels and addon.GetSubcategoryFullLabels()
 		if showSectionHeader then
 			blockHeight = blockHeight + SECTION_HEADER_HEIGHT
-			if preferFullHeaderWidth then
-				sectionWidth = math.max(sectionWidth, getMeasuredSectionHeaderWidth(section.label, textElementID))
-			end
+			local headerWidth = getMeasuredSectionHeaderWidth(section.label, textElementID)
+			sectionWidth = math.max(sectionWidth, headerWidth)
 		end
 		if itemCount > 0 and not sectionCollapsed then
 			if showSectionHeader then

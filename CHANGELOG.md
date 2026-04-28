@@ -5,6 +5,7 @@
 ### ✨ Added
 
 - Bags: Added an optional close button to the integrated Bags, Bank, and Warband Bank windows, enabled by default for users who prefer closing bags via the top-corner X.
+- Economy / Bank: Added a remove option for tracked characters, clearing their gold tracking, ignore state, and per-character Warband bank target.
 
 ### 🔧 Changed
 
@@ -12,6 +13,7 @@
 
 ### 🐛 Fixed
 
+- Bags: Fixed collapsed compact-layout section headers such as Miscellaneous shrinking to `...` instead of keeping enough width for the label.
 - Group Frames: Moved `AnyUp` click registration onto the secure unit button XML template, preserving combat-created raid button click handling without protected `RegisterForClicks` calls from Lua OnLoad.
 - Unit Frames: Guarded restricted `UnitIsPlayer` and `UnitIsUnit` boolean results before using them in target/private-aura helper logic, preventing secret-value errors in raid encounters.
 

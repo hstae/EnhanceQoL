@@ -4244,10 +4244,8 @@ local function getSectionLayoutMetrics(section, showSectionHeader, sectionCollap
 
 	if showSectionHeader then
 		blockHeight = blockHeight + Core.SECTION_HEADER_HEIGHT
-		if not sectionCollapsed then
-			headerWidth = getMeasuredSectionHeaderWidth(section.label, section.isCustom, textElementID)
-			sectionWidth = math.max(sectionWidth, headerWidth)
-		end
+		headerWidth = getMeasuredSectionHeaderWidth(section.label, section.isCustom, textElementID)
+		sectionWidth = math.max(sectionWidth, headerWidth)
 	end
 
 	if itemCount > 0 and not sectionCollapsed then
