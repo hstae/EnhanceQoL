@@ -1664,7 +1664,7 @@ local defaults = {
 			offset = { x = 0, y = 0 },
 		},
 		classResource = {
-			enabled = true,
+			enabled = false,
 			anchor = "BOTTOM",
 			offset = { x = 0, y = -28 },
 			scale = 1,

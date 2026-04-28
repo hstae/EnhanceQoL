@@ -1,4 +1,4 @@
--- luacheck: globals ACCOUNT_BANK_TITLE ACCOUNT_BANK_DEPOSIT_BUTTON_LABEL CHARACTER_BANK_DEPOSIT_BUTTON_LABEL C_Bank ItemUtil ScrollFrameTemplate_OnMouseWheel BANK_DEPOSIT_INCLUDE_REAGENTS_CHECKBOX_LABEL ClearItemButtonOverlay SetItemButtonQuality ItemButtonUtil PanelTemplates_TabResize ITEM_SEARCHBAR_LIST BagSearch_OnHide BagSearch_OnTextChanged BagSearch_OnChar BankPanelIncludeReagentsCheckboxMixin UIPanelScrollFrame_OnLoad COPPER_PER_GOLD COPPER_PER_SILVER
+-- luacheck: globals ACCOUNT_BANK_TITLE ACCOUNT_BANK_DEPOSIT_BUTTON_LABEL CHARACTER_BANK_DEPOSIT_BUTTON_LABEL C_Bank ItemUtil ScrollFrameTemplate_OnMouseWheel BANK_DEPOSIT_INCLUDE_REAGENTS_CHECKBOX_LABEL ClearItemButtonOverlay SetItemButtonQuality ItemButtonUtil PanelTemplates_TabResize ITEM_SEARCHBAR_LIST BagSearch_OnHide BagSearch_OnTextChanged BagSearch_OnChar BankPanelIncludeReagentsCheckboxMixin BankPanelPurchaseTabButtonMixin UIPanelScrollFrame_OnLoad COPPER_PER_GOLD COPPER_PER_SILVER WHITE_FONT_COLOR COSTS
 local addonName, addon = ...
 addon = addon or {}
 _G[addonName] = addon
@@ -286,6 +286,22 @@ local function formatMoneyString(amount)
 	return tostring(amount)
 end
 
+local function getNextPurchasableBankTabData(bankType)
+	if not bankType or not C_Bank or not C_Bank.FetchNextPurchasableBankTabData then
+		return nil
+	end
+
+	return C_Bank.FetchNextPurchasableBankTabData(bankType)
+end
+
+local function canPurchaseBankTab(bankType)
+	if not bankType or not C_Bank or not C_Bank.CanPurchaseBankTab or not C_Bank.HasMaxBankTabs then
+		return false
+	end
+
+	return C_Bank.CanPurchaseBankTab(bankType) and not C_Bank.HasMaxBankTabs(bankType)
+end
+
 local function getBankTypeForContextID(contextID)
 	if contextID == "accountBank" then
 		return ACCOUNT_BANK_TYPE
@@ -298,6 +314,71 @@ end
 
 local function getBankTypeForContext(context)
 	return getBankTypeForContextID(context and context.id or nil)
+end
+
+local function showBankTabPurchaseTooltip(owner, bankType)
+	if not owner or not GameTooltip then
+		return
+	end
+
+	GameTooltip:SetOwner(owner, "ANCHOR_TOP")
+	local tabData = getNextPurchasableBankTabData(bankType)
+	if tabData and tabData.purchasePromptTitle then
+		GameTooltip:SetText(tabData.purchasePromptTitle, 1, 0.82, 0)
+	elseif bankType == ACCOUNT_BANK_TYPE then
+		GameTooltip:SetText(ACCOUNT_BANK_PANEL_TITLE or ACCOUNT_BANK_TITLE or "Warband Bank", 1, 0.82, 0)
+	else
+		GameTooltip:SetText(BANKSLOTPURCHASE or "Purchase", 1, 0.82, 0)
+	end
+
+	if tabData and tabData.tabCost then
+		local color = tabData.canAfford and WHITE_FONT_COLOR or RED_FONT_COLOR
+		local costText = formatMoneyString(tabData.tabCost)
+		if color and color.WrapTextInColorCode then
+			costText = color:WrapTextInColorCode(costText)
+		end
+		GameTooltip:AddLine((COSTS_LABEL or COSTS or "Cost") .. ": " .. costText, 1, 1, 1, true)
+	end
+
+	if tabData and tabData.purchasePromptBody then
+		GameTooltip:AddLine(tabData.purchasePromptBody, 0.78, 0.78, 0.78, true)
+	end
+	GameTooltip:Show()
+end
+
+local function openBankTabPurchaseDialog(bankType)
+	if not bankType or not StaticPopup_Show then
+		return
+	end
+
+	StaticPopup_Show("CONFIRM_BUY_BANK_TAB", nil, nil, { bankType = bankType })
+end
+
+local function createBankTabPurchaseButton(parent)
+	local button
+	if BankPanelPurchaseTabButtonMixin then
+		local ok, createdButton = pcall(CreateFrame, "Button", nil, parent, "BankPanelPurchaseButtonScriptTemplate,UIPanelButtonTemplate")
+		if ok then
+			button = createdButton
+		end
+	end
+
+	if not button then
+		button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+		button:SetScript("OnClick", function(self)
+			openBankTabPurchaseDialog(self:GetAttribute("overrideBankType"))
+		end)
+	end
+
+	button:RegisterForClicks("LeftButtonUp")
+	button:SetText(BANKSLOTPURCHASE or "Purchase")
+	button:SetScript("OnEnter", function(self)
+		showBankTabPurchaseTooltip(self, self:GetAttribute("overrideBankType"))
+	end)
+	button:SetScript("OnLeave", function()
+		GameTooltip:Hide()
+	end)
+	return button
 end
 
 local function getContextDepositButtonText(context)
@@ -734,6 +815,7 @@ local function refreshActionBar(context)
 	local topRow = actionBar.TopRow
 	local bottomRow = actionBar.BottomRow
 	local depositButton = actionBar.DepositButton
+	local purchaseTabButton = actionBar.PurchaseTabButton
 	local includeReagentsCheckbox = actionBar.IncludeReagentsCheckbox
 	local withdrawMoneyButton = actionBar.WithdrawMoneyButton
 	local depositMoneyButton = actionBar.DepositMoneyButton
@@ -755,6 +837,16 @@ local function refreshActionBar(context)
 	sizeButtonToText(depositButton, DEPOSIT_BUTTON_WIDTH, 28)
 	depositButton:SetEnabled(lockedReason == nil)
 	depositButton:Show()
+
+	local showPurchaseTabButton = lockedReason == nil and canPurchaseBankTab(bankType)
+	if purchaseTabButton then
+		purchaseTabButton:SetShown(showPurchaseTabButton)
+		purchaseTabButton:SetAttribute("overrideBankType", bankType)
+		if showPurchaseTabButton then
+			purchaseTabButton:SetText(BANKSLOTPURCHASE or "Purchase")
+			sizeButtonToText(purchaseTabButton, 132, 24)
+		end
+	end
 
 	if isAccountBank then
 		includeReagentsCheckbox.text = BANK_DEPOSIT_INCLUDE_REAGENTS_CHECKBOX_LABEL or "Include reagents"
@@ -3205,6 +3297,12 @@ local function createMainFrame()
 		autoDepositItemsIntoContextBank(context)
 	end)
 	actionBar.DepositButton = depositButton
+
+	local purchaseTabButton = createBankTabPurchaseButton(topRow)
+	purchaseTabButton:SetSize(132, ACTION_ROW_HEIGHT)
+	purchaseTabButton:SetPoint("RIGHT", topRow, "RIGHT", 0, 0)
+	purchaseTabButton:Hide()
+	actionBar.PurchaseTabButton = purchaseTabButton
 
 	local includeReagentsCheckbox = CreateFrame("CheckButton", nil, topRow, "BankPanelCheckboxTemplate")
 	Mixin(includeReagentsCheckbox, BankPanelIncludeReagentsCheckboxMixin)

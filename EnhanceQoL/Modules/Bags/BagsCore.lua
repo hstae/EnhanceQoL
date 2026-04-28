@@ -1,4 +1,4 @@
--- luacheck: globals BagsItemButton_OnLoad ItemButtonUtil ContainerFrameItemButtonMixin ScrollFrameTemplate_OnMouseWheel IsAnyStandardHeldBagOpen BackpackTokenFrame BagItemAutoSortButton ITEM_SEARCHBAR_LIST BagSearch_OnHide BagSearch_OnTextChanged BagSearch_OnChar UIPanelScrollFrame_OnLoad ClearItemButtonOverlay SetItemButtonQuality ContainerFrame_AllowedToOpenBags COPPER_PER_GOLD COPPER_PER_SILVER
+-- luacheck: globals BagsItemButton_OnLoad ItemButtonUtil ContainerFrameItemButtonMixin ScrollFrameTemplate_OnMouseWheel IsAnyStandardHeldBagOpen BackpackTokenFrame BagItemAutoSortButton ITEM_SEARCHBAR_LIST BagSearch_OnHide BagSearch_OnTextChanged BagSearch_OnChar UIPanelScrollFrame_OnLoad ClearItemButtonOverlay SetItemButtonQuality SetItemButtonCount SetItemButtonDesaturated ContainerFrame_AllowedToOpenBags C_Cursor COPPER_PER_GOLD COPPER_PER_SILVER NUM_BAG_SLOTS NUM_REAGENTBAG_SLOTS GetInventoryItemTexture GetInventoryItemID GetInventoryItemQuality GetInventorySlotInfo PickupBagFromSlot PutItemInBag BAGS EQUIP_CONTAINER EQUIP_CONTAINER_REAGENT
 local addonName, addon = ...
 addon = addon or {}
 _G[addonName] = addon
@@ -42,6 +42,8 @@ Core.SCROLL_BAR_RESERVED_WIDTH = 22
 Core.FOOTER_MONEY_RIGHT_PADDING = 6
 Core.CATEGORY_ASSIGN_BUTTON_SIZE = 22
 Core.MIN_SEARCH_BOX_WIDTH = 120
+Core.BAG_SLOT_BUTTON_SIZE = 36
+Core.BAG_SLOT_BUTTON_SPACING = 5
 Core.MAX_WATCHED_CURRENCIES = 12
 Core.MIN_ITEM_LEVEL_COLOR_QUALITY = Enum and Enum.ItemQuality and Enum.ItemQuality.Uncommon or 2
 Core.SECTION_TOGGLE_COLLAPSED_ATLAS = "Options_ListExpand_Right"
@@ -148,6 +150,7 @@ if state.awaitingRuleItemData == nil then
 	state.awaitingRuleItemData = false
 end
 state.pendingRuleItemDataIDs = state.pendingRuleItemDataIDs or {}
+state.bagSlotPanels = state.bagSlotPanels or {}
 
 local applyConfiguredOverlayAnchors
 local applyConfiguredItemButtonFonts
@@ -160,6 +163,7 @@ local installTokenWatcherHooks
 local cachedOverlayRuntimeConfig
 local updateReagentBagVisuals
 local itemLevelEligibilityCache = {}
+local BagSlotPanel = {}
 
 function BagsItemButton_OnLoad(self)
 	if not self or not self.ItemLevelText then
@@ -482,6 +486,9 @@ local function getMinimumFrameWidth(settings)
 	if state.frame and state.frame.SettingsButton and state.frame.SettingsButton.GetWidth then
 		settingsButtonWidth = math.max(settingsButtonWidth, math.ceil((state.frame.SettingsButton:GetWidth() or 0) + 0.5))
 	end
+	if state.frame and state.frame.BagSlotsButton and state.frame.BagSlotsButton.GetWidth then
+		settingsButtonWidth = settingsButtonWidth + math.ceil((state.frame.BagSlotsButton:GetWidth() or 0) + 8.5)
+	end
 
 	local minimumWidth = math.max(
 		Core.MIN_FRAME_WIDTH,
@@ -536,6 +543,19 @@ local function applyFramePadding(settings)
 	if frame.SettingsButton then
 		frame.SettingsButton:ClearAllPoints()
 		frame.SettingsButton:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -insideHorizontalPadding, -8)
+	end
+	if frame.BagSlotsButton then
+		frame.BagSlotsButton:ClearAllPoints()
+		frame.BagSlotsButton:SetPoint("RIGHT", frame.SettingsButton or frame, frame.SettingsButton and "LEFT" or "RIGHT", frame.SettingsButton and -8 or -insideHorizontalPadding, frame.SettingsButton and 0 or -8)
+	end
+	if frame.SearchBox then
+		frame.SearchBox:ClearAllPoints()
+		frame.SearchBox:SetPoint("TOPLEFT", frame.Title, "TOPRIGHT", 18, 2)
+		frame.SearchBox:SetPoint("TOPRIGHT", frame.BagSlotsButton or frame.SettingsButton, "TOPLEFT", -10, -1)
+	end
+	if frame.BagSlotsPanel then
+		frame.BagSlotsPanel:ClearAllPoints()
+		frame.BagSlotsPanel:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -insideHorizontalPadding, -(Core.HEADER_HEIGHT + outsideHeaderPadding))
 	end
 
 	if frame.Divider then
@@ -609,6 +629,15 @@ applyActiveSkin = function()
 		if frame.SettingsButton and frame.SettingsButton.HighlightTexture then
 			frame.SettingsButton.HighlightTexture:SetVertexColor(unpackSkinColor(skin.accentColor, 1, 1, 1, 1))
 			frame.SettingsButton.HighlightTexture:SetAlpha(0.4)
+		end
+		if frame.BagSlotsButton and frame.BagSlotsButton.HighlightTexture then
+			frame.BagSlotsButton.HighlightTexture:SetVertexColor(unpackSkinColor(skin.accentColor, 1, 1, 1, 1))
+			frame.BagSlotsButton.HighlightTexture:SetAlpha(0.35)
+		end
+		if frame.BagSlotsPanel then
+			frame.BagSlotsPanel:SetBackdropColor(unpackSkinColor(skin.backdropColor, 0.03, 0.03, 0.04, 0.96))
+			frame.BagSlotsPanel:SetBackdropBorderColor(unpackSkinColor(skin.borderColor, 0.78, 0.64, 0.18, 0.85))
+			BagSlotPanel.Refresh()
 		end
 		if frame.SearchBox and frame.SearchBox.Instructions then
 			frame.SearchBox.Instructions:SetTextColor(unpackSkinColor(skin.accentColor, 0.78, 0.78, 0.78, 1))
@@ -1500,6 +1529,335 @@ local function detachDefaultBagFrames()
 	end
 end
 
+function BagSlotPanel.GetBagIDs()
+	local bagIDs = {}
+	local normalSlots = tonumber(NUM_BAG_SLOTS) or 4
+	for bagID = 1, normalSlots do
+		bagIDs[#bagIDs + 1] = bagID
+	end
+
+	if (tonumber(NUM_REAGENTBAG_SLOTS) or 0) > 0 and Enum and Enum.BagIndex and Enum.BagIndex.ReagentBag then
+		bagIDs[#bagIDs + 1] = Enum.BagIndex.ReagentBag
+	end
+
+	return bagIDs
+end
+
+function BagSlotPanel.GetInventorySlot(bagID)
+	if not bagID or not C_Container or not C_Container.ContainerIDToInventoryID then
+		return nil
+	end
+
+	return C_Container.ContainerIDToInventoryID(bagID)
+end
+
+function BagSlotPanel.GetCursorContainerLocation()
+	if not C_Cursor or not C_Cursor.GetCursorItem or not C_Item then
+		return nil, nil
+	end
+
+	local location = C_Cursor.GetCursorItem()
+	if not location or not location.HasAnyLocation or not location:HasAnyLocation() then
+		return nil, nil
+	end
+	if not C_Item.DoesItemExist or not C_Item.DoesItemExist(location) then
+		return nil, nil
+	end
+
+	local itemID = C_Item.GetItemID and C_Item.GetItemID(location) or nil
+	local classID = itemID and C_Item.GetItemInfoInstant and select(6, C_Item.GetItemInfoInstant(itemID)) or nil
+	if not (Enum and Enum.ItemClass and classID == Enum.ItemClass.Container) then
+		return nil, nil
+	end
+	if not location.GetBagAndSlot then
+		return nil, nil
+	end
+
+	return location:GetBagAndSlot()
+end
+
+function BagSlotPanel.ApplyCursorToBagSlot(bagID)
+	local inventorySlot = BagSlotPanel.GetInventorySlot(bagID)
+	if not inventorySlot then
+		return
+	end
+
+	local sourceBagID, sourceSlotID = BagSlotPanel.GetCursorContainerLocation()
+	if sourceBagID == bagID and sourceSlotID and C_Container and C_Container.PickupContainerItem then
+		local backpackSlot = { bagID = 0, slotIndex = 1 }
+		if C_Item and C_Item.DoesItemExist and C_Item.DoesItemExist(backpackSlot) and C_Item.IsLocked and C_Item.IsLocked(backpackSlot) then
+			PutItemInBag(inventorySlot)
+			return
+		end
+
+		ClearCursor()
+		C_Container.PickupContainerItem(sourceBagID, sourceSlotID)
+		C_Container.PickupContainerItem(0, 1)
+
+		local swapFrame = state.bagSlotSwapFrame or CreateFrame("Frame")
+		state.bagSlotSwapFrame = swapFrame
+		swapFrame:UnregisterAllEvents()
+		swapFrame:RegisterEvent("BAG_UPDATE_DELAYED")
+		local completed = false
+		local function finishSwap()
+			if completed then
+				return
+			end
+			completed = true
+			swapFrame:UnregisterAllEvents()
+			C_Timer.After(0, function()
+				C_Container.PickupContainerItem(0, 1)
+				PutItemInBag(inventorySlot)
+				BagSlotPanel.Refresh()
+			end)
+		end
+		swapFrame:SetScript("OnEvent", finishSwap)
+		C_Timer.After(0.2, finishSwap)
+	else
+		PutItemInBag(inventorySlot)
+		C_Timer.After(0, BagSlotPanel.Refresh)
+	end
+end
+
+function BagSlotPanel.RefreshButton(button)
+	if not button or not button.bagID then
+		return
+	end
+
+	button:Show()
+	local inventorySlot = BagSlotPanel.GetInventorySlot(button.bagID)
+	local texture = inventorySlot and GetInventoryItemTexture("player", inventorySlot) or nil
+	local quality = inventorySlot and GetInventoryItemQuality("player", inventorySlot) or nil
+	local freeSlots = texture and C_Container.GetContainerNumFreeSlots(button.bagID) or nil
+	local backgroundTexture = button.EmptySlotTexture or (select(2, GetInventorySlotInfo("Bag1")))
+
+	button:SetID(button.bagID)
+	if button.Icon then
+		button.Icon:SetTexture(texture or backgroundTexture)
+		button.Icon:SetAlpha(texture and 1 or 0.35)
+	end
+	if button.Count then
+		if freeSlots and freeSlots >= 0 then
+			button.Count:SetText(freeSlots)
+			button.Count:Show()
+		else
+			button.Count:SetText("")
+			button.Count:Hide()
+		end
+	end
+	if quality and C_Item and C_Item.GetItemQualityColor then
+		local colorR, colorG, colorB = C_Item.GetItemQualityColor(quality)
+		if type(colorR) == "table" then
+			button:SetBackdropBorderColor(colorR.r or 1, colorR.g or 1, colorR.b or 1, 1)
+		elseif colorR and colorG and colorB then
+			button:SetBackdropBorderColor(colorR, colorG, colorB, 1)
+		else
+			button:SetBackdropBorderColor(0.78, 0.64, 0.18, 0.9)
+		end
+	elseif texture then
+		button:SetBackdropBorderColor(0.78, 0.64, 0.18, 0.9)
+	else
+		button:SetBackdropBorderColor(0.35, 0.35, 0.42, 0.9)
+	end
+end
+
+function BagSlotPanel.RefreshPanel(panel)
+	if not panel or not panel.Buttons then
+		return
+	end
+
+	for _, button in ipairs(panel.Buttons) do
+		BagSlotPanel.RefreshButton(button)
+	end
+end
+
+function BagSlotPanel.Refresh()
+	for index = #state.bagSlotPanels, 1, -1 do
+		local panel = state.bagSlotPanels[index]
+		if panel and panel.Buttons then
+			BagSlotPanel.RefreshPanel(panel)
+		else
+			table.remove(state.bagSlotPanels, index)
+		end
+	end
+end
+
+function BagSlotPanel.ShowTooltip(button)
+	if not button or not GameTooltip then
+		return
+	end
+
+	local inventorySlot = BagSlotPanel.GetInventorySlot(button.bagID)
+	GameTooltip:SetOwner(button, "ANCHOR_TOP")
+	if inventorySlot and GameTooltip:SetInventoryItem("player", inventorySlot) then
+		GameTooltip:Show()
+		return
+	end
+
+	if button.bagID == (Enum and Enum.BagIndex and Enum.BagIndex.ReagentBag) then
+		GameTooltip:SetText(EQUIP_CONTAINER_REAGENT or EQUIP_CONTAINER or BAGS or "Bags", 1, 0.82, 0)
+	else
+		GameTooltip:SetText(EQUIP_CONTAINER or BAGS or "Bags", 1, 0.82, 0)
+	end
+	GameTooltip:Show()
+end
+
+function BagSlotPanel.Create(parent)
+	local panel = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+	panel:SetFrameLevel(parent:GetFrameLevel() + 20)
+	panel:SetBackdrop({
+		bgFile = "Interface\\Buttons\\WHITE8x8",
+		edgeFile = "Interface\\Buttons\\WHITE8x8",
+		edgeSize = 1,
+	})
+	panel:SetBackdropColor(0.03, 0.03, 0.04, 0.96)
+	panel:SetBackdropBorderColor(0.78, 0.64, 0.18, 0.85)
+	panel:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -Core.FRAME_PADDING, -Core.HEADER_HEIGHT)
+	panel:Hide()
+	panel.Buttons = {}
+	state.bagSlotPanels[#state.bagSlotPanels + 1] = panel
+
+	local bagIDs = BagSlotPanel.GetBagIDs()
+	local width = (#bagIDs * Core.BAG_SLOT_BUTTON_SIZE) + ((#bagIDs - 1) * Core.BAG_SLOT_BUTTON_SPACING) + 16
+	panel:SetSize(width, Core.BAG_SLOT_BUTTON_SIZE + 16)
+
+	local previousButton
+	for _, bagID in ipairs(bagIDs) do
+		local button = CreateFrame("Button", nil, panel, "BackdropTemplate")
+		button:SetSize(Core.BAG_SLOT_BUTTON_SIZE, Core.BAG_SLOT_BUTTON_SIZE)
+		button:Show()
+		button:SetBackdrop({
+			bgFile = "Interface\\Buttons\\WHITE8x8",
+			edgeFile = "Interface\\Buttons\\WHITE8x8",
+			edgeSize = 1,
+		})
+		button:SetBackdropColor(0.02, 0.02, 0.025, 0.94)
+		button:SetBackdropBorderColor(0.35, 0.35, 0.42, 0.9)
+		button.bagID = bagID
+		button.EmptySlotTexture = select(2, GetInventorySlotInfo("Bag1"))
+
+		local icon = button:CreateTexture(nil, "ARTWORK")
+		icon:SetPoint("TOPLEFT", button, "TOPLEFT", 3, -3)
+		icon:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -3, 3)
+		icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+		button.Icon = icon
+
+		local highlight = button:CreateTexture(nil, "HIGHLIGHT")
+		highlight:SetAllPoints(button)
+		highlight:SetColorTexture(1, 1, 1, 0.12)
+		highlight:SetBlendMode("ADD")
+		button.HighlightTexture = highlight
+
+		local count = button:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
+		count:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -2, 1)
+		count:SetJustifyH("RIGHT")
+		button.Count = count
+
+		button:RegisterForClicks("AnyUp")
+		button:RegisterForDrag("LeftButton")
+		if previousButton then
+			button:SetPoint("LEFT", previousButton, "RIGHT", Core.BAG_SLOT_BUTTON_SPACING, 0)
+		else
+			button:SetPoint("LEFT", panel, "LEFT", 8, 0)
+		end
+		button:SetScript("OnClick", function(self, mouseButton)
+			if mouseButton == "RightButton" then
+				return
+			end
+			if IsModifiedClick("PICKUPITEM") then
+				local inventorySlot = BagSlotPanel.GetInventorySlot(self.bagID)
+				if inventorySlot then
+					PickupBagFromSlot(inventorySlot)
+				end
+			else
+				BagSlotPanel.ApplyCursorToBagSlot(self.bagID)
+			end
+		end)
+		button:SetScript("OnDragStart", function(self)
+			local inventorySlot = BagSlotPanel.GetInventorySlot(self.bagID)
+			if inventorySlot then
+				PickupBagFromSlot(inventorySlot)
+			end
+		end)
+		button:SetScript("OnReceiveDrag", function(self)
+			BagSlotPanel.ApplyCursorToBagSlot(self.bagID)
+		end)
+		button:SetScript("OnEnter", BagSlotPanel.ShowTooltip)
+		button:SetScript("OnLeave", function()
+			GameTooltip:Hide()
+		end)
+		panel.Buttons[#panel.Buttons + 1] = button
+		previousButton = button
+	end
+
+	return panel
+end
+
+function BagSlotPanel.Toggle(panel)
+	panel = panel or (state.frame and state.frame.BagSlotsPanel or nil)
+	if not panel then
+		return
+	end
+
+	if panel:IsShown() then
+		panel:Hide()
+	else
+		BagSlotPanel.RefreshPanel(panel)
+		panel:Show()
+	end
+end
+
+function BagSlotPanel.CreateToggleButton(parent, panel)
+	local button = CreateFrame("Button", nil, parent)
+	button:SetSize(18, 18)
+	button:SetHitRectInsets(-4, -4, -4, -4)
+	button:RegisterForClicks("LeftButtonUp")
+	button.Icon = button:CreateTexture(nil, "ARTWORK")
+	button.Icon:SetPoint("CENTER")
+	button.Icon:SetTexture("Interface\\Icons\\INV_Misc_Bag_08")
+	button.Icon:SetSize(16, 16)
+	button.Icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+
+	local highlight = button:CreateTexture(nil, "HIGHLIGHT")
+	highlight:SetAllPoints(button.Icon)
+	highlight:SetTexture("Interface\\Icons\\INV_Misc_Bag_08")
+	highlight:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	highlight:SetBlendMode("ADD")
+	highlight:SetAlpha(0.35)
+	button.HighlightTexture = highlight
+
+	button:SetScript("OnMouseDown", function(self)
+		self.Icon:AdjustPointsOffset(1, -1)
+	end)
+	button:SetScript("OnMouseUp", function(self)
+		self.Icon:AdjustPointsOffset(-1, 1)
+	end)
+	button:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:SetText(BAGS or "Bags", 1, 0.82, 0)
+		GameTooltip:Show()
+	end)
+	button:SetScript("OnLeave", function()
+		GameTooltip:Hide()
+	end)
+	button:SetScript("OnClick", function()
+		BagSlotPanel.Toggle(panel)
+	end)
+	return button
+end
+
+function Bags.functions.CreateEquippedBagSlotPanel(parent)
+	return BagSlotPanel.Create(parent)
+end
+
+function Bags.functions.CreateEquippedBagSlotsButton(parent, panel)
+	return BagSlotPanel.CreateToggleButton(parent, panel)
+end
+
+function Bags.functions.RefreshEquippedBagSlotPanels()
+	BagSlotPanel.Refresh()
+end
+
 local function createMainFrame()
 	if state.frame then
 		return state.frame
@@ -1547,6 +1905,9 @@ local function createMainFrame()
 		settings.manualVisible = false
 		if self.SearchBox and self.SearchBox.ClearFocus then
 			self.SearchBox:ClearFocus()
+		end
+		if self.BagSlotsPanel then
+			self.BagSlotsPanel:Hide()
 		end
 	end)
 
@@ -1603,6 +1964,12 @@ local function createMainFrame()
 	end)
 	frame.SettingsButton = settingsButton
 
+	frame.BagSlotsPanel = BagSlotPanel.Create(frame)
+
+	local bagSlotsButton = BagSlotPanel.CreateToggleButton(frame, frame.BagSlotsPanel)
+	bagSlotsButton:SetPoint("RIGHT", settingsButton, "LEFT", -8, 0)
+	frame.BagSlotsButton = bagSlotsButton
+
 	local searchBox = CreateFrame("EditBox", "BagsItemSearchBox", frame, "BagSearchBoxTemplate")
 	searchBox.instructionText = ""
 	if searchBox.Instructions then
@@ -1622,7 +1989,7 @@ local function createMainFrame()
 	end
 	searchBox:SetHeight(20)
 	searchBox:SetPoint("TOPLEFT", title, "TOPRIGHT", 18, 2)
-	searchBox:SetPoint("TOPRIGHT", settingsButton, "TOPLEFT", -10, -1)
+	searchBox:SetPoint("TOPRIGHT", bagSlotsButton, "TOPLEFT", -10, -1)
 	searchBox:SetScript("OnHide", function(self)
 		BagSearch_OnHide(self)
 	end)
@@ -4348,6 +4715,7 @@ local function processUpdate()
 		if updateApplied and Bags.functions.ApplyVendorMarks then
 			Bags.functions.ApplyVendorMarks()
 		end
+		BagSlotPanel.Refresh()
 		if openingFrame and addon.Vendor and addon.Vendor.functions and addon.Vendor.functions.refreshSellMarks then
 			addon.Vendor.functions.refreshSellMarks()
 		end

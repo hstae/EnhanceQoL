@@ -2102,13 +2102,20 @@ if addon.Bags then
 		end,
 		func = function(value)
 			addon.db = addon.db or {}
-			addon.db.enableBagsModule = value == true
+			local wasEnabled = addon.db.enableBagsModule == true
+			local isEnabled = value == true
+			addon.db.enableBagsModule = isEnabled
+			if wasEnabled and not isEnabled then
+				addon.variables.requireReload = true
+				if addon.functions and addon.functions.checkReloadFrame then
+					addon.functions.checkReloadFrame()
+				end
+			end
 			if addon.Bags and addon.Bags.functions then
-				if addon.db.enableBagsModule and addon.Bags.functions.Enable then
+				if isEnabled and addon.Bags.functions.Enable then
 					addon.Bags.functions.Enable()
-				elseif not addon.db.enableBagsModule and addon.Bags.functions.Disable then
+				elseif not isEnabled and addon.Bags.functions.Disable then
 					addon.Bags.functions.Disable()
-					addon.variables.requireReload = true
 				end
 			end
 		end,

@@ -2,6 +2,11 @@
 
 ## [10.9.0-beta10] - 2026-04-28
 
+### ✨ Added
+
+- Bags: Added an Inventory-only bag slot flyout for viewing equipped bag containers and swapping them via drag and drop.
+- Bags: Added bank tab purchase support for the integrated Bank and Warband Bank views using Blizzard's bank tab purchase flow.
+
 ### 🐛 Fixed
 
 - Bags: Fixed the Tracking settings page so its full content scrolls inside the settings panel instead of overflowing below the window at smaller heights.
