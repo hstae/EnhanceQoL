@@ -7926,7 +7926,7 @@ local function buildUnitSettings(unit)
 	end
 
 	-- Keep section order stable across units while preserving each section's internal order.
-	local sectionOrder = {
+	local commonSectionOrder = {
 		"utility",
 		"frame",
 		"layout",
@@ -7938,23 +7938,26 @@ local function buildUnitSettings(unit)
 		"incomingHeal",
 		"absorb",
 		"healAbsorb",
+		"power",
 		"level",
 		"statusText",
 		"unitStatus",
+		"rangeFade",
+		"dispelTint",
 		"raidicon",
-		"power",
 		"buffs",
 		"debuffs",
 		"privateAuras",
+	}
+	local specificSectionOrder = {
 		"secondaryPower",
 		"secondaryPowerStaggerColors",
-		"mainPowerColors",
-		"rangeFade",
-		"npcColors",
 		"classResource",
 		"totemFrame",
 		"cast",
 		"combatFeedback",
+		"mainPowerColors",
+		"npcColors",
 	}
 
 	local sectionHeaderIndexById = {}
@@ -7969,9 +7972,18 @@ local function buildUnitSettings(unit)
 
 	local orderedSectionIds = {}
 	local seenSectionIds = {}
-	for i = 1, #sectionOrder do
-		local id = sectionOrder[i]
+	for i = 1, #commonSectionOrder do
+		local id = commonSectionOrder[i]
 		if sectionHeaderIndexById[id] then
+			orderedSectionIds[#orderedSectionIds + 1] = id
+			seenSectionIds[id] = true
+		end
+	end
+	local firstSpecificSectionIndex
+	for i = 1, #specificSectionOrder do
+		local id = specificSectionOrder[i]
+		if sectionHeaderIndexById[id] then
+			if not firstSpecificSectionIndex then firstSpecificSectionIndex = #orderedSectionIds + 1 end
 			orderedSectionIds[#orderedSectionIds + 1] = id
 			seenSectionIds[id] = true
 		end
@@ -7987,6 +7999,7 @@ local function buildUnitSettings(unit)
 	local orderedList = {}
 	local appended = {}
 	for i = 1, #orderedSectionIds do
+		if firstSpecificSectionIndex and i == firstSpecificSectionIndex and #orderedList > 0 then orderedList[#orderedList + 1] = { name = "", kind = UF.ui.settingType.Divider } end
 		local id = orderedSectionIds[i]
 		local headerIndex = sectionHeaderIndexById[id]
 		if headerIndex and not appended[headerIndex] then

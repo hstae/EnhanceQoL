@@ -174,6 +174,33 @@ local function getSettings()
 	return addon.DB.settings
 end
 
+local function refreshHeaderControls()
+	if not state.frame then
+		return
+	end
+
+	local frame = state.frame
+	local showCloseButton = addon.GetShowCloseButton == nil or addon.GetShowCloseButton()
+	if frame.CloseButton then
+		frame.CloseButton:ClearAllPoints()
+		frame.CloseButton:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -FRAME_PADDING + 4, -4)
+		frame.CloseButton:SetShown(showCloseButton)
+	end
+	if frame.SettingsButton then
+		frame.SettingsButton:ClearAllPoints()
+		if showCloseButton and frame.CloseButton then
+			frame.SettingsButton:SetPoint("RIGHT", frame.CloseButton, "LEFT", -4, 0)
+		else
+			frame.SettingsButton:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -FRAME_PADDING, -8)
+		end
+	end
+	if frame.SearchBox and frame.Title and frame.SettingsButton then
+		frame.SearchBox:ClearAllPoints()
+		frame.SearchBox:SetPoint("TOPLEFT", frame.Title, "TOPRIGHT", 18, 2)
+		frame.SearchBox:SetPoint("TOPRIGHT", frame.SettingsButton, "TOPLEFT", -10, -1)
+	end
+end
+
 local function getFrameDB()
 	addon.DB = addon.DB or {}
 	addon.DB.bankFrame = addon.DB.bankFrame or addon.DB.warbandBankFrame or {}
@@ -234,6 +261,7 @@ applyActiveSkin = function()
 
 	if state.frame then
 		local frame = state.frame
+		refreshHeaderControls()
 		if addon.ApplyFrameBackgroundSkin then
 			addon.ApplyFrameBackgroundSkin(frame, skin)
 		else
@@ -3221,6 +3249,18 @@ local function createMainFrame()
 	end)
 	frame.SettingsButton = settingsButton
 
+	local closeButton = CreateFrame("Button", nil, frame, "UIPanelCloseButtonNoScripts")
+	closeButton:SetSize(22, 22)
+	closeButton:SetHitRectInsets(-2, -2, -2, -2)
+	closeButton:SetScript("OnClick", function()
+		if Bags.functions and Bags.functions.HideBankFrame then
+			Bags.functions.HideBankFrame()
+		else
+			frame:Hide()
+		end
+	end)
+	frame.CloseButton = closeButton
+
 	local searchBox = CreateFrame("EditBox", "BagsWarbandBankSearchBox", frame, "BagSearchBoxTemplate")
 	searchBox.instructionText = ""
 	if searchBox.Instructions then
@@ -3249,6 +3289,7 @@ local function createMainFrame()
 	end)
 	searchBox:SetScript("OnChar", BagSearch_OnChar)
 	frame.SearchBox = searchBox
+	refreshHeaderControls()
 
 	frame.TabButtonsByContextID = {}
 	frame.Tabs = {}
@@ -3445,6 +3486,7 @@ local function refreshButtons(context, contexts)
 	if state.frame and state.frame.Title then
 		state.frame.Title:SetText((context and context.label) or (BANK or "Bank"))
 	end
+	refreshHeaderControls()
 	updateTabs(contexts or {}, context and context.id or nil)
 	refreshActionBar(context)
 	local desiredSkinSignature = addon.GetSkinSignature and addon.GetSkinSignature() or nil

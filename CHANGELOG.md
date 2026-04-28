@@ -1,5 +1,17 @@
 # Changelog
 
+## [10.9.0-beta11] - 2026-04-28
+
+### ✨ Added
+
+- Bags: Added an optional close button to the integrated Bags, Bank, and Warband Bank windows, enabled by default for users who prefer closing bags via the top-corner X.
+
+### 🔧 Changed
+
+- Unit Frames / Group Frames: Aligned Edit Mode settings order and visible labels so shared options appear consistently, with frame-specific options separated below.
+
+---
+
 ## [10.9.0-beta10] - 2026-04-28
 
 ### ✨ Added

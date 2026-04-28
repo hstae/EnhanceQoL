@@ -85,6 +85,7 @@ local defaultSettings = {
 	showCategories = true,
 	compactCategoryLayout = true,
 	compactCategoryGap = 8,
+	showCloseButton = true,
 	combineFreeSlots = true,
 	combineUnstackableItems = true,
 	outerPadding = 10,
@@ -1243,6 +1244,23 @@ function addon.SetCompactCategoryGap(value)
 	end
 
 	settings.compactCategoryGap = clampedValue
+	return true
+end
+
+function addon.GetShowCloseButton()
+	local settings = addon.GetSettings()
+	settings.showCloseButton = normalizeBooleanSetting(settings.showCloseButton, defaultSettings.showCloseButton)
+	return settings.showCloseButton
+end
+
+function addon.SetShowCloseButton(enabled)
+	local settings = addon.GetSettings()
+	enabled = normalizeBooleanSetting(enabled, defaultSettings.showCloseButton)
+	if settings.showCloseButton == enabled then
+		return false
+	end
+
+	settings.showCloseButton = enabled
 	return true
 end
 

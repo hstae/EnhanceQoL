@@ -3175,7 +3175,7 @@ local function createLayoutPage(parent)
 	scrollFrame:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -28, 0)
 	page.ScrollFrame = scrollFrame
 	page.Content = content
-	page.LayoutContentHeight = 1484
+	page.LayoutContentHeight = 1514
 
 	local contentParent = content
 
@@ -3230,9 +3230,23 @@ local function createLayoutPage(parent)
 		end
 	)
 
+	page.ShowCloseButton = createCheckbox(
+		contentParent,
+		L["settingsShowCloseButton"] or "Show close button",
+		L["settingsShowCloseButtonTooltip"] or "",
+		0,
+		-128,
+		function(value)
+			if addon.SetShowCloseButton and addon.SetShowCloseButton(value) then
+				addon.RefreshSettingsFrame("layout")
+				requestBagRefresh(true, true)
+			end
+		end
+	)
+
 	local compactGapRow = CreateFrame("Frame", nil, contentParent)
 	compactGapRow:SetHeight(22)
-	compactGapRow:SetPoint("TOPLEFT", page.CompactCategoryLayout, "BOTTOMLEFT", 24, -14)
+	compactGapRow:SetPoint("TOPLEFT", page.ShowCloseButton, "BOTTOMLEFT", 24, -14)
 	compactGapRow:SetPoint("RIGHT", contentParent, "RIGHT", -14, 0)
 	page.CompactCategoryGapRow = compactGapRow
 
@@ -4020,6 +4034,9 @@ refreshLayoutPage = function(page)
 			page.CompactCategoryGapControl.DownButton:SetEnabled(gapEnabled and compactGap > 0)
 			page.CompactCategoryGapControl.UpButton:SetEnabled(gapEnabled and compactGap < 24)
 		end
+	end
+	if page.ShowCloseButton then
+		page.ShowCloseButton:SetChecked(addon.GetShowCloseButton == nil or addon.GetShowCloseButton())
 	end
 	if page.OutsideHeaderPaddingControl and page.OutsideHeaderPaddingControl.Value then
 		local outsideHeaderPadding = addon.GetOutsideHeaderPadding and addon.GetOutsideHeaderPadding() or 0

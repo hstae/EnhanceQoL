@@ -15626,6 +15626,107 @@ function GF:AppendStatusIconSettings(settings, kind, editModeId, insertIndex)
 	end
 end
 
+function GF.ReorderGroupEditModeSettings(settings)
+	if not (settings and SettingType) then return settings end
+
+	local commonSectionOrder = {
+		"utility",
+		"frame",
+		"layout",
+		"border",
+		"hoverHighlight",
+		"aggroHighlight",
+		"targetHighlight",
+		"portrait",
+		"text",
+		"health",
+		"incomingheal",
+		"absorb",
+		"healabsorb",
+		"power",
+		"level",
+		"statustext",
+		"rangeFade",
+		"dispeltint",
+		"raidmarker",
+		"buffs",
+		"debuffs",
+		"privateAuras",
+	}
+	local specificSectionOrder = {
+		"party",
+		"raid",
+		"partyGroupBorder",
+		"groupicons",
+		"statusicons",
+		"roleicons",
+		"externals",
+	}
+
+	local sectionHeaderIndexById = {}
+	local encounteredSectionIds = {}
+	for i = 1, #settings do
+		local entry = settings[i]
+		if type(entry) == "table" and entry.kind == SettingType.Collapsible and type(entry.id) == "string" and sectionHeaderIndexById[entry.id] == nil then
+			sectionHeaderIndexById[entry.id] = i
+			encounteredSectionIds[#encounteredSectionIds + 1] = entry.id
+		end
+	end
+
+	local orderedSectionIds = {}
+	local seenSectionIds = {}
+	for i = 1, #commonSectionOrder do
+		local id = commonSectionOrder[i]
+		if sectionHeaderIndexById[id] then
+			orderedSectionIds[#orderedSectionIds + 1] = id
+			seenSectionIds[id] = true
+		end
+	end
+	local firstSpecificSectionIndex
+	for i = 1, #specificSectionOrder do
+		local id = specificSectionOrder[i]
+		if sectionHeaderIndexById[id] then
+			if not firstSpecificSectionIndex then firstSpecificSectionIndex = #orderedSectionIds + 1 end
+			orderedSectionIds[#orderedSectionIds + 1] = id
+			seenSectionIds[id] = true
+		end
+	end
+	for i = 1, #encounteredSectionIds do
+		local id = encounteredSectionIds[i]
+		if not seenSectionIds[id] then
+			orderedSectionIds[#orderedSectionIds + 1] = id
+			seenSectionIds[id] = true
+		end
+	end
+
+	local orderedSettings = {}
+	local appended = {}
+	for i = 1, #orderedSectionIds do
+		if firstSpecificSectionIndex and i == firstSpecificSectionIndex and #orderedSettings > 0 then orderedSettings[#orderedSettings + 1] = { name = "", kind = SettingType.Divider } end
+		local id = orderedSectionIds[i]
+		local headerIndex = sectionHeaderIndexById[id]
+		if headerIndex and not appended[headerIndex] then
+			orderedSettings[#orderedSettings + 1] = settings[headerIndex]
+			appended[headerIndex] = true
+		end
+		for j = 1, #settings do
+			if not appended[j] then
+				local entry = settings[j]
+				if type(entry) == "table" and entry.parentId == id then
+					orderedSettings[#orderedSettings + 1] = entry
+					appended[j] = true
+				end
+			end
+		end
+	end
+
+	for i = 1, #settings do
+		if not appended[i] then orderedSettings[#orderedSettings + 1] = settings[i] end
+	end
+
+	return orderedSettings
+end
+
 local function buildEditModeSettings(kind, editModeId)
 	if not SettingType then return nil end
 
@@ -19016,7 +19117,7 @@ local function buildEditModeSettings(kind, editModeId)
 			end,
 		},
 		{
-			name = L["Health delimiter"] or "Health delimiter",
+			name = L["Delimiter"] or "Delimiter",
 			kind = SettingType.Dropdown,
 			field = "healthDelimiter",
 			parentId = "health",
@@ -19052,7 +19153,7 @@ local function buildEditModeSettings(kind, editModeId)
 			isShown = function() return healthDelimiterCount() >= 1 end,
 		},
 		{
-			name = L["Health secondary delimiter"] or "Health secondary delimiter",
+			name = L["Secondary Delimiter"] or "Secondary delimiter",
 			kind = SettingType.Dropdown,
 			field = "healthDelimiterSecondary",
 			parentId = "health",
@@ -19090,7 +19191,7 @@ local function buildEditModeSettings(kind, editModeId)
 			isShown = function() return healthDelimiterCount() >= 2 end,
 		},
 		{
-			name = L["Health tertiary delimiter"] or "Health tertiary delimiter",
+			name = L["Tertiary Delimiter"] or "Tertiary delimiter",
 			kind = SettingType.Dropdown,
 			field = "healthDelimiterTertiary",
 			parentId = "health",
@@ -19130,7 +19231,7 @@ local function buildEditModeSettings(kind, editModeId)
 			isShown = function() return healthDelimiterCount() >= 3 end,
 		},
 		{
-			name = L["Left text offset X"] or "Left text offset X",
+			name = L["TextLeftOffsetX"] or "Left text X offset",
 			kind = SettingType.Slider,
 			allowInput = true,
 			field = "healthLeftX",
@@ -19155,7 +19256,7 @@ local function buildEditModeSettings(kind, editModeId)
 			isEnabled = function() return isHealthTextEnabled("textLeft") end,
 		},
 		{
-			name = L["Left text offset Y"] or "Left text offset Y",
+			name = L["TextLeftOffsetY"] or "Left text Y offset",
 			kind = SettingType.Slider,
 			allowInput = true,
 			field = "healthLeftY",
@@ -19180,7 +19281,7 @@ local function buildEditModeSettings(kind, editModeId)
 			isEnabled = function() return isHealthTextEnabled("textLeft") end,
 		},
 		{
-			name = L["Center text offset X"] or "Center text offset X",
+			name = L["TextCenterOffsetX"] or "Center text X offset",
 			kind = SettingType.Slider,
 			allowInput = true,
 			field = "healthCenterX",
@@ -19205,7 +19306,7 @@ local function buildEditModeSettings(kind, editModeId)
 			isEnabled = function() return isHealthTextEnabled("textCenter") end,
 		},
 		{
-			name = L["Center text offset Y"] or "Center text offset Y",
+			name = L["TextCenterOffsetY"] or "Center text Y offset",
 			kind = SettingType.Slider,
 			allowInput = true,
 			field = "healthCenterY",
@@ -19230,7 +19331,7 @@ local function buildEditModeSettings(kind, editModeId)
 			isEnabled = function() return isHealthTextEnabled("textCenter") end,
 		},
 		{
-			name = L["Right text offset X"] or "Right text offset X",
+			name = L["TextRightOffsetX"] or "Right text X offset",
 			kind = SettingType.Slider,
 			allowInput = true,
 			field = "healthRightX",
@@ -19255,7 +19356,7 @@ local function buildEditModeSettings(kind, editModeId)
 			isEnabled = function() return isHealthTextEnabled("textRight") end,
 		},
 		{
-			name = L["Right text offset Y"] or "Right text offset Y",
+			name = L["TextRightOffsetY"] or "Right text Y offset",
 			kind = SettingType.Slider,
 			allowInput = true,
 			field = "healthRightY",
@@ -22838,7 +22939,7 @@ local function buildEditModeSettings(kind, editModeId)
 			end,
 		},
 		{
-			name = "Detach power bar",
+			name = L["UFPowerDetached"] or "Detach power bar",
 			kind = SettingType.Checkbox,
 			field = "powerDetached",
 			parentId = "power",
@@ -22858,7 +22959,7 @@ local function buildEditModeSettings(kind, editModeId)
 			end,
 		},
 		{
-			name = "Match health width",
+			name = L["UFPowerDetachedMatchHealthWidth"] or "Match health width",
 			kind = SettingType.Checkbox,
 			field = "powerDetachedMatchHealthWidth",
 			parentId = "power",
@@ -22883,7 +22984,7 @@ local function buildEditModeSettings(kind, editModeId)
 			isShown = isPowerDetached,
 		},
 		{
-			name = "Detached power width",
+			name = L["UFPowerWidth"] or "Power width",
 			kind = SettingType.Slider,
 			allowInput = true,
 			field = "powerDetachedWidth",
@@ -22908,7 +23009,7 @@ local function buildEditModeSettings(kind, editModeId)
 			isShown = isPowerDetached,
 		},
 		{
-			name = "Detached power height",
+			name = L["Power height"] or "Power height",
 			kind = SettingType.Slider,
 			allowInput = true,
 			field = "powerDetachedHeight",
@@ -22933,7 +23034,7 @@ local function buildEditModeSettings(kind, editModeId)
 			isShown = isPowerDetached,
 		},
 		{
-			name = "Detached power border",
+			name = L["Show border"] or "Show border",
 			kind = SettingType.Checkbox,
 			field = "powerDetachedBorder",
 			parentId = "power",
@@ -22954,7 +23055,7 @@ local function buildEditModeSettings(kind, editModeId)
 			isShown = isPowerDetached,
 		},
 		{
-			name = "Detached power border texture",
+			name = L["Border texture"] or "Border texture",
 			kind = SettingType.Dropdown,
 			field = "powerDetachedBorderTexture",
 			parentId = "power",
@@ -22994,7 +23095,7 @@ local function buildEditModeSettings(kind, editModeId)
 			isShown = isPowerDetached,
 		},
 		{
-			name = "Detached power border size",
+			name = L["Border size"] or "Border size",
 			kind = SettingType.Slider,
 			allowInput = true,
 			field = "powerDetachedBorderSize",
@@ -23021,7 +23122,7 @@ local function buildEditModeSettings(kind, editModeId)
 			isShown = isPowerDetached,
 		},
 		{
-			name = "Detached power border offset",
+			name = L["Border offset"] or "Border offset",
 			kind = SettingType.Slider,
 			allowInput = true,
 			field = "powerDetachedBorderOffset",
@@ -23051,7 +23152,7 @@ local function buildEditModeSettings(kind, editModeId)
 			isShown = isPowerDetached,
 		},
 		{
-			name = "Detached power strata",
+			name = L["UFDetachedPowerStrata"] or "Strata",
 			kind = SettingType.Dropdown,
 			field = "powerDetachedStrata",
 			parentId = "power",
@@ -23078,7 +23179,7 @@ local function buildEditModeSettings(kind, editModeId)
 			isShown = isPowerDetached,
 		},
 		{
-			name = "Detached power level",
+			name = L["UFDetachedPowerLevelOffset"] or "Frame level offset",
 			kind = SettingType.Slider,
 			allowInput = true,
 			field = "powerDetachedFrameLevelOffset",
@@ -23132,7 +23233,7 @@ local function buildEditModeSettings(kind, editModeId)
 			isShown = isPowerDetached,
 		},
 		{
-			name = "Power offset X",
+			name = L["Offset X"] or "Offset X",
 			kind = SettingType.Slider,
 			allowInput = true,
 			field = "powerDetachedOffsetX",
@@ -23158,7 +23259,7 @@ local function buildEditModeSettings(kind, editModeId)
 			isShown = isPowerDetached,
 		},
 		{
-			name = "Power offset Y",
+			name = L["Offset Y"] or "Offset Y",
 			kind = SettingType.Slider,
 			allowInput = true,
 			field = "powerDetachedOffsetY",
@@ -23184,7 +23285,7 @@ local function buildEditModeSettings(kind, editModeId)
 			isShown = isPowerDetached,
 		},
 		{
-			name = L["Power text left"] or "Power text left",
+			name = L["Left text"] or "Left text",
 			kind = SettingType.Dropdown,
 			field = "powerTextLeft",
 			parentId = "power",
@@ -23219,7 +23320,7 @@ local function buildEditModeSettings(kind, editModeId)
 			end,
 		},
 		{
-			name = L["Power text center"] or "Power text center",
+			name = L["Center text"] or "Center text",
 			kind = SettingType.Dropdown,
 			field = "powerTextCenter",
 			parentId = "power",
@@ -23254,7 +23355,7 @@ local function buildEditModeSettings(kind, editModeId)
 			end,
 		},
 		{
-			name = L["Power text right"] or "Power text right",
+			name = L["Right text"] or "Right text",
 			kind = SettingType.Dropdown,
 			field = "powerTextRight",
 			parentId = "power",
@@ -23289,7 +23390,7 @@ local function buildEditModeSettings(kind, editModeId)
 			end,
 		},
 		{
-			name = L["Power delimiter"] or "Power delimiter",
+			name = L["Delimiter"] or "Delimiter",
 			kind = SettingType.Dropdown,
 			field = "powerDelimiter",
 			parentId = "power",
@@ -23325,7 +23426,7 @@ local function buildEditModeSettings(kind, editModeId)
 			isShown = function() return powerDelimiterCount() >= 1 end,
 		},
 		{
-			name = L["Power secondary delimiter"] or "Power secondary delimiter",
+			name = L["Secondary Delimiter"] or "Secondary delimiter",
 			kind = SettingType.Dropdown,
 			field = "powerDelimiterSecondary",
 			parentId = "power",
@@ -23363,7 +23464,7 @@ local function buildEditModeSettings(kind, editModeId)
 			isShown = function() return powerDelimiterCount() >= 2 end,
 		},
 		{
-			name = L["Power tertiary delimiter"] or "Power tertiary delimiter",
+			name = L["Tertiary Delimiter"] or "Tertiary delimiter",
 			kind = SettingType.Dropdown,
 			field = "powerDelimiterTertiary",
 			parentId = "power",
@@ -23403,7 +23504,7 @@ local function buildEditModeSettings(kind, editModeId)
 			isShown = function() return powerDelimiterCount() >= 3 end,
 		},
 		{
-			name = L["Short numbers"] or "Short numbers",
+			name = L["Use short numbers"] or "Use short numbers",
 			kind = SettingType.Checkbox,
 			field = "powerShortNumbers",
 			parentId = "power",
@@ -23423,7 +23524,7 @@ local function buildEditModeSettings(kind, editModeId)
 			end,
 		},
 		{
-			name = L["Hide percent symbol"] or "Hide percent symbol",
+			name = L["Hide % symbol"] or "Hide % symbol",
 			kind = SettingType.Checkbox,
 			field = "powerHidePercent",
 			parentId = "power",
@@ -23536,7 +23637,7 @@ local function buildEditModeSettings(kind, editModeId)
 			end,
 		},
 		{
-			name = L["Left text offset X"] or "Left text offset X",
+			name = L["TextLeftOffsetX"] or "Left text X offset",
 			kind = SettingType.Slider,
 			allowInput = true,
 			field = "powerLeftX",
@@ -23561,7 +23662,7 @@ local function buildEditModeSettings(kind, editModeId)
 			isEnabled = function() return isPowerTextEnabled("textLeft") end,
 		},
 		{
-			name = L["Left text offset Y"] or "Left text offset Y",
+			name = L["TextLeftOffsetY"] or "Left text Y offset",
 			kind = SettingType.Slider,
 			allowInput = true,
 			field = "powerLeftY",
@@ -23586,7 +23687,7 @@ local function buildEditModeSettings(kind, editModeId)
 			isEnabled = function() return isPowerTextEnabled("textLeft") end,
 		},
 		{
-			name = L["Center text offset X"] or "Center text offset X",
+			name = L["TextCenterOffsetX"] or "Center text X offset",
 			kind = SettingType.Slider,
 			allowInput = true,
 			field = "powerCenterX",
@@ -23611,7 +23712,7 @@ local function buildEditModeSettings(kind, editModeId)
 			isEnabled = function() return isPowerTextEnabled("textCenter") end,
 		},
 		{
-			name = L["Center text offset Y"] or "Center text offset Y",
+			name = L["TextCenterOffsetY"] or "Center text Y offset",
 			kind = SettingType.Slider,
 			allowInput = true,
 			field = "powerCenterY",
@@ -23636,7 +23737,7 @@ local function buildEditModeSettings(kind, editModeId)
 			isEnabled = function() return isPowerTextEnabled("textCenter") end,
 		},
 		{
-			name = L["Right text offset X"] or "Right text offset X",
+			name = L["TextRightOffsetX"] or "Right text X offset",
 			kind = SettingType.Slider,
 			allowInput = true,
 			field = "powerRightX",
@@ -23661,7 +23762,7 @@ local function buildEditModeSettings(kind, editModeId)
 			isEnabled = function() return isPowerTextEnabled("textRight") end,
 		},
 		{
-			name = L["Right text offset Y"] or "Right text offset Y",
+			name = L["TextRightOffsetY"] or "Right text Y offset",
 			kind = SettingType.Slider,
 			allowInput = true,
 			field = "powerRightY",
@@ -23686,7 +23787,7 @@ local function buildEditModeSettings(kind, editModeId)
 			isEnabled = function() return isPowerTextEnabled("textRight") end,
 		},
 		{
-			name = L["Power texture"] or "Power texture",
+			name = L["Bar Texture"] or "Bar Texture",
 			kind = SettingType.Dropdown,
 			field = "powerTexture",
 			parentId = "power",
@@ -27565,6 +27666,7 @@ local function buildEditModeSettings(kind, editModeId)
 		GF:AppendStatusIconSettings(settings, kind, editModeId, raidMarkerIndex)
 	end
 
+	settings = GF.ReorderGroupEditModeSettings(settings)
 	GF.ApplyBlizzardAuraSettingVisibility(settings, kind)
 	return settings
 end

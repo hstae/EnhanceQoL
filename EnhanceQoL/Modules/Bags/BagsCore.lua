@@ -486,6 +486,9 @@ local function getMinimumFrameWidth(settings)
 	if state.frame and state.frame.SettingsButton and state.frame.SettingsButton.GetWidth then
 		settingsButtonWidth = math.max(settingsButtonWidth, math.ceil((state.frame.SettingsButton:GetWidth() or 0) + 0.5))
 	end
+	if state.frame and state.frame.CloseButton and state.frame.CloseButton.GetWidth and (addon.GetShowCloseButton == nil or addon.GetShowCloseButton()) then
+		settingsButtonWidth = settingsButtonWidth + math.ceil((state.frame.CloseButton:GetWidth() or 0) + 4.5)
+	end
 	if state.frame and state.frame.BagSlotsButton and state.frame.BagSlotsButton.GetWidth then
 		settingsButtonWidth = settingsButtonWidth + math.ceil((state.frame.BagSlotsButton:GetWidth() or 0) + 8.5)
 	end
@@ -513,7 +516,7 @@ end
 
 local function getFramePaddingSignature(settings)
 	return string.format(
-		"%d:%d:%d:%d:%d:%d:%d:%d:%d",
+		"%d:%d:%d:%d:%d:%d:%d:%d:%d:%d",
 		getOutsideHeaderPadding(settings),
 		getOutsideFooterPadding(settings),
 		getInsideHorizontalPadding(settings),
@@ -522,7 +525,8 @@ local function getFramePaddingSignature(settings)
 		getItemScale(settings),
 		getMaxColumns(settings),
 		(addon.GetCompactCategoryLayout and addon.GetCompactCategoryLayout()) and 1 or 0,
-		addon.GetCompactCategoryGap and addon.GetCompactCategoryGap() or Core.SECTION_HORIZONTAL_GAP
+		addon.GetCompactCategoryGap and addon.GetCompactCategoryGap() or Core.SECTION_HORIZONTAL_GAP,
+		(addon.GetShowCloseButton and addon.GetShowCloseButton()) and 1 or 0
 	)
 end
 
@@ -540,9 +544,20 @@ local function applyFramePadding(settings)
 		frame.Title:SetPoint("TOPLEFT", frame, "TOPLEFT", insideHorizontalPadding, -10)
 	end
 
+	local showCloseButton = addon.GetShowCloseButton == nil or addon.GetShowCloseButton()
+	if frame.CloseButton then
+		frame.CloseButton:ClearAllPoints()
+		frame.CloseButton:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -insideHorizontalPadding + 4, -4)
+		frame.CloseButton:SetShown(showCloseButton)
+	end
+
 	if frame.SettingsButton then
 		frame.SettingsButton:ClearAllPoints()
-		frame.SettingsButton:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -insideHorizontalPadding, -8)
+		if showCloseButton and frame.CloseButton then
+			frame.SettingsButton:SetPoint("RIGHT", frame.CloseButton, "LEFT", -4, 0)
+		else
+			frame.SettingsButton:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -insideHorizontalPadding, -8)
+		end
 	end
 	if frame.BagSlotsButton then
 		frame.BagSlotsButton:ClearAllPoints()
@@ -1963,6 +1978,18 @@ local function createMainFrame()
 		end
 	end)
 	frame.SettingsButton = settingsButton
+
+	local closeButton = CreateFrame("Button", nil, frame, "UIPanelCloseButtonNoScripts")
+	closeButton:SetSize(22, 22)
+	closeButton:SetHitRectInsets(-2, -2, -2, -2)
+	closeButton:SetScript("OnClick", function()
+		if Bags.functions and Bags.functions.HideFrame then
+			Bags.functions.HideFrame()
+		else
+			frame:Hide()
+		end
+	end)
+	frame.CloseButton = closeButton
 
 	frame.BagSlotsPanel = BagSlotPanel.Create(frame)
 
