@@ -19999,6 +19999,7 @@ function cdp.ENTRY.TryRefreshVisibleSpellEntry(panelId, entryId, mode)
 
 	local entry = panel.entries and panel.entries[entryId] or nil
 	if not entry then return false end
+	if entry.displayMode == "BAR" then return false end
 	local macro = entry.type == "MACRO" and CooldownPanels.ResolveMacroEntry(entry) or nil
 	local baseSpellId = entry.type == "SPELL" and tonumber(entry.spellID) or (macro and macro.kind == "SPELL" and tonumber(macro.spellID)) or nil
 	if not baseSpellId then return false end
@@ -20087,6 +20088,7 @@ function cdp.ENTRY.TryRefreshVisibleItemEntry(panelId, entryId)
 	local data = icon and icon._eqolRuntimeData or nil
 	local entry = panel.entries and panel.entries[entryId] or nil
 	if not entry then return false end
+	if entry.displayMode == "BAR" then return false end
 	local macro = entry.type == "MACRO" and CooldownPanels.ResolveMacroEntry(entry) or nil
 	local resolvedType = (macro and macro.kind) or entry.type
 	if resolvedType ~= "ITEM" then return false end
@@ -20196,6 +20198,7 @@ function cdp.ENTRY.TryRefreshVisibleSlotEntry(panelId, entryId)
 	local data = icon and icon._eqolRuntimeData or nil
 	local entry = panel.entries and panel.entries[entryId] or nil
 	if not (entry and entry.type == "SLOT") then return false end
+	if entry.displayMode == "BAR" then return false end
 
 	local slotId = tonumber(entry.slotID)
 	if not slotId then return false end
