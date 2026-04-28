@@ -13,6 +13,7 @@
 ### 🐛 Fixed
 
 - Group Frames: Moved `AnyUp` click registration onto the secure unit button XML template, preserving combat-created raid button click handling without protected `RegisterForClicks` calls from Lua OnLoad.
+- Unit Frames: Guarded restricted `UnitIsPlayer` and `UnitIsUnit` boolean results before using them in target/private-aura helper logic, preventing secret-value errors in raid encounters.
 
 ---
 

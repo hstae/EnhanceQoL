@@ -42,6 +42,11 @@ local C_UnitAuras = C_UnitAuras
 local UIParent = UIParent
 local DispelOverlayOrientation = EnumUtil and EnumUtil.MakeEnum("VerticalTopToBottom", "VerticalBottomToTop", "HorizontalLeftToRight")
 
+function H.UnsecretBool(value)
+	if issecretvalue and issecretvalue(value) then return nil end
+	return value
+end
+
 do
 local FILTER_HELPFUL = "HELPFUL|INCLUDE_NAME_PLATE_ONLY"
 local FILTER_HELPFUL_GROUP_RAID = "HELPFUL|INCLUDE_NAME_PLATE_ONLY|RAID|PLAYER"
@@ -288,7 +293,7 @@ local selectionKeyByType = {
 
 function H.getNPCSelectionKey(unit)
 	if not npcColorUnits[unit] then return nil end
-	if UnitIsPlayer and UnitIsPlayer(unit) then return nil end
+	if UnitIsPlayer and H.UnsecretBool(UnitIsPlayer(unit)) == true then return nil end
 	local t = UnitSelectionType and UnitSelectionType(unit)
 	if issecretvalue and issecretvalue(t) then t = nil end
 	local key = selectionKeyByType[t]
@@ -807,7 +812,7 @@ local function resolvePrivateAuraUnitToken(unit)
 	if type(unit) ~= "string" then return unit end
 	if unit ~= "player" and UnitIsUnit then
 		local ok, isPlayer = pcall(UnitIsUnit, unit, "player")
-		if ok and isPlayer then return "player" end
+		if ok and H.UnsecretBool(isPlayer) == true then return "player" end
 	end
 	return unit
 end
@@ -1675,7 +1680,13 @@ function H.updateHighlight(st, unit, playerUnit)
 	if cfg.mouseover and st._hovered then
 		show = true
 		color = cfg.mouseoverColor or color
-	elseif cfg.target and UnitIsUnit and UnitExists and UnitExists("target") and UnitExists(unit) and UnitIsUnit(unit, "target") then
+	elseif cfg.target
+		and UnitIsUnit
+		and UnitExists
+		and H.UnsecretBool(UnitExists("target")) == true
+		and H.UnsecretBool(UnitExists(unit)) == true
+		and H.UnsecretBool(UnitIsUnit(unit, "target")) == true
+	then
 		show = true
 	elseif cfg.aggro and (unit == (playerUnit or "player") or unit == "pet") and hasAggro(unit) then
 		show = true
