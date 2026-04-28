@@ -3175,7 +3175,7 @@ local function createLayoutPage(parent)
 	scrollFrame:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -28, 0)
 	page.ScrollFrame = scrollFrame
 	page.Content = content
-	page.LayoutContentHeight = 1514
+	page.LayoutContentHeight = 1544
 
 	local contentParent = content
 
@@ -3204,12 +3204,26 @@ local function createLayoutPage(parent)
 		end
 	)
 
+	page.ShowFreeSlots = createCheckbox(
+		contentParent,
+		L["settingsShowFreeSlots"] or "Show free slots",
+		L["settingsShowFreeSlotsTooltip"] or "",
+		0,
+		-68,
+		function(value)
+			if addon.SetShowFreeSlots and addon.SetShowFreeSlots(value) then
+				addon.RefreshSettingsFrame("layout")
+				requestBagRefresh(true)
+			end
+		end
+	)
+
 	page.CombineDuplicateItems = createCheckbox(
 		contentParent,
 		L["settingsCombineUnstackableItems"] or "Combine identical items",
 		L["settingsCombineUnstackableItemsTooltip"] or "",
 		0,
-		-68,
+		-98,
 		function(value)
 			getSettings().combineUnstackableItems = value
 			requestBagRefresh(true)
@@ -3221,7 +3235,7 @@ local function createLayoutPage(parent)
 		L["settingsCompactCategoryLayout"] or "Compact category layout",
 		L["settingsCompactCategoryLayoutTooltip"] or "",
 		0,
-		-98,
+		-128,
 		function(value)
 			if addon.SetCompactCategoryLayout and addon.SetCompactCategoryLayout(value) then
 				addon.RefreshSettingsFrame("layout")
@@ -3235,7 +3249,7 @@ local function createLayoutPage(parent)
 		L["settingsShowCloseButton"] or "Show close button",
 		L["settingsShowCloseButtonTooltip"] or "",
 		0,
-		-128,
+		-158,
 		function(value)
 			if addon.SetShowCloseButton and addon.SetShowCloseButton(value) then
 				addon.RefreshSettingsFrame("layout")
@@ -4014,6 +4028,9 @@ refreshLayoutPage = function(page)
 	end
 	if page.CombineFreeSlots then
 		page.CombineFreeSlots:SetChecked(settings.combineFreeSlots)
+	end
+	if page.ShowFreeSlots then
+		page.ShowFreeSlots:SetChecked(addon.GetShowFreeSlots == nil or addon.GetShowFreeSlots())
 	end
 	if page.CombineDuplicateItems then
 		page.CombineDuplicateItems:SetChecked(settings.combineUnstackableItems)

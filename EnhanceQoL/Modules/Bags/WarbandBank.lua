@@ -2219,7 +2219,7 @@ local function buildLayoutData(context)
 					layoutData.freeSlotReference.slotID = slotID
 				end
 
-				if not settings.combineFreeSlots then
+				if settings.showFreeSlots ~= false and not settings.combineFreeSlots then
 					local sectionID = settings.showCategories and FREE_SLOTS_SECTION_ID or "misc"
 					addSlotMapping(layoutData, sectionID, bagID, slotID)
 				end
@@ -2227,7 +2227,7 @@ local function buildLayoutData(context)
 		end
 	end
 
-	if settings.combineFreeSlots and layoutData.freeSlotCount > 0 and layoutData.freeSlotReference.bagID then
+	if settings.showFreeSlots ~= false and settings.combineFreeSlots and layoutData.freeSlotCount > 0 and layoutData.freeSlotReference.bagID then
 		local sectionID = settings.showCategories and FREE_SLOTS_SECTION_ID or "misc"
 		addSlotMapping(
 			layoutData,

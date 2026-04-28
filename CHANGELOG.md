@@ -5,6 +5,7 @@
 ### ✨ Added
 
 - Bags: Added an optional close button to the integrated Bags, Bank, and Warband Bank windows, enabled by default for users who prefer closing bags via the top-corner X.
+- Bags: Added a Layout option to hide Free Slots from the integrated Bags, Bank, and Warband Bank grids entirely.
 - Economy / Bank: Added a remove option for tracked characters, clearing their gold tracking, ignore state, and per-character Warband bank target.
 
 ### 🔧 Changed
