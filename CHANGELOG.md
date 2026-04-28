@@ -12,7 +12,7 @@
 
 ### 🐛 Fixed
 
-- Group Frames: Deferred `AnyUp` click registration for secure group unit buttons created in combat, avoiding protected action errors when raid members join or leave during combat.
+- Group Frames: Moved `AnyUp` click registration onto the secure unit button XML template, preserving combat-created raid button click handling without protected `RegisterForClicks` calls from Lua OnLoad.
 
 ---
 

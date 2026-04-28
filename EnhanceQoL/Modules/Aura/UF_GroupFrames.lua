@@ -831,7 +831,15 @@ local function applyHighlightStyle(st, cfg, key)
 		if key == "aggro" then levelOffset = levelOffset + 1 end
 		local targetLevel = GF.ClampFrameLevel(baseLevel + levelOffset)
 		local border = st.barGroup._ufBorder
-		if not hasExplicitFrameLevel and layer ~= "BEHIND_BORDER" and border and border.GetFrameLevel and border.GetFrameStrata and frame.GetFrameStrata and border:GetFrameStrata() == frame:GetFrameStrata() then
+		if
+			not hasExplicitFrameLevel
+			and layer ~= "BEHIND_BORDER"
+			and border
+			and border.GetFrameLevel
+			and border.GetFrameStrata
+			and frame.GetFrameStrata
+			and border:GetFrameStrata() == frame:GetFrameStrata()
+		then
 			local borderLevel = border:GetFrameLevel()
 			if borderLevel and targetLevel <= borderLevel then targetLevel = GF.ClampFrameLevel(borderLevel + 1) end
 		end
@@ -2204,9 +2212,7 @@ local function getSafeLevelText(unit, hideClassText)
 end
 
 local function getUnitRoleKey(unit)
-	if unit == "player" or (UnitIsUnit and GFH.UnsecretBool(UnitIsUnit(unit, "player")) == true) then
-		return GF.GetPlayerEffectiveRoleKey and GF.GetPlayerEffectiveRoleKey() or "NONE"
-	end
+	if unit == "player" or (UnitIsUnit and GFH.UnsecretBool(UnitIsUnit(unit, "player")) == true) then return GF.GetPlayerEffectiveRoleKey and GF.GetPlayerEffectiveRoleKey() or "NONE" end
 	local roleEnum
 	if UnitGroupRolesAssignedEnum then roleEnum = UnitGroupRolesAssignedEnum(unit) end
 	if roleEnum and Enum and Enum.LFGRole then
@@ -6314,9 +6320,7 @@ function GF:BuildButton(self)
 		st.statusIconLayer:EnableMouse(false)
 	end
 	if st.statusIconLayer.GetParent and st.statusIconLayer:GetParent() ~= (st.layoutAnchor or st.barGroup) then st.statusIconLayer:SetParent(st.layoutAnchor or st.barGroup) end
-	if st.dispelTint then
-		GF.SyncDispelTintLayer(st)
-	end
+	if st.dispelTint then GF.SyncDispelTintLayer(st) end
 
 	if not st.healthTextLeft then st.healthTextLeft = st.healthTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight") end
 	if not st.healthTextCenter then st.healthTextCenter = st.healthTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight") end
@@ -8666,9 +8670,7 @@ function GF.GetGroupAuraRenderer(cfg, def)
 	return (token == "BLIZZARD" or token == "BLIZZARD_CONTAINER") and "BLIZZARD" or "CUSTOM"
 end
 
-function GF.IsGroupBlizzardAuraRenderer(cfg, def)
-	return GF.GetGroupAuraRenderer(cfg, def) == "BLIZZARD"
-end
+function GF.IsGroupBlizzardAuraRenderer(cfg, def) return GF.GetGroupAuraRenderer(cfg, def) == "BLIZZARD" end
 
 GF.BLIZZARD_AURA_RENDER_TYPES = {
 	buffs = true,
@@ -8960,7 +8962,21 @@ local function fullScanGroupAuras(
 	end
 end
 
-local function updateGroupAuraCache(unit, st, updateInfo, helpfulFilter, harmfulFilter, externalFilter, dispelFilter, wantBuff, wantDebuff, wantExternals, wantsDispel, wantsHealerBuffPlacement, contextKind)
+local function updateGroupAuraCache(
+	unit,
+	st,
+	updateInfo,
+	helpfulFilter,
+	harmfulFilter,
+	externalFilter,
+	dispelFilter,
+	wantBuff,
+	wantDebuff,
+	wantExternals,
+	wantsDispel,
+	wantsHealerBuffPlacement,
+	contextKind
+)
 	if not (unit and st and updateInfo) then return end
 
 	local wantsAny = wantBuff or wantDebuff or wantExternals or wantsDispel
@@ -9007,7 +9023,20 @@ local function updateGroupAuraCache(unit, st, updateInfo, helpfulFilter, harmful
 				if wasKnown then
 					local aura = C_UnitAuras.GetAuraDataByAuraInstanceID(unit, auraId)
 					if aura then
-						local flags = getAuraKindFlags(unit, aura, helpfulFilter, harmfulFilter, externalFilter, dispelFilter, wantBuff, wantDebuff, wantExternals, wantsDispel, wantsHealerBuffPlacement, contextKind)
+						local flags = getAuraKindFlags(
+							unit,
+							aura,
+							helpfulFilter,
+							harmfulFilter,
+							externalFilter,
+							dispelFilter,
+							wantBuff,
+							wantDebuff,
+							wantExternals,
+							wantsDispel,
+							wantsHealerBuffPlacement,
+							contextKind
+						)
 						cacheAuraWithFlags(st, flagsById, aura, flags)
 					elseif wasKnown then
 						markDispelAuraDirty(st, auraId)
@@ -9298,7 +9327,21 @@ function GF:UpdateAuras(self, updateInfo)
 		end
 	end
 
-	updateGroupAuraCache(unit, st, updateInfo, helpfulFilter, harmfulFilter, externalFilter, dispelFilter, wantBuff, wantDebuff, wantExternals, wantsDispelTint, wantsHealerBuffPlacement, auraContextKind)
+	updateGroupAuraCache(
+		unit,
+		st,
+		updateInfo,
+		helpfulFilter,
+		harmfulFilter,
+		externalFilter,
+		dispelFilter,
+		wantBuff,
+		wantDebuff,
+		wantExternals,
+		wantsDispelTint,
+		wantsHealerBuffPlacement,
+		auraContextKind
+	)
 	local changed = st._auraChanged
 	if updateInfo then
 		if not changed then
@@ -9444,12 +9487,7 @@ function GF:UpdateSampleAuras(self)
 		local meta = AURA_TYPE_META[kindKey]
 		if not meta then return end
 		local typeCfg = (ac and ac[kindKey]) or EMPTY
-		if
-			typeCfg.enabled == false
-			or (kindKey == "buff" and not wantBuff)
-			or (kindKey == "debuff" and not wantDebuff)
-			or (kindKey == "externals" and not wantExternals)
-		then
+		if typeCfg.enabled == false or (kindKey == "buff" and not wantBuff) or (kindKey == "debuff" and not wantDebuff) or (kindKey == "externals" and not wantExternals) then
 			local container = st[meta.containerKey]
 			if container then container:Hide() end
 			hideAuraButtons(st[meta.buttonsKey], 1)
@@ -11006,31 +11044,6 @@ function GF:OpenUnitMenu(self)
 	end
 end
 
-function GF.UnitButton_RegisterForClicks(self)
-	if not (self and self.RegisterForClicks) then return end
-	if self._eqolAnyUpRegistered == true then return end
-	if InCombatLockdown and InCombatLockdown() then
-		GF._pendingAnyUpButtons = GF._pendingAnyUpButtons or {}
-		GF._pendingAnyUpButtons[self] = true
-		return
-	end
-	self:RegisterForClicks("AnyUp")
-	self._eqolAnyUpRegistered = true
-	if GF._pendingAnyUpButtons then GF._pendingAnyUpButtons[self] = nil end
-end
-
-function GF:RegisterPendingUnitButtonClicks()
-	local pending = GF._pendingAnyUpButtons
-	if not pending or (InCombatLockdown and InCombatLockdown()) then return end
-	for button in pairs(pending) do
-		if button and button.RegisterForClicks and button._eqolAnyUpRegistered ~= true then
-			button:RegisterForClicks("AnyUp")
-			button._eqolAnyUpRegistered = true
-		end
-		pending[button] = nil
-	end
-end
-
 function GF.UnitButton_OnLoad(self)
 	local parent = self and self.GetParent and self:GetParent()
 	if parent and parent._eqolKind then
@@ -11223,9 +11236,7 @@ end
 function GF.UnitButton_OnAttributeChanged(self, name, value)
 	if name ~= "unit" then return end
 	if value == nil or value == "" then
-		if self._eqolUseSecureUnitAttribute == true then
-			return
-		end
+		if self._eqolUseSecureUnitAttribute == true then return end
 		GF:UnitButton_ClearUnit(self)
 		GF:UpdateAll(self)
 		return
@@ -12464,9 +12475,7 @@ function GF:ClearEditModeAuraSamples(kind)
 	end
 	local targetKind = kind and normalized(kind)
 	for headerKind, header in pairs(GF.headers or {}) do
-		if not targetKind or targetKind == normalized(headerKind) then
-			forEachChild(header, GF.ClearAuraSamplesOnButton)
-		end
+		if not targetKind or targetKind == normalized(headerKind) then forEachChild(header, GF.ClearAuraSamplesOnButton) end
 	end
 	if GF._previewFrames then
 		for frameKind, frames in pairs(GF._previewFrames) do
@@ -13394,15 +13403,10 @@ function GF:ApplyHeaderAttributes(kind, options)
 		layoutColumnSpacing = roundToPixel(columnSpacing, scale)
 		layoutColumnAnchorPoint = (kind == "raid" and not centerGrowthActive) and GF.GetRaidColumnAnchorPoint(growth, cfg.groupGrowth) or "LEFT"
 	end
-	GF.PrepareSecureHeaderLayoutChange(header, GF.BuildSecureHeaderLayoutKey(
-		layoutPoint,
-		layoutXOffset,
-		layoutYOffset,
-		layoutColumnSpacing,
-		layoutColumnAnchorPoint,
-		header:GetAttribute("maxColumns"),
-		header:GetAttribute("unitsPerColumn")
-	))
+	GF.PrepareSecureHeaderLayoutChange(
+		header,
+		GF.BuildSecureHeaderLayoutKey(layoutPoint, layoutXOffset, layoutYOffset, layoutColumnSpacing, layoutColumnAnchorPoint, header:GetAttribute("maxColumns"), header:GetAttribute("unitsPerColumn"))
+	)
 	setAttr("point", layoutPoint)
 	setAttr("xOffset", layoutXOffset)
 	setAttr("yOffset", layoutYOffset)
@@ -13497,11 +13501,7 @@ function GF:ApplyHeaderAttributes(kind, options)
 		useGroupHeaders and 1 or 0
 	)
 	local layoutChanged = GF.UpdateHeaderChildLayoutKey(header, headerChildLayoutKey)
-	if not skipChildSync or layoutChanged then
-		forEachChild(header, function(child)
-			syncHeaderChild(child, kind, cfg, renderW, renderH)
-		end)
-	end
+	if not skipChildSync or layoutChanged then forEachChild(header, function(child) syncHeaderChild(child, kind, cfg, renderW, renderH) end) end
 
 	local anchor = GF.anchors and GF.anchors[kind]
 	if anchor then
@@ -15871,9 +15871,7 @@ local function buildEditModeSettings(kind, editModeId)
 		local cfg = getCfg(kind)
 		return GF.GetGroupAuraRenderer(cfg, DEFAULTS[kind] or EMPTY)
 	end
-	local function isBlizzardRendererSelected()
-		return getAuraRendererValue() == "BLIZZARD"
-	end
+	local function isBlizzardRendererSelected() return getAuraRendererValue() == "BLIZZARD" end
 	local function normalizeGroupBy(value)
 		if value == nil then return nil end
 		local v = tostring(value):upper()
@@ -21496,9 +21494,7 @@ local function buildEditModeSettings(kind, editModeId)
 				GF:ApplyHeaderAttributes(kind)
 				GF:RefreshDispelTint()
 			end,
-			isEnabled = function()
-				return isDispelTintEnabled()
-			end,
+			isEnabled = function() return isDispelTintEnabled() end,
 		},
 		{
 			name = "Dispel indicator strata",
@@ -24934,12 +24930,8 @@ local function buildEditModeSettings(kind, editModeId)
 			kind = SettingType.Checkbox,
 			field = "debuffDisplayLargerRoleSpecific",
 			parentId = "debuffs",
-			isShown = function()
-				return GF.IsBlizzardAuraRenderTypeEnabled(getCfg(kind), DEFAULTS[kind] or EMPTY, "debuffs")
-			end,
-			get = function()
-				return GF.IsBlizzardLargerRoleDebuffEnabled(getCfg(kind), DEFAULTS[kind] or EMPTY)
-			end,
+			isShown = function() return GF.IsBlizzardAuraRenderTypeEnabled(getCfg(kind), DEFAULTS[kind] or EMPTY, "debuffs") end,
+			get = function() return GF.IsBlizzardLargerRoleDebuffEnabled(getCfg(kind), DEFAULTS[kind] or EMPTY) end,
 			set = function(_, value)
 				local cfg = getCfg(kind)
 				local ac = ensureAuraConfig(cfg)
@@ -27846,16 +27838,7 @@ local function applyEditModeData(kind, data)
 		offset = floor(offset + (offset >= 0 and 0.5 or -0.5))
 		cfg.border.frameLevelOffset = offset
 	end
-	if
-		kind == "party"
-		and (
-			data.groupBorderEnabled ~= nil
-			or data.groupBorderColor ~= nil
-			or data.groupBorderTexture ~= nil
-			or data.groupBorderSize ~= nil
-			or data.groupBorderOffset ~= nil
-		)
-	then
+	if kind == "party" and (data.groupBorderEnabled ~= nil or data.groupBorderColor ~= nil or data.groupBorderTexture ~= nil or data.groupBorderSize ~= nil or data.groupBorderOffset ~= nil) then
 		cfg.groupBorder = cfg.groupBorder or {}
 		if data.groupBorderEnabled ~= nil then cfg.groupBorder.enabled = data.groupBorderEnabled and true or false end
 		if data.groupBorderColor ~= nil then cfg.groupBorder.color = data.groupBorderColor end
@@ -29089,17 +29072,16 @@ function GF:EnsureEditMode()
 					return floor(value + (value >= 0 and 0.5 or -0.5))
 				end)(),
 				groupBorderEnabled = kind == "party" and ((cfg.groupBorder and cfg.groupBorder.enabled) == true) or nil,
-				groupBorderColor = kind == "party" and ((cfg.groupBorder and cfg.groupBorder.color) or (DEFAULTS.party and DEFAULTS.party.groupBorder and DEFAULTS.party.groupBorder.color) or { 1, 1, 1, 1 }) or nil,
-				groupBorderTexture = kind == "party" and ((cfg.groupBorder and cfg.groupBorder.texture) or (DEFAULTS.party and DEFAULTS.party.groupBorder and DEFAULTS.party.groupBorder.texture) or "DEFAULT") or nil,
-				groupBorderSize = kind == "party" and ((cfg.groupBorder and cfg.groupBorder.edgeSize) or (DEFAULTS.party and DEFAULTS.party.groupBorder and DEFAULTS.party.groupBorder.edgeSize) or 1) or nil,
+				groupBorderColor = kind == "party"
+						and ((cfg.groupBorder and cfg.groupBorder.color) or (DEFAULTS.party and DEFAULTS.party.groupBorder and DEFAULTS.party.groupBorder.color) or { 1, 1, 1, 1 })
+					or nil,
+				groupBorderTexture = kind == "party"
+						and ((cfg.groupBorder and cfg.groupBorder.texture) or (DEFAULTS.party and DEFAULTS.party.groupBorder and DEFAULTS.party.groupBorder.texture) or "DEFAULT")
+					or nil,
+				groupBorderSize = kind == "party" and ((cfg.groupBorder and cfg.groupBorder.edgeSize) or (DEFAULTS.party and DEFAULTS.party.groupBorder and DEFAULTS.party.groupBorder.edgeSize) or 1)
+					or nil,
 				groupBorderOffset = kind == "party"
-						and (
-							(cfg.groupBorder and (cfg.groupBorder.offset or cfg.groupBorder.inset))
-							or (DEFAULTS.party and DEFAULTS.party.groupBorder and (DEFAULTS.party.groupBorder.offset or DEFAULTS.party.groupBorder.inset))
-							or (cfg.groupBorder and cfg.groupBorder.edgeSize)
-							or (DEFAULTS.party and DEFAULTS.party.groupBorder and DEFAULTS.party.groupBorder.edgeSize)
-							or 1
-						)
+						and ((cfg.groupBorder and (cfg.groupBorder.offset or cfg.groupBorder.inset)) or (DEFAULTS.party and DEFAULTS.party.groupBorder and (DEFAULTS.party.groupBorder.offset or DEFAULTS.party.groupBorder.inset)) or (cfg.groupBorder and cfg.groupBorder.edgeSize) or (DEFAULTS.party and DEFAULTS.party.groupBorder and DEFAULTS.party.groupBorder.edgeSize) or 1)
 					or nil,
 				hoverHighlightEnabled = (cfg.highlightHover and cfg.highlightHover.enabled) == true,
 				hoverHighlightColor = (cfg.highlightHover and cfg.highlightHover.color) or (def.highlightHover and def.highlightHover.color) or { 1, 1, 1, 0.9 },
@@ -29995,7 +29977,6 @@ do
 			GF:RunPostEnterWorldRefreshPass()
 			GF:SchedulePostEnterWorldRefresh()
 		elseif event == "PLAYER_REGEN_ENABLED" then
-			GF:RegisterPendingUnitButtonClicks()
 			if GF._pendingDisable then
 				GF._pendingDisable = nil
 				GF:DisableFeature()
