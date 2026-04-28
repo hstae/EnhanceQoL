@@ -7698,6 +7698,7 @@ local function buildUnitSettings(unit)
 				enabled = false,
 				countdownFrame = true,
 				countdownNumbers = false,
+				showTooltip = false,
 				showDispelType = false,
 				icon = { amount = 2, size = 24, point = "LEFT", offset = 3 },
 				parent = { point = "BOTTOM", offsetX = 0, offsetY = -4 },
@@ -7841,6 +7842,18 @@ local function buildUnitSettings(unit)
 			"privateAuras"
 		)
 		list[#list].isEnabled = isPrivateCountdownEnabled
+
+		list[#list + 1] = checkbox(
+			L["Show tooltip"] or "Show tooltip",
+			function() return getValue(unit, { "privateAuras", "showTooltip" }, paDef.showTooltip == true) == true end,
+			function(val)
+				setValue(unit, { "privateAuras", "showTooltip" }, val and true or false)
+				refresh()
+			end,
+			paDef.showTooltip == true,
+			"privateAuras"
+		)
+		list[#list].isEnabled = isPrivateAurasEnabled
 
 		list[#list + 1] = checkbox(
 			L["Show dispel type"] or "Show dispel type",

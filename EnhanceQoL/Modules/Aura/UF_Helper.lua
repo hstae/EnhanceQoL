@@ -1313,6 +1313,7 @@ function H.ApplyPrivateAuras(container, unit, cfg, parent, levelFrame, showSampl
 
 	local showFrame = cfg.countdownFrame ~= false
 	local showNumbers = cfg.countdownNumbers ~= false
+	local showTooltip = cfg.showTooltip == true
 	local durationEnabled = durationCfg.enable == true
 	local durationPoint = tostring(durationCfg.point or "CENTER"):upper()
 	local durationOffsetX = tonumber(durationCfg.offsetX) or 0
@@ -1343,6 +1344,7 @@ function H.ApplyPrivateAuras(container, unit, cfg, parent, levelFrame, showSampl
 		or state.size ~= size
 		or state.countdownFrame ~= showFrame
 		or state.countdownNumbers ~= showNumbers
+		or state.showTooltip ~= showTooltip
 		or state.borderScale ~= borderScale
 		or state.textScale ~= textScale
 		or state.durationEnabled ~= durationEnabled
@@ -1357,6 +1359,7 @@ function H.ApplyPrivateAuras(container, unit, cfg, parent, levelFrame, showSampl
 		state.size = size
 		state.countdownFrame = showFrame
 		state.countdownNumbers = showNumbers
+		state.showTooltip = showTooltip
 		state.borderScale = borderScale
 		state.textScale = textScale
 		state.durationEnabled = durationEnabled
@@ -1440,7 +1443,11 @@ function H.ApplyPrivateAuras(container, unit, cfg, parent, levelFrame, showSampl
 		layout:Show()
 		anchor:ClearAllPoints()
 		anchor:SetPoint("CENTER", layout, "CENTER", 0, 0)
-		anchor:SetSize(0.001, 0.001)
+		if showTooltip then
+			anchor:SetSize(logicalSize, logicalSize)
+		else
+			anchor:SetSize(0.001, 0.001)
+		end
 		anchor:Show()
 		if anchor._eqolPrivateAuraBlocker and anchor._eqolPrivateAuraBlocker.Hide then anchor._eqolPrivateAuraBlocker:Hide() end
 		if showSample then

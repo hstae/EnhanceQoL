@@ -1,5 +1,14 @@
 # Changelog
 
+## [10.9.0-beta10] - 2026-04-28
+
+### 🐛 Fixed
+
+- Bags: Fixed the Tracking settings page so its full content scrolls inside the settings panel instead of overflowing below the window at smaller heights.
+- Private Auras: Added a dedicated tooltip toggle for standalone, unit-frame, and group-frame private auras, keeping private aura anchors clickthrough unless that tooltip is explicitly enabled.
+
+---
+
 ## [10.9.0-beta9] - 2026-04-27
 
 ### 🐛 Fixed

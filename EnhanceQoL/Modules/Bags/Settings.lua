@@ -17,6 +17,7 @@ local MIN_SETTINGS_HEIGHT = 500
 local SETTINGS_LAYOUT_SCROLLFRAME_NAME = "BagsSettingsLayoutScrollFrame"
 local SETTINGS_LIST_SCROLLFRAME_NAME = "BagsSettingsCategoryListScrollFrame"
 local SETTINGS_DETAIL_SCROLLFRAME_NAME = "BagsSettingsCategoryDetailScrollFrame"
+local SETTINGS_TRACKING_SCROLLFRAME_NAME = "BagsSettingsTrackingScrollFrame"
 local SETTINGS_OVERLAY_SCROLLFRAME_NAME = "BagsSettingsOverlayScrollFrame"
 local SETTINGS_ASSIGNED_ITEMS_SCROLLFRAME_NAME = "BagsSettingsAssignedItemsScrollFrame"
 local SETTINGS_FOOTER_TRACKED_SCROLLFRAME_NAME = "BagsSettingsFooterTrackedCharactersScrollFrame"
@@ -2277,6 +2278,9 @@ refreshTrackingPage = function(page, settings)
 	end
 
 	refreshTrackedCurrencyRows(page)
+	if page.ScrollFrame and page.Content then
+		updateScrollContainer(page.ScrollFrame, page.Content, page.TrackingContentHeight or 528)
+	end
 end
 
 setPageSelection = function(pageID)
@@ -4277,12 +4281,18 @@ local function createTrackingPage(parent)
 		L["settingsTrackingDescription"] or "Use watched backpack currencies and optional currency IDs."
 	)
 
+	local scrollFrame, content = createScrollContainer(page, SETTINGS_TRACKING_SCROLLFRAME_NAME)
+	scrollFrame:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -74)
+	scrollFrame:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -28, 0)
+	page.ScrollFrame = scrollFrame
+	page.Content = content
+
 	page.ShowWatchedCurrencies = createCheckbox(
-		page,
+		content,
 		L["settingsUseWatchedCurrencies"] or "Use watched backpack currencies",
 		L["settingsUseWatchedCurrenciesTooltip"] or "",
 		0,
-		-68,
+		-8,
 		function(value)
 			getSettings().showWatchedCurrencies = value
 			requestBagRefresh(false)
@@ -4290,11 +4300,11 @@ local function createTrackingPage(parent)
 	)
 
 	page.ShowTrackedCurrencyCharacterBreakdown = createCheckbox(
-		page,
+		content,
 		L["settingsShowTrackedCurrencyCharacterBreakdown"] or "Show warband character currencies in tooltip",
 		L["settingsShowTrackedCurrencyCharacterBreakdownTooltip"] or "",
 		0,
-		-98,
+		-38,
 		function(value)
 			if addon.SetShowTrackedCurrencyCharacterBreakdown then
 				addon.SetShowTrackedCurrencyCharacterBreakdown(value)
@@ -4309,9 +4319,9 @@ local function createTrackingPage(parent)
 		end
 	)
 
-	local tooltipCard = CreateFrame("Frame", nil, page, "BackdropTemplate")
+	local tooltipCard = CreateFrame("Frame", nil, content, "BackdropTemplate")
 	tooltipCard:SetPoint("TOPLEFT", page.ShowTrackedCurrencyCharacterBreakdown, "BOTTOMLEFT", 0, -24)
-	tooltipCard:SetPoint("RIGHT", page, "RIGHT", -8, 0)
+	tooltipCard:SetPoint("RIGHT", content, "RIGHT", -8, 0)
 	tooltipCard:SetHeight(154)
 	createCardBackdrop(tooltipCard)
 	page.TrackedCurrencyTooltipCard = tooltipCard
@@ -4392,9 +4402,10 @@ local function createTrackingPage(parent)
 	end)
 	page.TrackedCurrencyTooltipCountColorButton = countColorButton
 
-	local trackedCard = CreateFrame("Frame", nil, page, "BackdropTemplate")
+	local trackedCard = CreateFrame("Frame", nil, content, "BackdropTemplate")
 	trackedCard:SetPoint("TOPLEFT", tooltipCard, "BOTTOMLEFT", 0, -18)
-	trackedCard:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -8, 0)
+	trackedCard:SetPoint("RIGHT", content, "RIGHT", -8, 0)
+	trackedCard:SetHeight(274)
 	createCardBackdrop(trackedCard)
 	page.TrackedCurrencyCard = trackedCard
 
@@ -4441,20 +4452,23 @@ local function createTrackingPage(parent)
 	setSingleLineText(statusText)
 	page.TrackedCurrencyStatus = statusText
 
-	local scrollFrame, content = createScrollContainer(trackedCard, SETTINGS_TRACKED_CURRENCY_SCROLLFRAME_NAME)
-	scrollFrame:SetPoint("TOPLEFT", addBox, "BOTTOMLEFT", -2, -12)
-	scrollFrame:SetPoint("BOTTOMRIGHT", trackedCard, "BOTTOMRIGHT", -28, 12)
-	page.TrackedCurrencyScrollFrame = scrollFrame
-	page.TrackedCurrencyListContent = content
+	local currencyScrollFrame, currencyContent = createScrollContainer(trackedCard, SETTINGS_TRACKED_CURRENCY_SCROLLFRAME_NAME)
+	currencyScrollFrame:SetPoint("TOPLEFT", addBox, "BOTTOMLEFT", -2, -12)
+	currencyScrollFrame:SetPoint("BOTTOMRIGHT", trackedCard, "BOTTOMRIGHT", -28, 12)
+	page.TrackedCurrencyScrollFrame = currencyScrollFrame
+	page.TrackedCurrencyListContent = currencyContent
 	page.TrackedCurrencyRows = {}
 
-	local emptyText = content:CreateFontString(nil, "OVERLAY", "GameFontDisable")
-	emptyText:SetPoint("TOPLEFT", content, "TOPLEFT", 12, -12)
-	emptyText:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT", -12, 12)
+	local emptyText = currencyContent:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+	emptyText:SetPoint("TOPLEFT", currencyContent, "TOPLEFT", 12, -12)
+	emptyText:SetPoint("BOTTOMRIGHT", currencyContent, "BOTTOMRIGHT", -12, 12)
 	emptyText:SetJustifyH("CENTER")
 	emptyText:SetJustifyV("MIDDLE")
 	emptyText:SetText(L["settingsTrackedCurrenciesEmpty"] or "No tracked currencies yet.")
 	page.EmptyTrackedCurrenciesText = emptyText
+
+	page.TrackingContentHeight = 528
+	updateScrollContainer(scrollFrame, content, page.TrackingContentHeight)
 
 	return page
 end

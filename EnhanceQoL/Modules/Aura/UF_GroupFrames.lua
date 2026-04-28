@@ -2896,6 +2896,7 @@ local DEFAULTS = {
 		privateAuras = {
 			countdownFrame = true,
 			countdownNumbers = false,
+			showTooltip = false,
 			duration = {
 				enable = false,
 				offsetX = 0,
@@ -3669,6 +3670,7 @@ local DEFAULTS = {
 		privateAuras = {
 			countdownFrame = false,
 			countdownNumbers = false,
+			showTooltip = false,
 			duration = {
 				enable = false,
 				offsetX = 0,
@@ -4306,6 +4308,7 @@ local DEFAULTS = {
 		privateAuras = {
 			countdownFrame = true,
 			countdownNumbers = false,
+			showTooltip = false,
 			duration = {
 				enable = false,
 				offsetX = 0,
@@ -4941,6 +4944,7 @@ local DEFAULTS = {
 		privateAuras = {
 			countdownFrame = true,
 			countdownNumbers = false,
+			showTooltip = false,
 			duration = {
 				enable = false,
 				offsetX = 0,
@@ -16538,6 +16542,28 @@ local function buildEditModeSettings(kind, editModeId)
 				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "tooltipAuras", enabled, nil, true) end
 				refreshAllAuras()
 			end,
+		},
+		{
+			name = L["Show tooltip for private auras"] or "Show tooltip for private auras",
+			kind = SettingType.Checkbox,
+			field = "privateAurasShowTooltip",
+			parentId = "frame",
+			get = function()
+				local cfg = getCfg(kind)
+				local pcfg = cfg and cfg.privateAuras or {}
+				local defValue = defPrivateAuras.showTooltip == true
+				if pcfg.showTooltip == nil then return defValue end
+				return pcfg.showTooltip == true
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				local pcfg = ensurePrivateAuraConfig(cfg)
+				if not pcfg then return end
+				pcfg.showTooltip = value and true or false
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "privateAurasShowTooltip", pcfg.showTooltip, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			isEnabled = isPrivateAurasEnabled,
 		},
 		{
 			name = L["Layout"] or "Layout",
@@ -28642,6 +28668,7 @@ local function applyEditModeData(kind, data)
 		or data.privateAurasParentOffsetY ~= nil
 		or data.privateAurasCountdownFrame ~= nil
 		or data.privateAurasCountdownNumbers ~= nil
+		or data.privateAurasShowTooltip ~= nil
 		or data.privateAurasShowDispelType ~= nil
 		or data.privateAurasDurationEnabled ~= nil
 		or data.privateAurasDurationPoint ~= nil
@@ -28663,6 +28690,7 @@ local function applyEditModeData(kind, data)
 		if data.privateAurasParentOffsetY ~= nil then cfg.privateAuras.parent.offsetY = data.privateAurasParentOffsetY end
 		if data.privateAurasCountdownFrame ~= nil then cfg.privateAuras.countdownFrame = data.privateAurasCountdownFrame and true or false end
 		if data.privateAurasCountdownNumbers ~= nil then cfg.privateAuras.countdownNumbers = data.privateAurasCountdownNumbers and true or false end
+		if data.privateAurasShowTooltip ~= nil then cfg.privateAuras.showTooltip = data.privateAurasShowTooltip and true or false end
 		if data.privateAurasShowDispelType ~= nil then cfg.privateAuras.showDispelType = data.privateAurasShowDispelType and true or false end
 		if data.privateAurasDurationEnabled ~= nil then cfg.privateAuras.duration.enable = data.privateAurasDurationEnabled and true or false end
 		if data.privateAurasDurationPoint ~= nil then cfg.privateAuras.duration.point = data.privateAurasDurationPoint end
@@ -29321,6 +29349,7 @@ function GF:EnsureEditMode()
 				privateAurasParentOffsetY = paParent.offsetY or defPrivateParent.offsetY or 0,
 				privateAurasCountdownFrame = (pa.countdownFrame ~= nil) and (pa.countdownFrame ~= false) or ((pa.countdownFrame == nil) and defPrivate.countdownFrame ~= false),
 				privateAurasCountdownNumbers = (pa.countdownNumbers ~= nil) and (pa.countdownNumbers ~= false) or ((pa.countdownNumbers == nil) and defPrivate.countdownNumbers ~= false),
+				privateAurasShowTooltip = (pa.showTooltip ~= nil) and (pa.showTooltip == true) or ((pa.showTooltip == nil) and defPrivate.showTooltip == true),
 				privateAurasShowDispelType = (pa.showDispelType ~= nil) and (pa.showDispelType == true) or ((pa.showDispelType == nil) and defPrivate.showDispelType == true),
 				privateAurasDurationEnabled = (paDuration.enable ~= nil) and (paDuration.enable == true) or ((paDuration.enable == nil) and defPrivateDuration.enable == true),
 				privateAurasDurationPoint = paDuration.point or defPrivateDuration.point or "BOTTOM",
