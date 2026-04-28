@@ -11006,6 +11006,31 @@ function GF:OpenUnitMenu(self)
 	end
 end
 
+function GF.UnitButton_RegisterForClicks(self)
+	if not (self and self.RegisterForClicks) then return end
+	if self._eqolAnyUpRegistered == true then return end
+	if InCombatLockdown and InCombatLockdown() then
+		GF._pendingAnyUpButtons = GF._pendingAnyUpButtons or {}
+		GF._pendingAnyUpButtons[self] = true
+		return
+	end
+	self:RegisterForClicks("AnyUp")
+	self._eqolAnyUpRegistered = true
+	if GF._pendingAnyUpButtons then GF._pendingAnyUpButtons[self] = nil end
+end
+
+function GF:RegisterPendingUnitButtonClicks()
+	local pending = GF._pendingAnyUpButtons
+	if not pending or (InCombatLockdown and InCombatLockdown()) then return end
+	for button in pairs(pending) do
+		if button and button.RegisterForClicks and button._eqolAnyUpRegistered ~= true then
+			button:RegisterForClicks("AnyUp")
+			button._eqolAnyUpRegistered = true
+		end
+		pending[button] = nil
+	end
+end
+
 function GF.UnitButton_OnLoad(self)
 	local parent = self and self.GetParent and self:GetParent()
 	if parent and parent._eqolKind then
@@ -29970,6 +29995,7 @@ do
 			GF:RunPostEnterWorldRefreshPass()
 			GF:SchedulePostEnterWorldRefresh()
 		elseif event == "PLAYER_REGEN_ENABLED" then
+			GF:RegisterPendingUnitButtonClicks()
 			if GF._pendingDisable then
 				GF._pendingDisable = nil
 				GF:DisableFeature()

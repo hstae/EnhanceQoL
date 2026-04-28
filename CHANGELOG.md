@@ -10,6 +10,10 @@
 
 - Unit Frames / Group Frames: Aligned Edit Mode settings order and visible labels so shared options appear consistently, with frame-specific options separated below.
 
+### 🐛 Fixed
+
+- Group Frames: Deferred `AnyUp` click registration for secure group unit buttons created in combat, avoiding protected action errors when raid members join or leave during combat.
+
 ---
 
 ## [10.9.0-beta10] - 2026-04-28
