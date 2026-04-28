@@ -1,4 +1,4 @@
--- luacheck: globals BagsItemButton_OnLoad ItemButtonUtil ContainerFrameItemButtonMixin ScrollFrameTemplate_OnMouseWheel IsAnyStandardHeldBagOpen BackpackTokenFrame BagItemAutoSortButton ITEM_SEARCHBAR_LIST BagSearch_OnHide BagSearch_OnTextChanged BagSearch_OnChar UIPanelScrollFrame_OnLoad ClearItemButtonOverlay SetItemButtonQuality SetItemButtonCount SetItemButtonDesaturated ContainerFrame_AllowedToOpenBags C_Cursor COPPER_PER_GOLD COPPER_PER_SILVER NUM_BAG_SLOTS NUM_REAGENTBAG_SLOTS GetInventoryItemTexture GetInventoryItemID GetInventoryItemQuality GetInventorySlotInfo PickupBagFromSlot PutItemInBag BAGS EQUIP_CONTAINER EQUIP_CONTAINER_REAGENT
+-- luacheck: globals BagsItemButton_OnLoad ItemButtonUtil ContainerFrameItemButtonMixin ScrollFrameTemplate_OnMouseWheel IsAnyStandardHeldBagOpen BackpackTokenFrame BagItemAutoSortButton ITEM_SEARCHBAR_LIST BagSearch_OnHide BagSearch_OnTextChanged BagSearch_OnChar UIPanelScrollFrame_OnLoad ClearItemButtonOverlay SetItemButtonQuality SetItemButtonCount SetItemButtonDesaturated ContainerFrame_AllowedToOpenBags C_Cursor COPPER_PER_GOLD COPPER_PER_SILVER NUM_BAG_SLOTS NUM_REAGENTBAG_SLOTS GetInventoryItemTexture GetInventoryItemID GetInventoryItemQuality GetInventorySlotInfo PickupBagFromSlot PutItemInBag CloseAllBags BAGS EQUIP_CONTAINER EQUIP_CONTAINER_REAGENT
 local addonName, addon = ...
 addon = addon or {}
 _G[addonName] = addon
@@ -4826,6 +4826,9 @@ end
 function Bags.functions.HideFrame()
 	setManualVisibility(false)
 	state.explicitToggleVisible = false
+	if shouldShowSimpleBags() and type(CloseAllBags) == "function" then
+		CloseAllBags()
+	end
 	if state.frame and not shouldShowManagedContainerFrame() then
 		state.frame:Hide()
 	end
@@ -5072,7 +5075,7 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
 		state.footerDirty = true
 		scheduleUpdate(true, true)
 	elseif event == "BAG_NEW_ITEMS_UPDATED" then
-		scheduleUpdate(true, true)
+		scheduleUpdate(true, false)
 	elseif event == "ITEM_DATA_LOAD_RESULT" then
 		local itemID, success = ...
 		if success and (state.pendingRuleItemDataIDs[itemID] or state.awaitingRuleItemData) then

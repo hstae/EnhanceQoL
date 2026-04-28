@@ -3723,7 +3723,7 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
 	elseif event == "BAG_UPDATE_DELAYED" then
 		scheduleUpdate(true, true)
 	elseif event == "BAG_NEW_ITEMS_UPDATED" then
-		scheduleUpdate(true, true)
+		scheduleUpdate(true, false)
 	elseif event == "UNIT_INVENTORY_CHANGED" or event == "PLAYER_SPECIALIZATION_CHANGED" or event == "PLAYER_LEVEL_UP" then
 		local usage = addon.GetCategoryRuleContextUsage and addon.GetCategoryRuleContextUsage() or nil
 		if doesRuleUsageDependOnPlayerState(usage) then

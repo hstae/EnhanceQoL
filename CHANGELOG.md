@@ -1,5 +1,13 @@
 # Changelog
 
+## [10.9.0-beta12] - 2026-04-28
+
+### 🐛 Fixed
+
+- Bags: Fixed New Items moving into their normal category while the bag window is still open after mouseover clears Blizzard's new-item marker.
+
+---
+
 ## [10.9.0-beta11] - 2026-04-28
 
 ### ✨ Added
