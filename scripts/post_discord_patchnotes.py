@@ -81,7 +81,7 @@ def post(webhook, payload):
 
 
 def main():
-    tag = os.environ.get("GITHUB_REF_NAME") or os.environ.get("TAG_NAME")
+    tag = os.environ.get("TAG_NAME") or os.environ.get("GITHUB_REF_NAME")
     if not tag:
         print("No tag name found in GITHUB_REF_NAME/TAG_NAME.", file=sys.stderr)
         return 1
