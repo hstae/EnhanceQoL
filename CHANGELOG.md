@@ -2,6 +2,10 @@
 
 ## [10.9.0-beta13] - 2026-04-29
 
+### ✨ Added
+
+- Profiles: Added separate import/export sections for Bags categories and Group Frames Healer Buff Placement, both independent from full profile import/export.
+
 ### 🐛 Fixed
 
 - Cooldown Panels: Fixed heavy micro stutters when druids switched forms by reducing redundant Cooldown Viewer aura refresh work.

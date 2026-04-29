@@ -1757,8 +1757,4 @@ addon.L = addon.L or {}
 addon.metadata = addon.metadata or {
 	title = "Bags",
 	description = "Standalone custom bag window and item grid for Retail.",
-	slashCommands = {
-		"/bags",
-		"/bagstest",
-	},
 }

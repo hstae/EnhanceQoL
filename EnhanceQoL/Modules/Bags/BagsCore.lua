@@ -976,14 +976,6 @@ applyConfiguredOverlayAnchors = function(button, overlayRuntime)
 	end
 end
 
-local function trimMessage(message)
-	if type(strtrim) == "function" then
-		return strtrim(message or "")
-	end
-
-	return (message or ""):match("^%s*(.-)%s*$")
-end
-
 local function getFrameDB()
 	addon.DB = addon.DB or {}
 	addon.DB.frame = addon.DB.frame or {}
@@ -2675,6 +2667,9 @@ local function updateButtonData(button, mapping, overlayRuntime, textAppearance,
 		end
 		if forceDynamicUpdate then
 			button:UpdateCooldown(texture)
+			if addon.RefreshItemButtonCooldownMask then
+				addon.RefreshItemButtonCooldownMask(button)
+			end
 			if tooltipOwner then
 				button:CheckUpdateTooltip(tooltipOwner)
 			end
@@ -2711,6 +2706,9 @@ local function updateButtonData(button, mapping, overlayRuntime, textAppearance,
 	button._bagsHasPendingRenderTexture = true
 	button._bagsPendingRenderTexture = texture
 	applyItemButtonSkinIfNeeded(button, quality, true)
+	if addon.RefreshItemButtonCooldownMask then
+		addon.RefreshItemButtonCooldownMask(button)
+	end
 	updateReagentBagVisuals(button)
 	applyConfiguredItemButtonFonts(button, textAppearance, fontSignature)
 	applyConfiguredOverlayAnchors(button, overlayRuntime)
@@ -4926,30 +4924,6 @@ function Bags.functions.ResetFramePosition()
 	scheduleUpdate(false, false)
 end
 
-local function installSlashCommands()
-	if state.slashCommandsInstalled then
-		return
-	end
-
-	state.slashCommandsInstalled = true
-	SLASH_BAGSSTANDALONE1 = "/bags"
-	SLASH_BAGSSTANDALONE2 = "/bagstest"
-	SlashCmdList.BAGSSTANDALONE = function(message)
-		local command = trimMessage(message):lower()
-		if command == "show" then
-			Bags.functions.ShowFrame()
-		elseif command == "hide" then
-			Bags.functions.HideFrame()
-		elseif command == "settings" or command == "options" or command == "config" then
-			if addon.OpenSettings then
-				addon.OpenSettings()
-			end
-		else
-			Bags.functions.ToggleFrame()
-		end
-	end
-end
-
 function Bags.functions.EnableMain()
 	if state.initialized or not (addon.Bags and addon.Bags.IsEnabled and addon.Bags.IsEnabled()) then
 		return
@@ -4960,7 +4934,6 @@ function Bags.functions.EnableMain()
 	detachDefaultBagFrames()
 	installVisibilityHooks()
 	installTokenWatcherHooks()
-	installSlashCommands()
 	state.initialized = true
 	state.pendingRebuild = true
 	local processNow = shouldProcessVisibleBagUpdates()

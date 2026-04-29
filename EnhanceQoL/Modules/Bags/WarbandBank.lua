@@ -2583,6 +2583,9 @@ local function updateButtonData(button, mapping, overlayRuntime, textAppearance,
 		end
 		if forceDynamicUpdate then
 			button:UpdateCooldown(texture)
+			if addon.RefreshItemButtonCooldownMask then
+				addon.RefreshItemButtonCooldownMask(button)
+			end
 			if tooltipOwner then
 				button:CheckUpdateTooltip(tooltipOwner)
 			end
@@ -2620,6 +2623,9 @@ local function updateButtonData(button, mapping, overlayRuntime, textAppearance,
 	button._bagsWarbandPendingRenderTexture = texture
 	if addon.ApplyItemButtonSkin then
 		addon.ApplyItemButtonSkin(button, quality)
+	end
+	if addon.RefreshItemButtonCooldownMask then
+		addon.RefreshItemButtonCooldownMask(button)
 	end
 	applyConfiguredItemButtonFonts(button, textAppearance, fontSignature)
 	applyConfiguredOverlayAnchors(button, overlayRuntime)

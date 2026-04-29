@@ -338,6 +338,39 @@ local function clearTextureMask(texture)
 	texture._bagsAppliedMaskTexture = nil
 end
 
+local function applyCooldownRegionMask(button, maskTexture)
+	local cooldown = button and button.Cooldown
+	if not cooldown or not cooldown.GetRegions or not cooldown.GetNumRegions then
+		return
+	end
+
+	for index = 1, cooldown:GetNumRegions() do
+		local region = select(index, cooldown:GetRegions())
+		if region and region.AddMaskTexture then
+			if maskTexture then
+				ensureTextureMask(region, maskTexture)
+			else
+				clearTextureMask(region)
+			end
+		end
+	end
+end
+
+local function applyCooldownSwipeShape(button, swipeTexture)
+	local cooldown = button and button.Cooldown
+	if not cooldown or not cooldown.SetSwipeTexture then
+		return
+	end
+
+	swipeTexture = swipeTexture or WHITE_TEXTURE
+	if cooldown._bagsSwipeShapeTexture == swipeTexture then
+		return
+	end
+
+	cooldown:SetSwipeTexture(swipeTexture, 0, 0, 0, 0.8)
+	cooldown._bagsSwipeShapeTexture = swipeTexture
+end
+
 local function getButtonTexture(button, key)
 	if not button then
 		return nil
@@ -489,6 +522,7 @@ local function resetItemButtonShape(button, qualityOverride)
 	if button.BagsShapeBorder then
 		button.BagsShapeBorder:Hide()
 	end
+	button._bagsShapeMaskTexture = nil
 
 	if button.BagsDefaultFreeSlotBackground then
 		button.BagsDefaultFreeSlotBackground:Hide()
@@ -606,6 +640,8 @@ local function resetItemButtonShape(button, qualityOverride)
 	if button.Cooldown then
 		button.Cooldown:ClearAllPoints()
 		button.Cooldown:SetAllPoints(button)
+		applyCooldownRegionMask(button, nil)
+		applyCooldownSwipeShape(button, nil)
 	end
 
 	applyProfessionQualityOverlayLayout(button, nil)
@@ -686,6 +722,7 @@ local function applyCustomItemButtonShape(button, skinDefinition, shapeDefinitio
 	setTextureInsets(button.BagsShapeFrameMask, button, frameInset)
 	button.BagsShapeIconMask:SetTexture(maskTexture)
 	setTextureInsets(button.BagsShapeIconMask, button, iconInset)
+	button._bagsShapeMaskTexture = maskTexture
 
 	setTextureInsets(button.BagsShapeBackground, button, iconInset)
 	button.BagsShapeBackground:SetTexture(WHITE_TEXTURE)
@@ -796,12 +833,28 @@ local function applyCustomItemButtonShape(button, skinDefinition, shapeDefinitio
 		button.Cooldown:ClearAllPoints()
 		button.Cooldown:SetPoint("TOPLEFT", button, "TOPLEFT", iconInset, -iconInset)
 		button.Cooldown:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -iconInset, iconInset)
+		applyCooldownRegionMask(button, button.BagsShapeIconMask)
+		applyCooldownSwipeShape(button, maskTexture)
 	end
 
 	applyProfessionQualityOverlayLayout(button, shapeDefinition)
 	applyCountAnchorForShape(button, shapeDefinition)
 
 	button._bagsAppliedIconShapeID = shapeDefinition.labelKey or shapeDefinition.label or "custom"
+end
+
+function addon.RefreshItemButtonCooldownMask(button)
+	if not button then
+		return
+	end
+
+	if button.BagsShapeIconMask and button._bagsAppliedIconShapeID and button._bagsAppliedIconShapeID ~= "default" then
+		applyCooldownRegionMask(button, button.BagsShapeIconMask)
+		applyCooldownSwipeShape(button, button._bagsShapeMaskTexture)
+	else
+		applyCooldownRegionMask(button, nil)
+		applyCooldownSwipeShape(button, nil)
+	end
 end
 
 function addon.GetSkinPreset()
