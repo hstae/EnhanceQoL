@@ -796,6 +796,7 @@ function CooldownPanels:InvalidateTalentChoiceSpellVariantGroups()
 	runtime.talentChoiceVariantGeneration = (runtime.talentChoiceVariantGeneration or 0) + 1
 	runtime.talentChoiceVariantContext = nil
 	runtime.talentChoiceSpellVariantGroupsLoadedByConfig = nil
+	runtime.activeTalentChoiceGroupsForSpellCache = nil
 	self.spellVariantGroupByID = self.staticSpellVariantGroupByID
 end
 
@@ -825,15 +826,32 @@ end
 function CooldownPanels:GetActiveTalentChoiceGroupsForSpell(spellId)
 	local numericID = tonumber(spellId)
 	if not numericID then return nil end
+	self.runtime = self.runtime or {}
+	local runtime = self.runtime
+	local generation = runtime.talentChoiceVariantGeneration or 0
+	local cache = runtime.activeTalentChoiceGroupsForSpellCache
+	if not cache or cache.generation ~= generation then
+		cache = { generation = generation }
+		runtime.activeTalentChoiceGroupsForSpellCache = cache
+	end
+	local cached = cache[numericID]
+	if cached ~= nil then return cached ~= false and cached or nil end
+
 	local ctx = self:GetActiveTalentChoiceVariantContext()
 	if not ctx then ctx = cdp.RUNTIME.EnsureTalentChoiceSpellVariantGroupsLoaded(self) end
-	if not (ctx and type(ctx.byID) == "table") then return nil end
+	if not (ctx and type(ctx.byID) == "table") then
+		cache[numericID] = false
+		return nil
+	end
 	local groups = ctx.byID[numericID]
 	local baseSpellID = getBaseSpellId(numericID)
 	local effectiveSpellID = getEffectiveSpellId(numericID)
 	if not groups and baseSpellID and baseSpellID ~= numericID then groups = ctx.byID[baseSpellID] end
 	if not groups and effectiveSpellID and effectiveSpellID ~= numericID and effectiveSpellID ~= baseSpellID then groups = ctx.byID[effectiveSpellID] end
-	if type(groups) ~= "table" then return nil end
+	if type(groups) ~= "table" then
+		cache[numericID] = false
+		return nil
+	end
 
 	local filtered = nil
 	for i = 1, #groups do
@@ -843,6 +861,7 @@ function CooldownPanels:GetActiveTalentChoiceGroupsForSpell(spellId)
 			filtered[#filtered + 1] = group
 		end
 	end
+	cache[numericID] = filtered or false
 	return filtered
 end
 
@@ -21022,7 +21041,22 @@ function CooldownPanels:RefreshAllOverlayGlowStates(suppressRefresh)
 	if not runtime then return false end
 	runtime.overlayGlowSpells = runtime.overlayGlowSpells or {}
 	local overlayGlowSpells = runtime.overlayGlowSpells
-	local candidateIds, candidateSeen = {}, {}
+	local candidateIds = runtime.overlayGlowCandidateIds
+	if not candidateIds then
+		candidateIds = {}
+		runtime.overlayGlowCandidateIds = candidateIds
+	else
+		for i = 1, #candidateIds do
+			candidateIds[i] = nil
+		end
+	end
+	local candidateSeen = runtime.overlayGlowCandidateSeen
+	if not candidateSeen then
+		candidateSeen = {}
+		runtime.overlayGlowCandidateSeen = candidateSeen
+	else
+		wipe(candidateSeen)
+	end
 	local spellIndex = runtime.spellIndex
 	if spellIndex then
 		for spellId in pairs(spellIndex) do
@@ -21553,30 +21587,29 @@ function CooldownPanels.EnsureUpdateFrame()
 			end
 			return
 		end
-		if event == "ACTIONBAR_HIDEGRID" then
-			Keybinds.RequestRefresh("Event:ACTIONBAR_HIDEGRID")
-			return
-		end
-		if event == "UPDATE_BINDINGS" or event == "ACTIONBAR_PAGE_CHANGED" then
-			Keybinds.RequestRefresh("Event:" .. event)
-			return
-		end
-		if event == "UPDATE_MACROS" then
-			Keybinds.InvalidateCache()
-			if CooldownPanels.runtime then CooldownPanels.runtime.iconCache = nil end
-			CooldownPanels:InvalidateSpellQueryCaches()
-			updateItemCountCache()
-			CooldownPanels:RebuildSpellIndex()
-			CooldownPanels:RequestUpdate("Event:" .. event)
-			return
-		end
-		if event == "SPELLS_CHANGED" then
-			CooldownPanels:InvalidateTalentChoiceSpellVariantGroups()
-			CooldownPanels:InvalidateSpellQueryCaches()
-			if CooldownPanels.RefreshAllOverlayGlowStates then CooldownPanels:RefreshAllOverlayGlowStates() end
-			scheduleSpecAwareRebuild(event, false)
-			return
-		end
+			if event == "ACTIONBAR_HIDEGRID" then
+				Keybinds.RequestRefresh("Event:ACTIONBAR_HIDEGRID")
+				return
+			end
+			if event == "UPDATE_BINDINGS" or event == "ACTIONBAR_PAGE_CHANGED" then
+				Keybinds.RequestRefresh("Event:" .. event)
+				return
+			end
+			if event == "UPDATE_MACROS" then
+				Keybinds.InvalidateCache()
+				if CooldownPanels.runtime then CooldownPanels.runtime.iconCache = nil end
+				CooldownPanels:InvalidateSpellQueryCaches()
+				updateItemCountCache()
+				CooldownPanels:RebuildSpellIndex()
+				CooldownPanels:RequestUpdate("Event:" .. event)
+				return
+			end
+			if event == "SPELLS_CHANGED" then
+				CooldownPanels:InvalidateSpellQueryCaches()
+				if CooldownPanels.RefreshAllOverlayGlowStates then CooldownPanels:RefreshAllOverlayGlowStates() end
+				scheduleSpecAwareRebuild(event, false)
+				return
+			end
 		if event == "PLAYER_SPECIALIZATION_CHANGED" then
 			local unit = ...
 			if unit and unit ~= "player" then return end

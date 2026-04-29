@@ -65,6 +65,7 @@ local HEARTHSTONE_ITEM_IDS = {
 local applyConfiguredFont
 local getConfiguredBaseTextSize
 local getCachedRuleItemInfo
+local isOpenSessionNewItem
 
 local IGNORED_ITEM_LEVEL_EQUIP_LOCS = {
 	[""] = true,
@@ -151,6 +152,7 @@ state.sectionHeaders = state.sectionHeaders or {}
 state.itemRuleDataCache = state.itemRuleDataCache or {}
 state.tooltipBindTypeCache = state.tooltipBindTypeCache or {}
 state.slotCategoryCache = state.slotCategoryCache or {}
+state.openSessionNewItems = state.openSessionNewItems or {}
 state.activeContextID = state.activeContextID or nil
 state.forceDynamicRefresh = false
 if state.playerRuleRevision == nil then
@@ -1272,7 +1274,7 @@ local function isSlotCategoryCacheEntryValid(entry, bagID, slotID, info, questIn
 	local isBound = info and info.isBound or false
 	local questID = questInfo and questInfo.questID or false
 	local isQuestItem = questInfo and questInfo.isQuestItem or false
-	local isNewItem = C_NewItems and C_NewItems.IsNewItem and C_NewItems.IsNewItem(bagID, slotID) or false
+	local isNewItem = isOpenSessionNewItem(bagID, slotID, info)
 	local categoryRulesRevision = ruleRuntimeContext and ruleRuntimeContext.categoryRulesRevision or 0
 	local playerRuleRevision = ruleRuntimeContext and ruleRuntimeContext.playerRuleRevision or 0
 
@@ -1331,7 +1333,7 @@ local function updateResolvedCategoryCache(
 		isBound = info and info.isBound or false,
 		questID = questInfo and questInfo.questID or false,
 		isQuestItem = questInfo and questInfo.isQuestItem or false,
-		isNewItem = C_NewItems and C_NewItems.IsNewItem and C_NewItems.IsNewItem(bagID, slotID) or false,
+		isNewItem = isOpenSessionNewItem(bagID, slotID, info),
 		sectionID = sectionID,
 		collapseRef = collapseRef or false,
 	})
@@ -1804,6 +1806,54 @@ local function isNewItemAtSlot(bagID, slotID)
 	return C_NewItems and C_NewItems.IsNewItem and C_NewItems.IsNewItem(bagID, slotID) or false
 end
 
+isOpenSessionNewItem = function(bagID, slotID, info)
+	local identity = false
+	if info and info.iconFileID then
+		if ItemLocation and C_Item and C_Item.DoesItemExist and C_Item.GetItemGUID then
+			local itemLocation = ItemLocation:CreateFromBagAndSlot(bagID, slotID)
+			if itemLocation and C_Item.DoesItemExist(itemLocation) then
+				identity = C_Item.GetItemGUID(itemLocation) or false
+			end
+		end
+		identity = identity or info.hyperlink or info.itemID or false
+	end
+
+	local bucket = state.openSessionNewItems[bagID]
+	if not identity then
+		if bucket then
+			bucket[slotID] = nil
+		end
+		return false
+	end
+
+	local storedIdentity = bucket and bucket[slotID]
+	if storedIdentity ~= nil then
+		if storedIdentity == identity then
+			return true
+		end
+		bucket[slotID] = nil
+	end
+
+	if isNewItemAtSlot(bagID, slotID) then
+		if not bucket then
+			bucket = {}
+			state.openSessionNewItems[bagID] = bucket
+		end
+		bucket[slotID] = identity
+		return true
+	end
+
+	return false
+end
+
+local function resetOpenSessionNewItems()
+	if wipe then
+		wipe(state.openSessionNewItems)
+	else
+		state.openSessionNewItems = {}
+	end
+end
+
 local function sortLayoutSections(layoutData)
 	if not layoutData or not layoutData.sectionDefinitions then
 		return
@@ -2096,7 +2146,7 @@ local function resolveCategoryForItem(bagID, slotID, info, questInfo, settings, 
 		end
 	end
 
-	if isNewItemAtSlot(bagID, slotID) then
+	if isOpenSessionNewItem(bagID, slotID, info) then
 		sectionID = NEW_ITEMS_SECTION_ID
 	end
 
@@ -2167,7 +2217,7 @@ local function buildLayoutData(context)
 				local questInfo
 				local sectionID = "misc"
 				local collapseRef = nil
-				if settings.showCategories or settings.combineUnstackableItems or isNewItemAtSlot(bagID, slotID) then
+				if settings.showCategories or settings.combineUnstackableItems or isOpenSessionNewItem(bagID, slotID, info) then
 					questInfo = settings.showCategories and C_Container.GetContainerItemQuestInfo(bagID, slotID) or nil
 					sectionID, collapseRef = resolveCategoryForItem(
 						bagID,
@@ -3601,12 +3651,17 @@ local function processUpdate()
 	local context, contexts = getVisibleContext()
 	local shouldBeVisible = shouldShowFrame(context)
 	local wasVisible = state.frame and state.frame:IsShown()
+	local openingFrame = shouldBeVisible and not wasVisible
 	local needsRebuild = state.pendingRebuild
 		or state.layoutData == nil
 		or state.contextSignature ~= getContextSignature(context)
 		or state.currentTotalSlotCount ~= getTotalSlotCount(context)
-		or (shouldBeVisible and not wasVisible)
+		or openingFrame
 	local needsRefresh = state.pendingRefresh or state.forceDynamicRefresh
+
+	if openingFrame then
+		resetOpenSessionNewItems()
+	end
 
 	local updateApplied = true
 	if shouldBeVisible then
@@ -3723,7 +3778,7 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
 	elseif event == "BAG_UPDATE_DELAYED" then
 		scheduleUpdate(true, true)
 	elseif event == "BAG_NEW_ITEMS_UPDATED" then
-		scheduleUpdate(true, false)
+		scheduleUpdate(true, true)
 	elseif event == "UNIT_INVENTORY_CHANGED" or event == "PLAYER_SPECIALIZATION_CHANGED" or event == "PLAYER_LEVEL_UP" then
 		local usage = addon.GetCategoryRuleContextUsage and addon.GetCategoryRuleContextUsage() or nil
 		if doesRuleUsageDependOnPlayerState(usage) then

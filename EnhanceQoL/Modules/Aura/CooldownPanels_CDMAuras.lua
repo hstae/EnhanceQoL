@@ -990,7 +990,13 @@ end
 
 function CDMAuras:SweepInvalidStates()
 	local runtime = getRuntime()
-	local valid = {}
+	local valid = runtime.validEntryScratch
+	if not valid then
+		valid = {}
+		runtime.validEntryScratch = valid
+	else
+		wipe(valid)
+	end
 	local root = CooldownPanels.GetRoot and CooldownPanels:GetRoot() or nil
 	if root and root.panels then
 		for panelId, panel in pairs(root.panels) do
@@ -2201,6 +2207,11 @@ function CDMAuras:HandleResetEvent(event, ...)
 	if event == "PLAYER_SPECIALIZATION_CHANGED" then
 		local unit = ...
 		if unit and unit ~= "player" then return end
+	end
+	if event == "COOLDOWN_VIEWER_SPELL_OVERRIDE_UPDATED" then
+		self:EnsureCooldownViewerHooks()
+		self:ScheduleTrackedPanelsRescan("HandleResetEvent:" .. tostring(event))
+		return
 	end
 	self:EnsureCooldownViewerHooks()
 	self:InvalidateScan(true, "HandleResetEvent:" .. tostring(event))

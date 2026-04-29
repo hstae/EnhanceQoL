@@ -136,6 +136,7 @@ state.currencyButtons = state.currencyButtons or {}
 state.itemRuleDataCache = state.itemRuleDataCache or {}
 state.tooltipBindTypeCache = state.tooltipBindTypeCache or {}
 state.slotCategoryCache = state.slotCategoryCache or {}
+state.openSessionNewItems = state.openSessionNewItems or {}
 state.forceDynamicRefresh = false
 if state.playerRuleRevision == nil then
 	state.playerRuleRevision = 0
@@ -226,6 +227,67 @@ end
 
 local function isNewItemAtSlot(bagID, slotID)
 	return C_NewItems and C_NewItems.IsNewItem and C_NewItems.IsNewItem(bagID, slotID) or false
+end
+
+local function resetOpenSessionNewItems()
+	if wipe then
+		wipe(state.openSessionNewItems)
+	else
+		state.openSessionNewItems = {}
+	end
+end
+
+local function getOpenSessionNewItemIdentity(bagID, slotID, info)
+	if not (info and info.iconFileID) then
+		return false
+	end
+
+	if ItemLocation and C_Item and C_Item.DoesItemExist and C_Item.GetItemGUID then
+		local itemLocation = ItemLocation:CreateFromBagAndSlot(bagID, slotID)
+		if itemLocation and C_Item.DoesItemExist(itemLocation) then
+			local itemGUID = C_Item.GetItemGUID(itemLocation)
+			if itemGUID then
+				return itemGUID
+			end
+		end
+	end
+
+	return info.hyperlink or info.itemID or false
+end
+
+local function getOpenSessionNewItemsBucket(bagID, create)
+	local bucket = state.openSessionNewItems[bagID]
+	if not bucket and create then
+		bucket = {}
+		state.openSessionNewItems[bagID] = bucket
+	end
+	return bucket
+end
+
+local function isOpenSessionNewItem(bagID, slotID, info)
+	local identity = getOpenSessionNewItemIdentity(bagID, slotID, info)
+	local bucket = getOpenSessionNewItemsBucket(bagID, false)
+	if not identity then
+		if bucket then
+			bucket[slotID] = nil
+		end
+		return false
+	end
+
+	local storedIdentity = bucket and bucket[slotID]
+	if storedIdentity ~= nil then
+		if storedIdentity == identity then
+			return true
+		end
+		bucket[slotID] = nil
+	end
+
+	if isNewItemAtSlot(bagID, slotID) then
+		getOpenSessionNewItemsBucket(bagID, true)[slotID] = identity
+		return true
+	end
+
+	return false
 end
 
 local function getCollapsedSectionsTable()
@@ -3039,7 +3101,7 @@ local function isSlotCategoryCacheEntryValid(entry, bagID, slotID, info, questIn
 	local isBound = info and info.isBound or false
 	local questID = questInfo and questInfo.questID or false
 	local isQuestItem = questInfo and questInfo.isQuestItem or false
-	local isNewItem = C_NewItems and C_NewItems.IsNewItem and C_NewItems.IsNewItem(bagID, slotID) or false
+	local isNewItem = isOpenSessionNewItem(bagID, slotID, info)
 	local categoryRulesRevision = ruleRuntimeContext and ruleRuntimeContext.categoryRulesRevision or 0
 	local playerRuleRevision = ruleRuntimeContext and ruleRuntimeContext.playerRuleRevision or 0
 
@@ -3098,7 +3160,7 @@ local function updateResolvedCategoryCache(
 		isBound = info and info.isBound or false,
 		questID = questInfo and questInfo.questID or false,
 		isQuestItem = questInfo and questInfo.isQuestItem or false,
-		isNewItem = C_NewItems and C_NewItems.IsNewItem and C_NewItems.IsNewItem(bagID, slotID) or false,
+		isNewItem = isOpenSessionNewItem(bagID, slotID, info),
 		sectionID = sectionID,
 		collapseRef = collapseRef or false,
 	})
@@ -3682,7 +3744,7 @@ local function resolveCategoryForItem(bagID, slotID, info, questInfo, settings, 
 		end
 	end
 
-	if isNewItemAtSlot(bagID, slotID) then
+	if isOpenSessionNewItem(bagID, slotID, info) then
 		sectionID = "newItems"
 	end
 
@@ -3814,7 +3876,7 @@ local function buildLayoutData()
 				local questInfo
 				local sectionID = "misc"
 				local collapseRef = nil
-				if settings.showCategories or settings.combineUnstackableItems or isNewItemAtSlot(bagID, slotID) then
+				if settings.showCategories or settings.combineUnstackableItems or isOpenSessionNewItem(bagID, slotID, info) then
 					questInfo = settings.showCategories and C_Container.GetContainerItemQuestInfo(bagID, slotID) or nil
 					sectionID, collapseRef = resolveCategoryForItem(
 						bagID,
@@ -4240,7 +4302,6 @@ local function getSectionLayoutMetrics(section, showSectionHeader, sectionCollap
 	local headerWidth = buttonSize
 	local blockHeight = 0
 	local textElementID = section and section.groupID and "subcategoryHeader" or "categoryHeader"
-	local preferFullHeaderWidth = addon.GetSubcategoryFullLabels and addon.GetSubcategoryFullLabels()
 
 	if showSectionHeader then
 		blockHeight = blockHeight + Core.SECTION_HEADER_HEIGHT
@@ -4252,10 +4313,8 @@ local function getSectionLayoutMetrics(section, showSectionHeader, sectionCollap
 		visibleColumns = math.max(1, math.min(sectionColumnCount, itemCount))
 		rows = math.max(1, math.ceil(itemCount / sectionColumnCount))
 		sectionWidth = (visibleColumns * buttonSize) + (math.max(0, visibleColumns - 1) * buttonSpacing)
-		if showSectionHeader and preferFullHeaderWidth then
-			sectionWidth = math.max(sectionWidth, headerWidth)
-		end
 		if showSectionHeader then
+			sectionWidth = math.max(sectionWidth, headerWidth)
 			blockHeight = blockHeight + Core.SECTION_CONTENT_TOP_PADDING
 		end
 		blockHeight = blockHeight + (rows * buttonSize) + (math.max(0, rows - 1) * buttonSpacing)
@@ -4715,6 +4774,7 @@ local function processUpdate()
 	setActiveBagEventRegistration(shouldBeVisible)
 	if openingFrame then
 		state.footerDirty = true
+		resetOpenSessionNewItems()
 	end
 	local settings = getSettings()
 	local needsRebuild = openingFrame
@@ -5075,7 +5135,7 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
 		state.footerDirty = true
 		scheduleUpdate(true, true)
 	elseif event == "BAG_NEW_ITEMS_UPDATED" then
-		scheduleUpdate(true, false)
+		scheduleUpdate(true, true)
 	elseif event == "ITEM_DATA_LOAD_RESULT" then
 		local itemID, success = ...
 		if success and (state.pendingRuleItemDataIDs[itemID] or state.awaitingRuleItemData) then

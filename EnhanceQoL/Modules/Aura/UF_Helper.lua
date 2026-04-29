@@ -862,6 +862,28 @@ local privateAuraShowDispelType = false
 local privateAuraShowDispelCount = 0
 H._privateAuraDeferred = H._privateAuraDeferred or { containers = {} }
 
+-- TODO: Remove this temporary 12.0.5 workaround once Blizzard fixes private aura anchors ignoring frame levels after reattaching.
+-- Original behavior matched the parent strata and used levelFrame + 10. The workaround bumps strata and uses levelFrame + 100.
+H._privateAuraStrataFix = H._privateAuraStrataFix or {
+	BACKGROUND = "LOW",
+	LOW = "MEDIUM",
+	MEDIUM = "HIGH",
+	HIGH = "DIALOG",
+	DIALOG = "FULLSCREEN",
+	FULLSCREEN = "FULLSCREEN_DIALOG",
+	FULLSCREEN_DIALOG = "TOOLTIP",
+}
+
+function H.ApplyPrivateAuraContainerFrameLevel(container, parent, levelFrame)
+	if not container then return end
+	local strataSource = (levelFrame and levelFrame.GetFrameStrata and levelFrame) or (parent and parent.GetFrameStrata and parent)
+	if container.SetFrameStrata and strataSource then
+		local strata = strataSource:GetFrameStrata()
+		container:SetFrameStrata(H._privateAuraStrataFix[strata] or "DIALOG")
+	end
+	if levelFrame and container.SetFrameLevel and levelFrame.GetFrameLevel then container:SetFrameLevel((levelFrame:GetFrameLevel() or 0) + 100) end
+end
+
 function H.UpdatePrivateAuraDeferredEvent()
 	local frame = H._privateAuraDeferred and H._privateAuraDeferred.frame
 	if not frame then return end
@@ -1189,11 +1211,7 @@ function H.ApplyBlizzardAuraContainer(container, unit, cfg, parent, levelFrame, 
 
 	local effectiveUnit = resolvePrivateAuraUnitToken(unit)
 	if parent and container.GetParent and container:GetParent() ~= parent then container:SetParent(parent) end
-	if container.SetFrameStrata then
-		local strataSource = (levelFrame and levelFrame.GetFrameStrata and levelFrame) or (parent and parent.GetFrameStrata and parent)
-		if strataSource then container:SetFrameStrata(strataSource:GetFrameStrata()) end
-	end
-	if levelFrame and container.SetFrameLevel and levelFrame.GetFrameLevel then container:SetFrameLevel((levelFrame:GetFrameLevel() or 0) + 10) end
+	H.ApplyPrivateAuraContainerFrameLevel(container, parent, levelFrame)
 	container:ClearAllPoints()
 	if parent then
 		container:SetAllPoints(parent)
@@ -1331,11 +1349,7 @@ function H.ApplyPrivateAuras(container, unit, cfg, parent, levelFrame, showSampl
 	local anchorPoint = useInverse and inversePoint(parentPoint) or parentPoint
 
 	if parent and container.GetParent and container:GetParent() ~= parent then container:SetParent(parent) end
-	if container.SetFrameStrata then
-		local strataSource = (levelFrame and levelFrame.GetFrameStrata and levelFrame) or (parent and parent.GetFrameStrata and parent)
-		if strataSource then container:SetFrameStrata(strataSource:GetFrameStrata()) end
-	end
-	if levelFrame and container.SetFrameLevel and levelFrame.GetFrameLevel then container:SetFrameLevel((levelFrame:GetFrameLevel() or 0) + 10) end
+	H.ApplyPrivateAuraContainerFrameLevel(container, parent, levelFrame)
 	container:ClearAllPoints()
 	container:SetPoint(anchorPoint, parent or container:GetParent() or UIParent, parentPoint, parentOffsetX, parentOffsetY)
 	container:SetSize(size, size)

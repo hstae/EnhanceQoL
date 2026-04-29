@@ -1,5 +1,14 @@
 # Changelog
 
+## [10.9.0-beta13] - 2026-04-29
+
+### 🐛 Fixed
+
+- Cooldown Panels: Fixed heavy micro stutters when druids switched forms by reducing redundant Cooldown Viewer aura refresh work.
+- Private Auras: Fixed private aura icons sometimes appearing behind unit frames after they were refreshed or moved by the game.
+
+---
+
 ## [10.9.0-beta12] - 2026-04-28
 
 ### 🐛 Fixed
