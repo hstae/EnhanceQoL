@@ -4,7 +4,7 @@
 
 ### ✨ Added
 
-- Unit Frames: Added temporary maximum health loss display for player, target, pet, boss, party, and raid frames using Blizzard's native max-health modifier API.
+- Unit Frames: Added temporary maximum health loss display for player, target, pet, boss, party, raid, and Resource Bars health frames using Blizzard's native max-health modifier API.
 
 ---
 

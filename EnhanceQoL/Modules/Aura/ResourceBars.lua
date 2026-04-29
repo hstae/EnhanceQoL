@@ -464,11 +464,32 @@ local function SetColorCurvePointsPower(pType, maxColor, defColor)
 end
 SetColorCurvePoints()
 
-local function getHealthPercent(unit, curHealth, maxHealth)
-	if addon.functions and addon.functions.GetHealthPercent then return addon.functions.GetHealthPercent(unit, curHealth, maxHealth, true) end
-	curHealth = curHealth or UnitHealth(unit)
-	maxHealth = maxHealth or UnitHealthMax(unit)
-	return (curHealth or 0) / max(maxHealth or 1, 1) * 100
+function ResourceBars.EnsureHealPredictionCalculator(bar)
+	if not bar or bar._healPredictionCalcUnsupported then return nil end
+	if bar._healPredictionCalc then return bar._healPredictionCalc end
+	if not (_G.CreateUnitHealPredictionCalculator and _G.UnitGetDetailedHealPrediction) then
+		bar._healPredictionCalcUnsupported = true
+		return nil
+	end
+	local calc = _G.CreateUnitHealPredictionCalculator()
+	if not calc then
+		bar._healPredictionCalcUnsupported = true
+		return nil
+	end
+	if calc.SetIncomingHealOverflowPercent then calc:SetIncomingHealOverflowPercent(1) end
+	bar._healPredictionCalc = calc
+	return calc
+end
+
+function ResourceBars.RefreshHealPredictionCalculator(bar, unit)
+	local calc = ResourceBars.EnsureHealPredictionCalculator(bar)
+	if calc and _G.UnitGetDetailedHealPrediction then _G.UnitGetDetailedHealPrediction(unit, "player", calc) end
+	return calc
+end
+
+local function getHealthPercent(unit, curHealth, maxHealth, calc)
+	if calc and calc.EvaluateCurrentHealthPercent and CurveConstants and CurveConstants.ScaleTo100 then return calc:EvaluateCurrentHealthPercent(CurveConstants.ScaleTo100) end
+	return nil
 end
 
 local function getPowerPercent(unit, powerEnum, curPower, maxPower, curve)
@@ -871,6 +892,70 @@ local function setBarValue(bar, value, smooth)
 	else
 		bar:SetValue(value)
 	end
+end
+
+function ResourceBars.SetStatusBarReverseFill(bar, reverse)
+	if not bar then return end
+	local UFHelper = addon.Aura and addon.Aura.UFHelper
+	if UFHelper and UFHelper.applyStatusBarReverseFill then
+		UFHelper.applyStatusBarReverseFill(bar, reverse == true)
+	elseif bar.SetReverseFill then
+		bar:SetReverseFill(reverse == true)
+	end
+end
+
+function ResourceBars.EnsureHealthTempMaxHealthLossBars(bar)
+	if not bar then return end
+	if not bar.tempMaxHealthLossMask then
+		bar.tempMaxHealthLossMask = CreateFrame("StatusBar", "EQOLHealthBarTempMaxHealthLossMask", bar, "BackdropTemplate")
+		bar.tempMaxHealthLossMask:SetMinMaxValues(0, 1)
+		bar.tempMaxHealthLossMask:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+		bar.tempMaxHealthLossMask:SetStatusBarColor(0, 0, 0, 0.68)
+		setBarValue(bar.tempMaxHealthLossMask, 0, false)
+		bar.tempMaxHealthLossMask:Hide()
+	end
+	if not bar.tempMaxHealthLoss then
+		bar.tempMaxHealthLoss = CreateFrame("StatusBar", "EQOLHealthBarTempMaxHealthLoss", bar, "BackdropTemplate")
+		bar.tempMaxHealthLoss:SetMinMaxValues(0, 1)
+		bar.tempMaxHealthLoss:SetStatusBarTexture("UI-HUD-UnitFrame-Target-PortraitOn-Bar-TempHPLoss")
+		if bar.tempMaxHealthLoss.SetStatusBarDesaturated then bar.tempMaxHealthLoss:SetStatusBarDesaturated(false) end
+		setBarValue(bar.tempMaxHealthLoss, 0, false)
+		bar.tempMaxHealthLoss:Hide()
+	end
+	return bar.tempMaxHealthLoss, bar.tempMaxHealthLossMask
+end
+
+function ResourceBars.UpdateHealthTempMaxHealthLoss(bar, settings, smooth)
+	local tempLoss, mask = ResourceBars.EnsureHealthTempMaxHealthLossBars(bar)
+	if not tempLoss then return end
+	local loss = (_G.GetUnitTotalModifiedMaxHealthPercent and _G.GetUnitTotalModifiedMaxHealthPercent("player")) or 0
+	local reverseHealth = settings and settings.reverseFill == true
+	if mask then
+		mask:ClearAllPoints()
+		mask:SetAllPoints(bar)
+		mask:SetMinMaxValues(0, 1)
+		ResourceBars.SetStatusBarReverseFill(mask, not reverseHealth)
+		setBarValue(mask, loss, smooth)
+		mask:Show()
+	end
+	if tempLoss then
+		tempLoss:ClearAllPoints()
+		tempLoss:SetAllPoints(bar)
+		tempLoss:SetMinMaxValues(0, 1)
+		ResourceBars.SetStatusBarReverseFill(tempLoss, not reverseHealth)
+		setBarValue(tempLoss, loss, smooth)
+		tempLoss:Show()
+	end
+	if mask then
+		mask:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+		mask:SetStatusBarColor(0, 0, 0, 0.68)
+		if mask.SetFrameStrata and bar.GetFrameStrata then mask:SetFrameStrata(bar:GetFrameStrata()) end
+		if mask.SetFrameLevel and bar.GetFrameLevel then mask:SetFrameLevel((bar:GetFrameLevel() or 0) + 1) end
+	end
+	tempLoss:SetStatusBarTexture("UI-HUD-UnitFrame-Target-PortraitOn-Bar-TempHPLoss")
+	if tempLoss.SetStatusBarDesaturated then tempLoss:SetStatusBarDesaturated(false) end
+	if tempLoss.SetFrameStrata and bar.GetFrameStrata then tempLoss:SetFrameStrata(bar:GetFrameStrata()) end
+	if tempLoss.SetFrameLevel and bar.GetFrameLevel then tempLoss:SetFrameLevel((bar:GetFrameLevel() or 0) + 2) end
 end
 
 requestActiveRefresh = function(specIndex, opts)
@@ -3776,10 +3861,12 @@ function updateHealthBar(evt)
 		local curHealth = UnitHealth("player")
 		local settings = ResourceBars.GetRuntimeBarConfig("HEALTH", healthBar) or {}
 		local smooth = settings.smoothFill == true
+		local calc = ResourceBars.RefreshHealPredictionCalculator(healthBar, "player")
 		setBarValue(healthBar, curHealth, smooth)
 		healthBar._lastVal = curHealth
+		ResourceBars.UpdateHealthTempMaxHealthLoss(healthBar, settings, smooth)
 
-		local percent = getHealthPercent("player", curHealth, maxHealth)
+		local percent = getHealthPercent("player", curHealth, maxHealth, calc)
 		local percentStr = formatPercentDisplay(percent, settings)
 		if healthBar.text then
 			local style = settings and settings.textStyle or "PERCENT"
@@ -3816,9 +3903,12 @@ function updateHealthBar(evt)
 			baseR, baseG, baseB, baseA = getPlayerClassColor()
 		else
 			if not addon.variables.isMidnight then
-				if percent >= 60 then
+				local colorPercent = percent
+				if issecretvalue and issecretvalue(colorPercent) then colorPercent = nil end
+				colorPercent = tonumber(colorPercent) or 0
+				if colorPercent >= 60 then
 					baseR, baseG, baseB, baseA = 0, 0.7, 0, 1
-				elseif percent >= 40 then
+				elseif colorPercent >= 40 then
 					baseR, baseG, baseB, baseA = 0.7, 0.7, 0, 1
 				else
 					baseR, baseG, baseB, baseA = 0.7, 0, 0, 1
@@ -6377,6 +6467,7 @@ end
 RB.EVENTS_TO_REGISTER = {
 	"UNIT_HEALTH",
 	"UNIT_MAXHEALTH",
+	"UNIT_MAX_HEALTH_MODIFIERS_CHANGED",
 	"UNIT_ABSORB_AMOUNT_CHANGED",
 	"UNIT_POWER_UPDATE",
 	"UNIT_POWER_FREQUENT",
@@ -7395,7 +7486,7 @@ local function eventHandler(self, event, unit, arg1)
 		end
 		updateStaggerBarIfShown()
 		return
-	elseif event == "UNIT_MAXHEALTH" or event == "UNIT_HEALTH" or event == "UNIT_ABSORB_AMOUNT_CHANGED" then
+	elseif event == "UNIT_MAXHEALTH" or event == "UNIT_HEALTH" or event == "UNIT_MAX_HEALTH_MODIFIERS_CHANGED" or event == "UNIT_ABSORB_AMOUNT_CHANGED" then
 		if healthBar and healthBar:IsShown() then
 			if event == "UNIT_MAXHEALTH" then
 				local max = UnitHealthMax("player")
