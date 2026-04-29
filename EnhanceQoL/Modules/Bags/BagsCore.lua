@@ -46,8 +46,12 @@ Core.BAG_SLOT_BUTTON_SIZE = 36
 Core.BAG_SLOT_BUTTON_SPACING = 5
 Core.MAX_WATCHED_CURRENCIES = 12
 Core.MIN_ITEM_LEVEL_COLOR_QUALITY = Enum and Enum.ItemQuality and Enum.ItemQuality.Uncommon or 2
+Core.SECTION_TOGGLE_LEFT_ATLAS = "Options_ListExpand_Left"
 Core.SECTION_TOGGLE_COLLAPSED_ATLAS = "Options_ListExpand_Right"
 Core.SECTION_TOGGLE_EXPANDED_ATLAS = "Options_ListExpand_Right_Expanded"
+Core.SECTION_TOGGLE_LEFT_WIDTH = 4
+Core.SECTION_TOGGLE_RIGHT_WIDTH = Core.SECTION_HEADER_HEIGHT
+Core.SECTION_TOGGLE_WIDTH = Core.SECTION_TOGGLE_LEFT_WIDTH + Core.SECTION_TOGGLE_RIGHT_WIDTH
 Core.REAGENT_SLOT_ICON_ATLAS = "bags-icon-reagents"
 Core.GET_BAG_ITEM_TOOLTIP = C_TooltipInfo and C_TooltipInfo.GetBagItem
 Core.ACTIVE_BAG_EVENTS = {
@@ -1183,8 +1187,12 @@ local function configureSectionHeader(header, options)
 	header.canCollapse = isCollapsible
 	header._bagsTextElementID = options.textElementID or "subcategoryHeader"
 	if isCollapsible then
-		header.Icon:SetAtlas(isCollapsed and Core.SECTION_TOGGLE_COLLAPSED_ATLAS or Core.SECTION_TOGGLE_EXPANDED_ATLAS, true)
-		header.Icon:SetVertexColor(color[1] or 1, color[2] or 1, color[3] or 1, 1)
+		header.Icon.Left:SetAtlas(Core.SECTION_TOGGLE_LEFT_ATLAS, false)
+		header.Icon.Right:SetAtlas(isCollapsed and Core.SECTION_TOGGLE_COLLAPSED_ATLAS or Core.SECTION_TOGGLE_EXPANDED_ATLAS, false)
+		header.Icon.Left:SetSize(Core.SECTION_TOGGLE_LEFT_WIDTH, Core.SECTION_HEADER_HEIGHT)
+		header.Icon.Right:SetSize(Core.SECTION_TOGGLE_RIGHT_WIDTH, Core.SECTION_HEADER_HEIGHT)
+		header.Icon.Left:SetVertexColor(color[1] or 1, color[2] or 1, color[3] or 1, 1)
+		header.Icon.Right:SetVertexColor(color[1] or 1, color[2] or 1, color[3] or 1, 1)
 		header.Icon:Show()
 	else
 		header.Icon:Hide()
@@ -1226,9 +1234,14 @@ local function acquireSectionHeader(index)
 	highlight:SetColorTexture(1, 1, 1, 0.08)
 	header.HighlightTexture = highlight
 
-	local icon = header:CreateTexture(nil, "ARTWORK")
-	icon:SetPoint("LEFT", header, "LEFT", -2, 0)
+	local icon = CreateFrame("Frame", nil, header)
+	icon:SetSize(Core.SECTION_TOGGLE_WIDTH, Core.SECTION_HEADER_HEIGHT)
+	icon:SetPoint("LEFT", header, "LEFT", 0, 0)
 	header.Icon = icon
+	icon.Left = icon:CreateTexture(nil, "ARTWORK")
+	icon.Left:SetPoint("LEFT", icon, "LEFT", 0, 0)
+	icon.Right = icon:CreateTexture(nil, "ARTWORK")
+	icon.Right:SetPoint("LEFT", icon.Left, "RIGHT", 0, 0)
 
 	local text = header:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	text:SetPoint("LEFT", icon, "RIGHT", 6, 0)

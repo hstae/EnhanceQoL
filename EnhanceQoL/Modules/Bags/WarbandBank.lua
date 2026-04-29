@@ -34,8 +34,12 @@ local MIN_FRAME_WIDTH = 420
 local MIN_SCROLL_CONTENT_HEIGHT = 160
 local MAX_FRAME_SCREEN_MARGIN = 120
 local SCROLL_BAR_RESERVED_WIDTH = 22
+local SECTION_TOGGLE_LEFT_ATLAS = "Options_ListExpand_Left"
 local SECTION_TOGGLE_COLLAPSED_ATLAS = "Options_ListExpand_Right"
 local SECTION_TOGGLE_EXPANDED_ATLAS = "Options_ListExpand_Right_Expanded"
+local SECTION_TOGGLE_LEFT_WIDTH = 4
+local SECTION_TOGGLE_RIGHT_WIDTH = SECTION_HEADER_HEIGHT
+local SECTION_TOGGLE_WIDTH = SECTION_TOGGLE_LEFT_WIDTH + SECTION_TOGGLE_RIGHT_WIDTH
 local MIN_ITEM_LEVEL_COLOR_QUALITY = Enum and Enum.ItemQuality and Enum.ItemQuality.Uncommon or 2
 local DEPOSIT_BUTTON_WIDTH = 220
 local MONEY_BUTTON_WIDTH = 96
@@ -2335,8 +2339,12 @@ local function configureSectionHeader(header, options)
 	header.categoryColor = color
 	header._bagsTextElementID = options.textElementID or "subcategoryHeader"
 	if isCollapsible then
-		header.Icon:SetAtlas(isCollapsed and SECTION_TOGGLE_COLLAPSED_ATLAS or SECTION_TOGGLE_EXPANDED_ATLAS, true)
-		header.Icon:SetVertexColor(color[1] or 1, color[2] or 1, color[3] or 1, 1)
+		header.Icon.Left:SetAtlas(SECTION_TOGGLE_LEFT_ATLAS, false)
+		header.Icon.Right:SetAtlas(isCollapsed and SECTION_TOGGLE_COLLAPSED_ATLAS or SECTION_TOGGLE_EXPANDED_ATLAS, false)
+		header.Icon.Left:SetSize(SECTION_TOGGLE_LEFT_WIDTH, SECTION_HEADER_HEIGHT)
+		header.Icon.Right:SetSize(SECTION_TOGGLE_RIGHT_WIDTH, SECTION_HEADER_HEIGHT)
+		header.Icon.Left:SetVertexColor(color[1] or 1, color[2] or 1, color[3] or 1, 1)
+		header.Icon.Right:SetVertexColor(color[1] or 1, color[2] or 1, color[3] or 1, 1)
 		header.Icon:Show()
 	else
 		header.Icon:Hide()
@@ -2371,9 +2379,14 @@ local function acquireSectionHeader(index)
 	highlight:SetColorTexture(1, 1, 1, 0.08)
 	header.HighlightTexture = highlight
 
-	local icon = header:CreateTexture(nil, "ARTWORK")
-	icon:SetPoint("LEFT", header, "LEFT", -2, 0)
+	local icon = CreateFrame("Frame", nil, header)
+	icon:SetSize(SECTION_TOGGLE_WIDTH, SECTION_HEADER_HEIGHT)
+	icon:SetPoint("LEFT", header, "LEFT", 0, 0)
 	header.Icon = icon
+	icon.Left = icon:CreateTexture(nil, "ARTWORK")
+	icon.Left:SetPoint("LEFT", icon, "LEFT", 0, 0)
+	icon.Right = icon:CreateTexture(nil, "ARTWORK")
+	icon.Right:SetPoint("LEFT", icon.Left, "RIGHT", 0, 0)
 
 	local text = header:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	text:SetJustifyH("LEFT")
