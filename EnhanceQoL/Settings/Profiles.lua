@@ -1174,6 +1174,9 @@ addon.functions.SettingsCreateButton(cProfiles, {
 	parentSection = expandable,
 })
 
+addon.functions.SettingsCreateHeadline(cProfiles, L["Font"] or "Font", { parentSection = expandable })
+createGlobalFontSettings(expandable)
+
 bagsCategoriesExpandable = addon.functions.SettingsCreateExpandableSection(cProfiles, {
 	name = L["Bags categories"] or "Bags categories",
 	expanded = false,
@@ -1253,9 +1256,6 @@ addon.functions.SettingsCreateButton(cProfiles, {
 	end,
 	parentSection = hbpExpandable,
 })
-
-addon.functions.SettingsCreateHeadline(cProfiles, L["Font"] or "Font", { parentSection = expandable })
-createGlobalFontSettings(expandable)
 
 ----- REGION END
 function addon.functions.initProfile()

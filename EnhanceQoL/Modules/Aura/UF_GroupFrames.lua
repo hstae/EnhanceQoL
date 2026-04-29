@@ -15436,29 +15436,14 @@ function GF.SetGroupAnchorPointFromCfg(frame, kind, cfg)
 		end
 		frame._eqolAnchorRawTarget = rawTarget
 		frame._eqolAnchorValidatedTarget = target
-		frame._eqolAnchorRelativeFrame = nil
 	end
 
 	local point = cfg.point or "CENTER"
 	local relativePoint = cfg.relativePoint or point
 	local x = tonumber(cfg.x) or 0
 	local y = tonumber(cfg.y) or 0
-	local relativeFrame = frame._eqolAnchorRelativeFrame
-	if not relativeFrame then
-		local targetKind = GF.GetGroupAnchorTargetKind(target)
-		local sharedAnchors = addon.SharedAnchors
-		if targetKind then
-			relativeFrame = (GF.anchors and GF.anchors[targetKind]) or _G[target] or UIParent
-		elseif sharedAnchors and sharedAnchors.ResolveFrame then
-			relativeFrame = sharedAnchors:ResolveFrame(target)
-		elseif target == "UIParent" then
-			relativeFrame = UIParent
-		else
-			relativeFrame = _G[target] or UIParent
-		end
-		frame._eqolAnchorRelativeFrame = relativeFrame
-	end
-	local anchorKey = tostring(target or "") .. "\031" .. tostring(point or "") .. "\031" .. tostring(relativePoint or "") .. "\031" .. tostring(x) .. "\031" .. tostring(y)
+	local relativeFrame = GF.ResolveGroupAnchorTargetFrame(kind, target)
+	local anchorKey = tostring(target or "") .. "\031" .. tostring(relativeFrame) .. "\031" .. tostring(point or "") .. "\031" .. tostring(relativePoint or "") .. "\031" .. tostring(x) .. "\031" .. tostring(y)
 	if frame._eqolAnchorPointKey == anchorKey then return end
 	frame._eqolAnchorPointKey = anchorKey
 
@@ -16384,23 +16369,9 @@ local function buildEditModeSettings(kind, editModeId)
 				if not cfg.relativePoint or cfg.relativePoint == "" then cfg.relativePoint = cfg.point end
 				if not cfg.relativeTo or cfg.relativeTo == "" then cfg.relativeTo = "UIParent" end
 				if EditMode and EditMode.SetValue then
-					EditMode:SetValue(editModeId, "point", cfg.point, nil, true)
-					EditMode:SetValue(editModeId, "relativePoint", cfg.relativePoint, nil, true)
+					GF.SyncGroupEditModePositionValues(kind, editModeId, cfg)
 				end
 				if EditMode and EditMode.RefreshFrame then
-					if EditMode.EnsureLayoutData and EditMode.GetActiveLayoutName then
-						local layoutName = EditMode:GetActiveLayoutName()
-						if layoutName then
-							local def = DEFAULTS[kind] or {}
-							local data = EditMode:EnsureLayoutData(editModeId, layoutName)
-							if data then
-								data.point = cfg.point or def.point or "CENTER"
-								data.relativePoint = cfg.relativePoint or cfg.point or def.relativePoint or def.point or "CENTER"
-								data.x = cfg.x or def.x or 0
-								data.y = cfg.y or def.y or 0
-							end
-						end
-					end
 					EditMode:RefreshFrame(editModeId)
 				end
 				GF:ApplyHeaderAttributes(kind)
@@ -16426,23 +16397,9 @@ local function buildEditModeSettings(kind, editModeId)
 				if not cfg.point or cfg.point == "" then cfg.point = cfg.relativePoint end
 				if not cfg.relativeTo or cfg.relativeTo == "" then cfg.relativeTo = "UIParent" end
 				if EditMode and EditMode.SetValue then
-					EditMode:SetValue(editModeId, "relativePoint", cfg.relativePoint, nil, true)
-					EditMode:SetValue(editModeId, "point", cfg.point, nil, true)
+					GF.SyncGroupEditModePositionValues(kind, editModeId, cfg)
 				end
 				if EditMode and EditMode.RefreshFrame then
-					if EditMode.EnsureLayoutData and EditMode.GetActiveLayoutName then
-						local layoutName = EditMode:GetActiveLayoutName()
-						if layoutName then
-							local def = DEFAULTS[kind] or {}
-							local data = EditMode:EnsureLayoutData(editModeId, layoutName)
-							if data then
-								data.point = cfg.point or def.point or "CENTER"
-								data.relativePoint = cfg.relativePoint or cfg.point or def.relativePoint or def.point or "CENTER"
-								data.x = cfg.x or def.x or 0
-								data.y = cfg.y or def.y or 0
-							end
-						end
-					end
 					EditMode:RefreshFrame(editModeId)
 				end
 				GF:ApplyHeaderAttributes(kind)
@@ -16469,22 +16426,8 @@ local function buildEditModeSettings(kind, editModeId)
 				if not cfg.relativeTo or cfg.relativeTo == "" then cfg.relativeTo = "UIParent" end
 				local raw = clampNumber(value, -4000, 4000, cfg.x or 0)
 				cfg.x = raw
-				local v = cfg.x
-				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "x", v, nil, true) end
+				if EditMode and EditMode.SetValue then GF.SyncGroupEditModePositionValues(kind, editModeId, cfg) end
 				if EditMode and EditMode.RefreshFrame then
-					if EditMode.EnsureLayoutData and EditMode.GetActiveLayoutName then
-						local layoutName = EditMode:GetActiveLayoutName()
-						if layoutName then
-							local def = DEFAULTS[kind] or {}
-							local data = EditMode:EnsureLayoutData(editModeId, layoutName)
-							if data then
-								data.point = cfg.point or def.point or "CENTER"
-								data.relativePoint = cfg.relativePoint or cfg.point or def.relativePoint or def.point or "CENTER"
-								data.x = cfg.x or def.x or 0
-								data.y = cfg.y or def.y or 0
-							end
-						end
-					end
 					EditMode:RefreshFrame(editModeId)
 				end
 				GF:ApplyHeaderAttributes(kind)
@@ -16511,22 +16454,8 @@ local function buildEditModeSettings(kind, editModeId)
 				if not cfg.relativeTo or cfg.relativeTo == "" then cfg.relativeTo = "UIParent" end
 				local raw = clampNumber(value, -4000, 4000, cfg.y or 0)
 				cfg.y = raw
-				local v = cfg.y
-				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "y", v, nil, true) end
+				if EditMode and EditMode.SetValue then GF.SyncGroupEditModePositionValues(kind, editModeId, cfg) end
 				if EditMode and EditMode.RefreshFrame then
-					if EditMode.EnsureLayoutData and EditMode.GetActiveLayoutName then
-						local layoutName = EditMode:GetActiveLayoutName()
-						if layoutName then
-							local def = DEFAULTS[kind] or {}
-							local data = EditMode:EnsureLayoutData(editModeId, layoutName)
-							if data then
-								data.point = cfg.point or def.point or "CENTER"
-								data.relativePoint = cfg.relativePoint or cfg.point or def.relativePoint or def.point or "CENTER"
-								data.x = cfg.x or def.x or 0
-								data.y = cfg.y or def.y or 0
-							end
-						end
-					end
 					EditMode:RefreshFrame(editModeId)
 				end
 				GF:ApplyHeaderAttributes(kind)
@@ -27706,10 +27635,35 @@ function GF._syncGroupEditModeLayoutData(kind, editModeId, layoutName)
 	local y = clampNumber((cfg and cfg.y) or def.y or data.y or 0, -4000, 4000, 0)
 
 	data.anchorTarget = anchorTarget
-	data.point = point
-	data.relativePoint = relativePoint
-	data.x = x
-	data.y = y
+	if EditMode.SetValue then
+		EditMode:SetValue(editModeId, "point", point, layoutName, true)
+		EditMode:SetValue(editModeId, "relativePoint", relativePoint, layoutName, true)
+		EditMode:SetValue(editModeId, "x", x, layoutName, true)
+		EditMode:SetValue(editModeId, "y", y, layoutName, true)
+	else
+		data.point = point
+		data.relativePoint = relativePoint
+		data.x = x
+		data.y = y
+	end
+end
+
+function GF.SyncGroupEditModePositionValues(kind, editModeId, cfg, layoutName)
+	if not (kind and editModeId and cfg and EditMode and EditMode.SetValue) then return end
+	local def = DEFAULTS[kind] or {}
+	local point = tostring(cfg.point or def.point or "CENTER"):upper()
+	local relativePoint = tostring(cfg.relativePoint or cfg.point or def.relativePoint or def.point or point):upper()
+	local x = clampNumber(cfg.x ~= nil and cfg.x or def.x or 0, -4000, 4000, 0)
+	local y = clampNumber(cfg.y ~= nil and cfg.y or def.y or 0, -4000, 4000, 0)
+
+	cfg.point = point
+	cfg.relativePoint = relativePoint
+	cfg.x = x
+	cfg.y = y
+	EditMode:SetValue(editModeId, "point", point, layoutName, true)
+	EditMode:SetValue(editModeId, "relativePoint", relativePoint, layoutName, true)
+	EditMode:SetValue(editModeId, "x", x, layoutName, true)
+	EditMode:SetValue(editModeId, "y", y, layoutName, true)
 end
 
 local function applyEditModeData(kind, data)
@@ -27733,29 +27687,36 @@ local function applyEditModeData(kind, data)
 		end
 	end
 	if data.point or data.relativePoint or data.x ~= nil or data.y ~= nil then
-		cfg.point = tostring(data.point or cfg.point or "CENTER"):upper()
-		cfg.relativePoint = tostring(data.relativePoint or cfg.point):upper()
+		local oldPoint, oldRelativePoint, oldX, oldY = cfg.point, cfg.relativePoint, cfg.x, cfg.y
+		local newPoint = tostring(data.point or cfg.point or "CENTER"):upper()
+		local newRelativePoint = tostring(data.relativePoint or newPoint):upper()
+		local newX = clampNumber((data.x ~= nil and data.x or cfg.x) or 0, -4000, 4000, cfg.x or 0)
+		local newY = clampNumber((data.y ~= nil and data.y or cfg.y) or 0, -4000, 4000, cfg.y or 0)
+
+		cfg.point = newPoint
+		cfg.relativePoint = newRelativePoint
 		cfg.relativeTo = GF.ValidateGroupAnchorTarget(kind, cfg.relativeTo, cfg.relativeTo, true)
-		cfg.x = clampNumber((data.x ~= nil and data.x or cfg.x) or 0, -4000, 4000, cfg.x or 0)
-		cfg.y = clampNumber((data.y ~= nil and data.y or cfg.y) or 0, -4000, 4000, cfg.y or 0)
+		cfg.x = newX
+		cfg.y = newY
+		positionChanged = positionChanged
+			or oldPoint ~= cfg.point
+			or oldRelativePoint ~= cfg.relativePoint
+			or oldX ~= cfg.x
+			or oldY ~= cfg.y
 		if data.point ~= cfg.point then
 			data.point = cfg.point
-			positionChanged = true
 			if EditMode and EditMode.SetValue then EditMode:SetValue(EDITMODE_IDS[kind], "point", cfg.point, nil, true) end
 		end
 		if data.relativePoint ~= cfg.relativePoint then
 			data.relativePoint = cfg.relativePoint
-			positionChanged = true
 			if EditMode and EditMode.SetValue then EditMode:SetValue(EDITMODE_IDS[kind], "relativePoint", cfg.relativePoint, nil, true) end
 		end
 		if data.x ~= cfg.x then
 			data.x = cfg.x
-			positionChanged = true
 			if EditMode and EditMode.SetValue then EditMode:SetValue(EDITMODE_IDS[kind], "x", cfg.x, nil, true) end
 		end
 		if data.y ~= cfg.y then
 			data.y = cfg.y
-			positionChanged = true
 			if EditMode and EditMode.SetValue then EditMode:SetValue(EDITMODE_IDS[kind], "y", cfg.y, nil, true) end
 		end
 	end
