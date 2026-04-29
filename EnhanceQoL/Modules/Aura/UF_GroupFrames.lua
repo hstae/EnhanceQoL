@@ -2184,10 +2184,8 @@ local function maxDelimiterCount(leftMode, centerMode, rightMode)
 	return count
 end
 
-local function getHealthPercent(unit, cur, maxv)
-	if addon.functions and addon.functions.GetHealthPercent then return addon.functions.GetHealthPercent(unit, cur, maxv, true) end
-	if issecretvalue and ((cur and issecretvalue(cur)) or (maxv and issecretvalue(maxv))) then return nil end
-	if maxv and maxv > 0 then return (cur or 0) / maxv * 100 end
+local function getHealthPercent(unit, cur, maxv, calc)
+	if calc and calc.EvaluateCurrentHealthPercent and CurveConstants and CurveConstants.ScaleTo100 then return calc:EvaluateCurrentHealthPercent(CurveConstants.ScaleTo100) end
 	return nil
 end
 
@@ -2737,6 +2735,7 @@ local DEFAULTS = {
 			showSampleAbsorb = false,
 			showSampleHealAbsorb = true,
 			showSampleIncomingHeal = false,
+			tempMaxHealthLossEnabled = true,
 			textCenter = "PERCENT",
 			textColor = {
 				1,
@@ -3544,6 +3543,7 @@ local DEFAULTS = {
 			showSampleAbsorb = false,
 			showSampleHealAbsorb = false,
 			showSampleIncomingHeal = false,
+			tempMaxHealthLossEnabled = true,
 			textCenter = "PERCENT",
 			textColor = {
 				1,
@@ -4182,6 +4182,7 @@ local DEFAULTS = {
 			showSampleAbsorb = false,
 			showSampleHealAbsorb = false,
 			showSampleIncomingHeal = false,
+			tempMaxHealthLossEnabled = true,
 			textCenter = "PERCENT",
 			textColor = {
 				1,
@@ -4818,6 +4819,7 @@ local DEFAULTS = {
 			showSampleAbsorb = false,
 			showSampleHealAbsorb = false,
 			showSampleIncomingHeal = false,
+			tempMaxHealthLossEnabled = true,
 			textCenter = "PERCENT",
 			textColor = {
 				1,
@@ -6028,6 +6030,7 @@ local function updateButtonConfig(self, cfg)
 	st._wantsName = tc.showName ~= false
 	st._wantsLevel = scfg.levelEnabled ~= false
 	st._wantsIncomingHeal = hc.incomingHealEnabled == true
+	st._wantsTempMaxHealthLoss = hc.tempMaxHealthLossEnabled ~= false
 	st._wantsAbsorb = (hc.absorbEnabled ~= false) or (hc.healAbsorbEnabled ~= false)
 	st._wantsStatusText = scfg and scfg.unitStatus and scfg.unitStatus.enabled ~= false
 	st._wantsRangeFade = scfg and scfg.rangeFade and scfg.rangeFade.enabled ~= false
@@ -6236,6 +6239,15 @@ function GF:BuildButton(self)
 		GF.SetStatusBarValue(st.health, 0, false, true)
 		if st.health.SetStatusBarDesaturated then st.health:SetStatusBarDesaturated(true) end
 	end
+	if not st.tempMaxHealthLoss then
+		st.tempMaxHealthLoss = CreateFrame("StatusBar", nil, st.health, "BackdropTemplate")
+		st.tempMaxHealthLoss:SetMinMaxValues(0, 1)
+		GF.SetStatusBarValue(st.tempMaxHealthLoss, 0, false, true)
+		if st.tempMaxHealthLoss.SetStatusBarDesaturated then st.tempMaxHealthLoss:SetStatusBarDesaturated(false) end
+		st.tempMaxHealthLoss:Hide()
+	end
+	if st.health.GetParent and st.health:GetParent() ~= st.barGroup then st.health:SetParent(st.barGroup) end
+	if st.tempMaxHealthLoss.GetParent and st.tempMaxHealthLoss:GetParent() ~= st.health then st.tempMaxHealthLoss:SetParent(st.health) end
 	local healthTexKey = getEffectiveBarTexture(cfg, hc)
 	if st.health.SetStatusBarTexture and UFHelper and UFHelper.resolveTexture then
 		if Pixel and Pixel.SetStatusBarTexture then
@@ -6579,6 +6591,13 @@ function GF:LayoutButton(self)
 	st.health:ClearAllPoints()
 	st.health:SetPoint("TOPLEFT", st.barGroup, "TOPLEFT", contentOffsetLeft, 0)
 	st.health:SetPoint("BOTTOMRIGHT", st.barGroup, "BOTTOMRIGHT", -contentOffsetRight, healthBottomOffset)
+	if st.tempMaxHealthLoss then
+		if st.tempMaxHealthLoss.GetParent and st.tempMaxHealthLoss:GetParent() ~= st.health then st.tempMaxHealthLoss:SetParent(st.health) end
+		st.tempMaxHealthLoss:ClearAllPoints()
+		st.tempMaxHealthLoss:SetAllPoints(st.health)
+	end
+	local tempMaxHealthLossEnabled = hc.tempMaxHealthLossEnabled
+	if tempMaxHealthLossEnabled == nil then tempMaxHealthLossEnabled = defH.tempMaxHealthLossEnabled ~= false end
 	applyBarBackdrop(st.health, hc, { clampToFill = healthBackdropClampToFill == true, textureKey = healthTexKey })
 	applyBarBackdrop(st.power, pcfg, { textureKey = powerTexKey })
 
@@ -6781,6 +6800,21 @@ function GF:LayoutButton(self)
 			st._lastHealthTexture = healthTexKey
 			stabilizeStatusBarTexture(st.health)
 		end
+	end
+	if st.tempMaxHealthLoss then
+		st.tempMaxHealthLoss:SetStatusBarTexture("UI-HUD-UnitFrame-Target-PortraitOn-Bar-TempHPLoss")
+		if st.tempMaxHealthLoss.SetStatusBarDesaturated then st.tempMaxHealthLoss:SetStatusBarDesaturated(false) end
+		local reverseHealth = hc.reverseFill
+		if reverseHealth == nil then reverseHealth = defH.reverseFill == true end
+		if UFHelper and UFHelper.applyStatusBarReverseFill then UFHelper.applyStatusBarReverseFill(st.tempMaxHealthLoss, not reverseHealth) end
+		st.tempMaxHealthLoss:SetMinMaxValues(0, 1)
+		if tempMaxHealthLossEnabled then
+			st.tempMaxHealthLoss:Show()
+		else
+			GF.SetStatusBarValue(st.tempMaxHealthLoss, 0, false, true)
+			st.tempMaxHealthLoss:Hide()
+		end
+		setFrameLevelAbove(st.tempMaxHealthLoss, st.health, 1)
 	end
 	if st.power.SetStatusBarTexture and UFHelper and UFHelper.resolveTexture then
 		if st._lastPowerTexture ~= powerTexKey then
@@ -10290,6 +10324,10 @@ function GF:UpdateHealthValue(self, unit, st)
 		if st.absorb2 then st.absorb2:Hide() end
 		if st.overAbsorbGlow then st.overAbsorbGlow:Hide() end
 		if st.healAbsorb then st.healAbsorb:Hide() end
+		if st.tempMaxHealthLoss then
+			GF.SetStatusBarValue(st.tempMaxHealthLoss, 0, false, true)
+			st.tempMaxHealthLoss:Hide()
+		end
 		return
 	end
 
@@ -10361,6 +10399,18 @@ function GF:UpdateHealthValue(self, unit, st)
 		GF.SetStatusBarValue(st.health, cur or 0, smoothHealth, true)
 	else
 		GF.SetStatusBarValue(st.health, cur or 0, smoothHealth)
+	end
+	if st.tempMaxHealthLoss then
+		local tempMaxHealthLossEnabled = hc.tempMaxHealthLossEnabled
+		if tempMaxHealthLossEnabled == nil then tempMaxHealthLossEnabled = defH.tempMaxHealthLossEnabled ~= false end
+		if tempMaxHealthLossEnabled and not suppressAuxHealthBars then
+			st.tempMaxHealthLoss:SetMinMaxValues(0, 1)
+			GF.SetStatusBarValue(st.tempMaxHealthLoss, (_G.GetUnitTotalModifiedMaxHealthPercent and _G.GetUnitTotalModifiedMaxHealthPercent(unit)) or 0, smoothHealth)
+			st.tempMaxHealthLoss:Show()
+		else
+			GF.SetStatusBarValue(st.tempMaxHealthLoss, 0, false, true)
+			st.tempMaxHealthLoss:Hide()
+		end
 	end
 
 	local incomingHealEnabled = hc.incomingHealEnabled == true
@@ -10628,12 +10678,8 @@ function GF:UpdateHealthValue(self, unit, st)
 				local useShort = hc.useShortNumbers ~= false
 				local hidePercentSymbol = hc.hidePercentSymbol == true
 				local percentVal
-				if GFH.TextModeUsesPercent(leftMode) or GFH.TextModeUsesPercent(centerMode) or GFH.TextModeUsesPercent(rightMode) then
-					if addon.variables and addon.variables.isMidnight then
-						percentVal = getHealthPercent(unit, cur, maxv)
-					elseif not secretHealth then
-						percentVal = getHealthPercent(unit, cur, maxv)
-					end
+				if UFHelper and (UFHelper.textModeUsesPercent(leftMode) or UFHelper.textModeUsesPercent(centerMode) or UFHelper.textModeUsesPercent(rightMode)) then
+					percentVal = getHealthPercent(unit, cur, maxv, calc)
 				end
 				local levelText
 				if UFHelper and UFHelper.textModeUsesLevel then
@@ -10856,7 +10902,7 @@ function GF:UpdatePowerValue(self, unit, st)
 				local useShort = pcfg.useShortNumbers ~= false
 				local hidePercentSymbol = pcfg.hidePercentSymbol == true
 				local percentVal
-				if GFH.TextModeUsesPercent(leftMode) or GFH.TextModeUsesPercent(centerMode) or GFH.TextModeUsesPercent(rightMode) then
+				if UFHelper and (UFHelper.textModeUsesPercent(leftMode) or UFHelper.textModeUsesPercent(centerMode) or UFHelper.textModeUsesPercent(rightMode)) then
 					if addon.variables and addon.variables.isMidnight then
 						percentVal = getPowerPercent(unit, powerType or 0, cur, maxv)
 					elseif not secretPower then
@@ -11175,9 +11221,9 @@ function GF:UnitButton_RegisterUnitEvents(self, unit)
 	reg("PARTY_MEMBER_DISABLE")
 	regUnit("UNIT_HEALTH")
 	regUnit("UNIT_MAXHEALTH")
+	if self._eqolUFState and self._eqolUFState._wantsTempMaxHealthLoss then regUnit("UNIT_MAX_HEALTH_MODIFIERS_CHANGED") end
 	if self._eqolUFState and self._eqolUFState._wantsIncomingHeal then
 		regUnit("UNIT_HEAL_PREDICTION")
-		regUnit("UNIT_MAX_HEALTH_MODIFIERS_CHANGED")
 	end
 	if self._eqolUFState and self._eqolUFState._wantsAbsorb then
 		regUnit("UNIT_ABSORB_AMOUNT_CHANGED")
@@ -19390,6 +19436,27 @@ local function buildEditModeSettings(kind, editModeId)
 				cfg.health = cfg.health or {}
 				cfg.health.smoothFill = value and true or false
 				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "healthSmoothFill", cfg.health.smoothFill, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+		},
+		{
+			name = L["Show temporary max health loss"] or "Show temporary max health loss",
+			kind = SettingType.Checkbox,
+			field = "healthTempMaxHealthLoss",
+			parentId = "health",
+			get = function()
+				local cfg = getCfg(kind)
+				local hc = cfg and cfg.health or {}
+				local def = DEFAULTS[kind] and DEFAULTS[kind].health or {}
+				if hc.tempMaxHealthLossEnabled == nil then return def.tempMaxHealthLossEnabled ~= false end
+				return hc.tempMaxHealthLossEnabled ~= false
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.health = cfg.health or {}
+				cfg.health.tempMaxHealthLossEnabled = value and true or false
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "healthTempMaxHealthLoss", cfg.health.tempMaxHealthLossEnabled, nil, true) end
 				GF:ApplyHeaderAttributes(kind)
 			end,
 		},
@@ -27997,6 +28064,10 @@ local function applyEditModeData(kind, data)
 		cfg.health = cfg.health or {}
 		cfg.health.smoothFill = data.healthSmoothFill and true or false
 	end
+	if data.healthTempMaxHealthLoss ~= nil then
+		cfg.health = cfg.health or {}
+		cfg.health.tempMaxHealthLossEnabled = data.healthTempMaxHealthLoss and true or false
+	end
 	if data.healthBackdropEnabled ~= nil then
 		cfg.health = cfg.health or {}
 		cfg.health.backdrop = cfg.health.backdrop or {}
@@ -29133,6 +29204,7 @@ function GF:EnsureEditMode()
 				healthFontOutline = hc.fontOutline or defH.fontOutline or "OUTLINE",
 				healthTexture = hc.texture or defH.texture or "DEFAULT",
 				healthSmoothFill = (hc.smoothFill ~= nil) and (hc.smoothFill == true) or (defH.smoothFill == true),
+				healthTempMaxHealthLoss = (hc.tempMaxHealthLossEnabled ~= nil) and (hc.tempMaxHealthLossEnabled ~= false) or ((hc.tempMaxHealthLossEnabled == nil) and (defH.tempMaxHealthLossEnabled ~= false)),
 				healthBackdropEnabled = (hcBackdrop.enabled ~= nil) and (hcBackdrop.enabled ~= false) or (defHBackdrop.enabled ~= false),
 				healthBackdropClampToFill = (hcBackdrop.clampToFill ~= nil) and (hcBackdrop.clampToFill == true) or ((hcBackdrop.clampToFill == nil) and (defHBackdrop.clampToFill == true)),
 				healthBackdropColor = hcBackdrop.color or defHBackdrop.color or { 0, 0, 0, 0.6 },

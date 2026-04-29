@@ -1,5 +1,13 @@
 # Changelog
 
+## [10.9.0-beta15] - 2026-04-29
+
+### ✨ Added
+
+- Unit Frames: Added temporary maximum health loss display for player, target, pet, boss, party, and raid frames using Blizzard's native max-health modifier API.
+
+---
+
 ## [10.9.0-beta14] - 2026-04-29
 
 ### 🐛 Fixed

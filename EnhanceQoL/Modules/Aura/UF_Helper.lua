@@ -3233,6 +3233,7 @@ function H.shortValue(val)
 end
 
 function H.textModeUsesLevel(mode) return type(mode) == "string" and mode:find("LEVEL", 1, true) ~= nil end
+function H.textModeUsesPercent(mode) return type(mode) == "string" and mode:find("PERCENT", 1, true) ~= nil end
 function H.textModeUsesAbsorb(mode) return mode == "ABSORB" or mode == "CURABSORB" or mode == "CURABSORBPIPE" or mode == "CURABSORBPLUS" end
 function H.textModeUsesDeficit(mode) return mode == "DEFICIT" end
 

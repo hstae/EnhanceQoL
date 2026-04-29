@@ -4431,6 +4431,13 @@ local function buildUnitSettings(unit)
 		setValue(unit, { "health", "reverseFill" }, val and true or false)
 		refresh()
 	end, healthDef.reverseFill == true, "health")
+
+	list[#list + 1] = checkbox(L["Show temporary max health loss"] or "Show temporary max health loss", function()
+		return getValue(unit, { "health", "tempMaxHealthLossEnabled" }, healthDef.tempMaxHealthLossEnabled ~= false) ~= false
+	end, function(val)
+		setValue(unit, { "health", "tempMaxHealthLossEnabled" }, val and true or false)
+		refresh()
+	end, healthDef.tempMaxHealthLossEnabled ~= false, "health")
 	addDivider("health")
 
 	list[#list + 1] = checkboxColor({

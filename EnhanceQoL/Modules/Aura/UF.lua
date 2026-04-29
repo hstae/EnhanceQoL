@@ -219,6 +219,7 @@ local AceGUI = addon.AceGUI or LibStub("AceGUI-3.0")
 local DEFAULT_NOT_INTERRUPTIBLE_COLOR = { 204 / 255, 204 / 255, 204 / 255, 1 }
 local UnitGetTotalAbsorbs = UnitGetTotalAbsorbs or function() return 0 end
 local UnitGetTotalHealAbsorbs = UnitGetTotalHealAbsorbs or function() return 0 end
+local GetUnitTotalModifiedMaxHealthPercent = _G.GetUnitTotalModifiedMaxHealthPercent or function() return 0 end
 local RegisterStateDriver = _G.RegisterStateDriver
 local UnregisterStateDriver = _G.UnregisterStateDriver
 local IsResting = _G.IsResting
@@ -1442,6 +1443,7 @@ local defaults = {
 			showSampleHealAbsorb = false,
 			healAbsorbTexture = "SOLID",
 			healAbsorbReverseFill = true,
+			tempMaxHealthLossEnabled = true,
 			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 }, texture = "DEFAULT", useClassColor = false, clampToFill = false },
 			textLeft = "PERCENT",
 			textCenter = "NONE",
@@ -6743,9 +6745,8 @@ local function setCastInfoFromUnit(unit)
 	updateCastBar(unit)
 end
 
-local function getHealthPercent(unit, cur, maxv)
-	if addon.functions and addon.functions.GetHealthPercent then return addon.functions.GetHealthPercent(unit, cur, maxv, true) end
-	if maxv and maxv > 0 then return (cur or 0) / maxv * 100 end
+local function getHealthPercent(unit, cur, maxv, calc)
+	if calc and calc.EvaluateCurrentHealthPercent and CurveConstants and CurveConstants.ScaleTo100 then return calc:EvaluateCurrentHealthPercent(CurveConstants.ScaleTo100) end
 	return nil
 end
 
@@ -6991,6 +6992,18 @@ local function updateHealth(cfg, unit)
 	end
 	st.health:SetValue(cur or 0, interpolation)
 	local hc = cfg.health or {}
+	if st.tempMaxHealthLoss then
+		local showTempLoss = hc.tempMaxHealthLossEnabled
+		if showTempLoss == nil then showTempLoss = defH.tempMaxHealthLossEnabled ~= false end
+		if showTempLoss then
+			st.tempMaxHealthLoss:SetMinMaxValues(0, 1)
+			st.tempMaxHealthLoss:SetValue(GetUnitTotalModifiedMaxHealthPercent(unit) or 0, interpolation)
+			st.tempMaxHealthLoss:Show()
+		else
+			st.tempMaxHealthLoss:SetValue(0, interpolation)
+			st.tempMaxHealthLoss:Hide()
+		end
+	end
 	local cacheGuid = UnitGUID and UnitGUID(unit) or nil
 	local guidComparable = cacheGuid ~= nil and not (issecretvalue and issecretvalue(cacheGuid))
 	if not guidComparable then
@@ -7324,6 +7337,7 @@ function UF.syncAbsorbFrameLevels(st)
 	if not st or not st.health then return end
 	local health = st.health
 	local healthLevel = (health.GetFrameLevel and health:GetFrameLevel()) or 0
+	local tempLossLevel = max(0, healthLevel)
 	local overlayClipLevel = max(0, healthLevel + 1)
 	local absorbLevel = max(0, healthLevel + 1)
 	local incomingHealLevel = max(0, healthLevel + 2)
@@ -7338,6 +7352,7 @@ function UF.syncAbsorbFrameLevels(st)
 	apply(health.absorbClip, overlayClipLevel)
 	apply(health._healthFillClip, overlayClipLevel)
 	apply(health._eqolDirectOverlayClip, overlayClipLevel)
+	apply(st.tempMaxHealthLoss, tempLossLevel)
 	apply(st.absorb, absorbLevel)
 	apply(st.absorb2, absorbLevel)
 	apply(st.incomingHeal, incomingHealLevel)
@@ -7347,7 +7362,7 @@ function UF.syncAbsorbFrameLevels(st)
 		if borderStrata and borderFrame:GetFrameStrata() ~= borderStrata then borderFrame:SetFrameStrata(borderStrata) end
 	end
 	if borderFrame and borderFrame.SetFrameLevel then
-		local desiredBorderLevel = max(absorbLevel, incomingHealLevel, healAbsorbLevel) + 1
+		local desiredBorderLevel = max(tempLossLevel, absorbLevel, incomingHealLevel, healAbsorbLevel) + 1
 		if borderFrame:GetFrameLevel() < desiredBorderLevel then borderFrame:SetFrameLevel(desiredBorderLevel) end
 	end
 end
@@ -7973,6 +7988,8 @@ local function layoutFrame(cfg, unit)
 	local showCombatIndicator = UF.SupportsCombatIndicator(unit) and ciCfg.enabled ~= false
 	local showStatus = showName or showLevel or showUnitStatus or showCombatIndicator
 	local pcfg = cfg.power or {}
+	local hcfg = cfg.health or {}
+	local hdef = def.health or {}
 	local powerDef = def.power or {}
 	local secondaryCfg = cfg.secondaryPower or {}
 	local secondaryDef = def.secondaryPower or {}
@@ -8058,11 +8075,14 @@ local function layoutFrame(cfg, unit)
 	local frameLevel = (st.frame and st.frame.GetFrameLevel and st.frame:GetFrameLevel()) or 0
 	if st.status.SetFrameStrata and st.status:GetFrameStrata() ~= frameStrata then st.status:SetFrameStrata(frameStrata) end
 	if st.barGroup and st.barGroup.SetFrameStrata and st.barGroup:GetFrameStrata() ~= frameStrata then st.barGroup:SetFrameStrata(frameStrata) end
+	if st.healthContainer and st.healthContainer.SetFrameStrata and st.healthContainer:GetFrameStrata() ~= frameStrata then st.healthContainer:SetFrameStrata(frameStrata) end
 	if st.health.SetFrameStrata and st.health:GetFrameStrata() ~= frameStrata then st.health:SetFrameStrata(frameStrata) end
 	if st.status.SetFrameLevel then st.status:SetFrameLevel(frameLevel + 1) end
 	if st.barGroup and st.barGroup.SetFrameLevel then st.barGroup:SetFrameLevel(frameLevel + 1) end
+	if st.healthContainer and st.healthContainer.SetFrameLevel then st.healthContainer:SetFrameLevel(frameLevel + 2) end
 	if st.health.SetFrameLevel then st.health:SetFrameLevel(frameLevel + 2) end
 	st.status:SetHeight(statusHeight)
+	if st.healthContainer then st.healthContainer:SetSize(width, healthHeight) end
 	st.health:SetSize(width, healthHeight)
 	local detachedGrowFromCenter = powerDetached and pcfg.detachedGrowFromCenter == true
 	local detachedMatchHealthWidth = powerDetached and pcfg.detachedMatchHealthWidth == true
@@ -8081,6 +8101,7 @@ local function layoutFrame(cfg, unit)
 
 	st.status:ClearAllPoints()
 	if st.barGroup then st.barGroup:ClearAllPoints() end
+	if st.healthContainer then st.healthContainer:ClearAllPoints() end
 	st.health:ClearAllPoints()
 	st.power:ClearAllPoints()
 	if st.powerGroup then st.powerGroup:ClearAllPoints() end
@@ -8118,8 +8139,33 @@ local function layoutFrame(cfg, unit)
 
 	local barInsetLeft = borderOffset + barAreaOffsetLeft
 	local barInsetRight = borderOffset + barAreaOffsetRight
-	st.health:SetPoint("TOPLEFT", st.barGroup or st.frame, "TOPLEFT", barInsetLeft, -borderOffset)
-	st.health:SetPoint("TOPRIGHT", st.barGroup or st.frame, "TOPRIGHT", -barInsetRight, -borderOffset)
+	local healthSlot = st.healthContainer or st.health
+	healthSlot:SetPoint("TOPLEFT", st.barGroup or st.frame, "TOPLEFT", barInsetLeft, -borderOffset)
+	healthSlot:SetPoint("TOPRIGHT", st.barGroup or st.frame, "TOPRIGHT", -barInsetRight, -borderOffset)
+	st.health:ClearAllPoints()
+	if st.tempMaxHealthLoss then
+		st.tempMaxHealthLoss:ClearAllPoints()
+		st.tempMaxHealthLoss:SetAllPoints(healthSlot)
+	end
+	local showTempLoss = hcfg.tempMaxHealthLossEnabled
+	if showTempLoss == nil then showTempLoss = hdef.tempMaxHealthLossEnabled ~= false end
+	if showTempLoss and st.tempMaxHealthLoss and st.tempMaxHealthLoss.GetStatusBarTexture then
+		local reverseHealth = hcfg.reverseFill
+		if reverseHealth == nil then reverseHealth = hdef.reverseFill == true end
+		if reverseHealth then
+			st.health:SetPoint("TOPLEFT", st.tempMaxHealthLoss:GetStatusBarTexture(), "TOPRIGHT")
+			st.health:SetPoint("BOTTOMLEFT", st.tempMaxHealthLoss:GetStatusBarTexture(), "BOTTOMRIGHT")
+			st.health:SetPoint("TOPRIGHT", healthSlot, "TOPRIGHT")
+			st.health:SetPoint("BOTTOMRIGHT", healthSlot, "BOTTOMRIGHT")
+		else
+			st.health:SetPoint("TOPLEFT", healthSlot, "TOPLEFT")
+			st.health:SetPoint("BOTTOMLEFT", healthSlot, "BOTTOMLEFT")
+			st.health:SetPoint("TOPRIGHT", st.tempMaxHealthLoss:GetStatusBarTexture(), "TOPLEFT")
+			st.health:SetPoint("BOTTOMRIGHT", st.tempMaxHealthLoss:GetStatusBarTexture(), "BOTTOMLEFT")
+		end
+	else
+		st.health:SetAllPoints(healthSlot)
+	end
 	if powerDetached then
 		local off = pcfg.offset or {}
 		local ox = off.x or 0
@@ -8130,26 +8176,26 @@ local function layoutFrame(cfg, unit)
 			st.powerGroup:Show()
 			st.powerGroup:SetSize(powerWidth + detachedPowerOffset * 2, powerHeight + detachedPowerOffset * 2)
 			if detachedGrowFromCenter then
-				st.powerGroup:SetPoint("TOP", st.health, "BOTTOM", centerOx, oy + detachedPowerOffset)
+				st.powerGroup:SetPoint("TOP", healthSlot, "BOTTOM", centerOx, oy + detachedPowerOffset)
 				st.power:SetPoint("TOP", st.powerGroup, "TOP", 0, -detachedPowerOffset)
 			else
-				st.powerGroup:SetPoint("TOPLEFT", st.health, "BOTTOMLEFT", ox - detachedPowerOffset, oy + detachedPowerOffset)
+				st.powerGroup:SetPoint("TOPLEFT", healthSlot, "BOTTOMLEFT", ox - detachedPowerOffset, oy + detachedPowerOffset)
 				st.power:SetPoint("TOPLEFT", st.powerGroup, "TOPLEFT", detachedPowerOffset, -detachedPowerOffset)
 			end
 		else
 			if st.powerGroup then st.powerGroup:Hide() end
 			if st.power.GetParent and st.power:GetParent() ~= st.barGroup then st.power:SetParent(st.barGroup) end
 			if detachedGrowFromCenter then
-				st.power:SetPoint("TOP", st.health, "BOTTOM", centerOx, oy)
+				st.power:SetPoint("TOP", healthSlot, "BOTTOM", centerOx, oy)
 			else
-				st.power:SetPoint("TOPLEFT", st.health, "BOTTOMLEFT", ox, oy)
+				st.power:SetPoint("TOPLEFT", healthSlot, "BOTTOMLEFT", ox, oy)
 			end
 		end
 	else
 		if st.powerGroup then st.powerGroup:Hide() end
 		if st.power.GetParent and st.power:GetParent() ~= st.barGroup then st.power:SetParent(st.barGroup) end
-		st.power:SetPoint("TOPLEFT", st.health, "BOTTOMLEFT", 0, 0)
-		st.power:SetPoint("TOPRIGHT", st.health, "BOTTOMRIGHT", 0, 0)
+		st.power:SetPoint("TOPLEFT", healthSlot, "BOTTOMLEFT", 0, 0)
+		st.power:SetPoint("TOPRIGHT", healthSlot, "BOTTOMRIGHT", 0, 0)
 	end
 	if st.secondaryPower then
 		if secondaryPowerDetached then
@@ -8162,25 +8208,25 @@ local function layoutFrame(cfg, unit)
 				st.secondaryPowerGroup:Show()
 				st.secondaryPowerGroup:SetSize(secondaryPowerWidth + detachedSecondaryPowerOffset * 2, secondaryPowerHeight + detachedSecondaryPowerOffset * 2)
 				if secondaryDetachedGrowFromCenter then
-					st.secondaryPowerGroup:SetPoint("TOP", st.health, "BOTTOM", secondaryCenterOx, soy + detachedSecondaryPowerOffset)
+					st.secondaryPowerGroup:SetPoint("TOP", healthSlot, "BOTTOM", secondaryCenterOx, soy + detachedSecondaryPowerOffset)
 					st.secondaryPower:SetPoint("TOP", st.secondaryPowerGroup, "TOP", 0, -detachedSecondaryPowerOffset)
 				else
-					st.secondaryPowerGroup:SetPoint("TOPLEFT", st.health, "BOTTOMLEFT", sox - detachedSecondaryPowerOffset, soy + detachedSecondaryPowerOffset)
+					st.secondaryPowerGroup:SetPoint("TOPLEFT", healthSlot, "BOTTOMLEFT", sox - detachedSecondaryPowerOffset, soy + detachedSecondaryPowerOffset)
 					st.secondaryPower:SetPoint("TOPLEFT", st.secondaryPowerGroup, "TOPLEFT", detachedSecondaryPowerOffset, -detachedSecondaryPowerOffset)
 				end
 			else
 				if st.secondaryPowerGroup then st.secondaryPowerGroup:Hide() end
 				if st.secondaryPower.GetParent and st.secondaryPower:GetParent() ~= st.barGroup then st.secondaryPower:SetParent(st.barGroup) end
 				if secondaryDetachedGrowFromCenter then
-					st.secondaryPower:SetPoint("TOP", st.health, "BOTTOM", secondaryCenterOx, soy)
+					st.secondaryPower:SetPoint("TOP", healthSlot, "BOTTOM", secondaryCenterOx, soy)
 				else
-					st.secondaryPower:SetPoint("TOPLEFT", st.health, "BOTTOMLEFT", sox, soy)
+					st.secondaryPower:SetPoint("TOPLEFT", healthSlot, "BOTTOMLEFT", sox, soy)
 				end
 			end
 		else
 			if st.secondaryPowerGroup then st.secondaryPowerGroup:Hide() end
 			if st.secondaryPower.GetParent and st.secondaryPower:GetParent() ~= st.barGroup then st.secondaryPower:SetParent(st.barGroup) end
-			local secondaryAnchor = st.health
+			local secondaryAnchor = healthSlot
 			if powerEnabled and not powerDetached then secondaryAnchor = st.power end
 			st.secondaryPower:SetPoint("TOPLEFT", secondaryAnchor, "BOTTOMLEFT", 0, 0)
 			st.secondaryPower:SetPoint("TOPRIGHT", secondaryAnchor, "BOTTOMRIGHT", 0, 0)
@@ -8441,8 +8487,12 @@ local function ensureFrames(unit)
 	st.frame:SetClampedToScreen(true)
 	st.status = _G[info.statusName] or CreateFrame("Frame", info.statusName, st.frame)
 	st.barGroup = st.barGroup or CreateFrame("Frame", nil, st.frame, "BackdropTemplate")
+	st.healthContainer = st.healthContainer or CreateFrame("Frame", nil, st.barGroup, "BackdropTemplate")
 	st.health = _G[info.healthName] or CreateFrame("StatusBar", info.healthName, st.barGroup, "BackdropTemplate")
+	if st.health.GetParent and st.health:GetParent() ~= st.healthContainer then st.health:SetParent(st.healthContainer) end
 	if st.health.SetStatusBarDesaturated then st.health:SetStatusBarDesaturated(true) end
+	st.tempMaxHealthLoss = st.tempMaxHealthLoss or CreateFrame("StatusBar", info.healthName .. "TempMaxHealthLoss", st.healthContainer, "BackdropTemplate")
+	if st.tempMaxHealthLoss.SetStatusBarDesaturated then st.tempMaxHealthLoss:SetStatusBarDesaturated(false) end
 	st.power = _G[info.powerName] or CreateFrame("StatusBar", info.powerName, st.barGroup, "BackdropTemplate")
 	st.powerGroup = st.powerGroup or CreateFrame("Frame", nil, st.frame, "BackdropTemplate")
 	st.powerGroup:Hide()
@@ -8650,6 +8700,14 @@ local function applyBars(cfg, unit)
 	local reverseHealth = hc.reverseFill
 	if reverseHealth == nil then reverseHealth = defH.reverseFill == true end
 	UFHelper.applyStatusBarReverseFill(st.health, reverseHealth)
+	if st.tempMaxHealthLoss then
+		st.tempMaxHealthLoss:SetStatusBarTexture("UI-HUD-UnitFrame-Target-PortraitOn-Bar-TempHPLoss")
+		if st.tempMaxHealthLoss.SetStatusBarDesaturated then st.tempMaxHealthLoss:SetStatusBarDesaturated(false) end
+		UFHelper.applyStatusBarReverseFill(st.tempMaxHealthLoss, not reverseHealth)
+		st.tempMaxHealthLoss:SetMinMaxValues(0, 1)
+		st.tempMaxHealthLoss:SetValue(0, interpolation)
+		st.tempMaxHealthLoss:SetShown(hc.tempMaxHealthLossEnabled ~= false)
+	end
 	local healthBackdropR, healthBackdropG, healthBackdropB, healthBackdropA
 	local healthBackdropClampToFill
 	do
@@ -9570,6 +9628,7 @@ end
 local unitEvents = {
 	"UNIT_HEALTH",
 	"UNIT_MAXHEALTH",
+	"UNIT_MAX_HEALTH_MODIFIERS_CHANGED",
 	"UNIT_HEAL_PREDICTION",
 	"UNIT_ABSORB_AMOUNT_CHANGED",
 	"UNIT_HEAL_ABSORB_AMOUNT_CHANGED",
@@ -10335,10 +10394,10 @@ function UF.UpdateUnitTexts(unit, force)
 			if st.healthTextRight then st.healthTextRight:SetText("") end
 		else
 			local percentVal
-			if addon.variables and addon.variables.isMidnight then
-				percentVal = getHealthPercent(unit, cur, maxv)
-			elseif not issecretvalue or (not issecretvalue(cur) and not issecretvalue(maxv)) then
-				percentVal = getHealthPercent(unit, cur, maxv)
+			local usesHealthPercent = UFHelper.textModeUsesPercent(leftMode) or UFHelper.textModeUsesPercent(centerMode) or UFHelper.textModeUsesPercent(rightMode)
+			if usesHealthPercent then
+				local calc = UF.RefreshHealPredictionCalculator(st, unit)
+				percentVal = getHealthPercent(unit, cur, maxv, calc)
 			end
 
 			local delimiter, delimiter2, delimiter3 = st._healthTextDelimiter1, st._healthTextDelimiter2, st._healthTextDelimiter3
@@ -11017,7 +11076,7 @@ onEvent = function(self, event, unit, ...)
 		else
 			AuraUtil.UpdateSingleDispelIndicator(unit, false)
 		end
-	elseif event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH" or event == "UNIT_HEAL_PREDICTION" or event == "UNIT_ABSORB_AMOUNT_CHANGED" or event == "UNIT_HEAL_ABSORB_AMOUNT_CHANGED" then
+	elseif event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH" or event == "UNIT_MAX_HEALTH_MODIFIERS_CHANGED" or event == "UNIT_HEAL_PREDICTION" or event == "UNIT_ABSORB_AMOUNT_CHANGED" or event == "UNIT_HEAL_ABSORB_AMOUNT_CHANGED" then
 		if event == "UNIT_ABSORB_AMOUNT_CHANGED" and unit then
 			local st = states[unit]
 			if st then
