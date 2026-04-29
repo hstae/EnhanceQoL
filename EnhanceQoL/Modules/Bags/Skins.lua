@@ -18,6 +18,7 @@ local SKIN_PRESET_ORDER = {
 local ICON_SHAPE_ORDER = {
 	"preset",
 	"default",
+	"square",
 	"round",
 	"hexagon",
 }
@@ -168,6 +169,13 @@ local ICON_SHAPE_DEFINITIONS = {
 		label = "Default",
 		labelKey = "settingsIconShapeDefault",
 		useSystemStyle = true,
+	},
+	square = {
+		label = "Square",
+		labelKey = "settingsIconShapeSquare",
+		maskTexture = WHITE_TEXTURE,
+		frameInset = 1,
+		iconInset = 2,
 	},
 	round = {
 		label = "Round",
