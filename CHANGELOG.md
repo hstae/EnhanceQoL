@@ -1,5 +1,13 @@
 # Changelog
 
+## [10.9.0-beta14] - 2026-04-29
+
+### 🐛 Fixed
+
+- Group Frames: Fixed Party and Raid frame anchors using stale Edit Mode position data after reloads.
+
+---
+
 ## [10.9.0-beta13] - 2026-04-29
 
 ### ✨ Added
