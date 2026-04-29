@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag whose CHANGELOG.md patchnotes should be posted to Discord"
+        required: true
+        type: string
 
 jobs:
   build:
@@ -43,3 +49,12 @@ jobs:
           CF_API_KEY: ${{ secrets.CURSE_API_TOKEN }}
           GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
           WOWI_API_TOKEN: ${{ secrets.WOWI }}
+
+      - name: Post patchnotes to Discord
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+        run: python3 scripts/post_discord_patchnotes.py
+        env:
+          TAG_NAME: ${{ inputs.tag || github.ref_name }}
+          DISCORD_BETA_WEBHOOK: ${{ secrets.DISCORD_BETA_WEBHOOK }}
+          DISCORD_ALPHA_WEBHOOK: ${{ secrets.DISCORD_ALPHA_WEBHOOK }}
+          DISCORD_RELEASE_WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
