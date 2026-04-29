@@ -5,7 +5,7 @@
 ### ✨ Added
 
 - Unit Frames: Added temporary maximum health loss display for player, target, pet, boss, party, raid, and Resource Bars health frames using Blizzard's native max-health modifier API.
-- Resource Bars: Added a health absorb clamp option backed by Blizzard's heal prediction calculator.
+- Resource Bars: Added damage absorb clamp and heal absorb overlay options backed by Blizzard's heal prediction calculator.
 
 ---
 

@@ -352,6 +352,14 @@ local COSMETIC_BAR_KEYS = {
 	"absorbReverseFill",
 	"absorbDontOverflowHealthBar",
 	"absorbOverfill",
+	"healAbsorbEnabled",
+	"healAbsorbUseCustomColor",
+	"healAbsorbColor",
+	"healAbsorbTexture",
+	"healAbsorbSample",
+	"healAbsorbReverseFill",
+	"healAbsorbDontOverflowHealthBar",
+	"healAbsorbOverlayHeight",
 	"reverseFill",
 	"verticalFill",
 	"smoothFill",
@@ -488,6 +496,11 @@ function ResourceBars.ConfigureHealPredictionCalculator(calc, settings)
 		local mode = settings and settings.absorbDontOverflowHealthBar == true and settings.absorbOverfill ~= true and Enum.UnitDamageAbsorbClampMode.MissingHealthWithoutIncomingHeals
 			or Enum.UnitDamageAbsorbClampMode.MaximumHealth
 		if mode ~= nil then calc:SetDamageAbsorbClampMode(mode) end
+	end
+	if calc.SetHealAbsorbClampMode and Enum.UnitHealAbsorbClampMode then
+		local mode = settings and settings.healAbsorbDontOverflowHealthBar == true and settings.healAbsorbReverseFill ~= true and Enum.UnitHealAbsorbClampMode.CurrentHealth
+			or Enum.UnitHealAbsorbClampMode.MaximumHealth
+		if mode ~= nil then calc:SetHealAbsorbClampMode(mode) end
 	end
 end
 
@@ -2481,6 +2494,10 @@ local function applyBarFrameLayers(bar, cfg)
 			setFrameStrataIfNeeded(bar.absorbBar, strata)
 			setFrameLevelIfNeeded(bar.absorbBar, childLevel)
 		end
+		if bar.healAbsorbBar then
+			setFrameStrataIfNeeded(bar.healAbsorbBar, strata)
+			setFrameLevelIfNeeded(bar.healAbsorbBar, childLevel + 1)
+		end
 		if bar.runes then
 			for i = 1, #bar.runes do
 				local sb = bar.runes[i]
@@ -2570,6 +2587,10 @@ local function applyStatusBarInsets(frame, inset, force)
 	if frame.absorbBar then
 		local cfg = frame._cfg or (frame._rbType and getBarSettings and getBarSettings(frame._rbType)) or {}
 		applyAbsorbLayout(frame, cfg)
+	end
+	if frame.healAbsorbBar then
+		local cfg = frame._cfg or (frame._rbType and getBarSettings and getBarSettings(frame._rbType)) or {}
+		ResourceBars.ApplyHealthOverlayHeight(frame.healAbsorbBar, frame, cfg.healAbsorbOverlayHeight)
 	end
 
 	frame._rbContentInset = frame._rbContentInset or {}
@@ -2681,6 +2702,32 @@ function ResourceBars.SyncAbsorbBarAppearance(bar, cfg, forceLayout)
 	if absorb.SetReverseFill then absorb:SetReverseFill(reverseAbsorb) end
 
 	if forceLayout or textureChanged or cfg.absorbOverfill then applyAbsorbLayout(bar, cfg) end
+end
+
+function ResourceBars.ApplyHealthOverlayHeight(overlay, bar, overlayHeight)
+	if not (overlay and bar) then return end
+	overlay:ClearAllPoints()
+	local heightPercent = tonumber(overlayHeight) or 100
+	if heightPercent <= 0 or heightPercent >= 100 then
+		overlay:SetAllPoints(bar)
+		return
+	end
+	local height = ((bar.GetHeight and bar:GetHeight()) or RB.DEFAULT_HEALTH_HEIGHT) * (heightPercent / 100)
+	overlay:SetPoint("LEFT", bar, "LEFT", 0, 0)
+	overlay:SetPoint("RIGHT", bar, "RIGHT", 0, 0)
+	overlay:SetPoint("CENTER", bar, "CENTER", 0, 0)
+	overlay:SetHeight(height)
+end
+
+function ResourceBars.SyncHealAbsorbBarAppearance(bar, cfg)
+	if not bar or not bar.healAbsorbBar then return end
+	cfg = cfg or {}
+	local healAbsorb = bar.healAbsorbBar
+	healAbsorb:SetStatusBarTexture(resolveTexture({ barTexture = cfg.healAbsorbTexture or cfg.barTexture or "SOLID" }))
+	if healAbsorb.SetStatusBarDesaturated then healAbsorb:SetStatusBarDesaturated(false) end
+	if healAbsorb.SetOrientation then healAbsorb:SetOrientation((cfg.verticalFill == true) and "VERTICAL" or "HORIZONTAL") end
+	ResourceBars.SetStatusBarReverseFill(healAbsorb, cfg.healAbsorbReverseFill == true)
+	ResourceBars.ApplyHealthOverlayHeight(healAbsorb, bar, cfg.healAbsorbOverlayHeight)
 end
 
 local function applyBackdrop(frame, cfg)
@@ -4032,6 +4079,42 @@ function updateHealthBar(evt)
 				end
 			end
 		end
+
+		local healAbsorbBar = healthBar.healAbsorbBar
+		if healAbsorbBar then
+			local healAbsorbEnabled = settings.healAbsorbEnabled ~= false
+			if not healAbsorbEnabled or maxHealth <= 0 then
+				healAbsorbBar:Hide()
+				setBarValue(healAbsorbBar, 0, smooth)
+				healAbsorbBar._lastVal = 0
+			else
+				if not healAbsorbBar:IsShown() then healAbsorbBar:Show() end
+				ResourceBars.SyncHealAbsorbBarAppearance(healthBar, settings)
+				local col = settings.healAbsorbUseCustomColor and settings.healAbsorbColor
+				local hr, hg, hb, ha = 1, 0.3, 0.3, 0.7
+				if col then hr, hg, hb, ha = col[1] or hr, col[2] or hg, col[3] or hb, col[4] or ha end
+				if not healAbsorbBar._lastColor or healAbsorbBar._lastColor[1] ~= hr or healAbsorbBar._lastColor[2] ~= hg or healAbsorbBar._lastColor[3] ~= hb or healAbsorbBar._lastColor[4] ~= ha then
+					healAbsorbBar:SetStatusBarColor(hr, hg, hb, ha)
+					healAbsorbBar._lastColor = { hr, hg, hb, ha }
+				end
+
+				local healAbsorb
+				if settings.healAbsorbDontOverflowHealthBar == true and settings.healAbsorbReverseFill ~= true and calc and calc.GetHealAbsorbs then
+					healAbsorb = calc:GetHealAbsorbs() or 0
+				elseif calc and calc.GetTotalHealAbsorbs then
+					healAbsorb = calc:GetTotalHealAbsorbs() or 0
+				else
+					healAbsorb = (UnitGetTotalHealAbsorbs and UnitGetTotalHealAbsorbs("player")) or 0
+				end
+				if settings.healAbsorbSample then healAbsorb = maxHealth * 0.6 end
+				if healAbsorbBar._lastMax ~= maxHealth then
+					healAbsorbBar:SetMinMaxValues(0, maxHealth)
+					healAbsorbBar._lastMax = maxHealth
+				end
+				setBarValue(healAbsorbBar, healAbsorb, smooth)
+				healAbsorbBar._lastVal = healAbsorb
+			end
+		end
 	end
 end
 
@@ -4241,6 +4324,7 @@ function createHealthBar()
 		applyBarFrameLayers(healthBar, settings)
 		applyBackdrop(healthBar, settings)
 		if healthBar.absorbBar then ResourceBars.SyncAbsorbBarAppearance(healthBar, settings, true) end
+		if healthBar.healAbsorbBar then ResourceBars.SyncHealAbsorbBarAppearance(healthBar, settings) end
 		mainFrame:Show()
 		healthBar:Show()
 		return
@@ -4324,8 +4408,16 @@ function createHealthBar()
 	end
 	absorbBar:SetStatusBarColor(0.8, 0.8, 0.8, 0.8)
 	healthBar.absorbBar = absorbBar
+	local healAbsorbBar = _G.EQOLHealAbsorbBar or CreateFrame("StatusBar", "EQOLHealAbsorbBar", healthBar, "BackdropTemplate")
+	healAbsorbBar:SetMinMaxValues(0, 1)
+	healAbsorbBar:SetFrameStrata(healthBar:GetFrameStrata())
+	healAbsorbBar:SetFrameLevel((healthBar:GetFrameLevel() + 2))
+	healAbsorbBar:SetStatusBarColor(1, 0.3, 0.3, 0.7)
+	healAbsorbBar:Hide()
+	healthBar.healAbsorbBar = healAbsorbBar
 	applyBarFrameLayers(healthBar, settings)
 	ResourceBars.SyncAbsorbBarAppearance(healthBar, settings, true)
+	ResourceBars.SyncHealAbsorbBarAppearance(healthBar, settings)
 	if healthBar._rbBackdropState and healthBar._rbBackdropState.insets then applyStatusBarInsets(healthBar, healthBar._rbBackdropState.insets, true) end
 
 	updateHealthBar("UNIT_ABSORB_AMOUNT_CHANGED")
@@ -6487,6 +6579,7 @@ RB.EVENTS_TO_REGISTER = {
 	"UNIT_MAXHEALTH",
 	"UNIT_MAX_HEALTH_MODIFIERS_CHANGED",
 	"UNIT_ABSORB_AMOUNT_CHANGED",
+	"UNIT_HEAL_ABSORB_AMOUNT_CHANGED",
 	"UNIT_POWER_UPDATE",
 	"UNIT_POWER_FREQUENT",
 	"UNIT_DISPLAYPOWER",
@@ -7504,7 +7597,7 @@ local function eventHandler(self, event, unit, arg1)
 		end
 		updateStaggerBarIfShown()
 		return
-	elseif event == "UNIT_MAXHEALTH" or event == "UNIT_HEALTH" or event == "UNIT_MAX_HEALTH_MODIFIERS_CHANGED" or event == "UNIT_ABSORB_AMOUNT_CHANGED" then
+	elseif event == "UNIT_MAXHEALTH" or event == "UNIT_HEALTH" or event == "UNIT_MAX_HEALTH_MODIFIERS_CHANGED" or event == "UNIT_ABSORB_AMOUNT_CHANGED" or event == "UNIT_HEAL_ABSORB_AMOUNT_CHANGED" then
 		if healthBar and healthBar:IsShown() then
 			if event == "UNIT_MAXHEALTH" then
 				local max = UnitHealthMax("player")
@@ -7664,6 +7757,14 @@ function ResourceBars.DisableResourceBars()
 			absorbBar:SetValue(0)
 			absorbBar._lastVal = 0
 			absorbBar._lastMax = 1
+		end
+		if healthBar.healAbsorbBar then
+			local healAbsorbBar = healthBar.healAbsorbBar
+			healAbsorbBar:SetMinMaxValues(0, 1)
+			healAbsorbBar:SetValue(0)
+			healAbsorbBar._lastVal = 0
+			healAbsorbBar._lastMax = 1
+			healAbsorbBar:Hide()
 		end
 		healthBar._lastMax = nil
 		healthBar._lastValue = nil
