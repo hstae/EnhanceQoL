@@ -1457,7 +1457,16 @@ local function applyKnownTextureTint(texture, state)
 		end
 	end
 end
-local function applyKnownStateToFrame(frame, state, visited)
+local merchantKnownVisited = {}
+local applyKnownStateToFrame
+
+local function applyKnownStateToObjects(state, visited, object, ...)
+	if not object then return end
+	applyKnownStateToFrame(object, state, visited)
+	return applyKnownStateToObjects(state, visited, ...)
+end
+
+applyKnownStateToFrame = function(frame, state, visited)
 	if not frame or visited[frame] then return end
 	visited[frame] = true
 
@@ -1471,21 +1480,23 @@ local function applyKnownStateToFrame(frame, state, visited)
 	end
 
 	if frame.GetRegions then
-		local regions = { frame:GetRegions() }
-		for _, region in ipairs(regions) do
-			applyKnownStateToFrame(region, state, visited)
-		end
+		applyKnownStateToObjects(state, visited, frame:GetRegions())
 	end
 
 	if frame.GetChildren then
-		local children = { frame:GetChildren() }
-		for _, child in ipairs(children) do
-			applyKnownStateToFrame(child, state, visited)
-		end
+		applyKnownStateToObjects(state, visited, frame:GetChildren())
 	end
 end
+
+local function applyKnownStateToRoot(frame, state)
+	wipe(merchantKnownVisited)
+	applyKnownStateToFrame(frame, state, merchantKnownVisited)
+end
+
 local function setMerchantKnownIcon(itemButton, state)
 	if not itemButton then return end
+	if itemButton.__EnhanceQoLMerchantKnownState == state then return end
+	itemButton.__EnhanceQoLMerchantKnownState = state
 
 	if state then
 		if not itemButton.MerchantKnownIcon then
@@ -1516,10 +1527,10 @@ local function setMerchantKnownIcon(itemButton, state)
 			if nameRegion then applyKnownFontTint(nameRegion, true) end
 
 			local moneyFrame = parentFrame.MoneyFrame or (parentName and _G[parentName .. "MoneyFrame"])
-			if moneyFrame then applyKnownStateToFrame(moneyFrame, true, {}) end
+			if moneyFrame then applyKnownStateToRoot(moneyFrame, true) end
 
 			local altCurrencyFrame = parentFrame.AltCurrencyFrame or (parentName and _G[parentName .. "AltCurrencyFrame"])
-			if altCurrencyFrame then applyKnownStateToFrame(altCurrencyFrame, true, {}) end
+			if altCurrencyFrame then applyKnownStateToRoot(altCurrencyFrame, true) end
 		end
 	else
 		if itemButton.MerchantKnownIcon then itemButton.MerchantKnownIcon:Hide() end
@@ -1532,10 +1543,10 @@ local function setMerchantKnownIcon(itemButton, state)
 			if nameRegion then applyKnownFontTint(nameRegion, false) end
 
 			local moneyFrame = parentFrame.MoneyFrame or (parentName and _G[parentName .. "MoneyFrame"])
-			if moneyFrame then applyKnownStateToFrame(moneyFrame, false, {}) end
+			if moneyFrame then applyKnownStateToRoot(moneyFrame, false) end
 
 			local altCurrencyFrame = parentFrame.AltCurrencyFrame or (parentName and _G[parentName .. "AltCurrencyFrame"])
-			if altCurrencyFrame then applyKnownStateToFrame(altCurrencyFrame, false, {}) end
+			if altCurrencyFrame then applyKnownStateToRoot(altCurrencyFrame, false) end
 		end
 	end
 end

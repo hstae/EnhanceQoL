@@ -7,6 +7,10 @@
 - Unit Frames: Added temporary maximum health loss display for player, target, pet, boss, party, raid, and Resource Bars health frames using Blizzard's native max-health modifier API.
 - Resource Bars: Added damage absorb clamp and heal absorb overlay options backed by Blizzard's heal prediction calculator.
 
+### ⚡ Performance
+
+- Vendor and Bags: Reduced mass-sell CPU and allocation spikes by avoiding redundant custom bag skin refreshes, deferring vendor mark and merchant item refreshes during auto-sell, skipping character-frame durability recalculation while the PaperDoll frame is not visible, and caching merchant known-state tint updates.
+
 ---
 
 ## [10.9.0-beta14] - 2026-04-29
