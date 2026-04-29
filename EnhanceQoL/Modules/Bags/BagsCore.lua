@@ -4878,7 +4878,7 @@ function Bags.functions.ApplyVendorMarks(overlaySell, overlayDestroy)
 				applyMark(button, overlaySell, overlayDestroy)
 			end
 			if applyItemButtonSkinIfNeeded then
-				applyItemButtonSkinIfNeeded(button, button._bagsRenderQuality, true)
+				applyItemButtonSkinIfNeeded(button, button._bagsRenderQuality)
 			end
 		elseif button and hideMark then
 			hideMark(button)

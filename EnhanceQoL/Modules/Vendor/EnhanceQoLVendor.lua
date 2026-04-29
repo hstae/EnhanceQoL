@@ -105,6 +105,8 @@ local destroyProtected = {
 local pendingSellMarksUpdate = false
 local pendingSellMarksReset = false
 local sellMarksDirty = true
+local autoSellInProgress = false
+local autoSellNeedsRefresh = false
 local pendingDestroyButtonUpdate = false
 
 local function scheduleDestroyButtonUpdate()
@@ -1080,17 +1082,36 @@ local function updateLegend(value, value2)
 end
 
 local function sellItems(items)
+	autoSellInProgress = true
+	autoSellNeedsRefresh = false
+	local index = 1
+
+	local function finishAutoSell()
+		autoSellInProgress = false
+		updateSellMoreButton()
+		if autoSellNeedsRefresh and inventoryOpen() then
+			autoSellNeedsRefresh = false
+			updateSellMarks()
+			if addon.db["vendorDestroyEnable"] then scheduleDestroyButtonUpdate() end
+		else
+			autoSellNeedsRefresh = false
+		end
+	end
+
 	local function sellNextItem()
 		if not MerchantFrame:IsShown() then
+			autoSellInProgress = false
+			autoSellNeedsRefresh = false
 			print(L["MerchantWindowClosed"])
 			return
 		end
-		if #items == 0 then
-			updateSellMoreButton()
+		if index > #items then
+			finishAutoSell()
 			return
 		end
 
-		local item = table.remove(items, 1)
+		local item = items[index]
+		index = index + 1
 		C_Container.UseContainerItem(item.bag, item.slot)
 		C_Timer.After(0.1, sellNextItem) -- 100ms Pause zwischen den Verkäufen
 	end
@@ -1399,12 +1420,18 @@ local eventHandlers = {
 		checkItem()
 	end,
 	["MERCHANT_CLOSED"] = function()
+		autoSellInProgress = false
+		autoSellNeedsRefresh = false
 		hasMoreItems = false
 		updateSellMoreButton()
 		updateSellMarks()
 		if addon.db["vendorDestroyEnable"] then scheduleDestroyButtonUpdate() end
 	end,
 	["BAG_UPDATE_DELAYED"] = function()
+		if autoSellInProgress then
+			autoSellNeedsRefresh = true
+			return
+		end
 		updateSellMarks()
 		if addon.db["vendorDestroyEnable"] then scheduleDestroyButtonUpdate() end
 	end,
