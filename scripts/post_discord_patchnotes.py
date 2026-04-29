@@ -121,7 +121,7 @@ def main():
 
     payload = {
         "username": "EnhanceQoL Releases",
-        "content": f"EnhanceQoL {tag} wurde veröffentlicht.",
+        "content": f"EnhanceQoL {tag} has been released.",
         "embeds": embeds,
     }
 
