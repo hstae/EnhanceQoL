@@ -2201,6 +2201,30 @@ registerEditModeBars = function()
 				}
 
 				settingsList[#settingsList + 1] = {
+					name = L["Don't overflow health bar"] or "Don't overflow health bar",
+					kind = settingType.Checkbox,
+					field = "absorbDontOverflowHealthBar",
+					parentId = "absorb",
+					get = function()
+						local c = curSpecCfg()
+						return c and c.absorbDontOverflowHealthBar == true
+					end,
+					set = function(_, value)
+						local c = curSpecCfg()
+						if not c then return end
+						c.absorbDontOverflowHealthBar = value and true or false
+						if c.absorbDontOverflowHealthBar then c.absorbOverfill = false end
+						queueRefresh()
+						refreshSettingsUI()
+					end,
+					isEnabled = function()
+						local c = curSpecCfg()
+						return not (c and c.absorbOverfill == true)
+					end,
+					default = false,
+				}
+
+				settingsList[#settingsList + 1] = {
 					name = L["Show sample absorb"] or "Show sample absorb",
 					kind = settingType.Checkbox,
 					field = "absorbSample",

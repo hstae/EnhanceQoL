@@ -350,6 +350,7 @@ local COSMETIC_BAR_KEYS = {
 	"absorbTexture",
 	"absorbSample",
 	"absorbReverseFill",
+	"absorbDontOverflowHealthBar",
 	"absorbOverfill",
 	"reverseFill",
 	"verticalFill",
@@ -481,8 +482,18 @@ function ResourceBars.EnsureHealPredictionCalculator(bar)
 	return calc
 end
 
-function ResourceBars.RefreshHealPredictionCalculator(bar, unit)
+function ResourceBars.ConfigureHealPredictionCalculator(calc, settings)
+	if not (calc and Enum and Enum.UnitDamageAbsorbClampMode) then return end
+	if calc.SetDamageAbsorbClampMode then
+		local mode = settings and settings.absorbDontOverflowHealthBar == true and settings.absorbOverfill ~= true and Enum.UnitDamageAbsorbClampMode.MissingHealthWithoutIncomingHeals
+			or Enum.UnitDamageAbsorbClampMode.MaximumHealth
+		if mode ~= nil then calc:SetDamageAbsorbClampMode(mode) end
+	end
+end
+
+function ResourceBars.RefreshHealPredictionCalculator(bar, unit, settings)
 	local calc = ResourceBars.EnsureHealPredictionCalculator(bar)
+	ResourceBars.ConfigureHealPredictionCalculator(calc, settings)
 	if calc and _G.UnitGetDetailedHealPrediction then _G.UnitGetDetailedHealPrediction(unit, "player", calc) end
 	return calc
 end
@@ -3861,7 +3872,7 @@ function updateHealthBar(evt)
 		local curHealth = UnitHealth("player")
 		local settings = ResourceBars.GetRuntimeBarConfig("HEALTH", healthBar) or {}
 		local smooth = settings.smoothFill == true
-		local calc = ResourceBars.RefreshHealPredictionCalculator(healthBar, "player")
+		local calc = ResourceBars.RefreshHealPredictionCalculator(healthBar, "player", settings)
 		setBarValue(healthBar, curHealth, smooth)
 		healthBar._lastVal = curHealth
 		ResourceBars.UpdateHealthTempMaxHealthLoss(healthBar, settings, smooth)
@@ -3998,7 +4009,14 @@ function updateHealthBar(evt)
 					absorbBar._lastColor = { ar, ag, ab, aa }
 				end
 
-				local abs = UnitGetTotalAbsorbs("player") or 0
+				local abs
+				if settings.absorbDontOverflowHealthBar == true and settings.absorbOverfill ~= true and calc and calc.GetDamageAbsorbs then
+					abs = calc:GetDamageAbsorbs() or 0
+				elseif calc and calc.GetTotalDamageAbsorbs then
+					abs = calc:GetTotalDamageAbsorbs() or 0
+				else
+					abs = UnitGetTotalAbsorbs("player") or 0
+				end
 				if settings.absorbSample then abs = maxHealth * 0.6 end
 				if addon.variables.isMidnight then
 					absorbBar:SetMinMaxValues(0, maxHealth)
