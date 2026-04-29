@@ -1169,6 +1169,8 @@ local function UpdateItemLevel()
 end
 hooksecurefunc("PaperDollFrame_SetItemLevel", function(statFrame, unit) UpdateItemLevel() end)
 
+local requestDurabilityUpdate
+
 local function setCharFrame()
 	if addon.functions and addon.functions.refreshCharacterFrameElementFonts then addon.functions.refreshCharacterFrameElementFonts() end
 	if InCombatLockdown and InCombatLockdown() then
@@ -1182,7 +1184,7 @@ local function setCharFrame()
 		local cataclystInfo = C_CurrencyInfo.GetCurrencyInfo(addon.variables.catalystID)
 		addon.general.iconFrame.count:SetText(cataclystInfo.quantity)
 	end
-	if addon.db["showDurabilityOnCharframe"] and not addon.functions.IsTimerunner() then calculateDurability() end
+	requestDurabilityUpdate()
 	for key, value in pairs(addon.variables.itemSlots) do
 		setIlvlText(value, key)
 	end
@@ -1803,7 +1805,34 @@ local function applyMerchantButtonInfo()
 end
 
 local merchantRefreshPending = false
+local merchantRefreshDeferredForAutoSell = false
+local durabilityUpdateDeferredForAutoSell = false
+local flushingDeferredAutoSellUpdates = false
+
+local function isVendorAutoSellInProgress()
+	local vendorFunctions = addon.Vendor and addon.Vendor.functions
+	return vendorFunctions and vendorFunctions.IsAutoSellInProgress and vendorFunctions.IsAutoSellInProgress() == true
+end
+
+local function isPaperDollFrameVisible()
+	return _G.PaperDollFrame and _G.PaperDollFrame:IsVisible()
+end
+
+requestDurabilityUpdate = function()
+	if not addon.db["showDurabilityOnCharframe"] then return end
+	if not isPaperDollFrameVisible() then return end
+	if not flushingDeferredAutoSellUpdates and isVendorAutoSellInProgress() then
+		durabilityUpdateDeferredForAutoSell = true
+		return
+	end
+	calculateDurability()
+end
+
 local function updateMerchantButtonInfo()
+	if not flushingDeferredAutoSellUpdates and isVendorAutoSellInProgress() then
+		merchantRefreshDeferredForAutoSell = true
+		return
+	end
 	if merchantRefreshPending then return end
 	merchantRefreshPending = true
 
@@ -1816,6 +1845,20 @@ local function updateMerchantButtonInfo()
 		merchantRefreshPending = false
 		applyMerchantButtonInfo()
 	end
+end
+
+function addon.functions.FlushDeferredItemInventoryAutoSellUpdates()
+	if flushingDeferredAutoSellUpdates then return end
+	if not merchantRefreshDeferredForAutoSell and not durabilityUpdateDeferredForAutoSell then return end
+
+	local refreshMerchant = merchantRefreshDeferredForAutoSell
+	local refreshDurability = durabilityUpdateDeferredForAutoSell
+	merchantRefreshDeferredForAutoSell = false
+	durabilityUpdateDeferredForAutoSell = false
+	flushingDeferredAutoSellUpdates = true
+	if refreshMerchant then updateMerchantButtonInfo() end
+	if refreshDurability then requestDurabilityUpdate() end
+	flushingDeferredAutoSellUpdates = false
 end
 
 local function updateBuybackButtonInfo()
@@ -2503,12 +2546,12 @@ local eventHandlers = {
 		end
 	end,
 	["ENCHANT_SPELL_COMPLETED"] = function(arg1, arg2)
-		if PaperDollFrame:IsShown() and CharOpt("enchants") and arg1 == true and arg2 and arg2.equipmentSlotIndex then
+		if isPaperDollFrameVisible() and CharOpt("enchants") and arg1 == true and arg2 and arg2.equipmentSlotIndex then
 			C_Timer.After(1, function() setIlvlText(addon.variables.itemSlots[arg2.equipmentSlotIndex], arg2.equipmentSlotIndex) end)
 		end
 	end,
 	["GUILDBANK_UPDATE_MONEY"] = function()
-		if addon.db["showDurabilityOnCharframe"] then calculateDurability() end
+		requestDurabilityUpdate()
 	end,
 	["INSPECT_READY"] = function(arg1)
 		if AnyInspectEnabled() then onInspect(arg1) end
@@ -2519,33 +2562,33 @@ local eventHandlers = {
 		if itemButton then addon.functions.updateBank(itemButton, -1, arg1) end
 	end,
 	["PLAYER_DEAD"] = function()
-		if addon.db["showDurabilityOnCharframe"] then calculateDurability() end
+		requestDurabilityUpdate()
 	end,
 	["PLAYER_EQUIPMENT_CHANGED"] = function(arg1)
-		if addon.variables.itemSlots[arg1] and PaperDollFrame:IsShown() then
+		if addon.variables.itemSlots[arg1] and isPaperDollFrameVisible() then
 			if ItemInteractionFrame and ItemInteractionFrame:IsShown() then
 				C_Timer.After(0.4, function() setIlvlText(addon.variables.itemSlots[arg1], arg1) end)
 			else
 				setIlvlText(addon.variables.itemSlots[arg1], arg1)
 			end
 		end
-		if addon.db["showDurabilityOnCharframe"] then calculateDurability() end
+		requestDurabilityUpdate()
 	end,
 	["PLAYER_MONEY"] = function()
-		if addon.db["showDurabilityOnCharframe"] then calculateDurability() end
+		requestDurabilityUpdate()
 	end,
 	["PLAYER_REGEN_ENABLED"] = function()
-		if addon.db["showDurabilityOnCharframe"] then calculateDurability() end
-		if addon.variables and addon.variables.pendingCharFrameUpdate and _G.PaperDollFrame and _G.PaperDollFrame:IsShown() then
+		requestDurabilityUpdate()
+		if addon.variables and addon.variables.pendingCharFrameUpdate and isPaperDollFrameVisible() then
 			addon.variables.pendingCharFrameUpdate = nil
 			setCharFrame()
 		end
 	end,
 	["PLAYER_UNGHOST"] = function()
-		if addon.db["showDurabilityOnCharframe"] then calculateDurability() end
+		requestDurabilityUpdate()
 	end,
 	["SOCKET_INFO_UPDATE"] = function()
-		if PaperDollFrame:IsShown() and CharOpt("gems") then C_Timer.After(0.5, function() setCharFrame() end) end
+		if isPaperDollFrameVisible() and CharOpt("gems") then C_Timer.After(0.5, function() setCharFrame() end) end
 	end,
 }
 

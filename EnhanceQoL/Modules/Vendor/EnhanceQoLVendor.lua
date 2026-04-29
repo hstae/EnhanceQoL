@@ -1089,6 +1089,7 @@ local function sellItems(items)
 	local function finishAutoSell()
 		autoSellInProgress = false
 		updateSellMoreButton()
+		if addon.functions and addon.functions.FlushDeferredItemInventoryAutoSellUpdates then addon.functions.FlushDeferredItemInventoryAutoSellUpdates() end
 		if autoSellNeedsRefresh and inventoryOpen() then
 			autoSellNeedsRefresh = false
 			updateSellMarks()
@@ -1422,6 +1423,7 @@ local eventHandlers = {
 	["MERCHANT_CLOSED"] = function()
 		autoSellInProgress = false
 		autoSellNeedsRefresh = false
+		if addon.functions and addon.functions.FlushDeferredItemInventoryAutoSellUpdates then addon.functions.FlushDeferredItemInventoryAutoSellUpdates() end
 		hasMoreItems = false
 		updateSellMoreButton()
 		updateSellMarks()
@@ -1968,6 +1970,10 @@ end
 
 function addon.Vendor.functions.refreshDestroyButton()
 	if updateDestroyButtonState then updateDestroyButtonState() end
+end
+
+function addon.Vendor.functions.IsAutoSellInProgress()
+	return autoSellInProgress == true
 end
 
 -- Integrate Vendor into Items -> Vendors & Economy -> Selling (Auto‑Sell)
