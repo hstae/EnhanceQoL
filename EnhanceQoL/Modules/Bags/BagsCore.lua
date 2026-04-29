@@ -4294,7 +4294,7 @@ local function getMeasuredSectionHeaderWidth(label, isCustom, textElementID)
 	measure:SetText(addon.FormatTextElement and addon.FormatTextElement(textElementID or "subcategoryHeader", label) or label)
 
 	local width = math.ceil((measure:GetStringWidth() or 0) + 0.5)
-	local totalWidth = width + 22
+	local totalWidth = width + Core.SECTION_TOGGLE_WIDTH + 12
 	if isCustom and isCategoryAssignModeActive() then
 		totalWidth = totalWidth + Core.CATEGORY_ASSIGN_BUTTON_SIZE + 6
 	end

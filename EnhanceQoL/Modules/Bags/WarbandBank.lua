@@ -480,7 +480,7 @@ local function getMeasuredSectionHeaderWidth(label, textElementID)
 	local measure = state.sectionHeaderMeasure
 	applyConfiguredFont(measure, nil, textElementID or "subcategoryHeader")
 	measure:SetText(addon.FormatTextElement and addon.FormatTextElement(textElementID or "subcategoryHeader", label) or label)
-	return math.max(BUTTON_SIZE, math.ceil((measure:GetStringWidth() or 0) + 22.5))
+	return math.max(BUTTON_SIZE, math.ceil((measure:GetStringWidth() or 0) + SECTION_TOGGLE_WIDTH + 12.5))
 end
 
 local function layoutSectionHeaderText(header)
