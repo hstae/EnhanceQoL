@@ -5032,7 +5032,7 @@ local function processUpdate()
 		or state.currentPaddingSignature ~= getFramePaddingSignature(settings)
 	local needsRefresh = openingFrame or state.pendingRefresh or state.forceDynamicRefresh or state.footerDirty or state.newItemsVisualDirty
 
-	local updateApplied = true
+	local updateApplied = false
 	if needsRebuild then
 		updateApplied = rebuildLayout()
 	elseif needsRefresh then
@@ -5050,7 +5050,9 @@ local function processUpdate()
 		if updateApplied and Bags.functions.ApplyVendorMarks then
 			Bags.functions.ApplyVendorMarks()
 		end
-		BagSlotPanel.Refresh()
+		if openingFrame or updateApplied then
+			BagSlotPanel.Refresh()
+		end
 	else
 		state.suppressNativeBagClose = true
 		state.frame:Hide()
