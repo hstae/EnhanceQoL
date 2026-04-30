@@ -1,5 +1,13 @@
 # Changelog
 
+## [10.9.0-beta17] - 2026-04-30
+
+### ✨ Added
+
+- Unit Frames: Added an optional data bar above or below normal unit frames with configurable height, gap, texture, color, and left/center/right text.
+
+---
+
 ## [10.9.0-beta16] - 2026-04-30
 
 ### ⚡ Performance

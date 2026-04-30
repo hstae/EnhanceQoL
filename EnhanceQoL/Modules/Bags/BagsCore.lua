@@ -4957,17 +4957,13 @@ function Bags.functions.EnableMain()
 end
 
 local NATIVE_BAG_TOGGLE_FILTERS = {
-	ToggleAllBags = {
-		"Manager",
-	},
+	ToggleAllBags = {},
 	ToggleBackpack = {
 		"ToggleAllBags",
-		"Manager",
 	},
 	ToggleBag = {
 		"OpenBackpack",
 		"ToggleBackpack",
-		"Manager",
 	},
 }
 
@@ -5070,6 +5066,7 @@ installVisibilityHooks = function()
 		if type(_G[hookName]) == "function" then
 			hooksecurefunc(hookName, function()
 				if shouldIgnoreNativeBagToggle(hookName) then
+					scheduleUpdate(false, false, true)
 					return
 				end
 

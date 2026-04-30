@@ -1649,6 +1649,28 @@ local defaults = {
 			texture = "DEFAULT",
 			reverseFill = false,
 		},
+		dataBar = {
+			enabled = false,
+			position = "BELOW",
+			height = 16,
+			gap = 0,
+			color = { 0.18, 0.18, 0.22, 1 },
+			useClassColor = false,
+			textLeft = "NAME",
+			textCenter = "CURMAX",
+			textRight = "PERCENT",
+			textDelimiter = " ",
+			fontSize = 12,
+			font = nil,
+			fontOutline = "OUTLINE",
+			offsetLeft = { x = 6, y = 0 },
+			offsetCenter = { x = 0, y = 0 },
+			offsetRight = { x = -6, y = 0 },
+			useShortNumbers = true,
+			hidePercentSymbol = false,
+			roundPercent = false,
+			texture = "DEFAULT",
+		},
 		power = {
 			enabled = true,
 			detached = false,
@@ -7146,6 +7168,115 @@ function UF.getHealthPercentCurveColor(st, unit, hc, defH, maxR, maxG, maxB, max
 	return extractCurveColorRGBA(color)
 end
 
+UF.DataBar = UF.DataBar or {}
+
+function UF.DataBar.IsEnabled(cfg, def)
+	local dcfg = (cfg and cfg.dataBar) or {}
+	local ddef = (def and def.dataBar) or {}
+	local enabled = dcfg.enabled
+	if enabled == nil then enabled = ddef.enabled == true end
+	return enabled == true
+end
+
+function UF.DataBar.GetPosition(cfg, def)
+	local dcfg = (cfg and cfg.dataBar) or {}
+	local ddef = (def and def.dataBar) or {}
+	local position = tostring(dcfg.position or ddef.position or "BELOW"):upper()
+	if position ~= "ABOVE" then position = "BELOW" end
+	return position
+end
+
+function UF.DataBar.ClearTexts(st)
+	if not st then return end
+	if st.dataBarTextLeft then st.dataBarTextLeft:SetText("") end
+	if st.dataBarTextCenter then st.dataBarTextCenter:SetText("") end
+	if st.dataBarTextRight then st.dataBarTextRight:SetText("") end
+end
+
+function UF.DataBar.Hide(st)
+	if not st then return end
+	if st.dataBar then
+		st.dataBar:SetValue(0)
+		st.dataBar:Hide()
+	end
+	UF.DataBar.ClearTexts(st)
+	st._dataBarTextDirty = nil
+end
+
+function UF.DataBar.GetFallbackName(unit)
+	if unit == UNIT.PLAYER then return PLAYER or "Player" end
+	if unit == UNIT.TARGET then return TARGET or "Target" end
+	if unit == UNIT.TARGET_TARGET then return L["Target of Target"] or "Target of Target" end
+	if unit == UNIT.FOCUS then return L["Focus"] or "Focus" end
+	if unit == UNIT.PET then return PET or "Pet" end
+	if isBossUnit(unit) then return L["UFBossFrame"] or "Boss Frame" end
+	return tostring(unit or "")
+end
+
+function UF.DataBar.GetText(mode, unit, cfg, def, cur, maxv, percentVal)
+	mode = tostring(mode or "NONE"):upper()
+	if mode == "NONE" then return "" end
+	if mode == "NAME" then return (UnitName and UnitName(unit)) or UF.DataBar.GetFallbackName(unit) end
+	if mode == "LEVEL" then return (UFHelper and UFHelper.getUnitLevelText and UFHelper.getUnitLevelText(unit, nil, UF.ShouldHideClassificationText(cfg, unit))) or "" end
+	local dcfg = (cfg and cfg.dataBar) or {}
+	local ddef = (def and def.dataBar) or {}
+	local delimiter, delimiter2, delimiter3 = UFHelper.getTextDelimiter(dcfg, ddef), UFHelper.getTextDelimiterSecondary(dcfg, ddef), UFHelper.getTextDelimiterTertiary(dcfg, ddef)
+	if UFHelper.resolveTextDelimiters then delimiter, delimiter2, delimiter3 = UFHelper.resolveTextDelimiters(delimiter, delimiter2, delimiter3) end
+	local levelText
+	if UFHelper.textModeUsesLevel and UFHelper.textModeUsesLevel(mode) then levelText = UFHelper.getUnitLevelText(unit, nil, UF.ShouldHideClassificationText(cfg, unit)) end
+	return UFHelper.formatText(
+		mode,
+		cur or 0,
+		maxv or 0,
+		dcfg.useShortNumbers ~= false,
+		percentVal,
+		delimiter,
+		delimiter2,
+		delimiter3,
+		dcfg.hidePercentSymbol == true,
+		levelText,
+		nil,
+		dcfg.roundPercent == true,
+		true
+	)
+end
+
+function UF.DataBar.Update(cfg, unit)
+	cfg = cfg or (states[unit] and states[unit].cfg) or ensureDB(unit)
+	local st = states[unit]
+	if not st or not st.dataBar then return end
+	local def = defaultsFor(unit) or {}
+	if not cfg or cfg.enabled == false or not UF.DataBar.IsEnabled(cfg, def) then
+		UF.DataBar.Hide(st)
+		return
+	end
+	local inEdit = addon.EditModeLib and addon.EditModeLib.IsInEditMode and addon.EditModeLib:IsInEditMode()
+	local exists = UnitExists and UnitExists(unit)
+	if not exists and not inEdit then
+		UF.DataBar.Hide(st)
+		return
+	end
+	local dcfg = cfg.dataBar or {}
+	local ddef = def.dataBar or {}
+	st.dataBar:SetMinMaxValues(0, 1)
+	UF.SetStatusBarValue(st.dataBar, 1, false, true)
+	local color = dcfg.color or ddef.color or { 0.18, 0.18, 0.22, 1 }
+	local r, g, b, a = color[1] or 0.18, color[2] or 0.18, color[3] or 0.22, color[4] or 1
+	if dcfg.useClassColor == true then
+		local class
+		if UnitIsPlayer and UnitIsPlayer(unit) then
+			class = select(2, UnitClass(unit))
+		elseif unit == UNIT.PET then
+			class = (addon.variables and addon.variables.unitClass) or select(2, UnitClass(UNIT.PLAYER))
+		end
+		local cr, cg, cb, ca = getClassColor(class)
+		if cr then r, g, b, a = cr, cg, cb, ca or a end
+	end
+	st.dataBar:SetStatusBarColor(r, g, b, a)
+	st.dataBar:Show()
+	st._dataBarTextDirty = true
+end
+
 local applyBossEditSample
 
 local function updateHealth(cfg, unit)
@@ -7346,6 +7477,7 @@ local function updateHealth(cfg, unit)
 		local har, hag, hab, haa = UFHelper.getHealAbsorbColor(hc, defH)
 		st.healAbsorb:SetStatusBarColor(har or 1, hag or 0.3, hab or 0.3, haa or 0.7)
 	end
+	UF.DataBar.Update(cfg, unit)
 	st._healthTextDirty = true
 end
 
@@ -7421,6 +7553,7 @@ local function updatePower(cfg, unit, allowVisibilityChanges)
 				if st.powerGroup and st.powerGroup.SetAlpha then st.powerGroup:SetAlpha(1) end
 			end
 			st._powerTextDirty = true
+			UF.DataBar.Update(cfg, unit)
 		end
 	end
 	if secondaryBar then
@@ -7485,6 +7618,7 @@ local function updatePower(cfg, unit, allowVisibilityChanges)
 			st._secondaryPowerTextDirty = true
 		end
 	end
+	if not (bar and powerEnabled) then UF.DataBar.Update(cfg, unit) end
 end
 
 local function layoutTexts(bar, leftFS, centerFS, rightFS, cfg, width)
@@ -7666,10 +7800,11 @@ local function syncTextFrameLevels(st)
 	local scfg = (st.cfg and st.cfg.status) or {}
 	local healthAnchor = getHealthTextAnchor(st) or st.health
 	local statusAnchor = getHealthTextAnchor(st, true) or st.status or healthAnchor
-	local textAnchor = AuraUtil.getTopTextAnchor(healthAnchor, statusAnchor, st.power, st.powerGroup, st.secondaryPower, st.secondaryPowerGroup) or statusAnchor or healthAnchor
+	local textAnchor = AuraUtil.getTopTextAnchor(healthAnchor, statusAnchor, st.power, st.powerGroup, st.secondaryPower, st.secondaryPowerGroup, st.dataBar) or statusAnchor or healthAnchor
 	setFrameLevelAbove(st.healthTextLayer, textAnchor, 5)
 	setFrameLevelAbove(st.powerTextLayer, st.power, 5)
 	if st.secondaryPowerTextLayer and st.secondaryPower then setFrameLevelAbove(st.secondaryPowerTextLayer, st.secondaryPower, 5) end
+	if st.dataBarTextLayer and st.dataBar then setFrameLevelAbove(st.dataBarTextLayer, st.dataBar, 5) end
 	setFrameLevelAbove(st.statusTextLayer, textAnchor, 5)
 	local nameLayer = st.nameTextLayer or st.statusTextLayer
 	local nameLevelOffset = tonumber(scfg.nameFrameLevelOffset)
@@ -7721,6 +7856,7 @@ local function hookTextFrameLevels(st)
 	hookFrame(st.barGroup)
 	hookFrame(st.health)
 	hookFrame(st.power)
+	hookFrame(st.dataBar)
 	hookFrame(st.secondaryPower)
 	hookFrame(st.status)
 	hookFrame(st.castBar)
@@ -8196,6 +8332,13 @@ local function layoutFrame(cfg, unit)
 	local powerHeight = powerEnabled and (cfg.powerHeight or def.powerHeight) or 0
 	local secondaryPowerHeight = secondaryPowerEnabled and (cfg.secondaryPowerHeight or def.secondaryPowerHeight or cfg.powerHeight or def.powerHeight) or 0
 	local stackHeight = healthHeight + (powerDetached and 0 or powerHeight) + (secondaryPowerDetached and 0 or secondaryPowerHeight)
+	local dataBarEnabled = UF.DataBar.IsEnabled(cfg, def)
+	local dataBarCfg = cfg.dataBar or {}
+	local dataBarDef = def.dataBar or {}
+	local dataBarHeight = dataBarEnabled and max(1, tonumber(dataBarCfg.height or dataBarDef.height or 16) or 16) or 0
+	local dataBarGap = dataBarEnabled and max(0, tonumber(dataBarCfg.gap or dataBarDef.gap or 0) or 0) or 0
+	local dataBarPosition = UF.DataBar.GetPosition(cfg, def)
+	local dataBarOuterHeight = dataBarEnabled and (dataBarHeight + dataBarGap) or 0
 	local borderCfg = cfg.border or {}
 	local borderDef = def.border or {}
 	local borderEnabled = UF._isFrameBorderEnabled(borderCfg, borderDef, true)
@@ -8235,7 +8378,8 @@ local function layoutFrame(cfg, unit)
 	local statusOffsetRight = -barAreaOffsetRight
 	st._portraitSpace = portraitSpace
 	st._portraitCenterOffset = barCenterOffset
-	st.frame:SetWidth(width + borderOffset * 2 + portraitSpace)
+	local frameWidth = width + borderOffset * 2 + portraitSpace
+	st.frame:SetWidth(frameWidth)
 	local frameStrata = normalizeStrataToken(cfg.strata) or normalizeStrataToken(def.strata) or "LOW"
 	if st.frame.GetFrameStrata and st.frame:GetFrameStrata() ~= frameStrata then st.frame:SetFrameStrata(frameStrata) end
 	local selection = st.frame.Selection
@@ -8261,10 +8405,12 @@ local function layoutFrame(cfg, unit)
 	if st.barGroup and st.barGroup.SetFrameStrata and st.barGroup:GetFrameStrata() ~= frameStrata then st.barGroup:SetFrameStrata(frameStrata) end
 	if st.healthContainer and st.healthContainer.SetFrameStrata and st.healthContainer:GetFrameStrata() ~= frameStrata then st.healthContainer:SetFrameStrata(frameStrata) end
 	if st.health.SetFrameStrata and st.health:GetFrameStrata() ~= frameStrata then st.health:SetFrameStrata(frameStrata) end
+	if st.dataBar and st.dataBar.SetFrameStrata and st.dataBar:GetFrameStrata() ~= frameStrata then st.dataBar:SetFrameStrata(frameStrata) end
 	if st.status.SetFrameLevel then st.status:SetFrameLevel(frameLevel + 1) end
 	if st.barGroup and st.barGroup.SetFrameLevel then st.barGroup:SetFrameLevel(frameLevel + 1) end
 	if st.healthContainer and st.healthContainer.SetFrameLevel then st.healthContainer:SetFrameLevel(frameLevel + 2) end
 	if st.health.SetFrameLevel then st.health:SetFrameLevel(frameLevel + 2) end
+	if st.dataBar and st.dataBar.SetFrameLevel then st.dataBar:SetFrameLevel(frameLevel + 1) end
 	st.status:SetHeight(statusHeight)
 	if st.healthContainer then st.healthContainer:SetSize(width, healthHeight) end
 	st.health:SetSize(width, healthHeight)
@@ -8291,6 +8437,7 @@ local function layoutFrame(cfg, unit)
 	if st.powerGroup then st.powerGroup:ClearAllPoints() end
 	if st.secondaryPower then st.secondaryPower:ClearAllPoints() end
 	if st.secondaryPowerGroup then st.secondaryPowerGroup:ClearAllPoints() end
+	if st.dataBar then st.dataBar:ClearAllPoints() end
 
 	local anchor = cfg.anchor or def.anchor or defaults.player.anchor
 	if isBossUnit(unit) then
@@ -8304,13 +8451,25 @@ local function layoutFrame(cfg, unit)
 	end
 
 	local y = 0
+	if st.dataBar then
+		if dataBarEnabled then
+			st.dataBar:SetHeight(dataBarHeight)
+			st.dataBar:SetPoint("TOPLEFT", st.frame, "TOPLEFT", 0, dataBarPosition == "ABOVE" and 0 or -(statusHeight + stackHeight + borderOffset * 2 + dataBarGap))
+			st.dataBar:SetPoint("TOPRIGHT", st.frame, "TOPRIGHT", 0, dataBarPosition == "ABOVE" and 0 or -(statusHeight + stackHeight + borderOffset * 2 + dataBarGap))
+			st.dataBar:Show()
+			if dataBarPosition == "ABOVE" then y = -dataBarOuterHeight end
+		else
+			UF.DataBar.Hide(st)
+		end
+	end
+	local contentTopY = y
 	if statusHeight > 0 then
-		st.status:SetPoint("TOPLEFT", st.frame, "TOPLEFT", statusOffsetLeft, 0)
-		st.status:SetPoint("TOPRIGHT", st.frame, "TOPRIGHT", statusOffsetRight, 0)
-		y = -statusHeight
+		st.status:SetPoint("TOPLEFT", st.frame, "TOPLEFT", statusOffsetLeft, contentTopY)
+		st.status:SetPoint("TOPRIGHT", st.frame, "TOPRIGHT", statusOffsetRight, contentTopY)
+		y = contentTopY - statusHeight
 	else
-		st.status:SetPoint("TOPLEFT", st.frame, "TOPLEFT", statusOffsetLeft, 0)
-		st.status:SetPoint("TOPRIGHT", st.frame, "TOPRIGHT", statusOffsetRight, 0)
+		st.status:SetPoint("TOPLEFT", st.frame, "TOPLEFT", statusOffsetLeft, contentTopY)
+		st.status:SetPoint("TOPRIGHT", st.frame, "TOPRIGHT", statusOffsetRight, contentTopY)
 	end
 	-- Bars container sits below status; border applied here, not on status
 	local barsHeight = stackHeight + borderOffset * 2
@@ -8514,7 +8673,7 @@ local function layoutFrame(cfg, unit)
 		if st.dispelTint.SetOrientation and dispelOrientation then st.dispelTint:SetOrientation(dispelOrientation.VerticalTopToBottom, 0, 0) end
 	end
 
-	local totalHeight = statusHeight + barsHeight
+	local totalHeight = statusHeight + barsHeight + dataBarOuterHeight
 	st.frame:SetHeight(totalHeight)
 	if st.raidIcon then
 		st.raidIcon:ClearAllPoints()
@@ -8524,6 +8683,7 @@ local function layoutFrame(cfg, unit)
 	layoutTexts(st.health, st.healthTextLeft, st.healthTextCenter, st.healthTextRight, cfg.health, width)
 	layoutTexts(st.power, st.powerTextLeft, st.powerTextCenter, st.powerTextRight, cfg.power, width)
 	if st.secondaryPower then layoutTexts(st.secondaryPower, st.secondaryPowerTextLeft, st.secondaryPowerTextCenter, st.secondaryPowerTextRight, cfg.secondaryPower, width) end
+	if st.dataBar then layoutTexts(st.dataBar, st.dataBarTextLeft, st.dataBarTextCenter, st.dataBarTextRight, cfg.dataBar, frameWidth) end
 	if st.castBar and unit == UNIT.TARGET then applyCastLayout(cfg, unit) end
 
 	-- Apply border only around the bar region wrapper
@@ -8680,6 +8840,12 @@ local function ensureFrames(unit)
 	st.power = _G[info.powerName] or CreateFrame("StatusBar", info.powerName, st.barGroup, "BackdropTemplate")
 	st.powerGroup = st.powerGroup or CreateFrame("Frame", nil, st.frame, "BackdropTemplate")
 	st.powerGroup:Hide()
+	st.dataBar = st.dataBar or CreateFrame("StatusBar", info.healthName .. "DataBar", st.frame, "BackdropTemplate")
+	if st.dataBar.GetParent and st.dataBar:GetParent() ~= st.frame then st.dataBar:SetParent(st.frame) end
+	st.dataBar:EnableMouse(false)
+	st.dataBar:SetMinMaxValues(0, 1)
+	st.dataBar:SetValue(0)
+	st.dataBar:Hide()
 	if info.secondaryPowerName then
 		st.secondaryPower = _G[info.secondaryPowerName] or CreateFrame("StatusBar", info.secondaryPowerName, st.barGroup, "BackdropTemplate")
 		st.secondaryPowerGroup = st.secondaryPowerGroup or CreateFrame("Frame", nil, st.frame, "BackdropTemplate")
@@ -8772,6 +8938,9 @@ local function ensureFrames(unit)
 	st.healthTextLayer:SetAllPoints(st.health)
 	st.powerTextLayer = st.powerTextLayer or CreateFrame("Frame", nil, st.power)
 	st.powerTextLayer:SetAllPoints(st.power)
+	st.dataBarTextLayer = st.dataBarTextLayer or CreateFrame("Frame", nil, st.dataBar)
+	st.dataBarTextLayer:SetAllPoints(st.dataBar)
+	st.dataBarTextLayer:EnableMouse(false)
 	if st.secondaryPower then
 		st.secondaryPowerTextLayer = st.secondaryPowerTextLayer or CreateFrame("Frame", nil, st.secondaryPower)
 		st.secondaryPowerTextLayer:SetAllPoints(st.secondaryPower)
@@ -8801,6 +8970,9 @@ local function ensureFrames(unit)
 	st.powerTextLeft = st.powerTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	st.powerTextCenter = st.powerTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	st.powerTextRight = st.powerTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	st.dataBarTextLeft = st.dataBarTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	st.dataBarTextCenter = st.dataBarTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	st.dataBarTextRight = st.dataBarTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	if st.secondaryPowerTextLayer then
 		st.secondaryPowerTextLeft = st.secondaryPowerTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 		st.secondaryPowerTextCenter = st.secondaryPowerTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
@@ -9077,6 +9249,25 @@ local function applyBars(cfg, unit)
 		end
 	end
 
+	if st.dataBar then
+		local dcfg = cfg.dataBar or {}
+		local ddef = def.dataBar or {}
+		if UF.DataBar.IsEnabled(cfg, def) then
+			local textureKey = dcfg.texture or ddef.texture or "DEFAULT"
+			st.dataBar:SetStatusBarTexture(UFHelper.resolveTexture(textureKey))
+			if st.dataBar.SetStatusBarDesaturated then st.dataBar:SetStatusBarDesaturated(false) end
+			UFHelper.configureSpecialTexture(st.dataBar, "HEALTH", textureKey, dcfg)
+			UFHelper.applyStatusBarReverseFill(st.dataBar, false)
+			applyBarBackdrop(st.dataBar, { backdrop = { enabled = false } })
+			UFHelper.applyFont(st.dataBarTextLeft, dcfg.font, dcfg.fontSize or ddef.fontSize or 12, dcfg.fontOutline or ddef.fontOutline)
+			UFHelper.applyFont(st.dataBarTextCenter, dcfg.font, dcfg.fontSize or ddef.fontSize or 12, dcfg.fontOutline or ddef.fontOutline)
+			UFHelper.applyFont(st.dataBarTextRight, dcfg.font, dcfg.fontSize or ddef.fontSize or 12, dcfg.fontOutline or ddef.fontOutline)
+			UF.DataBar.Update(cfg, unit)
+		else
+			UF.DataBar.Hide(st)
+		end
+	end
+
 	UFHelper.applyFont(st.healthTextLeft, hc.font, hc.fontSize or 14, hc.fontOutline)
 	UFHelper.applyFont(st.healthTextCenter, hc.font, hc.fontSize or 14, hc.fontOutline)
 	UFHelper.applyFont(st.healthTextRight, hc.font, hc.fontSize or 14, hc.fontOutline)
@@ -9164,6 +9355,7 @@ local function updateNameAndLevel(cfg, unit, levelOverride)
 		end
 	end
 	if UFHelper and UFHelper.updateClassificationIndicator then UFHelper.updateClassificationIndicator(st, unit, cfg, defaultsFor(unit), false) end
+	if st.dataBarTextLeft or st.dataBarTextCenter or st.dataBarTextRight then st._dataBarTextDirty = true end
 end
 
 refreshNameAndLevelSoon = function(unit)
@@ -9213,11 +9405,13 @@ local function applyConfig(unit)
 	st._healthTextDirty = true
 	st._powerTextDirty = true
 	st._secondaryPowerTextDirty = true
+	st._dataBarTextDirty = true
 	if unit == UNIT.TARGET then syncTargetRangeFadeConfig(cfg, def) end
 	if not cfg.enabled then
 		if st and st.frame then
 			if st.barGroup then st.barGroup:Hide() end
 			if st.status then st.status:Hide() end
+			UF.DataBar.Hide(st)
 			if st.portrait then st.portrait:Hide() end
 			if st.portraitHolder then st.portraitHolder:Hide() end
 			if st.portraitSeparator then st.portraitSeparator:Hide() end
@@ -9336,6 +9530,7 @@ local function applyConfig(unit)
 	if st and st.frame then
 		if st.barGroup then st.barGroup:Show() end
 		if st.status then st.status:Show() end
+		UF.DataBar.Update(cfg, unit)
 	end
 	UFHelper.updateHighlight(st, unit, UNIT.PLAYER)
 	if unit == UNIT.PLAYER and st.castBar then
@@ -9695,6 +9890,7 @@ function UF._setBossFrameInactive(unit)
 	applyVisibilityDriver(unit, false)
 	if st.barGroup then st.barGroup:Hide() end
 	if st.status then st.status:Hide() end
+	UF.DataBar.Hide(st)
 	if st.auraContainer then AuraUtil.hideAuraContainers(st) end
 	AuraUtil.resetTargetAuras(unit)
 	AuraUtil.HideSingleDispelIndicator(unit)
@@ -9741,6 +9937,7 @@ local function updateBossFrames(force)
 					end
 					if st.barGroup then st.barGroup:Show() end
 					if st.status then st.status:Show() end
+					UF.DataBar.Update(cfg, unit)
 					applyBossEditSample(i, cfg)
 					if st.auraContainer then AuraUtil.fullScanTargetAuras(unit) end
 				else
@@ -9760,6 +9957,7 @@ local function updateBossFrames(force)
 					if exists then
 						if st.barGroup then st.barGroup:Show() end
 						if st.status then st.status:Show() end
+						UF.DataBar.Update(cfg, unit)
 						updateNameAndLevel(cfg, unit)
 						updateHealth(cfg, unit)
 						updatePower(cfg, unit)
@@ -9775,6 +9973,7 @@ local function updateBossFrames(force)
 					else
 						if st.barGroup then st.barGroup:Hide() end
 						if st.status then st.status:Hide() end
+						UF.DataBar.Hide(st)
 						if st.auraContainer then AuraUtil.hideAuraContainers(st) end
 						AuraUtil.resetTargetAuras(unit)
 						if st.castBar then
@@ -9893,7 +10092,7 @@ end
 
 function UF.UnitHasDirtyTexts(unit)
 	local st = states[unit]
-	return st and (st._healthTextDirty or st._powerTextDirty or st._secondaryPowerTextDirty) and true or false
+	return st and (st._healthTextDirty or st._powerTextDirty or st._secondaryPowerTextDirty or st._dataBarTextDirty) and true or false
 end
 
 function UF.UpdateTextUnits(force, dirtyOnly)
@@ -10361,6 +10560,7 @@ local function updateTargetTargetFrame(cfg, forceApply)
 		if st then
 			if st.barGroup then st.barGroup:Hide() end
 			if st.status then st.status:Hide() end
+			UF.DataBar.Hide(st)
 		end
 		updatePortrait(cfg, UNIT.TARGET_TARGET)
 		applyVisibilityRules(UNIT.TARGET_TARGET)
@@ -10376,6 +10576,7 @@ local function updateTargetTargetFrame(cfg, forceApply)
 		if st then
 			if st.barGroup then st.barGroup:Show() end
 			if st.status then st.status:Show() end
+			UF.DataBar.Update(cfg, UNIT.TARGET_TARGET)
 			local pcfg = cfg.power or {}
 			local powerEnabled = pcfg.enabled ~= false
 			updateNameAndLevel(cfg, UNIT.TARGET_TARGET)
@@ -10395,6 +10596,7 @@ local function updateTargetTargetFrame(cfg, forceApply)
 		if st then
 			if st.barGroup then st.barGroup:Hide() end
 			if st.status then st.status:Hide() end
+			UF.DataBar.Hide(st)
 		end
 	end
 	checkRaidTargetIcon(UNIT.TARGET_TARGET, st)
@@ -10414,6 +10616,7 @@ local function updateFocusFrame(cfg, forceApply)
 		if st then
 			if st.barGroup then st.barGroup:Hide() end
 			if st.status then st.status:Hide() end
+			UF.DataBar.Hide(st)
 			if st.auraContainer then AuraUtil.hideAuraContainers(st) end
 		end
 		AuraUtil.resetTargetAuras(UNIT.FOCUS)
@@ -10432,6 +10635,7 @@ local function updateFocusFrame(cfg, forceApply)
 		if st then
 			if st.barGroup then st.barGroup:Show() end
 			if st.status then st.status:Show() end
+			UF.DataBar.Update(cfg, UNIT.FOCUS)
 			local pcfg = cfg.power or {}
 			local powerEnabled = pcfg.enabled ~= false
 			updateNameAndLevel(cfg, UNIT.FOCUS)
@@ -10453,6 +10657,7 @@ local function updateFocusFrame(cfg, forceApply)
 		if st then
 			if st.barGroup then st.barGroup:Hide() end
 			if st.status then st.status:Hide() end
+			UF.DataBar.Hide(st)
 			if st.castBar then stopCast(UNIT.FOCUS) end
 			if st.auraContainer then AuraUtil.hideAuraContainers(st) end
 		end
@@ -10479,13 +10684,15 @@ end
 function UF.UpdateUnitTexts(unit, force)
 	local st = states[unit]
 	if not st then return end
-	if not force and not (st._healthTextDirty or st._powerTextDirty or st._secondaryPowerTextDirty) then return end
+	if not force and not (st._healthTextDirty or st._powerTextDirty or st._secondaryPowerTextDirty or st._dataBarTextDirty) then return end
 
 	local cfg = st.cfg or ensureDB(unit)
 	if not cfg or cfg.enabled == false then
 		st._healthTextDirty = nil
 		st._powerTextDirty = nil
 		st._secondaryPowerTextDirty = nil
+		st._dataBarTextDirty = nil
+		UF.DataBar.ClearTexts(st)
 		return
 	end
 
@@ -10497,6 +10704,7 @@ function UF.UpdateUnitTexts(unit, force)
 			st._healthTextDirty = nil
 			st._powerTextDirty = nil
 			st._secondaryPowerTextDirty = nil
+			st._dataBarTextDirty = nil
 			return
 		end
 	end
@@ -10511,13 +10719,38 @@ function UF.UpdateUnitTexts(unit, force)
 		if st.secondaryPowerTextLeft then st.secondaryPowerTextLeft:SetText("") end
 		if st.secondaryPowerTextCenter then st.secondaryPowerTextCenter:SetText("") end
 		if st.secondaryPowerTextRight then st.secondaryPowerTextRight:SetText("") end
+		UF.DataBar.ClearTexts(st)
 		st._healthTextDirty = nil
 		st._powerTextDirty = nil
 		st._secondaryPowerTextDirty = nil
+		st._dataBarTextDirty = nil
 		return
 	end
 
 	local def = defaultsFor(unit) or {}
+
+	if st._dataBarTextDirty and (st.dataBarTextLeft or st.dataBarTextCenter or st.dataBarTextRight) then
+		if not UF.DataBar.IsEnabled(cfg, def) then
+			UF.DataBar.ClearTexts(st)
+		else
+			local dcfg = cfg.dataBar or {}
+			local ddef = def.dataBar or {}
+			local cur = (UnitHealth and UnitHealth(unit)) or 0
+			local maxv = (UnitHealthMax and UnitHealthMax(unit)) or 0
+			local percentVal
+			if UFHelper.textModeUsesPercent(dcfg.textLeft or ddef.textLeft or "NAME")
+				or UFHelper.textModeUsesPercent(dcfg.textCenter or ddef.textCenter or "CURMAX")
+				or UFHelper.textModeUsesPercent(dcfg.textRight or ddef.textRight or "PERCENT")
+			then
+				local calc = UF.RefreshHealPredictionCalculator(st, unit)
+				percentVal = getHealthPercent(unit, cur, maxv, calc)
+			end
+			if st.dataBarTextLeft then st.dataBarTextLeft:SetText(UF.DataBar.GetText(dcfg.textLeft or ddef.textLeft or "NAME", unit, cfg, def, cur, maxv, percentVal)) end
+			if st.dataBarTextCenter then st.dataBarTextCenter:SetText(UF.DataBar.GetText(dcfg.textCenter or ddef.textCenter or "CURMAX", unit, cfg, def, cur, maxv, percentVal)) end
+			if st.dataBarTextRight then st.dataBarTextRight:SetText(UF.DataBar.GetText(dcfg.textRight or ddef.textRight or "PERCENT", unit, cfg, def, cur, maxv, percentVal)) end
+		end
+		st._dataBarTextDirty = nil
+	end
 
 	if st._healthTextDirty and (st.healthTextLeft or st.healthTextCenter or st.healthTextRight) then
 		local hc = cfg.health or {}
@@ -11091,6 +11324,7 @@ onEvent = function(self, event, unit, ...)
 			updatePower(targetCfg, unitToken)
 			st.barGroup:Show()
 			st.status:Show()
+			UF.DataBar.Update(targetCfg, unitToken)
 			setCastInfoFromUnit(unitToken)
 			if st.privateAuras and UFHelper and UFHelper.RemovePrivateAuras and UFHelper.ApplyPrivateAuras then
 				UFHelper.RemovePrivateAuras(st.privateAuras)
@@ -11113,6 +11347,7 @@ onEvent = function(self, event, unit, ...)
 			AuraUtil.HideSingleDispelIndicator(unitToken)
 			st.barGroup:Hide()
 			st.status:Hide()
+			UF.DataBar.Hide(st)
 			stopCast(unitToken)
 			if st.privateAuras and UFHelper and UFHelper.RemovePrivateAuras then
 				UFHelper.RemovePrivateAuras(st.privateAuras)

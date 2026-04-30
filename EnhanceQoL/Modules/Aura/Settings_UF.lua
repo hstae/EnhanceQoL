@@ -148,6 +148,14 @@ UF.ui.healthTextOptions = {
 	{ value = "NONE", label = NONE },
 }
 
+UF.ui.dataBarTextOptions = {
+	{ value = "NAME", label = NAME or L["Name"] or "Name" },
+	{ value = "LEVEL", label = LEVEL or L["Level"] or "Level" },
+}
+for _, option in ipairs(UF.ui.healthTextOptions) do
+	UF.ui.dataBarTextOptions[#UF.ui.dataBarTextOptions + 1] = option
+end
+
 local delimiterOptions = {
 	{ value = " ", label = L["Space"] or "Space" },
 	{ value = "  ", label = L["Double Space"] or "Double space" },
@@ -3235,6 +3243,208 @@ local function appendUnitCombatFeedbackSettings(list, unit, def, refreshSelf)
 	list[#list + 1] = sampleAmountSetting
 end
 
+function UF.ui.appendDataBarSettings(list, unit, def, refresh, refreshSelf, addDivider)
+	local dataBarDef = def.dataBar or {}
+	list[#list + 1] = { name = L["UFDataBar"] or "Data bar", kind = UF.ui.settingType.Collapsible, id = "dataBar", defaultCollapsed = true }
+
+	local function isDataBarEnabled()
+		return getValue(unit, { "dataBar", "enabled" }, dataBarDef.enabled == true) == true
+	end
+
+	list[#list + 1] = checkbox(L["UFDataBarEnable"] or "Enable data bar", isDataBarEnabled, function(val)
+		setValue(unit, { "dataBar", "enabled" }, val and true or false)
+		refreshSelf()
+		refreshSettingsUI()
+	end, dataBarDef.enabled == true, "dataBar")
+
+	local dataBarPositionOptions = {
+		{ value = "ABOVE", label = L["UFDataBarAbove"] or "Above" },
+		{ value = "BELOW", label = L["UFDataBarBelow"] or "Below" },
+	}
+	local dataBarPosition = radioDropdown(L["UFDataBarPosition"] or "Data bar position", dataBarPositionOptions, function()
+		return tostring(getValue(unit, { "dataBar", "position" }, dataBarDef.position or "BELOW")):upper()
+	end, function(val)
+		setValue(unit, { "dataBar", "position" }, (val or "BELOW"):upper())
+		refreshSelf()
+	end, dataBarDef.position or "BELOW", "dataBar")
+	dataBarPosition.isEnabled = isDataBarEnabled
+	list[#list + 1] = dataBarPosition
+
+	local dataBarHeight = slider(L["UFDataBarHeight"] or "Data bar height", 4, 80, 1, function()
+		return getValue(unit, { "dataBar", "height" }, dataBarDef.height or 16)
+	end, function(val)
+		debounced(unit .. "_dataBarHeight", function()
+			setValue(unit, { "dataBar", "height" }, val or dataBarDef.height or 16)
+			refreshSelf()
+		end)
+	end, dataBarDef.height or 16, "dataBar", true)
+	dataBarHeight.isEnabled = isDataBarEnabled
+	list[#list + 1] = dataBarHeight
+
+	local dataBarGap = slider(L["UFDataBarGap"] or "Data bar gap", 0, 40, 1, function()
+		return getValue(unit, { "dataBar", "gap" }, dataBarDef.gap or 0)
+	end, function(val)
+		debounced(unit .. "_dataBarGap", function()
+			setValue(unit, { "dataBar", "gap" }, val or 0)
+			refreshSelf()
+		end)
+	end, dataBarDef.gap or 0, "dataBar", true)
+	dataBarGap.isEnabled = isDataBarEnabled
+	list[#list + 1] = dataBarGap
+
+	list[#list + 1] = checkbox(
+		L["Use class color (players)"] or "Use class color (players)",
+		function() return getValue(unit, { "dataBar", "useClassColor" }, dataBarDef.useClassColor == true) == true end,
+		function(val)
+			setValue(unit, { "dataBar", "useClassColor" }, val and true or false)
+			refreshSelf()
+			refreshSettingsUI()
+		end,
+		dataBarDef.useClassColor == true,
+		"dataBar",
+		isDataBarEnabled
+	)
+
+	list[#list + 1] = {
+		name = L["UFDataBarColor"] or "Data bar color",
+		kind = UF.ui.settingType.Color,
+		parentId = "dataBar",
+		hasOpacity = true,
+		default = dataBarDef.color or { 0.18, 0.18, 0.22, 1 },
+		get = function() return getValue(unit, { "dataBar", "color" }, dataBarDef.color or { 0.18, 0.18, 0.22, 1 }) end,
+		set = function(_, color)
+			setColor(unit, { "dataBar", "color" }, color.r, color.g, color.b, color.a)
+			refreshSelf()
+		end,
+		colorGet = function()
+			local r, g, b, a = toRGBA(getValue(unit, { "dataBar", "color" }, dataBarDef.color), dataBarDef.color or { 0.18, 0.18, 0.22, 1 })
+			return { r = r, g = g, b = b, a = a }
+		end,
+		colorSet = function(_, color)
+			setColor(unit, { "dataBar", "color" }, color.r, color.g, color.b, color.a)
+			refreshSelf()
+		end,
+		colorDefault = {
+			r = (dataBarDef.color and dataBarDef.color[1]) or 0.18,
+			g = (dataBarDef.color and dataBarDef.color[2]) or 0.18,
+			b = (dataBarDef.color and dataBarDef.color[3]) or 0.22,
+			a = (dataBarDef.color and dataBarDef.color[4]) or 1,
+		},
+		isEnabled = function()
+			return isDataBarEnabled() and getValue(unit, { "dataBar", "useClassColor" }, dataBarDef.useClassColor == true) ~= true
+		end,
+	}
+	addDivider("dataBar")
+
+	list[#list + 1] = radioDropdown(L["Left text"] or "Left text", UF.ui.dataBarTextOptions, function()
+		return normalizeTextMode(getValue(unit, { "dataBar", "textLeft" }, dataBarDef.textLeft or "NAME"))
+	end, function(val)
+		setValue(unit, { "dataBar", "textLeft" }, val)
+		refresh()
+		refreshSettingsUI()
+	end, dataBarDef.textLeft or "NAME", "dataBar")
+	list[#list].isEnabled = isDataBarEnabled
+
+	list[#list + 1] = radioDropdown(L["Center text"] or "Center text", UF.ui.dataBarTextOptions, function()
+		return normalizeTextMode(getValue(unit, { "dataBar", "textCenter" }, dataBarDef.textCenter or "CURMAX"))
+	end, function(val)
+		setValue(unit, { "dataBar", "textCenter" }, val)
+		refresh()
+		refreshSettingsUI()
+	end, dataBarDef.textCenter or "CURMAX", "dataBar")
+	list[#list].isEnabled = isDataBarEnabled
+
+	list[#list + 1] = radioDropdown(L["Right text"] or "Right text", UF.ui.dataBarTextOptions, function()
+		return normalizeTextMode(getValue(unit, { "dataBar", "textRight" }, dataBarDef.textRight or "PERCENT"))
+	end, function(val)
+		setValue(unit, { "dataBar", "textRight" }, val)
+		refresh()
+		refreshSettingsUI()
+	end, dataBarDef.textRight or "PERCENT", "dataBar")
+	list[#list].isEnabled = isDataBarEnabled
+
+	local function dataBarDelimiterCount()
+		local leftMode = getValue(unit, { "dataBar", "textLeft" }, dataBarDef.textLeft or "NAME")
+		local centerMode = getValue(unit, { "dataBar", "textCenter" }, dataBarDef.textCenter or "CURMAX")
+		local rightMode = getValue(unit, { "dataBar", "textRight" }, dataBarDef.textRight or "PERCENT")
+		return maxDelimiterCount(leftMode, centerMode, rightMode)
+	end
+
+	local dataBarDelimiter = radioDropdown(L["Delimiter"] or "Delimiter", delimiterOptions, function()
+		return getValue(unit, { "dataBar", "textDelimiter" }, dataBarDef.textDelimiter or " ")
+	end, function(val)
+		setValue(unit, { "dataBar", "textDelimiter" }, val)
+		refresh()
+	end, dataBarDef.textDelimiter or " ", "dataBar")
+	dataBarDelimiter.isEnabled = isDataBarEnabled
+	dataBarDelimiter.isShown = function() return dataBarDelimiterCount() >= 1 end
+	list[#list + 1] = dataBarDelimiter
+
+	local dataBarDelimiterSecondary = radioDropdown(L["Secondary Delimiter"] or "Secondary delimiter", delimiterOptions, function()
+		local primary = getValue(unit, { "dataBar", "textDelimiter" }, dataBarDef.textDelimiter or " ")
+		return getValue(unit, { "dataBar", "textDelimiterSecondary" }, primary)
+	end, function(val)
+		setValue(unit, { "dataBar", "textDelimiterSecondary" }, val)
+		refresh()
+	end, dataBarDef.textDelimiterSecondary or dataBarDef.textDelimiter or " ", "dataBar")
+	dataBarDelimiterSecondary.isEnabled = isDataBarEnabled
+	dataBarDelimiterSecondary.isShown = function() return dataBarDelimiterCount() >= 2 end
+	list[#list + 1] = dataBarDelimiterSecondary
+
+	local dataBarDelimiterTertiary = radioDropdown(L["Tertiary Delimiter"] or "Tertiary delimiter", delimiterOptions, function()
+		local primary = getValue(unit, { "dataBar", "textDelimiter" }, dataBarDef.textDelimiter or " ")
+		local secondary = getValue(unit, { "dataBar", "textDelimiterSecondary" }, primary)
+		return getValue(unit, { "dataBar", "textDelimiterTertiary" }, secondary)
+	end, function(val)
+		setValue(unit, { "dataBar", "textDelimiterTertiary" }, val)
+		refresh()
+	end, dataBarDef.textDelimiterTertiary or dataBarDef.textDelimiterSecondary or dataBarDef.textDelimiter or " ", "dataBar")
+	dataBarDelimiterTertiary.isEnabled = isDataBarEnabled
+	dataBarDelimiterTertiary.isShown = function() return dataBarDelimiterCount() >= 3 end
+	list[#list + 1] = dataBarDelimiterTertiary
+	addDivider("dataBar")
+
+	local dataBarFontSize = slider(FONT_SIZE_LABEL, 8, 30, 1, function()
+		return getValue(unit, { "dataBar", "fontSize" }, dataBarDef.fontSize or 12)
+	end, function(val)
+		debounced(unit .. "_dataBarFontSize", function()
+			setValue(unit, { "dataBar", "fontSize" }, val or dataBarDef.fontSize or 12)
+			refresh()
+		end)
+	end, dataBarDef.fontSize or 12, "dataBar", true)
+	dataBarFontSize.isEnabled = isDataBarEnabled
+	list[#list + 1] = dataBarFontSize
+
+	if #fontOptions() > 0 then
+		local dataBarFont = checkboxDropdown(L["Font"] or "Font", fontOptions, function()
+			return getValue(unit, { "dataBar", "font" }, dataBarDef.font or UF.ui.globalFontConfigKey())
+		end, function(val)
+			setValue(unit, { "dataBar", "font" }, val)
+			refresh()
+		end, dataBarDef.font or UF.ui.globalFontConfigKey(), "dataBar")
+		dataBarFont.isEnabled = isDataBarEnabled
+		list[#list + 1] = dataBarFont
+	end
+
+	local dataBarFontOutline = checkboxDropdown(L["Font outline"] or "Font outline", UF.ui.outlineOptions, function()
+		return UF.ui.normalizeFontStyleChoice(getValue(unit, { "dataBar", "fontOutline" }, dataBarDef.fontOutline or "OUTLINE"), dataBarDef.fontOutline or "OUTLINE")
+	end, function(val)
+		setValue(unit, { "dataBar", "fontOutline" }, UF.ui.normalizeFontStyleChoice(val, dataBarDef.fontOutline or "OUTLINE"))
+		refresh()
+	end, dataBarDef.fontOutline or "OUTLINE", "dataBar")
+	dataBarFontOutline.isEnabled = isDataBarEnabled
+	list[#list + 1] = dataBarFontOutline
+
+	local dataBarTexture = checkboxDropdown(L["Bar Texture"] or "Bar Texture", textureOptions, function()
+		return getValue(unit, { "dataBar", "texture" }, dataBarDef.texture or "DEFAULT")
+	end, function(val)
+		setValue(unit, { "dataBar", "texture" }, val or "DEFAULT")
+		refresh()
+	end, dataBarDef.texture or "DEFAULT", "dataBar")
+	dataBarTexture.isEnabled = isDataBarEnabled
+	list[#list + 1] = dataBarTexture
+end
+
 local function buildUnitSettings(unit)
 	local MIN_WIDTH = UF.ui.minWidth
 	local OFFSET_RANGE = UF.ui.offsetRange
@@ -3906,6 +4116,7 @@ local function buildUnitSettings(unit)
 		list[#list + 1] = createRangeFadeSpellPickerSetting(unit, isRangeFadeEnabled, refreshSelf, refreshRangeFadeRuntime)
 	end
 
+	UF.ui.appendDataBarSettings(list, unit, def, refresh, refreshSelf, addDivider)
 	list[#list + 1] = { name = L["Health"] or HEALTH or "Health", kind = UF.ui.settingType.Collapsible, id = "health", defaultCollapsed = true }
 
 	list[#list + 1] = slider(L["UFHealthHeight"] or "Health height", 8, 80, 1, function() return getValue(unit, { "healthHeight" }, def.healthHeight or 24) end, function(val)
