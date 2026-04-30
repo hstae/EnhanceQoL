@@ -1,6 +1,7 @@
 # Changelog
 
 <!--@eqol-beta@-->
+
 ## [10.10.0-beta1] - 2026-04-30
 
 ### ✨ Added
