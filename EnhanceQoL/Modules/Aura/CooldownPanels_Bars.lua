@@ -929,6 +929,22 @@ local function getEntryBaseSlotSize(panel, entry)
 	return layoutSize
 end
 
+Bars.GetEntryChargeSegmentCountHint = function(entry, fallback)
+	local count = nil
+	if type(entry) == "table" then
+		local spellId = tonumber(entry.spellID)
+		if spellId and Api.GetOverrideSpell then
+			local overrideId = Api.GetOverrideSpell(spellId)
+			if type(overrideId) == "number" and overrideId > 0 then spellId = overrideId end
+		end
+		local chargesInfo = spellId and CooldownPanels.GetCachedSpellChargesInfo and CooldownPanels:GetCachedSpellChargesInfo(spellId) or nil
+		count = safeNumber(chargesInfo and chargesInfo.maxCharges)
+	end
+	count = count or safeNumber(fallback)
+	if not (count and count > 1) then count = 3 end
+	return clamp(floor(count + 0.5), 2, 20)
+end
+
 local function getDesiredBarSpan(panel, entry)
 	if not entry then return 1 end
 	local configuredWidth = normalizeBarWidth(entry.barWidth, Bars.DEFAULTS.barWidth)
@@ -939,8 +955,9 @@ local function getDesiredBarSpan(panel, entry)
 	local cellWidth = max(1, slotSize + spacing)
 	local bodyWidth = configuredWidth and configuredWidth > 0 and configuredWidth or max(slotSize, (slotSize * configuredSpan) + (max(configuredSpan - 1, 0) * spacing))
 	if normalizeBarMode(entry.barMode, Bars.DEFAULTS.barMode) == Bars.BAR_MODE.CHARGES and getStoredBoolean(entry, "barChargesSegmented", Bars.DEFAULTS.barChargesSegmented) then
+		local reservationSegments = Bars.GetEntryChargeSegmentCountHint(entry, 3)
 		if normalizeBarSegmentDirection(entry.barSegmentDirection, Bars.DEFAULTS.barSegmentDirection) == BAR_ORIENTATION_HORIZONTAL then
-			bodyWidth = (bodyWidth * 2) + normalizeBarChargesGap(entry.barChargesGap, Bars.DEFAULTS.barChargesGap)
+			bodyWidth = (bodyWidth * reservationSegments) + (normalizeBarChargesGap(entry.barChargesGap, Bars.DEFAULTS.barChargesGap) * (reservationSegments - 1))
 		end
 	end
 	local rightExtent = max(slotSize, max(0, offsetX) + bodyWidth)
@@ -981,9 +998,12 @@ local function getHorizontalSegmentReservationColumns(panel, entry, anchorColumn
 
 	local visualSpan
 	if segmentedHorizontal then
-		addPixelRange(offsetX, offsetX + bodyWidth)
-		addPixelRange(offsetX + bodyWidth + gap, offsetX + (bodyWidth * 2) + gap)
-		visualSpan = max(1, floor((max(slotSize, max(0, offsetX) + (bodyWidth * 2) + gap) + cellWidth - 1) / cellWidth))
+		local reservationSegments = Bars.GetEntryChargeSegmentCountHint(entry, 3)
+		for segmentIndex = 1, reservationSegments do
+			local segmentStart = offsetX + ((segmentIndex - 1) * (bodyWidth + gap))
+			addPixelRange(segmentStart, segmentStart + bodyWidth)
+		end
+		visualSpan = max(1, floor((max(slotSize, max(0, offsetX) + (bodyWidth * reservationSegments) + (gap * (reservationSegments - 1))) + cellWidth - 1) / cellWidth))
 	else
 		addPixelRange(offsetX, offsetX + bodyWidth)
 		visualSpan = max(1, floor((max(slotSize, max(0, offsetX) + bodyWidth) + cellWidth - 1) / cellWidth))
@@ -1024,6 +1044,7 @@ local function getReservationSignature(panel)
 			buffer[#buffer + 1] = tostring(normalizeBarWidth(entry.barWidth, Bars.DEFAULTS.barWidth))
 			buffer[#buffer + 1] = tostring(normalizeBarOffset(entry.barOffsetX, Bars.DEFAULTS.barOffsetX))
 			buffer[#buffer + 1] = tostring(getStoredBoolean(entry, "barChargesSegmented", Bars.DEFAULTS.barChargesSegmented))
+			buffer[#buffer + 1] = tostring(Bars.GetEntryChargeSegmentCountHint(entry, 3))
 			buffer[#buffer + 1] = tostring(normalizeBarChargesGap(entry.barChargesGap, Bars.DEFAULTS.barChargesGap))
 			buffer[#buffer + 1] = tostring(normalizeBarSegmentDirection(entry.barSegmentDirection, Bars.DEFAULTS.barSegmentDirection))
 			buffer[#buffer + 1] = tostring(Helper.NormalizeFixedGroupId(entry.fixedGroupId) or "")
@@ -1041,8 +1062,10 @@ end
 
 local function augmentFixedLayoutCache(panel, cache)
 	if not (panel and cache and Helper.IsFixedLayout and Helper.IsFixedLayout(panel.layout)) then return cache end
+	local signature = getReservationSignature(panel)
 	if
 		panel._eqolBarsReservationDirty ~= true
+		and cache._eqolBarsReservationSignature == signature
 		and cache._eqolBarsReservedOwnerByCell
 		and cache._eqolBarsReservedOwnerByIndex
 		and cache._eqolBarsEffectiveSpanByEntryId
@@ -1050,7 +1073,6 @@ local function augmentFixedLayoutCache(panel, cache)
 	then
 		return cache
 	end
-	local signature = getReservationSignature(panel)
 
 	local reservedOwnerByCell = cache._eqolBarsReservedOwnerByCell or {}
 	local reservedOwnerByIndex = cache._eqolBarsReservedOwnerByIndex or {}
@@ -1270,6 +1292,52 @@ local function ensureBarSegment(frame, index)
 	segment:Hide()
 	frame.segments[index] = segment
 	return segment
+end
+
+Bars.EnsureChargeSegmentTracker = function(frame)
+	if not frame then return nil end
+	if frame.chargeSegmentTracker then return frame.chargeSegmentTracker, frame.chargeSegmentRefresh end
+	local parent = frame.body or frame
+	local tracker = CreateFrame("StatusBar", nil, parent)
+	tracker:SetMinMaxValues(0, 1)
+	tracker:SetValue(0)
+	tracker:SetAlpha(0)
+	tracker:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
+	applyStatusBarTexture(tracker, "Interface\\TargetingFrame\\UI-StatusBar")
+	applyStatusBarOrientation(tracker, BAR_ORIENTATION_HORIZONTAL)
+
+	local refresh = CreateFrame("Frame", nil, parent)
+	refresh:SetClampedToScreen(false)
+	refresh:SetMovable(false)
+	refresh:EnableMouse(false)
+	if refresh.SetClipsChildren then refresh:SetClipsChildren(true) end
+	refresh.fill = CreateFrame("StatusBar", nil, refresh)
+	refresh.fill:SetPoint("TOPLEFT", refresh, "TOPLEFT", 0, 0)
+	refresh.fill:SetPoint("BOTTOMRIGHT", refresh, "BOTTOMRIGHT", 0, 0)
+	refresh.fill:SetMinMaxValues(0, 1)
+	refresh.fill:SetValue(0)
+	applyStatusBarTexture(refresh.fill, "Interface\\TargetingFrame\\UI-StatusBar")
+	applyStatusBarOrientation(refresh.fill, BAR_ORIENTATION_HORIZONTAL)
+	refresh:Hide()
+
+	frame.chargeSegmentTracker = tracker
+	frame.chargeSegmentRefresh = refresh
+	return tracker, refresh
+end
+
+Bars.HideChargeSegmentTracker = function(frame)
+	if not frame then return end
+	frame._eqolChargeSegmentRefreshTextAnchor = nil
+	local tracker = frame.chargeSegmentTracker
+	if tracker then
+		tracker:SetValue(0)
+		tracker:Hide()
+	end
+	local refresh = frame.chargeSegmentRefresh
+	if refresh then
+		if refresh.fill then setStatusBarImmediateValue(refresh.fill, 0) end
+		refresh:Hide()
+	end
 end
 
 Bars.EnsureBarDivider = function(frame, index)
@@ -2347,8 +2415,18 @@ local function getChargeSessionMax(entryKey, observedMax, observedCurrent, hasRe
 	local currentMax = maxByKey[entryKey]
 	local safeObservedMax = safeNumber(observedMax)
 	if safeObservedMax and safeObservedMax > 0 then
-		currentMax = max(currentMax or safeObservedMax, safeObservedMax)
-		maxByKey[entryKey] = currentMax
+		if entryKey ~= nil then
+			if currentMax ~= nil and currentMax ~= safeObservedMax then
+				if runtime.chargePhaseByEntryKey then runtime.chargePhaseByEntryKey[entryKey] = nil end
+				if runtime.chargeEmptyDurationObjectByEntryKey then runtime.chargeEmptyDurationObjectByEntryKey[entryKey] = nil end
+				if runtime.pendingChargeTimerHandoffByEntryKey then runtime.pendingChargeTimerHandoffByEntryKey[entryKey] = nil end
+				if runtime.pendingChargeTimerHandoffRefreshByEntryKey then runtime.pendingChargeTimerHandoffRefreshByEntryKey[entryKey] = nil end
+				if runtime.chargeLastNonGCDCooldownActiveByEntryKey then runtime.chargeLastNonGCDCooldownActiveByEntryKey[entryKey] = nil end
+				if runtime.chargeLastNonGCDCooldownDurationByEntryKey then runtime.chargeLastNonGCDCooldownDurationByEntryKey[entryKey] = nil end
+			end
+			maxByKey[entryKey] = safeObservedMax
+		end
+		return safeObservedMax
 	end
 	local safeObservedCurrent = safeNumber(observedCurrent)
 	if currentMax and currentMax > 0 then return currentMax end
@@ -2438,6 +2516,13 @@ refreshChargeBarRuntimeState = function(state, icon, runtimeData)
 
 	local displayedCharges = chargesInfo and safeNumber(chargesInfo.currentCharges) or getDisplayedCharges(icon)
 	if displayedCharges ~= nil then state.currentCharges = displayedCharges end
+	if type(chargesInfo) == "table" then
+		state.rawCurrentCharges = chargesInfo.currentCharges
+		state.rawMaxCharges = chargesInfo.maxCharges
+	else
+		state.rawCurrentCharges = nil
+		state.rawMaxCharges = nil
+	end
 
 	local runtime = getRuntimeState()
 	local phaseByKey = runtime.chargePhaseByEntryKey or {}
@@ -2825,8 +2910,11 @@ buildBarState = function(panelId, entryId, entry, icon, preview, runtimeDataOver
 			state.valueText = getCooldownText(icon) or "12.4"
 		elseif mode == Bars.BAR_MODE.CHARGES then
 			local currentCharges = safeNumber(icon and icon.charges and icon.charges.GetText and icon.charges:GetText())
+			local previewMaxCharges = Bars.GetEntryChargeSegmentCountHint(entry, currentCharges and max(currentCharges, 2) or 3)
 			state.currentCharges = currentCharges or 1
-			state.maxCharges = state.segmentedCharges == true and 2 or max(state.currentCharges or 0, 3)
+			state.maxCharges = state.segmentedCharges == true and previewMaxCharges or max(state.currentCharges or 0, 3)
+			state.rawCurrentCharges = state.currentCharges
+			state.rawMaxCharges = state.maxCharges
 			state.rechargeProgress = 0.48
 			state.progress = clamp((state.currentCharges or 0) / state.maxCharges, 0, 1)
 			if state.currentCharges < state.maxCharges then state.progress = clamp((state.currentCharges + state.rechargeProgress) / state.maxCharges, 0, 1) end
@@ -3037,7 +3125,7 @@ buildBarState = function(panelId, entryId, entry, icon, preview, runtimeDataOver
 				state.chargeDurationTextActive = true
 				state.chargeDurationTextSegmentIndex = state.segmentedCharges == true and 2 or nil
 			else
-				state.valueText = state.segmentedCharges == true and "1/2" or "2/3"
+				state.valueText = state.segmentedCharges == true and (getChargeBarValueText(icon, 1, state.maxCharges) or "1/2") or "2/3"
 			end
 		end
 	end
@@ -3071,8 +3159,8 @@ local function layoutChargeSegmentsIntoBar(
 	Bars.HideUnusedBarDividers(barFrame, 1)
 	local segmentAxisSize = segmentDirection == BAR_ORIENTATION_VERTICAL and bodyHeight or bodyWidth
 	local totalGapSize = max(segmentCount - 1, 0) * gap
-	local segmentPrimarySize = max(1, floor((segmentAxisSize - totalGapSize) / segmentCount))
-	local remainingPixels = max(0, segmentAxisSize - ((segmentPrimarySize * segmentCount) + totalGapSize))
+	local segmentPrimarySize = max(1, (segmentAxisSize - totalGapSize) / segmentCount)
+	local remainingPixels = 0
 	Bars.HideForwardHitHandle(barFrame.hitHandle)
 	barFrame.fill:Hide()
 	barFrame.fillBg:Hide()
@@ -3137,7 +3225,93 @@ local function layoutChargeSegmentsIntoBar(
 		gateDurationObject = state.cooldownDurationObject
 	elseif chargePhase == "PARTIAL" and state.deferChargeTimerHandoff ~= true and state.chargeInfoActive == true then
 		gateDurationObject = state.chargeDurationObject
+	elseif chargePhase == nil and state.chargeInfoActive == true then
+		gateDurationObject = state.chargeDurationObject
 	end
+
+	local canUseAnchoredChargeTracker = freezeChargeRender ~= true and segmentDirection == BAR_ORIENTATION_HORIZONTAL and segmentReverse ~= true
+	if canUseAnchoredChargeTracker then
+		Bars.ClearChargeGateCooldown(barFrame)
+		local tracker, refresh = Bars.EnsureChargeSegmentTracker(barFrame)
+		local currentChargesValue = state.rawCurrentCharges
+		if currentChargesValue == nil then
+			if chargePhase == "EMPTY" then
+				currentChargesValue = 0
+			elseif chargePhase == "PARTIAL" then
+				currentChargesValue = 1
+			elseif chargePhase == "FULL" then
+				currentChargesValue = segmentCount
+			else
+				currentChargesValue = state.currentCharges or 0
+			end
+		end
+		if tracker and refresh and refresh.fill then
+			local trackerTexture = tracker.GetStatusBarTexture and tracker:GetStatusBarTexture() or nil
+			tracker:ClearAllPoints()
+			tracker:SetPoint("TOPLEFT", barFrame.body, "TOPLEFT", 0, 0)
+			tracker:SetSize(max(1, segmentCount * (segmentPrimarySize + gap)), bodyHeight)
+			tracker:SetMinMaxValues(0, segmentCount)
+			tracker:SetValue(currentChargesValue or 0)
+			if tracker.SetToTargetValue then tracker:SetToTargetValue() end
+			tracker:Show()
+
+			refresh:ClearAllPoints()
+			refresh:SetSize(segmentPrimarySize, bodyHeight)
+			if trackerTexture then
+				refresh:SetPoint("LEFT", trackerTexture, "RIGHT", 0, 0)
+			else
+				refresh:SetPoint("LEFT", barFrame.body, "LEFT", 0, 0)
+			end
+			refresh:SetFrameStrata(barFrame:GetFrameStrata())
+			refresh:SetFrameLevel((barFrame.body and barFrame.body:GetFrameLevel() or barFrame:GetFrameLevel()) + 3)
+			applyStatusBarTexture(refresh.fill, fillTexturePath)
+			applyStatusBarOrientation(refresh.fill, orientation)
+			refresh.fill:SetStatusBarColor(fillColor[1], fillColor[2], fillColor[3], fillColor[4])
+
+			if gateDurationObject ~= nil then
+				if setStatusBarTimerDuration(
+					refresh.fill,
+					gateDurationObject,
+					table.concat({
+						"seg-refresh",
+						tostring(state.entryKey or state.entryId or "nil"),
+						tostring(chargePhase or "nil"),
+						tostring(safeNumber(state.maxCharges) or segmentCount),
+					}, ":")
+				) then
+					barFrame._eqolChargeSegmentRefreshTextAnchor = refresh
+					refresh:Show()
+				else
+					barFrame._eqolChargeSegmentRefreshTextAnchor = nil
+					refresh:Hide()
+				end
+			else
+				barFrame._eqolChargeSegmentRefreshTextAnchor = nil
+				setStatusBarImmediateValue(refresh.fill, 0)
+				refresh:Hide()
+				if chargePhase == "PARTIAL" and state.deferChargeTimerHandoff == true then Bars.ScheduleChargeTimerHandoffRefresh(state) end
+			end
+		end
+
+		for index = 1, segmentCount do
+			local segment = barFrame.segments and barFrame.segments[index] or nil
+			if segment and segment.fill then
+				segment.fill:Show()
+				segment.fill:SetMinMaxValues(index - 0.5, index, cdp.BAR_STATUS_INTERPOLATION_IMMEDIATE)
+				segment.fill:SetValue(currentChargesValue or 0, cdp.BAR_STATUS_INTERPOLATION_IMMEDIATE)
+				if segment.fill.SetToTargetValue then segment.fill:SetToTargetValue() end
+				segment.fill._eqolTimerDurationObject = nil
+				segment.fill._eqolTimerDurationKey = nil
+				segment.fill._eqolTimerDirection = nil
+				local fillTexture = segment.fill.GetStatusBarTexture and segment.fill:GetStatusBarTexture() or nil
+				if fillTexture and fillTexture.SetAlpha then fillTexture:SetAlpha(1) end
+			end
+		end
+		return
+	end
+
+	barFrame._eqolChargeSegmentRefreshTextAnchor = nil
+	Bars.HideChargeSegmentTracker(barFrame)
 	local gateCooldown = ensureBarCooldownGate(barFrame)
 	local gateCacheKey = table.concat({
 		"gate",
@@ -3437,11 +3611,13 @@ layoutBarFrame = function(barFrame, icon, span, layout, state)
 	local offsetX = pixelSnap(normalizeBarOffset(state and state.barOffsetX, Bars.DEFAULTS.barOffsetX), effectiveScale)
 	local offsetY = pixelSnap(normalizeBarOffset(state and state.barOffsetY, Bars.DEFAULTS.barOffsetY), effectiveScale)
 	local orientation = normalizeBarOrientation(state and state.orientation, Bars.DEFAULTS.barOrientation)
-	local useChargeSegments = state.mode == Bars.BAR_MODE.CHARGES and state.segmentedCharges == true and safeNumber(state.maxCharges) == 2
+	local chargeSegmentCount = state.mode == Bars.BAR_MODE.CHARGES and state.segmentedCharges == true and safeNumber(state.maxCharges) or 0
+	if chargeSegmentCount then chargeSegmentCount = clamp(floor(chargeSegmentCount), 0, 20) end
+	local useChargeSegments = state.mode == Bars.BAR_MODE.CHARGES and state.segmentedCharges == true and chargeSegmentCount and chargeSegmentCount > 1
 	local stackSeparatedOffset = normalizeBarChargesGap(state and state.stackSeparatedOffset, Bars.DEFAULTS.barStackSeparatedOffset)
 	local useStackSegments = state.mode == Bars.BAR_MODE.STACKS and state.segmentedStacks == true and stackSeparatedOffset > 0
 	local useStackDividers = state.mode == Bars.BAR_MODE.STACKS and state.segmentedStacks == true and not useStackSegments
-	local segmentCount = useChargeSegments and 2 or 0
+	local segmentCount = useChargeSegments and chargeSegmentCount or 0
 	local gap = useChargeSegments and normalizeBarChargesGap(state.chargesGap, Bars.DEFAULTS.barChargesGap) or 0
 	local segmentDirection = useChargeSegments and normalizeBarSegmentDirection(state.segmentDirection, Bars.DEFAULTS.barSegmentDirection) or BAR_ORIENTATION_HORIZONTAL
 	local segmentReverse = useChargeSegments and state.segmentReverse == true or false
@@ -3661,6 +3837,7 @@ layoutBarFrame = function(barFrame, icon, span, layout, state)
 			effectiveScale
 		)
 	else
+		Bars.HideChargeSegmentTracker(barFrame)
 		hideUnusedBarSegments(barFrame, 1)
 		barFrame._eqolSegmentCount = 0
 		barFrame.fill:Show()
@@ -3749,8 +3926,11 @@ layoutBarFrame = function(barFrame, icon, span, layout, state)
 		barFrame.label:Hide()
 	end
 	local valueRelativeFrame = nil
-	if useChargeSegments and state.valueTextIsChargeDuration == true and state.chargeDurationTextSegmentIndex then
-		valueRelativeFrame = barFrame.segments and barFrame.segments[state.chargeDurationTextSegmentIndex] or nil
+	if useChargeSegments and state.valueTextIsChargeDuration == true then
+		valueRelativeFrame = barFrame._eqolChargeSegmentRefreshTextAnchor
+		if valueRelativeFrame == nil and state.chargeDurationTextSegmentIndex then
+			valueRelativeFrame = barFrame.segments and barFrame.segments[state.chargeDurationTextSegmentIndex] or nil
+		end
 	end
 	if
 		state.showValueText

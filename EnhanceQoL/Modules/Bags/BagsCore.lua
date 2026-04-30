@@ -1146,37 +1146,6 @@ local function registerPassiveBagEvents()
 	end
 end
 
-local function getAnchorTargetFrame()
-	if ContainerFrameCombinedBags and ContainerFrameCombinedBags:IsShown() then
-		return ContainerFrameCombinedBags
-	end
-
-	local frames = ContainerFrameContainer and ContainerFrameContainer.ContainerFrames or {}
-	local fallbackFrame
-	local bestFrame
-	local bestLeft
-
-	for _, frame in ipairs(frames) do
-		if frame and frame:IsShown() and frame.GetBagID then
-			local bagID = frame:GetBagID()
-			if type(bagID) == "number" and bagID >= Core.BACKPACK_ID and bagID <= Core.LAST_CHARACTER_BAG_ID then
-				fallbackFrame = fallbackFrame or frame
-				local left = frame:GetLeft()
-				if left and (not bestLeft or left < bestLeft) then
-					bestLeft = left
-					bestFrame = frame
-				end
-			end
-		end
-	end
-
-	if bestFrame or fallbackFrame then
-		return bestFrame or fallbackFrame
-	end
-
-	return nil
-end
-
 local function getTotalSlotCount()
 	local total = 0
 	for bagID = Core.BACKPACK_ID, Core.LAST_CHARACTER_BAG_ID do
@@ -4983,19 +4952,14 @@ function Bags.functions.PositionFrame()
 		return
 	end
 
-	local anchor = getAnchorTargetFrame()
 	state.frame:ClearAllPoints()
-	if anchor then
-		state.frame:SetPoint("TOPRIGHT", anchor, "TOPLEFT", -Core.CLUSTER_GAP, 0)
-	else
-		state.frame:SetPoint(
-			Core.DEFAULT_FRAME_POINT.point,
-			UIParent,
-			Core.DEFAULT_FRAME_POINT.relativePoint,
-			Core.DEFAULT_FRAME_POINT.x,
-			Core.DEFAULT_FRAME_POINT.y
-		)
-	end
+	state.frame:SetPoint(
+		Core.DEFAULT_FRAME_POINT.point,
+		UIParent,
+		Core.DEFAULT_FRAME_POINT.relativePoint,
+		Core.DEFAULT_FRAME_POINT.x,
+		Core.DEFAULT_FRAME_POINT.y
+	)
 end
 
 function addon.GetCustomBagsAnchorTargetFrame()

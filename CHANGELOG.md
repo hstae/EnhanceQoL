@@ -2,6 +2,14 @@
 
 <!--@eqol-beta@-->
 
+## [10.10.0-beta2] - 2026-04-30
+
+### 🐛 Fixed
+
+- Bags: Fixed the integrated bag frame opening invisibly when Blizzard's hidden native container frames were still reported as shown but had no valid screen position.
+- Bags: Added an optional New Items header click action to clear the current new-item markers immediately without deleting any items.
+- Cooldown Panels / Bars: Fixed segmented Charge bars for spells with more than two charges, including cleaner 2/3-charge rendering, spec-switch max-charge updates in shared panels, and duration text following the currently recharging segment.
+
 ## [10.10.0-beta1] - 2026-04-30
 
 ### ✨ Added
