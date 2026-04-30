@@ -89,9 +89,9 @@ Modules\Aura\TotalAbsorbTracker.lua
 Modules\Skinner\Init.lua
 
 # Bags
-#@beta@
+#@eqol-beta@
 Modules\Bags\Bags.xml
-#@end-beta@
+#@end-eqol-beta@
 
 Settings\SettingsUI.xml
 

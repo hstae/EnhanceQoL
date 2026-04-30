@@ -1,5 +1,37 @@
 # Changelog
 
+<!--@eqol-beta@-->
+## [10.10.0-beta1] - 2026-04-30
+
+### ✨ Added
+
+- Bags: Added the integrated custom Bags and Warband Bank module as an opt-in feature.
+- Bags: Added a solid background color picker for the integrated Bags and Warband Bank frames.
+- Bags: Added Advanced text style controls for category headers, subcategory headers, item overlays, and stack counts, including per-element font, size, case, and outline options where applicable.
+- Bags: Added an Inventory-only bag slot flyout for viewing equipped bag containers and swapping them via drag and drop.
+- Bags: Added bank tab purchase support for the integrated Bank and Warband Bank views using Blizzard's bank tab purchase flow.
+- Bags: Added an optional close button to the integrated Bags, Bank, and Warband Bank windows, enabled by default for users who prefer closing bags via the top-corner X.
+- Bags: Added a Layout option to hide Free Slots from the integrated Bags, Bank, and Warband Bank grids entirely.
+- Profiles: Added a separate import/export section for Bags categories, independent from full profile import/export.
+
+### ⚡ Performance
+
+- Bags: Reduced custom bag skin refresh overhead during vendor auto-sell and bag refresh paths.
+
+### 🐛 Fixed
+
+- Bags: Improved text appearance handling so the integrated Bags and Warband Bank frames follow global font and font-style changes more reliably.
+- Bags: Fixed per-element font and outline changes sometimes requiring a UI reload by resolving text appearance caches per element instead of sharing one cache across all bag text styles.
+- Bags: Fixed Advanced Add Group/Add Category creating ID collisions with existing preset groups, which could mirror categories under the new group and remove too many entries when deleting.
+- Bags: Fixed Profession Group automatic rules using shifted Trade Goods subclass IDs, which could classify Cloth materials as Leatherworking / Skinning.
+- Bags: Fixed the Tracking settings page so its full content scrolls inside the settings panel instead of overflowing below the window at smaller heights.
+- Bags: Fixed collapsed compact-layout section headers such as Miscellaneous shrinking to `...` instead of keeping enough width for the label.
+- Bags: Fixed New Items moving into their normal category while the bag window is still open after mouseover clears Blizzard's new-item marker.
+
+---
+
+<!--@end-eqol-beta@-->
+
 ## [10.9.0] - 2026-04-30
 
 ### ✨ Added

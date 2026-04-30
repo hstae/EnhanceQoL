@@ -28,12 +28,6 @@ jobs:
         run: |
           git fetch --tags --force
 
-      - name: Install and run Luacheck
-        uses: nebularg/actions-luacheck@v1
-        with:
-          args: "--no-color -q"
-          annotate: warning
-
       # - name: Generate Changelog
       #   run: ./generate_changelog.sh
 
@@ -41,6 +35,15 @@ jobs:
         uses: R41z0r/LibEQOL@v1.0.0
         with:
           destination: EnhanceQoL/libs
+
+      - name: Prepare packager gates
+        run: bash scripts/prepare_packager_gates.sh "${GITHUB_REF_NAME}"
+
+      - name: Validate gated package Lua
+        uses: nebularg/actions-luacheck@v1
+        with:
+          args: "--no-color -q"
+          annotate: warning
 
       - name: Create Package and release
         uses: BigWigsMods/packager@v2
