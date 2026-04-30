@@ -244,6 +244,111 @@ local UNIT = {
 	FOCUS = "focus",
 	PET = "pet",
 }
+
+UF._runtimeConsumers = UF._runtimeConsumers or {
+	unit = {},
+	group = {},
+	unitTotal = 0,
+	groupTotal = 0,
+	total = 0,
+	initialized = false,
+}
+
+local function notifyRuntimeConsumerActivityChanged()
+	local profiles = UF.Profiles
+	if not profiles then return end
+	if UF.HasRuntimeConsumers and UF.HasRuntimeConsumers() and profiles._ensureUFProfileEvents then
+		profiles._ensureUFProfileEvents()
+	elseif profiles.UpdateEventRegistration then
+		profiles.UpdateEventRegistration()
+	end
+end
+
+local function setRuntimeConsumerActive(kind, key, enabled, silent)
+	local runtime = UF._runtimeConsumers
+	runtime[kind] = runtime[kind] or {}
+	local bucket = runtime[kind]
+	enabled = enabled == true
+	local previous = bucket[key] == true
+	if previous == enabled then return false end
+	if enabled then
+		bucket[key] = true
+		runtime.total = (runtime.total or 0) + 1
+		runtime[kind .. "Total"] = (runtime[kind .. "Total"] or 0) + 1
+	else
+		bucket[key] = nil
+		runtime.total = math.max((runtime.total or 0) - 1, 0)
+		runtime[kind .. "Total"] = math.max((runtime[kind .. "Total"] or 0) - 1, 0)
+	end
+	runtime.initialized = true
+	if not silent then notifyRuntimeConsumerActivityChanged() end
+	return true
+end
+
+local function canonicalUFConsumerUnit(unit)
+	if type(unit) ~= "string" then return nil end
+	if unit == "boss" or unit:match("^boss%d+$") then return "boss" end
+	return unit
+end
+
+function UF.SetRuntimeConsumerActive(kind, key, enabled)
+	if kind ~= "unit" and kind ~= "group" then return false end
+	key = kind == "unit" and canonicalUFConsumerUnit(key) or tostring(key or "")
+	if not key or key == "" then return false end
+	return setRuntimeConsumerActive(kind, key, enabled)
+end
+
+function UF.RecomputeRuntimeConsumerActivity()
+	local runtime = UF._runtimeConsumers
+	runtime.unit = runtime.unit or {}
+	runtime.group = runtime.group or {}
+	for key in pairs(runtime.unit) do
+		runtime.unit[key] = nil
+	end
+	for key in pairs(runtime.group) do
+		runtime.group[key] = nil
+	end
+	runtime.total = 0
+	runtime.unitTotal = 0
+	runtime.groupTotal = 0
+
+	local db = addon.db
+	local frames = db and db.ufFrames
+	if type(frames) == "table" then
+		for _, key in ipairs({ UNIT.PLAYER, UNIT.TARGET, UNIT.TARGET_TARGET, UNIT.FOCUS, UNIT.PET, "boss" }) do
+			local cfg = frames[key]
+			if type(cfg) == "table" and cfg.enabled == true then setRuntimeConsumerActive("unit", key, true, true) end
+		end
+		for key, cfg in pairs(frames) do
+			if type(key) == "string" and key:match("^boss%d+$") and type(cfg) == "table" and cfg.enabled == true then
+				setRuntimeConsumerActive("unit", "boss", true, true)
+				break
+			end
+		end
+	end
+
+	local groupFrames = db and db.ufGroupFrames
+	if type(groupFrames) == "table" then
+		for key, cfg in pairs(groupFrames) do
+			if type(cfg) == "table" and cfg.enabled == true then setRuntimeConsumerActive("group", tostring(key), true, true) end
+		end
+	end
+	runtime.initialized = true
+	notifyRuntimeConsumerActivityChanged()
+	return runtime.total > 0
+end
+
+function UF.HasRuntimeConsumers()
+	local runtime = UF._runtimeConsumers
+	if not runtime.initialized then return UF.RecomputeRuntimeConsumerActivity() end
+	return (runtime.total or 0) > 0
+end
+
+function UF.HasUnitRuntimeConsumers()
+	local runtime = UF._runtimeConsumers
+	if not runtime.initialized then UF.RecomputeRuntimeConsumerActivity() end
+	return (runtime.unitTotal or 0) > 0
+end
 local ENEMY_DEBUFF_FILTER_MODE_PLAYER = "PLAYER"
 local ENEMY_DEBUFF_FILTER_MODE_ALL = "ALL"
 
@@ -994,6 +1099,7 @@ function UFProfileManager._bindUFProfileToRuntime(profileName)
 	local raidEnabled = profile.ufGroupFrames and profile.ufGroupFrames.raid and profile.ufGroupFrames.raid.enabled == true
 	UFProfileManager.Debug("bind runtime -> %s (ufGroupFrames=%s, party=%s, raid=%s)", tostring(profileName), tostring(profile.ufGroupFrames), tostring(partyEnabled), tostring(raidEnabled))
 	UFProfileManager.Trace("BIND_RUNTIME", profileName)
+	if UF.RecomputeRuntimeConsumerActivity then UF.RecomputeRuntimeConsumerActivity() end
 	return profile
 end
 
@@ -1012,6 +1118,7 @@ function UFProfileManager._isUFProfileBound(profileName)
 end
 
 function UFProfileManager.ScheduleSpecMappingRetry(source, immediate, initializedProfiles)
+	if UF.HasRuntimeConsumers and not UF.HasRuntimeConsumers() then return false, "INACTIVE" end
 	local retrySource = tostring(source or "UNKNOWN")
 	UFProfileManager._specMappingRetrySource = retrySource
 	if immediate ~= false then
@@ -1033,16 +1140,14 @@ function UFProfileManager.ScheduleSpecMappingRetry(source, immediate, initialize
 end
 
 function UFProfileManager._ensureUFProfileEvents()
-	if UFProfileManager._eventFrame then return end
+	if UFProfileManager._eventFrame then
+		UFProfileManager.UpdateEventRegistration()
+		return
+	end
 	local frame = CreateFrame("Frame")
-	frame:RegisterEvent("PLAYER_LOGIN")
-	frame:RegisterEvent("ACTIVE_PLAYER_SPECIALIZATION_CHANGED")
-	frame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
-	frame:RegisterEvent("PLAYER_ROLES_ASSIGNED")
-	frame:RegisterEvent("PLAYER_REGEN_ENABLED")
-	frame:RegisterUnitEvent("PLAYER_SPECIALIZATION_CHANGED", "player")
 
 	frame:SetScript("OnEvent", function(_, event, unit)
+		if UF.HasRuntimeConsumers and not UF.HasRuntimeConsumers() then return end
 		if event == "PLAYER_REGEN_ENABLED" then
 			if UF._pendingProfileApply then UFProfileManager.ApplyCurrent("PLAYER_REGEN_ENABLED") end
 			return
@@ -1061,6 +1166,31 @@ function UFProfileManager._ensureUFProfileEvents()
 		end
 	end)
 	UFProfileManager._eventFrame = frame
+	UFProfileManager.UpdateEventRegistration()
+end
+
+function UFProfileManager.UpdateEventRegistration()
+	local frame = UFProfileManager._eventFrame
+	if not frame then return end
+	local enabled = UF.HasRuntimeConsumers and UF.HasRuntimeConsumers() or false
+	if enabled then
+		if frame._eqolUFProfileEventsRegistered then return end
+		frame:RegisterEvent("PLAYER_LOGIN")
+		frame:RegisterEvent("ACTIVE_PLAYER_SPECIALIZATION_CHANGED")
+		frame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
+		frame:RegisterEvent("PLAYER_ROLES_ASSIGNED")
+		frame:RegisterEvent("PLAYER_REGEN_ENABLED")
+		frame:RegisterUnitEvent("PLAYER_SPECIALIZATION_CHANGED", "player")
+		frame._eqolUFProfileEventsRegistered = true
+		return
+	end
+	if frame._eqolUFProfileEventsRegistered then
+		frame:UnregisterAllEvents()
+		frame._eqolUFProfileEventsRegistered = nil
+	end
+	UFProfileManager._specMappingRetryPending = nil
+	UFProfileManager._specMappingRetryImmediateKey = nil
+	UFProfileManager._specMappingRetrySource = nil
 end
 
 function UFProfileManager.Initialize()
@@ -1078,6 +1208,7 @@ function UFProfileManager.Initialize()
 	UFProfileManager.Debug("initialize guid=%s key=%s global=%s resolved=%s", tostring(guid), tostring(keyProfile), tostring(addon.db.ufProfileGlobal), tostring(activeName))
 	if not (UFProfileManager._activeProfileName == activeName and UFProfileManager._isUFProfileBound(activeName)) then UFProfileManager._bindUFProfileToRuntime(activeName) end
 	UFProfileManager._ensureUFProfileEvents()
+	UFProfileManager.UpdateEventRegistration()
 	UFProfileManager._dbRef = addon.db
 	UFProfileManager.Trace("INIT_DONE", activeName)
 	return true
@@ -1341,6 +1472,7 @@ function UFProfileManager.ApplyCurrent(reason)
 end
 
 function UFProfileManager.ApplySpecMapping(source, initializedProfiles)
+	if UF.HasRuntimeConsumers and not UF.HasRuntimeConsumers() then return false, "INACTIVE" end
 	local profiles = type(initializedProfiles) == "table" and initializedProfiles or nil
 	if not profiles then
 		local ok = UFProfileManager.Initialize()
@@ -9750,19 +9882,13 @@ UF._unitEventFrames = UF._unitEventFrames or {}
 local onEvent
 
 function UF.RecomputeAnyUFEnabled()
-	local p = ensureDB("player").enabled
-	local t = ensureDB("target").enabled
-	local tt = ensureDB(UNIT.TARGET_TARGET).enabled
-	local pet = ensureDB(UNIT.PET).enabled
-	local focus = ensureDB(UNIT.FOCUS).enabled
-	local boss = ensureDB("boss").enabled
-	UF._anyUFEnabledCached = (p or t or tt or pet or focus or boss) and true or false
+	if UF.RecomputeRuntimeConsumerActivity then UF.RecomputeRuntimeConsumerActivity() end
+	UF._anyUFEnabledCached = UF.HasUnitRuntimeConsumers and UF.HasUnitRuntimeConsumers() or false
 	return UF._anyUFEnabledCached
 end
 
 local function anyUFEnabled()
-	if UF._anyUFEnabledCached == nil then return UF.RecomputeAnyUFEnabled() end
-	return UF._anyUFEnabledCached == true
+	return UF.HasUnitRuntimeConsumers and UF.HasUnitRuntimeConsumers() or false
 end
 
 function UF.UnitHasDirtyTexts(unit)
@@ -11535,6 +11661,7 @@ end
 function UF.Enable()
 	local cfg = ensureDB("player")
 	cfg.enabled = true
+	UF.SetRuntimeConsumerActive("unit", UNIT.PLAYER, true)
 	ensureEventHandling()
 	applyConfig("player")
 	if ensureDB("target").enabled then applyConfig("target") end
@@ -11556,6 +11683,7 @@ end
 function UF.Disable()
 	local cfg = ensureDB("player")
 	cfg.enabled = false
+	UF.SetRuntimeConsumerActive("unit", UNIT.PLAYER, false)
 	if states.player and states.player.frame then states.player.frame:Hide() end
 	ClassResourceUtil.restoreClassResourceFrames()
 	TotemFrameUtil.restoreTotemFrame()
@@ -11573,6 +11701,7 @@ function UF.Disable()
 end
 
 function UF.Refresh()
+	if UF.RecomputeRuntimeConsumerActivity then UF.RecomputeRuntimeConsumerActivity() end
 	local bossCfg = ensureDB("boss")
 	if bossCfg.enabled then DisableBossFrames() end
 	ensureEventHandling()
@@ -11655,6 +11784,7 @@ function UF.Initialize()
 	if not addon.db then return end
 	addon.Aura.UFInitialized = true
 	if UF.RegisterSettings then UF.RegisterSettings() end
+	if UF.RecomputeRuntimeConsumerActivity then UF.RecomputeRuntimeConsumerActivity() end
 	local cfg = ensureDB("player")
 	do
 		local def = defaultsFor(UNIT.PLAYER)

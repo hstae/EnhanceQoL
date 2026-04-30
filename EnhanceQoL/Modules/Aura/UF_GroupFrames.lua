@@ -13876,6 +13876,7 @@ function GF.Enable(self, kind)
 	local cfg = getCfg(kind)
 	if not cfg then return end
 	cfg.enabled = true
+	if UF and UF.SetRuntimeConsumerActive then UF.SetRuntimeConsumerActive("group", kind, true) end
 	if UF and UF.Profiles and UF.Profiles.Trace then UF.Profiles.Trace("GF_ENABLE_KIND", kind) end
 	GF:EnsureHeaders()
 	GF:ApplyHeaderAttributes(kind)
@@ -13889,6 +13890,7 @@ function GF.Disable(self, kind)
 	local cfg = getCfg(kind)
 	if not cfg then return end
 	cfg.enabled = false
+	if UF and UF.SetRuntimeConsumerActive then UF.SetRuntimeConsumerActive("group", kind, false) end
 	if UF and UF.Profiles and UF.Profiles.Trace then UF.Profiles.Trace("GF_DISABLE_KIND", kind) end
 	GF:EnsureHeaders()
 	local header = GF.headers and GF.headers[kind]

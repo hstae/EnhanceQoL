@@ -8416,6 +8416,7 @@ local function registerSettingsUI()
 			func = function(val)
 				local cfg = ensureConfig(unit)
 				cfg.enabled = val and true or false
+				if UF.SetRuntimeConsumerActive then UF.SetRuntimeConsumerActive("unit", unit, cfg.enabled) end
 				if unit == "player" then
 					if cfg.enabled then
 						UF.Enable()

@@ -1,5 +1,15 @@
 # Changelog
 
+## [10.9.0-beta16] - 2026-04-30
+
+### ⚡ Performance
+
+- Unit Frames: Reduced raid join/leave spikes by avoiding repeated deep UF profile dedupe work and by only registering UF profile/spec mapping events while Unit Frames or Group Frames are active.
+- Cooldown Panels: Reduced idle runtime work by ignoring empty panels for runtime refreshes and skipping disabled Cooldown Viewer visibility checks earlier.
+- Group Finder: Reduced applicant update overhead by only registering applicant refresh events while Group Finder applicant text or Mythic+ Score sorting features are enabled, and by debouncing applicant refreshes.
+
+---
+
 ## [10.9.0-beta15] - 2026-04-29
 
 ### ✨ Added
