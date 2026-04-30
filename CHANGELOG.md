@@ -18,6 +18,7 @@
 ### ⚡ Performance
 
 - Bags: Reduced custom bag skin refresh overhead during vendor auto-sell and bag refresh paths.
+- Bags: Reduced open/close spikes by replacing expensive bag content snapshots with stale-bag tracking, and by avoiding vendor sell-mark rescans during pure bag visibility changes.
 
 ### 🐛 Fixed
 

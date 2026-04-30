@@ -144,6 +144,10 @@ state.itemRuleDataCache = state.itemRuleDataCache or {}
 state.tooltipBindTypeCache = state.tooltipBindTypeCache or {}
 state.slotCategoryCache = state.slotCategoryCache or {}
 state.openSessionNewItems = state.openSessionNewItems or {}
+state.staleBags = state.staleBags or {}
+state.staleBagCount = state.staleBagCount or 0
+state.slotContentState = state.slotContentState or {}
+state.bagSlotCounts = state.bagSlotCounts or {}
 state.forceDynamicRefresh = false
 if state.playerRuleRevision == nil then
 	state.playerRuleRevision = 0
@@ -172,6 +176,19 @@ local cachedOverlayRuntimeConfig
 local updateReagentBagVisuals
 local itemLevelEligibilityCache = {}
 local BagSlotPanel = {}
+
+local function wipeTable(tbl)
+	if not tbl then
+		return
+	end
+	if wipe then
+		wipe(tbl)
+		return
+	end
+	for key in pairs(tbl) do
+		tbl[key] = nil
+	end
+end
 
 function BagsItemButton_OnLoad(self)
 	if not self or not self.ItemLevelText then
@@ -1173,72 +1190,147 @@ local function getTotalSlotCount()
 	return total
 end
 
-local function getManagedBagContentSignature(bagID)
-	local parts = state.bagContentSignatureParts or {}
-	state.bagContentSignatureParts = parts
-	if wipe then
-		wipe(parts)
-	else
-		parts = {}
-		state.bagContentSignatureParts = parts
+local function getSlotContentStateBucket(bagID, create)
+	if bagID == nil then
+		return nil
 	end
 
-	local slotCount = C_Container.GetContainerNumSlots(bagID) or 0
-	parts[#parts + 1] = slotCount
-	for slotID = 1, slotCount do
-		local info = C_Container.GetContainerItemInfo(bagID, slotID)
-		parts[#parts + 1] = "|"
-		parts[#parts + 1] = slotID
-		parts[#parts + 1] = ":"
-		if info then
-			local questInfo = C_Container.GetContainerItemQuestInfo and C_Container.GetContainerItemQuestInfo(bagID, slotID) or nil
-			parts[#parts + 1] = info.hyperlink or ""
-			parts[#parts + 1] = ":"
-			parts[#parts + 1] = info.itemID or ""
-			parts[#parts + 1] = ":"
-			parts[#parts + 1] = info.stackCount or ""
-			parts[#parts + 1] = ":"
-			parts[#parts + 1] = info.quality or ""
-			parts[#parts + 1] = ":"
-			parts[#parts + 1] = info.isBound and 1 or 0
-			parts[#parts + 1] = ":"
-			parts[#parts + 1] = info.hasNoValue and 1 or 0
-			parts[#parts + 1] = ":"
-			parts[#parts + 1] = isNewItemAtSlot(bagID, slotID) and 1 or 0
-			parts[#parts + 1] = ":"
-			parts[#parts + 1] = questInfo and questInfo.questID or ""
-			parts[#parts + 1] = ":"
-			parts[#parts + 1] = questInfo and questInfo.isQuestItem and 1 or 0
-			parts[#parts + 1] = ":"
-			parts[#parts + 1] = questInfo and questInfo.isActive and 1 or 0
+	local bucket = state.slotContentState[bagID]
+	if not bucket and create then
+		bucket = {}
+		state.slotContentState[bagID] = bucket
+	end
+	return bucket
+end
+
+local function captureSlotContentState(target, bagID, slotID, info)
+	target = target or {}
+	info = info or C_Container.GetContainerItemInfo(bagID, slotID)
+	local hasItem = info and info.iconFileID and true or false
+
+	target.hasItem = hasItem
+	target.itemRef = hasItem and (info.hyperlink or info.itemID) or false
+	target.itemID = hasItem and (info.itemID or false) or false
+	target.stackCount = hasItem and (tonumber(info.stackCount) or 0) or 0
+	target.quality = hasItem and (info.quality or false) or false
+	target.isBound = hasItem and (info.isBound and true or false) or false
+	target.hasNoValue = hasItem and (info.hasNoValue and true or false) or false
+
+	return target
+end
+
+local function storeSlotContentState(bagID, slotID, info)
+	local bucket = getSlotContentStateBucket(bagID, true)
+	local entry = bucket[slotID] or {}
+	captureSlotContentState(entry, bagID, slotID, info)
+	bucket[slotID] = entry
+	return entry
+end
+
+local function getSlotContentState(bagID, slotID)
+	local bucket = getSlotContentStateBucket(bagID, false)
+	return bucket and bucket[slotID] or nil
+end
+
+local function clearSlotContentStateRange(bagID, firstSlotID, lastSlotID)
+	local bucket = getSlotContentStateBucket(bagID, false)
+	if not bucket then
+		return
+	end
+	for slotID = firstSlotID, lastSlotID do
+		bucket[slotID] = nil
+	end
+end
+
+local function slotContentStatesEqual(left, right)
+	if left == right then
+		return true
+	end
+	if not left or not right then
+		return false
+	end
+	return left.hasItem == right.hasItem
+		and left.itemRef == right.itemRef
+		and left.itemID == right.itemID
+		and left.stackCount == right.stackCount
+		and left.quality == right.quality
+		and left.isBound == right.isBound
+		and left.hasNoValue == right.hasNoValue
+end
+
+local function markBagStale(bagID)
+	if not isManagedBagUpdateID(bagID) then
+		return
+	end
+	if state.staleBags[bagID] then
+		return
+	end
+	state.staleBags[bagID] = true
+	state.staleBagCount = (state.staleBagCount or 0) + 1
+end
+
+local function clearStaleBags()
+	wipeTable(state.staleBags)
+	state.staleBagCount = 0
+end
+
+local function flushStaleBagsForContentDecision()
+	if (state.staleBagCount or 0) <= 0 then
+		return false
+	end
+
+	if not state.layoutData then
+		clearStaleBags()
+		state.pendingRebuild = true
+		return true
+	end
+
+	local contentDirty = false
+	local footerDirty = false
+	local scratch = state.slotContentScratch or {}
+	state.slotContentScratch = scratch
+
+	for bagID in pairs(state.staleBags) do
+		if isManagedBagUpdateID(bagID) then
+			local previousSlotCount = state.bagSlotCounts[bagID]
+			local currentSlotCount = C_Container.GetContainerNumSlots(bagID) or 0
+			if previousSlotCount ~= nil and previousSlotCount ~= currentSlotCount then
+				contentDirty = true
+				footerDirty = true
+				if previousSlotCount and previousSlotCount > currentSlotCount then
+					clearSlotContentStateRange(bagID, currentSlotCount + 1, previousSlotCount)
+				end
+			end
+
+			local maxSlot = math.max(previousSlotCount or 0, currentSlotCount)
+			for slotID = 1, maxSlot do
+				wipeTable(scratch)
+				local current = captureSlotContentState(scratch, bagID, slotID)
+				local previous = getSlotContentState(bagID, slotID)
+				if not slotContentStatesEqual(previous, current) then
+					contentDirty = true
+					if not previous or previous.hasItem ~= current.hasItem then
+						footerDirty = true
+					end
+					break
+				end
+			end
+
+			state.bagSlotCounts[bagID] = currentSlotCount
 		end
 	end
 
-	local signature = table.concat(parts)
-	if wipe then
-		wipe(parts)
-	end
-	return signature
-end
+	clearStaleBags()
 
-local function refreshManagedBagContentSignature(bagID)
-	state.bagContentSignatures = state.bagContentSignatures or {}
-	local signature = getManagedBagContentSignature(bagID)
-	local previousSignature = state.bagContentSignatures[bagID]
-	state.bagContentSignatures[bagID] = signature
-	return previousSignature ~= nil and previousSignature ~= signature
-end
+	if footerDirty then
+		state.footerDirty = true
+	end
+	if contentDirty then
+		state.pendingRebuild = true
+		return true
+	end
 
-local function refreshAllManagedBagContentSignatures()
-	state.bagContentSignatures = state.bagContentSignatures or {}
-	for bagID = Core.BACKPACK_ID, Core.LAST_CHARACTER_BAG_ID do
-		state.bagContentSignatures[bagID] = getManagedBagContentSignature(bagID)
-	end
-	for _, context in ipairs(getVisibleFlatBankContexts()) do
-		for _, bagID in ipairs(context.bagIDs or {}) do
-			state.bagContentSignatures[bagID] = getManagedBagContentSignature(bagID)
-		end
-	end
+	return false
 end
 
 local function saveFramePosition(frame)
@@ -3962,9 +4054,11 @@ local function addFlatStorageContext(layoutData, context)
 	local hasSlots = false
 	for _, bagID in ipairs(context.bagIDs or {}) do
 		local slotCount = C_Container.GetContainerNumSlots(bagID) or 0
+		state.bagSlotCounts[bagID] = slotCount
 		layoutData.totalSlotCount = layoutData.totalSlotCount + slotCount
 
 		for slotID = 1, slotCount do
+			storeSlotContentState(bagID, slotID)
 			addSlotMapping(layoutData, sectionID, bagID, slotID)
 			hasSlots = true
 		end
@@ -4007,6 +4101,7 @@ local function buildLayoutData()
 	for bagID = Core.BACKPACK_ID, Core.LAST_CHARACTER_BAG_ID do
 		local slotCount = C_Container.GetContainerNumSlots(bagID) or 0
 		local isReagentBag = bagID == Core.REAGENT_BAG_ID
+		state.bagSlotCounts[bagID] = slotCount
 
 		layoutData.totalSlotCount = layoutData.totalSlotCount + slotCount
 
@@ -4019,6 +4114,7 @@ local function buildLayoutData()
 		for slotID = 1, slotCount do
 			local info = C_Container.GetContainerItemInfo(bagID, slotID)
 			local hasItem = info and info.iconFileID
+			storeSlotContentState(bagID, slotID, info)
 
 			if hasItem then
 				local questInfo
@@ -4770,12 +4866,12 @@ local function layoutFrame(layoutData)
 end
 
 local function rebuildLayout()
-	if not state.frame then
-		createMainFrame()
-	end
 	if InCombatLockdown and InCombatLockdown() then
 		state.pendingRebuild = true
 		return false
+	end
+	if not state.frame then
+		createMainFrame()
 	end
 
 	state.awaitingRuleItemData = false
@@ -4811,10 +4907,7 @@ local function rebuildLayout()
 
 	state.currentLayoutCount = layoutData.requiredButtonCount
 	state.currentTotalSlotCount = layoutData.totalSlotCount
-	if not state.bagContentSnapshotsInitialized then
-		refreshAllManagedBagContentSignatures()
-		state.bagContentSnapshotsInitialized = true
-	end
+	clearStaleBags()
 	state.pendingRebuild = false
 	state.pendingRefresh = false
 	state.forceDynamicRefresh = false
@@ -4929,18 +5022,24 @@ local function processUpdate()
 		resetOpenSessionNewItems()
 	end
 	local settings = getSettings()
+	if shouldBeVisible then
+		flushStaleBagsForContentDecision()
+	end
 	local needsRebuild = state.pendingRebuild
 		or state.layoutData == nil
 		or state.currentTotalSlotCount ~= getTotalSlotCount()
 		or state.currentFooterHeight ~= getFooterHeight(settings)
 		or state.currentPaddingSignature ~= getFramePaddingSignature(settings)
-	local needsRefresh = openingFrame or state.pendingRefresh or state.forceDynamicRefresh or state.footerDirty
+	local needsRefresh = openingFrame or state.pendingRefresh or state.forceDynamicRefresh or state.footerDirty or state.newItemsVisualDirty
 
 	local updateApplied = true
 	if needsRebuild then
 		updateApplied = rebuildLayout()
 	elseif needsRefresh then
 		updateApplied = refreshButtons()
+	end
+	if updateApplied then
+		state.newItemsVisualDirty = false
 	end
 
 	if shouldBeVisible then
@@ -4952,16 +5051,10 @@ local function processUpdate()
 			Bags.functions.ApplyVendorMarks()
 		end
 		BagSlotPanel.Refresh()
-		if openingFrame and addon.Vendor and addon.Vendor.functions and addon.Vendor.functions.refreshSellMarks then
-			addon.Vendor.functions.refreshSellMarks(false)
-		end
 	else
 		state.suppressNativeBagClose = true
 		state.frame:Hide()
 		state.suppressNativeBagClose = false
-		if wasVisible and addon.Vendor and addon.Vendor.functions and addon.Vendor.functions.refreshSellMarks then
-			addon.Vendor.functions.refreshSellMarks(false)
-		end
 	end
 end
 
@@ -5288,26 +5381,21 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
 		scheduleUpdate(true, true, true)
 	elseif event == "BAG_UPDATE" then
 		local bagID = ...
-		if isManagedBagUpdateID(bagID) and refreshManagedBagContentSignature(bagID) then
-			state.bagContentsDirty = true
-			state.footerDirty = true
-		end
+		markBagStale(bagID)
 	elseif event == "BAG_UPDATE_DELAYED" then
-		state.footerDirty = true
-		if state.bagContentsDirty then
-			state.bagContentsDirty = false
-			scheduleUpdate(true, true)
-		else
-			scheduleUpdate(true, false)
+		if (state.staleBagCount or 0) > 0 then
+			scheduleUpdate(false, false)
 		end
 	elseif event == "BAG_NEW_ITEMS_UPDATED" then
-		state.bagContentsDirty = false
-		scheduleUpdate(true, true)
+		state.newItemsVisualDirty = true
+		scheduleUpdate(true, false)
 	elseif event == "ITEM_DATA_LOAD_RESULT" then
 		local itemID, success = ...
 		if success and (state.pendingRuleItemDataIDs[itemID] or state.awaitingRuleItemData) then
 			state.pendingRuleItemDataIDs[itemID] = nil
 			scheduleUpdate(true, true)
+		elseif success then
+			scheduleUpdate(true, false)
 		end
 	elseif event == "UNIT_INVENTORY_CHANGED" or event == "PLAYER_SPECIALIZATION_CHANGED" or event == "PLAYER_LEVEL_UP" then
 		local usage = addon.GetCategoryRuleContextUsage and addon.GetCategoryRuleContextUsage() or nil
