@@ -728,18 +728,41 @@ function UFProfileManager._getSortedUFProfileNames(profiles)
 	return names
 end
 
+function UFProfileManager._markUFProfilesDirty()
+	UFProfileManager._profileDedupeVersion = (UFProfileManager._profileDedupeVersion or 0) + 1
+end
+
+function UFProfileManager._isUFProfilePayloadNormalized(profile)
+	return type(profile) == "table"
+		and type(profile.ufFrames) == "table"
+		and type(profile.ufGroupFrames) == "table"
+		and (profile.ufUseCustomClassColors == true or profile.ufUseCustomClassColors == false)
+		and type(profile.ufClassColors) == "table"
+		and type(profile.ufPowerColorOverrides) == "table"
+		and type(profile.ufNPCColorOverrides) == "table"
+end
+
 function UFProfileManager._ensureUFProfilesRoot()
 	if type(addon.db) ~= "table" then return nil end
-	if type(addon.db.ufProfiles) ~= "table" then addon.db.ufProfiles = {} end
+	if type(addon.db.ufProfiles) ~= "table" then
+		addon.db.ufProfiles = {}
+		UFProfileManager._markUFProfilesDirty()
+	end
 	local profiles = addon.db.ufProfiles
 	for name, profile in pairs(profiles) do
 		if type(name) ~= "string" or name == "" then
 			profiles[name] = nil
+			UFProfileManager._markUFProfilesDirty()
 		else
+			local normalized = UFProfileManager._isUFProfilePayloadNormalized(profile)
 			profiles[name] = UFProfileManager._ensureUFProfilePayload(profile)
+			if not normalized then UFProfileManager._markUFProfilesDirty() end
 		end
 	end
-	if not next(profiles) then profiles[UFProfileManager.DEFAULT_NAME] = UFProfileManager._buildLegacyUFProfile() end
+	if not next(profiles) then
+		profiles[UFProfileManager.DEFAULT_NAME] = UFProfileManager._buildLegacyUFProfile()
+		UFProfileManager._markUFProfilesDirty()
+	end
 	return profiles
 end
 
@@ -791,6 +814,16 @@ function UFProfileManager._dedupeUFProfileTables(profiles)
 		UFProfileManager.Debug("deduped shared UF profile tables (deep): %d", dedupCount)
 		UFProfileManager.Trace("DEDUPE_SHARED", tostring(dedupCount))
 	end
+end
+
+function UFProfileManager._ensureUFProfileTablesDeduped(profiles)
+	if type(profiles) ~= "table" then return end
+	local version = UFProfileManager._profileDedupeVersion or 0
+	if UFProfileManager._dedupeDBRef == addon.db and UFProfileManager._dedupeProfilesRef == profiles and UFProfileManager._dedupeProfilesVersion == version then return end
+	UFProfileManager._dedupeUFProfileTables(profiles)
+	UFProfileManager._dedupeDBRef = addon.db
+	UFProfileManager._dedupeProfilesRef = profiles
+	UFProfileManager._dedupeProfilesVersion = version
 end
 
 function UFProfileManager._cleanUFProfileReferences(profiles)
@@ -934,6 +967,7 @@ function UFProfileManager._seedProfileFromRuntime(profileName)
 
 	if not seeded then return false end
 	profiles[profileName] = UFProfileManager._ensureUFProfilePayload(profile)
+	UFProfileManager._markUFProfilesDirty()
 	UFProfileManager.Debug("seed runtime into UF profile %s (first guid mapping)", tostring(profileName))
 	UFProfileManager.Trace("SEED_RUNTIME", profileName)
 	return true
@@ -977,16 +1011,24 @@ function UFProfileManager._isUFProfileBound(profileName)
 	return true
 end
 
-function UFProfileManager.ScheduleSpecMappingRetry(source, immediate)
-	UFProfileManager._specMappingRetrySource = tostring(source or "UNKNOWN")
-	if immediate ~= false then UFProfileManager.ApplySpecMapping(UFProfileManager._specMappingRetrySource .. ":Immediate") end
+function UFProfileManager.ScheduleSpecMappingRetry(source, immediate, initializedProfiles)
+	local retrySource = tostring(source or "UNKNOWN")
+	UFProfileManager._specMappingRetrySource = retrySource
+	if immediate ~= false then
+		local immediateKey = retrySource .. "|" .. tostring(UFProfileManager._getCurrentSpecID() or "")
+		if not UFProfileManager._specMappingRetryPending or UFProfileManager._specMappingRetryImmediateKey ~= immediateKey then
+			UFProfileManager._specMappingRetryImmediateKey = immediateKey
+			UFProfileManager.ApplySpecMapping(retrySource .. ":Immediate", initializedProfiles)
+		end
+	end
 	if UFProfileManager._specMappingRetryPending or not After then return end
 	UFProfileManager._specMappingRetryPending = true
 	After(1, function()
 		UFProfileManager._specMappingRetryPending = nil
-		local retrySource = UFProfileManager._specMappingRetrySource or tostring(source or "UNKNOWN")
+		UFProfileManager._specMappingRetryImmediateKey = nil
+		local delayedSource = UFProfileManager._specMappingRetrySource or retrySource
 		UFProfileManager._specMappingRetrySource = nil
-		UFProfileManager.ApplySpecMapping(retrySource .. ":Delayed")
+		UFProfileManager.ApplySpecMapping(delayedSource .. ":Delayed")
 	end)
 end
 
@@ -998,11 +1040,8 @@ function UFProfileManager._ensureUFProfileEvents()
 	frame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
 	frame:RegisterEvent("PLAYER_ROLES_ASSIGNED")
 	frame:RegisterEvent("PLAYER_REGEN_ENABLED")
-	if frame.RegisterUnitEvent then
-		frame:RegisterUnitEvent("PLAYER_SPECIALIZATION_CHANGED", "player")
-	else
-		frame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
-	end
+	frame:RegisterUnitEvent("PLAYER_SPECIALIZATION_CHANGED", "player")
+
 	frame:SetScript("OnEvent", function(_, event, unit)
 		if event == "PLAYER_REGEN_ENABLED" then
 			if UF._pendingProfileApply then UFProfileManager.ApplyCurrent("PLAYER_REGEN_ENABLED") end
@@ -1011,8 +1050,14 @@ function UFProfileManager._ensureUFProfileEvents()
 		if event == "PLAYER_SPECIALIZATION_CHANGED" and unit and unit ~= "player" then return end
 		local ok = UFProfileManager.Initialize()
 		if not ok then return end
-		if event == "PLAYER_LOGIN" or event == "PLAYER_SPECIALIZATION_CHANGED" or event == "ACTIVE_PLAYER_SPECIALIZATION_CHANGED" or event == "ACTIVE_TALENT_GROUP_CHANGED" or event == "PLAYER_ROLES_ASSIGNED" then
-			UFProfileManager.ScheduleSpecMappingRetry(event, true)
+		if
+			event == "PLAYER_LOGIN"
+			or event == "PLAYER_SPECIALIZATION_CHANGED"
+			or event == "ACTIVE_PLAYER_SPECIALIZATION_CHANGED"
+			or event == "ACTIVE_TALENT_GROUP_CHANGED"
+			or event == "PLAYER_ROLES_ASSIGNED"
+		then
+			UFProfileManager.ScheduleSpecMappingRetry(event, true, addon.db and addon.db.ufProfiles)
 		end
 	end)
 	UFProfileManager._eventFrame = frame
@@ -1023,7 +1068,7 @@ function UFProfileManager.Initialize()
 	if type(addon.db) ~= "table" then return false, "NO_DB" end
 	local profiles = UFProfileManager._ensureUFProfilesRoot()
 	if type(profiles) ~= "table" then return false, "NO_DB" end
-	UFProfileManager._dedupeUFProfileTables(profiles)
+	UFProfileManager._ensureUFProfileTablesDeduped(profiles)
 	UFProfileManager._cleanUFProfileReferences(profiles)
 	local activeName, shouldSeedFromRuntime = UFProfileManager._resolveUFActiveProfileName(profiles)
 	if not activeName or not profiles[activeName] then return false, "NO_PROFILE" end
@@ -1156,15 +1201,20 @@ function UFProfileManager.SetActiveName(name, source)
 	return UFProfileManager.ApplyCurrent(source or "SET_ACTIVE")
 end
 
-function UFProfileManager.GetSpecMapping(specID)
-	if not UFProfileManager.Initialize() then return nil end
+function UFProfileManager._getSpecMappingFromProfiles(profiles, specID)
+	if type(profiles) ~= "table" then return nil end
 	local guid = UFProfileManager._getCurrentPlayerGUID()
 	if not guid then return nil end
-	local byGuid = UFProfileManager._resolveUFSpecMappingsForGUID(addon.db.ufProfiles, guid, true)
+	local byGuid = UFProfileManager._resolveUFSpecMappingsForGUID(profiles, guid, true)
 	if type(byGuid) ~= "table" then return nil end
 	local key = tonumber(specID)
 	if not key then return nil end
-	return UFProfileManager._resolveUFSpecMappedProfileFromMappings(addon.db.ufProfiles, byGuid, key)
+	return UFProfileManager._resolveUFSpecMappedProfileFromMappings(profiles, byGuid, key)
+end
+
+function UFProfileManager.GetSpecMapping(specID)
+	if not UFProfileManager.Initialize() then return nil end
+	return UFProfileManager._getSpecMappingFromProfiles(addon.db.ufProfiles, specID)
 end
 
 function UFProfileManager.SetSpecMapping(specID, profileName)
@@ -1201,6 +1251,7 @@ function UFProfileManager.Create(name)
 	if not name then return false, "INVALID_NAME" end
 	if addon.db.ufProfiles[name] then return false, "EXISTS" end
 	addon.db.ufProfiles[name] = UFProfileManager._ensureUFProfilePayload({})
+	UFProfileManager._markUFProfilesDirty()
 	UFProfileManager.Trace("CREATE_PROFILE", name)
 	return true
 end
@@ -1211,9 +1262,10 @@ function UFProfileManager.CopyToActive(sourceName)
 	if not sourceName then return false, "INVALID_NAME" end
 	local source = addon.db.ufProfiles[sourceName]
 	if type(source) ~= "table" then return false, "NOT_FOUND" end
-	local activeName = UFProfileManager.GetActiveName()
+	local activeName = UFProfileManager._activeProfileName
 	if not activeName then return false, "NO_ACTIVE" end
 	addon.db.ufProfiles[activeName] = UFProfileManager._ensureUFProfilePayload(UFProfileManager._copyProfileValue(source))
+	UFProfileManager._markUFProfilesDirty()
 	UFProfileManager.Trace("COPY_TO_ACTIVE", string.format("%s->%s", tostring(sourceName), tostring(activeName)))
 	return UFProfileManager.ApplyCurrent("COPY_ACTIVE")
 end
@@ -1248,6 +1300,7 @@ function UFProfileManager.Delete(name)
 	if activeName == name then return false, "PROTECTED" end
 
 	addon.db.ufProfiles[name] = nil
+	UFProfileManager._markUFProfilesDirty()
 	UFProfileManager._removeUFProfileMappings(name)
 	UFProfileManager.Trace("DELETE_PROFILE", name)
 
@@ -1264,7 +1317,7 @@ function UFProfileManager.ApplyCurrent(reason)
 	local ok, initReason = UFProfileManager.Initialize()
 	if not ok then return false, initReason end
 
-	local activeName = UFProfileManager.GetActiveName()
+	local activeName = UFProfileManager._activeProfileName
 	if not activeName then return false, "NO_ACTIVE" end
 
 	if InCombatLockdown and InCombatLockdown() then
@@ -1287,17 +1340,22 @@ function UFProfileManager.ApplyCurrent(reason)
 	return true
 end
 
-function UFProfileManager.ApplySpecMapping(source)
-	local ok = UFProfileManager.Initialize()
-	if not ok then return false, "NO_DB" end
+function UFProfileManager.ApplySpecMapping(source, initializedProfiles)
+	local profiles = type(initializedProfiles) == "table" and initializedProfiles or nil
+	if not profiles then
+		local ok = UFProfileManager.Initialize()
+		if not ok then return false, "NO_DB" end
+		profiles = addon.db and addon.db.ufProfiles
+	end
+	if type(profiles) ~= "table" then return false, "NO_DB" end
 	local specID = UFProfileManager._getCurrentSpecID()
 	if not specID then return false, "NO_SPEC" end
-	local mappedProfile = UFProfileManager.GetSpecMapping(specID)
+	local mappedProfile = UFProfileManager._getSpecMappingFromProfiles(profiles, specID)
 	if not mappedProfile then
 		UFProfileManager.Trace("SPEC_MAP_SKIP", string.format("%s|NO_MAPPING", tostring(specID)))
 		return false, "NO_MAPPING"
 	end
-	if mappedProfile == UFProfileManager.GetActiveName() then return true, "UNCHANGED" end
+	if mappedProfile == UFProfileManager._activeProfileName then return true, "UNCHANGED" end
 	UFProfileManager.Debug("apply spec mapping spec=%s -> %s (source=%s)", tostring(specID), tostring(mappedProfile), tostring(source))
 	UFProfileManager.Trace("SPEC_MAP_APPLY", string.format("%s->%s|%s", tostring(specID), tostring(mappedProfile), tostring(source)))
 	return UFProfileManager.SetActiveName(mappedProfile, source or "SPEC_MAPPING")
@@ -1365,9 +1423,7 @@ for i = 1, maxBossFrames do
 	}
 end
 
-function UF.SupportsCombatIndicator(unit)
-	return unit == UNIT.PLAYER or unit == UNIT.TARGET or unit == UNIT.FOCUS
-end
+function UF.SupportsCombatIndicator(unit) return unit == UNIT.PLAYER or unit == UNIT.TARGET or unit == UNIT.FOCUS end
 
 local defaults = {
 	player = {
@@ -3418,6 +3474,7 @@ function UF.ImportProfile(encoded, scopeKey)
 	end
 
 	table.sort(applied, function(a, b) return tostring(a) < tostring(b) end)
+	if UFProfileManager and UFProfileManager._markUFProfilesDirty then UFProfileManager._markUFProfilesDirty() end
 	UF.SyncEditModeLayoutAnchors(applied)
 	addon.variables.requireReload = true
 	return true, applied
@@ -4242,9 +4299,7 @@ function AuraUtil.GetAuraRenderer(value)
 	return (renderer == "BLIZZARD" or renderer == "BLIZZARD_CONTAINER") and "BLIZZARD" or "CUSTOM"
 end
 
-function AuraUtil.isBlizzardAuraRenderer(ac, defAc)
-	return false
-end
+function AuraUtil.isBlizzardAuraRenderer(ac, defAc) return false end
 
 function AuraUtil.ApplyBlizzardAuraRenderer(unit, st, cfg, def, allowSample)
 	if not (st and st.privateAuras and UFHelper and UFHelper.ApplyBlizzardAuraContainer) then return end
@@ -4260,10 +4315,7 @@ function AuraUtil.ApplyBlizzardAuraRenderer(unit, st, cfg, def, allowSample)
 	local buffStyle = auraRuntime.buff or {}
 	local debuffStyle = auraRuntime.debuff or {}
 	local privateIcon = (pcfg and pcfg.icon) or {}
-	local iconSize = (showBuffs and buffStyle.size)
-		or (showDebuffs and debuffStyle.size)
-		or privateIcon.size
-		or 24
+	local iconSize = (showBuffs and buffStyle.size) or (showDebuffs and debuffStyle.size) or privateIcon.size or 24
 	local maxDebuffs = showDebuffs and (debuffStyle.max or privateIcon.amount or 0) or 0
 	if privateEnabled and maxDebuffs < (privateIcon.amount or 0) then maxDebuffs = privateIcon.amount or maxDebuffs end
 	local containerCfg = {
@@ -8382,11 +8434,11 @@ local function layoutFrame(cfg, unit)
 	UFHelper.applyHighlightStyle(st, st._highlightCfg)
 
 	if (unit == UNIT.PLAYER or unit == "target" or unit == UNIT.FOCUS or isBossUnit(unit)) and st.auraContainer then
-			st.auraContainer:ClearAllPoints()
-			local acfg = cfg.auraIcons or def.auraIcons or defaults.target.auraIcons or {}
-			local auraRuntime = AuraUtil.getUnitSingleAuraRuntimeConfig(unit, acfg, def and def.auraIcons)
-			local buffAura = auraRuntime.buff
-			local debuffAura = auraRuntime.debuff
+		st.auraContainer:ClearAllPoints()
+		local acfg = cfg.auraIcons or def.auraIcons or defaults.target.auraIcons or {}
+		local auraRuntime = AuraUtil.getUnitSingleAuraRuntimeConfig(unit, acfg, def and def.auraIcons)
+		local buffAura = auraRuntime.buff
+		local debuffAura = auraRuntime.debuff
 		local anchor = buffAura.anchor or "BOTTOM"
 		local defAx, defAy = UF._auraLayout.defaultOffset(anchor)
 		local baseAx = (buffAura.offset and buffAura.offset.x)
@@ -8397,25 +8449,25 @@ local function layoutFrame(cfg, unit)
 		st.auraContainer:SetWidth(width + borderOffset * 2)
 		AuraUtil.syncAuraContainerLayer(st.auraContainer, st.frame)
 
-			if st.debuffContainer then
-				st.debuffContainer:ClearAllPoints()
-				local danchor = debuffAura.anchor or anchor
-				local defDax, defDay = UF._auraLayout.defaultOffset(danchor)
-				local baseDax = (debuffAura.offset and debuffAura.offset.x)
-				if baseDax == nil then baseDax = defDax end
-				local baseDay = (debuffAura.offset and debuffAura.offset.y)
-				if baseDay == nil then baseDay = defDay end
-				UF._auraLayout.positionContainer(st.debuffContainer, danchor, st.barGroup, baseDax, baseDay, barAreaOffsetLeft, barAreaOffsetRight)
-				st.debuffContainer:SetWidth(width + borderOffset * 2)
-				AuraUtil.syncAuraContainerLayer(st.debuffContainer, st.frame)
-			end
+		if st.debuffContainer then
+			st.debuffContainer:ClearAllPoints()
+			local danchor = debuffAura.anchor or anchor
+			local defDax, defDay = UF._auraLayout.defaultOffset(danchor)
+			local baseDax = (debuffAura.offset and debuffAura.offset.x)
+			if baseDax == nil then baseDax = defDax end
+			local baseDay = (debuffAura.offset and debuffAura.offset.y)
+			if baseDay == nil then baseDay = defDay end
+			UF._auraLayout.positionContainer(st.debuffContainer, danchor, st.barGroup, baseDax, baseDay, barAreaOffsetLeft, barAreaOffsetRight)
+			st.debuffContainer:SetWidth(width + borderOffset * 2)
+			AuraUtil.syncAuraContainerLayer(st.debuffContainer, st.frame)
+		end
 
-			if st.auraButtons then
-				for i = 1, #st.auraButtons do
-					local btn = st.auraButtons[i]
-					if btn then AuraUtil.syncAuraButtonLayer(btn, st.auraContainer, buffAura) end
-				end
+		if st.auraButtons then
+			for i = 1, #st.auraButtons do
+				local btn = st.auraButtons[i]
+				if btn then AuraUtil.syncAuraButtonLayer(btn, st.auraContainer, buffAura) end
 			end
+		end
 		if st.debuffButtons and st.debuffContainer then
 			for i = 1, #st.debuffButtons do
 				local btn = st.debuffButtons[i]
@@ -8656,9 +8708,7 @@ local function ensureFrames(unit)
 		st.combatIcon = st.combatIcon or st.statusTextLayer:CreateTexture(nil, "OVERLAY")
 		if st.combatIcon.GetParent and st.combatIcon:GetParent() ~= st.statusTextLayer then st.combatIcon:SetParent(st.statusTextLayer) end
 	end
-	if unit == UNIT.PLAYER then
-		ensureRestLoop(st)
-	end
+	if unit == UNIT.PLAYER then ensureRestLoop(st) end
 
 	if unit == UNIT.PLAYER or unit == "target" or unit == UNIT.FOCUS or isBossUnit(unit) then
 		st.auraContainer = CreateFrame("Frame", nil, st.frame)
@@ -8851,9 +8901,7 @@ local function applyBars(cfg, unit)
 	elseif st.overAbsorbGlow then
 		st.overAbsorbGlow:Hide()
 	end
-	if st.incomingHeal then
-		setFrameLevelAbove(st.incomingHeal, st.absorb2 or st.absorb or st.health, 1)
-	end
+	if st.incomingHeal then setFrameLevelAbove(st.incomingHeal, st.absorb2 or st.absorb or st.health, 1) end
 	if allowAbsorb and st.healAbsorb then
 		local overlayClip = UF.EnsureOverlayClipFrame and UF.EnsureOverlayClipFrame(st.health, "_eqolDirectOverlayClip")
 		local healAbsorbTextureKey = hc.healAbsorbTexture or hc.texture
@@ -9150,12 +9198,8 @@ local function applyConfig(unit)
 		local pcfg = cfg.privateAuras or (def and def.privateAuras)
 		UFHelper.ApplyPrivateAuras(st.privateAuras, unit, pcfg, st.frame, st.statusTextLayer or st.frame, UF.IsEditModeSampleEnabled and UF.IsEditModeSampleEnabled(unit), true)
 	end
-	if UF.SupportsCombatIndicator(unit) then
-		updateCombatIndicator(cfg, unit)
-	end
-	if unit == UNIT.PLAYER then
-		updateRestingIndicator(cfg)
-	end
+	if UF.SupportsCombatIndicator(unit) then updateCombatIndicator(cfg, unit) end
+	if unit == UNIT.PLAYER then updateRestingIndicator(cfg) end
 	-- if unit == "target" then hideBlizzardTargetFrame() end
 	if st and st.frame then
 		if st.barGroup then st.barGroup:Show() end
@@ -9394,8 +9438,7 @@ applyBossEditSample = function(idx, cfg)
 	local powerDetached = pcfg.detached == true
 	local borderCfg = cfg.border or {}
 	local borderDef = def.border or {}
-	local detachedPowerBorder = powerDetached
-		and ((borderCfg.detachedPower ~= nil and borderCfg.detachedPower == true) or (borderCfg.detachedPower == nil and borderDef.detachedPower == true))
+	local detachedPowerBorder = powerDetached and ((borderCfg.detachedPower ~= nil and borderCfg.detachedPower == true) or (borderCfg.detachedPower == nil and borderDef.detachedPower == true))
 	if st.power then
 		if powerEnabled then
 			if st.power.SetAlpha then st.power:SetAlpha(1) end
@@ -11019,7 +11062,7 @@ onEvent = function(self, event, unit, ...)
 		if eventInfo.addedAuras then
 			for _, aura in ipairs(eventInfo.addedAuras) do
 				local isDebuffAura = aura and showDebuffs and AuraUtil.isAuraFilteredIn(unit, aura, harmfulFilter)
-				local isBuffAura = aura and showBuffs and (not isDebuffAura) and AuraUtil.isAuraFilteredIn(unit, aura, helpfulFilter)
+				local isBuffAura = aura and showBuffs and not isDebuffAura and AuraUtil.isAuraFilteredIn(unit, aura, helpfulFilter)
 				local shouldHide = false
 				if aura then
 					local hidePermanent = (isDebuffAura and debuffAuras.hidePermanentAuras == true) or (isBuffAura and buffAuras.hidePermanentAuras == true)
@@ -11076,7 +11119,14 @@ onEvent = function(self, event, unit, ...)
 		else
 			AuraUtil.UpdateSingleDispelIndicator(unit, false)
 		end
-	elseif event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH" or event == "UNIT_MAX_HEALTH_MODIFIERS_CHANGED" or event == "UNIT_HEAL_PREDICTION" or event == "UNIT_ABSORB_AMOUNT_CHANGED" or event == "UNIT_HEAL_ABSORB_AMOUNT_CHANGED" then
+	elseif
+		event == "UNIT_HEALTH"
+		or event == "UNIT_MAXHEALTH"
+		or event == "UNIT_MAX_HEALTH_MODIFIERS_CHANGED"
+		or event == "UNIT_HEAL_PREDICTION"
+		or event == "UNIT_ABSORB_AMOUNT_CHANGED"
+		or event == "UNIT_HEAL_ABSORB_AMOUNT_CHANGED"
+	then
 		if event == "UNIT_ABSORB_AMOUNT_CHANGED" and unit then
 			local st = states[unit]
 			if st then

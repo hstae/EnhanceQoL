@@ -3279,6 +3279,14 @@ local function panelHasSpecFilter(panel)
 	return false
 end
 
+local function panelHasRuntimeEntries(panel)
+	if type(panel) ~= "table" or type(panel.entries) ~= "table" then return false end
+	for _, entry in pairs(panel.entries) do
+		if type(entry) == "table" then return true end
+	end
+	return false
+end
+
 panelAllowsSpec = function(panel)
 	if not panelHasSpecFilter(panel) then return true end
 	local specId = getPlayerSpecId()
@@ -4233,7 +4241,8 @@ function CooldownPanels:RebuildSpellIndex()
 		syncRootOrderIfDirty(root)
 		for _, panelId in ipairs(CooldownPanels.GetCachedPanelIds(root)) do
 			local panel = root.panels[panelId]
-			if panel and panel.enabled ~= false then
+			local hasRuntimeEntries = panelHasRuntimeEntries(panel)
+			if panel and panel.enabled ~= false and hasRuntimeEntries then
 				if panelHasSpecFilter(panel) then
 					local filter = panel.specFilter
 					for specId, bucket in pairs(enabledPanelsBySpec) do
@@ -4249,7 +4258,7 @@ function CooldownPanels:RebuildSpellIndex()
 					end
 				end
 			end
-			if panel and panel.enabled ~= false and panelAllowsSpec(panel) then
+			if panel and panel.enabled ~= false and hasRuntimeEntries and panelAllowsSpec(panel) then
 				enabledPanels[panelId] = true
 				enabledPanelIds[#enabledPanelIds + 1] = panelId
 				local layout = panel.layout
@@ -21232,8 +21241,9 @@ end
 local function hasConfiguredEnabledPanels()
 	local root = ensureRoot()
 	if not root or not root.panels then return false end
+	local classSpecs = getPlayerClassSpecMap()
 	for _, panel in pairs(root.panels) do
-		if panel and panel.enabled ~= false then return true end
+		if panel and panel.enabled ~= false and panelHasRuntimeEntries(panel) and panelMatchesPlayerClass(panel, classSpecs) then return true end
 	end
 	return false
 end
@@ -21723,7 +21733,7 @@ function CooldownPanels:RequestUpdate(cause)
 	end
 	local enabledPanels = self.runtime.enabledPanels
 	if not enabledPanels or not next(enabledPanels) then
-		self:RefreshAllPanels()
+		self:HideAllRuntimePanels()
 		return
 	end
 	if runtime.updateDispatching then
