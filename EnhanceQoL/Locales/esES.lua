@@ -2260,7 +2260,6 @@ L["showBagFilterMenuDesc"] = "Solo utilizable cuando se activan las Bolsas combi
 L["showBindOnBagItems"] = "Etiquetas de vinculación"
 L["showBindOnBagItemsDesc"] = "Muestra %s (BoE), %s (WuE) y %s (WB) en objetos equipables."
 L["showCatalystChargesOnCharframe"] = "Mostrar cargas del catalizador en el marco del equipo del personaje"
-L["ShowClassColorInNameplate"] = "Mostrar colores de clase en las placas de nombre"
 L["ShowCooldownName"] = "Mostrar nombre de CD"
 L["showDurabilityOnCharframe"] = "Mostrar durabilidad en el marco de equipo del personaje"
 L["showEnchantOnCharframe"] = "Mostrar encantamientos en el marco de equipo del personaje"

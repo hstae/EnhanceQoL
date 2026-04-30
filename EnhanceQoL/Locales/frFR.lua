@@ -2260,7 +2260,6 @@ L["showBagFilterMenuDesc"] = "Utilisable uniquement si Sacs combinés est activ�
 L["showBindOnBagItems"] = "Étiquettes de liaison"
 L["showBindOnBagItemsDesc"] = "Affiche %s (BoE), %s (WuE) et %s (WB) sur les objets équipables."
 L["showCatalystChargesOnCharframe"] = "Afficher les charges du Catalyseur dans le cadre de l'équipement du personnage"
-L["ShowClassColorInNameplate"] = "Afficher les couleurs de classe sur les barres de nom"
 L["ShowCooldownName"] = "Afficher le nom du CD"
 L["showDurabilityOnCharframe"] = "Afficher la durabilité sur la fenêtre d'équipement du personnage"
 L["showEnchantOnCharframe"] = "Afficher les enchantements sur l'équipement du personnage"

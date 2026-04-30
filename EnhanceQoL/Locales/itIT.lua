@@ -2260,7 +2260,6 @@ L["showBagFilterMenuDesc"] = "Utilizzabile solo quando è selezionata l’opzion
 L["showBindOnBagItems"] = "Tag di vincolo"
 L["showBindOnBagItemsDesc"] = "Mostra %s (BoE), %s (WuE) e %s (WB) sugli oggetti equipaggiabili."
 L["showCatalystChargesOnCharframe"] = "Mostra le cariche del Catalizzatore nel riquadro dell'equipaggiamento del personaggio"
-L["ShowClassColorInNameplate"] = "Mostra i colori di classe sulle barre dei nomi"
 L["ShowCooldownName"] = "Mostra nome ricarica"
 L["showDurabilityOnCharframe"] = "Mostra la durabilità sulla finestra dell'equipaggiamento del personaggio"
 L["showEnchantOnCharframe"] = "Mostra gli incantamenti nel pannello dell'equipaggiamento del personaggio"

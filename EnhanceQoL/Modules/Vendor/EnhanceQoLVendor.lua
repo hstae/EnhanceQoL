@@ -1964,8 +1964,8 @@ local function addGeneralFrame(container)
 end
 
 -- Expose helpers for external settings UI
-function addon.Vendor.functions.refreshSellMarks()
-	if updateSellMarks then updateSellMarks(nil, true) end
+function addon.Vendor.functions.refreshSellMarks(resetCache)
+	if updateSellMarks then updateSellMarks(nil, resetCache ~= false) end
 end
 
 function addon.Vendor.functions.refreshDestroyButton()

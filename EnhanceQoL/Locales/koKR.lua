@@ -2260,7 +2260,6 @@ L["showBagFilterMenuDesc"] = "통합 가방이 선택된 경우에만 사용 가
 L["showBindOnBagItems"] = "귀속 태그"
 L["showBindOnBagItemsDesc"] = "%s (BoE), %s (WuE), %s (WB) 태그를 장비 가능 아이템에 표시합니다."
 L["showCatalystChargesOnCharframe"] = "캐릭터 장비 창에 촉매 충전 표시"
-L["ShowClassColorInNameplate"] = "이름표에 직업 색상 표시"
 L["ShowCooldownName"] = "쿨다운 이름 표시"
 L["showDurabilityOnCharframe"] = "캐릭터 장비 프레임에 내구도를 표시합니다"
 L["showEnchantOnCharframe"] = "캐릭터 장비 창에 마법 부여 표시"

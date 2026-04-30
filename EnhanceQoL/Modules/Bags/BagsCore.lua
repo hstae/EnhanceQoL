@@ -55,9 +55,6 @@ Core.SECTION_TOGGLE_WIDTH = Core.SECTION_TOGGLE_LEFT_WIDTH + Core.SECTION_TOGGLE
 Core.REAGENT_SLOT_ICON_ATLAS = "bags-icon-reagents"
 Core.GET_BAG_ITEM_TOOLTIP = C_TooltipInfo and C_TooltipInfo.GetBagItem
 Core.ACTIVE_BAG_EVENTS = {
-	"BAG_UPDATE_DELAYED",
-	"BAG_NEW_ITEMS_UPDATED",
-	"ITEM_DATA_LOAD_RESULT",
 	"ITEM_LOCK_CHANGED",
 	"BAG_UPDATE_COOLDOWN",
 	"PLAYER_MONEY",
@@ -67,6 +64,12 @@ Core.ACTIVE_BAG_EVENTS = {
 	"INVENTORY_SEARCH_UPDATE",
 	"MODIFIER_STATE_CHANGED",
 	"PLAYER_LEVEL_UP",
+}
+Core.PASSIVE_BAG_EVENTS = {
+	"BAG_UPDATE",
+	"BAG_UPDATE_DELAYED",
+	"BAG_NEW_ITEMS_UPDATED",
+	"ITEM_DATA_LOAD_RESULT",
 }
 Core.ACTIVE_BAG_UNIT_EVENTS = {
 	{
@@ -992,26 +995,68 @@ local function setManualVisibility(isVisible)
 	settings.manualVisible = state.manualVisible
 end
 
-local function shouldShowSimpleBags()
-	if type(_G.IsAnyStandardHeldBagOpen) == "function" and IsAnyStandardHeldBagOpen() then
+local function isStandardBagID(bagID)
+	return type(bagID) == "number" and bagID >= Core.BACKPACK_ID and bagID <= Core.LAST_CHARACTER_BAG_ID
+end
+
+local function isManagedBagUpdateID(bagID)
+	if isStandardBagID(bagID) then
 		return true
 	end
 
-	if ContainerFrameCombinedBags and ContainerFrameCombinedBags:IsShown() then
-		return true
-	end
-
-	local frames = ContainerFrameContainer and ContainerFrameContainer.ContainerFrames or {}
-	for _, frame in ipairs(frames) do
-		if frame and frame:IsShown() and frame.GetBagID then
-			local bagID = frame:GetBagID()
-			if type(bagID) == "number" and bagID >= Core.BACKPACK_ID and bagID <= Core.LAST_CHARACTER_BAG_ID then
+	for _, context in ipairs(getVisibleFlatBankContexts()) do
+		for _, contextBagID in ipairs(context.bagIDs or {}) do
+			if bagID == contextBagID then
 				return true
 			end
 		end
 	end
 
 	return false
+end
+
+local function isNativeStandardBagOpen()
+	if type(_G.IsAnyStandardHeldBagOpen) == "function" and IsAnyStandardHeldBagOpen() then
+		return true
+	end
+
+	if type(_G.IsBagOpen) == "function" then
+		for bagID = Core.BACKPACK_ID, Core.LAST_CHARACTER_BAG_ID do
+			if IsBagOpen(bagID) then
+				return true
+			end
+		end
+	end
+
+	if ContainerFrameCombinedBags then
+		if type(ContainerFrameCombinedBags.IsBagOpen) == "function" then
+			for bagID = Core.BACKPACK_ID, Core.LAST_CHARACTER_BAG_ID do
+				if ContainerFrameCombinedBags:IsBagOpen(bagID) then
+					return true
+				end
+			end
+		end
+
+		if ContainerFrameCombinedBags:IsShown() then
+			return true
+		end
+	end
+
+	local frames = ContainerFrameContainer and ContainerFrameContainer.ContainerFrames or {}
+	for _, frame in ipairs(frames) do
+		if frame and frame:IsShown() and frame.GetBagID then
+			local bagID = frame:GetBagID()
+			if isStandardBagID(bagID) then
+				return true
+			end
+		end
+	end
+
+	return false
+end
+
+local function shouldShowSimpleBags()
+	return isNativeStandardBagOpen()
 end
 
 local function shouldShowBankManagedBags()
@@ -1073,6 +1118,17 @@ local function setActiveBagEventRegistration(enabled)
 	end
 end
 
+local function registerPassiveBagEvents()
+	if not state.eventFrame or state.passiveBagEventsRegistered then
+		return
+	end
+
+	state.passiveBagEventsRegistered = true
+	for _, eventName in ipairs(Core.PASSIVE_BAG_EVENTS) do
+		state.eventFrame:RegisterEvent(eventName)
+	end
+end
+
 local function getAnchorTargetFrame()
 	if ContainerFrameCombinedBags and ContainerFrameCombinedBags:IsShown() then
 		return ContainerFrameCombinedBags
@@ -1115,6 +1171,74 @@ local function getTotalSlotCount()
 		end
 	end
 	return total
+end
+
+local function getManagedBagContentSignature(bagID)
+	local parts = state.bagContentSignatureParts or {}
+	state.bagContentSignatureParts = parts
+	if wipe then
+		wipe(parts)
+	else
+		parts = {}
+		state.bagContentSignatureParts = parts
+	end
+
+	local slotCount = C_Container.GetContainerNumSlots(bagID) or 0
+	parts[#parts + 1] = slotCount
+	for slotID = 1, slotCount do
+		local info = C_Container.GetContainerItemInfo(bagID, slotID)
+		parts[#parts + 1] = "|"
+		parts[#parts + 1] = slotID
+		parts[#parts + 1] = ":"
+		if info then
+			local questInfo = C_Container.GetContainerItemQuestInfo and C_Container.GetContainerItemQuestInfo(bagID, slotID) or nil
+			parts[#parts + 1] = info.hyperlink or ""
+			parts[#parts + 1] = ":"
+			parts[#parts + 1] = info.itemID or ""
+			parts[#parts + 1] = ":"
+			parts[#parts + 1] = info.stackCount or ""
+			parts[#parts + 1] = ":"
+			parts[#parts + 1] = info.quality or ""
+			parts[#parts + 1] = ":"
+			parts[#parts + 1] = info.isBound and 1 or 0
+			parts[#parts + 1] = ":"
+			parts[#parts + 1] = info.hasNoValue and 1 or 0
+			parts[#parts + 1] = ":"
+			parts[#parts + 1] = isNewItemAtSlot(bagID, slotID) and 1 or 0
+			parts[#parts + 1] = ":"
+			parts[#parts + 1] = questInfo and questInfo.questID or ""
+			parts[#parts + 1] = ":"
+			parts[#parts + 1] = questInfo and questInfo.isQuestItem and 1 or 0
+			parts[#parts + 1] = ":"
+			parts[#parts + 1] = questInfo and questInfo.isActive and 1 or 0
+		end
+	end
+
+	local signature = table.concat(parts)
+	if wipe then
+		wipe(parts)
+	end
+	return signature
+end
+
+local function refreshManagedBagContentSignature(bagID)
+	state.bagContentSignatures = state.bagContentSignatures or {}
+	local signature = getManagedBagContentSignature(bagID)
+	local previousSignature = state.bagContentSignatures[bagID]
+	state.bagContentSignatures[bagID] = signature
+	return previousSignature ~= nil and previousSignature ~= signature
+end
+
+local function refreshAllManagedBagContentSignatures()
+	state.bagContentSignatures = state.bagContentSignatures or {}
+	for bagID = Core.BACKPACK_ID, Core.LAST_CHARACTER_BAG_ID do
+		state.bagContentSignatures[bagID] = getManagedBagContentSignature(bagID)
+	end
+	for _, context in ipairs(getVisibleFlatBankContexts()) do
+		for _, bagID in ipairs(context.bagIDs or {}) do
+			state.bagContentSignatures[bagID] = getManagedBagContentSignature(bagID)
+		end
+	end
 end
 
 local function saveFramePosition(frame)
@@ -1598,16 +1722,15 @@ local function detachDefaultBagFrames()
 		ContainerFrameCombinedBags:SetParent(hiddenBagFrameParent)
 	end
 
-	if BackpackTokenFrame then
-		BackpackTokenFrame:SetParent(hiddenBagFrameParent)
-	end
-
 	if BagItemSearchBox then
-		BagItemSearchBox:SetParent(hiddenBagFrameParent)
+		if BagItemSearchBox.ClearFocus then
+			BagItemSearchBox:ClearFocus()
+		end
+		BagItemSearchBox:Hide()
 	end
 
 	if BagItemAutoSortButton then
-		BagItemAutoSortButton:SetParent(hiddenBagFrameParent)
+		BagItemAutoSortButton:Hide()
 	end
 end
 
@@ -1940,6 +2063,19 @@ function Bags.functions.RefreshEquippedBagSlotPanels()
 	BagSlotPanel.Refresh()
 end
 
+local function closeNativeBagsFromCustomHide()
+	if state.suppressNativeBagClose then
+		return
+	end
+	if not isNativeStandardBagOpen() or type(CloseAllBags) ~= "function" then
+		return
+	end
+
+	state.suppressNativeBagClose = true
+	CloseAllBags()
+	state.suppressNativeBagClose = false
+end
+
 local function createMainFrame()
 	if state.frame then
 		return state.frame
@@ -1991,6 +2127,7 @@ local function createMainFrame()
 		if self.BagSlotsPanel then
 			self.BagSlotsPanel:Hide()
 		end
+		closeNativeBagsFromCustomHide()
 	end)
 
 	local title = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
@@ -4674,6 +4811,10 @@ local function rebuildLayout()
 
 	state.currentLayoutCount = layoutData.requiredButtonCount
 	state.currentTotalSlotCount = layoutData.totalSlotCount
+	if not state.bagContentSnapshotsInitialized then
+		refreshAllManagedBagContentSignatures()
+		state.bagContentSnapshotsInitialized = true
+	end
 	state.pendingRebuild = false
 	state.pendingRefresh = false
 	state.forceDynamicRefresh = false
@@ -4788,8 +4929,7 @@ local function processUpdate()
 		resetOpenSessionNewItems()
 	end
 	local settings = getSettings()
-	local needsRebuild = openingFrame
-		or state.pendingRebuild
+	local needsRebuild = state.pendingRebuild
 		or state.layoutData == nil
 		or state.currentTotalSlotCount ~= getTotalSlotCount()
 		or state.currentFooterHeight ~= getFooterHeight(settings)
@@ -4813,12 +4953,14 @@ local function processUpdate()
 		end
 		BagSlotPanel.Refresh()
 		if openingFrame and addon.Vendor and addon.Vendor.functions and addon.Vendor.functions.refreshSellMarks then
-			addon.Vendor.functions.refreshSellMarks()
+			addon.Vendor.functions.refreshSellMarks(false)
 		end
 	else
+		state.suppressNativeBagClose = true
 		state.frame:Hide()
+		state.suppressNativeBagClose = false
 		if wasVisible and addon.Vendor and addon.Vendor.functions and addon.Vendor.functions.refreshSellMarks then
-			addon.Vendor.functions.refreshSellMarks()
+			addon.Vendor.functions.refreshSellMarks(false)
 		end
 	end
 end
@@ -4901,7 +5043,9 @@ function Bags.functions.HideFrame()
 		CloseAllBags()
 	end
 	if state.frame and not shouldShowManagedContainerFrame() then
+		state.suppressNativeBagClose = true
 		state.frame:Hide()
+		state.suppressNativeBagClose = false
 	end
 	scheduleUpdate(false, false, true)
 end
@@ -4949,6 +5093,7 @@ function Bags.functions.EnableMain()
 	installTokenWatcherHooks()
 	state.initialized = true
 	state.pendingRebuild = true
+	registerPassiveBagEvents()
 	local processNow = shouldProcessVisibleBagUpdates()
 	setActiveBagEventRegistration(processNow)
 	if processNow then
@@ -4967,22 +5112,32 @@ local NATIVE_BAG_TOGGLE_FILTERS = {
 	},
 }
 
-local function isStandaloneFrameShown()
-	return (state.frame and state.frame:IsShown()) or state.manualVisible or state.explicitToggleVisible
-end
-
-local function applyNativeBagToggle(targetVisible)
+local function syncFromNativeBagState(requestRefresh, requestRebuild)
+	state.nativeBagStateSyncScheduled = false
 	if not state.initialized then
 		return
 	end
 
-	targetVisible = not not targetVisible
-	if not targetVisible and state.manualVisible then
+	local nativeOpen = isNativeStandardBagOpen()
+	if nativeOpen then
+		state.explicitToggleVisible = true
+	else
+		state.explicitToggleVisible = false
 		setManualVisibility(false)
 	end
 
-	state.explicitToggleVisible = targetVisible
-	scheduleUpdate(true, false, true)
+	scheduleUpdate(nativeOpen or requestRefresh, requestRebuild, true)
+end
+
+local function scheduleNativeBagStateSync(requestRefresh, requestRebuild)
+	if state.nativeBagStateSyncScheduled then
+		return
+	end
+
+	state.nativeBagStateSyncScheduled = true
+	C_Timer.After(0, function()
+		syncFromNativeBagState(requestRefresh, requestRebuild)
+	end)
 end
 
 Bags.functions.SynchronizeContextOpenedBagToggleState = function()
@@ -5038,25 +5193,33 @@ installVisibilityHooks = function()
 	end
 	state.hooksInstalled = true
 
-	local passiveHookTargets = {
-		"CloseAllBags",
-		"CloseBag",
-		"CloseBackpack",
+	local openHookTargets = {
 		"OpenBag",
 		"OpenAllBags",
 		"OpenAllBagsMatchingContext",
 		"OpenBackpack",
 	}
 
-	for _, functionName in ipairs(passiveHookTargets) do
+	for _, functionName in ipairs(openHookTargets) do
 		local hookName = functionName
 		if type(_G[hookName]) == "function" then
 			hooksecurefunc(hookName, function()
-				if hookName == "OpenAllBagsMatchingContext" then
-					Bags.functions.SynchronizeContextOpenedBagToggleState()
-				end
+				scheduleNativeBagStateSync(true, false)
+			end)
+		end
+	end
 
-				scheduleUpdate(false, false, true)
+	local closeHookTargets = {
+		"CloseAllBags",
+		"CloseBag",
+		"CloseBackpack",
+	}
+
+	for _, functionName in ipairs(closeHookTargets) do
+		local hookName = functionName
+		if type(_G[hookName]) == "function" then
+			hooksecurefunc(hookName, function()
+				scheduleNativeBagStateSync(false, false)
 			end)
 		end
 	end
@@ -5066,13 +5229,22 @@ installVisibilityHooks = function()
 		if type(_G[hookName]) == "function" then
 			hooksecurefunc(hookName, function()
 				if shouldIgnoreNativeBagToggle(hookName) then
-					scheduleUpdate(false, false, true)
+					scheduleNativeBagStateSync(true, false)
 					return
 				end
 
-				applyNativeBagToggle(not isStandaloneFrameShown())
+				scheduleNativeBagStateSync(true, false)
 			end)
 		end
+	end
+
+	if EventRegistry and type(EventRegistry.RegisterCallback) == "function" then
+		EventRegistry:RegisterCallback("ContainerFrame.OpenAllBags", function()
+			scheduleNativeBagStateSync(true, false)
+		end, state)
+		EventRegistry:RegisterCallback("ContainerFrame.CloseAllBags", function()
+			scheduleNativeBagStateSync(false, false)
+		end, state)
 	end
 end
 
@@ -5114,10 +5286,22 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
 		scheduleUpdate(state.pendingRefresh, state.pendingRebuild)
 	elseif event == "BANKFRAME_OPENED" or event == "BANKFRAME_CLOSED" then
 		scheduleUpdate(true, true, true)
+	elseif event == "BAG_UPDATE" then
+		local bagID = ...
+		if isManagedBagUpdateID(bagID) and refreshManagedBagContentSignature(bagID) then
+			state.bagContentsDirty = true
+			state.footerDirty = true
+		end
 	elseif event == "BAG_UPDATE_DELAYED" then
 		state.footerDirty = true
-		scheduleUpdate(true, true)
+		if state.bagContentsDirty then
+			state.bagContentsDirty = false
+			scheduleUpdate(true, true)
+		else
+			scheduleUpdate(true, false)
+		end
 	elseif event == "BAG_NEW_ITEMS_UPDATED" then
+		state.bagContentsDirty = false
 		scheduleUpdate(true, true)
 	elseif event == "ITEM_DATA_LOAD_RESULT" then
 		local itemID, success = ...

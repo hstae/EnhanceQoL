@@ -2265,7 +2265,6 @@ L["showBagFilterMenuDesc"] = "Only usable when Combined Bags is enabled. Hold %s
 L["showBindOnBagItems"] = "Bind tags"
 L["showBindOnBagItemsDesc"] = "Show %s (BoE), %s (WuE), and %s (WB) tags on equippable items."
 L["showCatalystChargesOnCharframe"] = "Display Catalyst charges on Character Equipment Frame"
-L["ShowClassColorInNameplate"] = "Show class colors on nameplates"
 L["ShowCooldownName"] = "Show Cooldown Name"
 L["showDurabilityOnCharframe"] = "Display Durability on Character Equipment Frame"
 L["showEnchantOnCharframe"] = "Display enchants on Character Equipment Frame"

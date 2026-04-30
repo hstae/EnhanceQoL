@@ -2260,7 +2260,6 @@ L["showBagFilterMenuDesc"] = "Nur nutzbar, wenn „Taschen zusammenfassen“ akt
 L["showBindOnBagItems"] = "Bindungs-Tags"
 L["showBindOnBagItemsDesc"] = "Zeigt %s (BoE), %s (WuE) und %s (WB) auf ausrüstbaren Gegenständen."
 L["showCatalystChargesOnCharframe"] = "Katalysatorladungen im Charakterausrüstungsfenster anzeigen"
-L["ShowClassColorInNameplate"] = "Klassfarben an Namensplaketten anzeigen"
 L["ShowCooldownName"] = "Abklingzeitnamen anzeigen"
 L["showDurabilityOnCharframe"] = "Zeige Haltbarkeit auf dem Charakterausrüstungsfenster"
 L["showEnchantOnCharframe"] = "Verzauberungen im Charakterausrüstungsfenster anzeigen"
