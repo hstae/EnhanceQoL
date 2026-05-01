@@ -2288,9 +2288,28 @@ local function addSlotMapping(layoutData, sectionID, bagID, slotID, extraData)
 	return index, mapping
 end
 
+local function isOneBagMode(settings)
+	if addon.GetOneBagMode then
+		return addon.GetOneBagMode()
+	end
+	return settings and settings.oneBagMode == true or false
+end
+
+local function shouldMoveOneBagFreeSlotsToEnd(settings)
+	if not isOneBagMode(settings) then
+		return false
+	end
+	if addon.GetOneBagFreeSlotsAtEnd then
+		return addon.GetOneBagFreeSlotsAtEnd()
+	end
+	return settings and settings.oneBagFreeSlotsAtEnd == true or false
+end
+
 local function buildLayoutData(context)
 	local settings = getSettings()
-	local hasCustomCategories = settings.showCategories and addon.HasCustomCategories and addon.HasCustomCategories() or false
+	local oneBagMode = isOneBagMode(settings)
+	local oneBagFreeSlotsAtEnd = shouldMoveOneBagFreeSlotsToEnd(settings)
+	local hasCustomCategories = not oneBagMode and settings.showCategories and addon.HasCustomCategories and addon.HasCustomCategories() or false
 	local ruleUsage = hasCustomCategories and addon.GetCategoryRuleContextUsage and addon.GetCategoryRuleContextUsage() or nil
 	local ruleRuntimeContext = hasCustomCategories and createRuleRuntimeContext(ruleUsage) or nil
 	local layoutData = {
@@ -2303,8 +2322,14 @@ local function buildLayoutData(context)
 		collapsedItems = {},
 		freeSlotCount = 0,
 		freeSlotReference = {},
+		oneBagFreeSlots = {},
 	}
-	layoutData.sectionDefinitions, layoutData.sectionDefinitionsByID = buildSectionDefinitions()
+	if oneBagMode then
+		layoutData.sectionDefinitions = {}
+		layoutData.sectionDefinitionsByID = {}
+	else
+		layoutData.sectionDefinitions, layoutData.sectionDefinitionsByID = buildSectionDefinitions()
+	end
 
 	for _, bagID in ipairs(context and context.bagIDs or {}) do
 		local slotCount = C_Container.GetContainerNumSlots(bagID) or 0
@@ -2318,7 +2343,7 @@ local function buildLayoutData(context)
 				local questInfo
 				local sectionID = "misc"
 				local collapseRef = nil
-				if settings.showCategories or settings.combineUnstackableItems or isOpenSessionNewItem(bagID, slotID, info) then
+				if not oneBagMode and (settings.showCategories or settings.combineUnstackableItems or isOpenSessionNewItem(bagID, slotID, info)) then
 					questInfo = settings.showCategories and C_Container.GetContainerItemQuestInfo(bagID, slotID) or nil
 					sectionID, collapseRef = resolveCategoryForItem(
 						bagID,
@@ -2331,7 +2356,7 @@ local function buildLayoutData(context)
 					)
 				end
 				local itemRef = info and (info.hyperlink or info.itemID)
-				if shouldCombineDuplicateItem(itemRef, settings) then
+				if not oneBagMode and shouldCombineDuplicateItem(itemRef, settings) then
 					local collapsedSection = layoutData.collapsedItems[sectionID]
 					if not collapsedSection then
 						collapsedSection = {}
@@ -2370,7 +2395,16 @@ local function buildLayoutData(context)
 					layoutData.freeSlotReference.slotID = slotID
 				end
 
-				if settings.showFreeSlots ~= false and not settings.combineFreeSlots then
+				if oneBagMode then
+					if settings.showFreeSlots ~= false and oneBagFreeSlotsAtEnd then
+						layoutData.oneBagFreeSlots[#layoutData.oneBagFreeSlots + 1] = {
+							bagID = bagID,
+							slotID = slotID,
+						}
+					elseif settings.showFreeSlots ~= false then
+						addSlotMapping(layoutData, "misc", bagID, slotID)
+					end
+				elseif settings.showFreeSlots ~= false and not settings.combineFreeSlots then
 					local sectionID = settings.showCategories and FREE_SLOTS_SECTION_ID or "misc"
 					addSlotMapping(layoutData, sectionID, bagID, slotID)
 				end
@@ -2378,7 +2412,13 @@ local function buildLayoutData(context)
 		end
 	end
 
-	if settings.showFreeSlots ~= false and settings.combineFreeSlots and layoutData.freeSlotCount > 0 and layoutData.freeSlotReference.bagID then
+	if oneBagMode and oneBagFreeSlotsAtEnd and settings.showFreeSlots ~= false then
+		for _, freeSlot in ipairs(layoutData.oneBagFreeSlots) do
+			addSlotMapping(layoutData, "misc", freeSlot.bagID, freeSlot.slotID)
+		end
+	end
+
+	if not oneBagMode and settings.showFreeSlots ~= false and settings.combineFreeSlots and layoutData.freeSlotCount > 0 and layoutData.freeSlotReference.bagID then
 		local sectionID = settings.showCategories and FREE_SLOTS_SECTION_ID or "misc"
 		addSlotMapping(
 			layoutData,
@@ -2392,9 +2432,18 @@ local function buildLayoutData(context)
 		)
 	end
 
-	sortLayoutSections(layoutData)
+	if not oneBagMode then
+		sortLayoutSections(layoutData)
+	end
 
-	if settings.showCategories then
+	if oneBagMode then
+		local flatSection = layoutData.sectionMap.misc
+		if flatSection and #flatSection.slotIndices > 0 then
+			flatSection.label = nil
+			flatSection.collapsible = false
+			layoutData.sections[#layoutData.sections + 1] = flatSection
+		end
+	elseif settings.showCategories then
 		for _, definition in ipairs(layoutData.sectionDefinitions) do
 			local section = layoutData.sectionMap[definition.id]
 			if section and #section.slotIndices > 0 then

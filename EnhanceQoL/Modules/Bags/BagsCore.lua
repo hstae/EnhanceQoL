@@ -760,6 +760,9 @@ local function getMinimumFrameWidth(settings)
 	if state.frame and state.frame.BagSlotsButton and state.frame.BagSlotsButton.GetWidth then
 		settingsButtonWidth = settingsButtonWidth + math.ceil((state.frame.BagSlotsButton:GetWidth() or 0) + 8.5)
 	end
+	if state.frame and state.frame.SortButton and state.frame.SortButton.GetWidth then
+		settingsButtonWidth = settingsButtonWidth + math.ceil((state.frame.SortButton:GetWidth() or 0) + 6.5)
+	end
 
 	local minimumWidth = math.max(
 		Core.MIN_FRAME_WIDTH,
@@ -782,9 +785,80 @@ local function getButtonSpacing(settings)
 	return math.max(2, math.floor((Core.BUTTON_SPACING * scale) + 0.5))
 end
 
+local function isOneBagMode(settings)
+	if addon.GetOneBagMode then
+		return addon.GetOneBagMode()
+	end
+	return settings and settings.oneBagMode == true or false
+end
+
+local function shouldMoveOneBagFreeSlotsToEnd(settings)
+	if not isOneBagMode(settings) then
+		return false
+	end
+	if addon.GetOneBagFreeSlotsAtEnd then
+		return addon.GetOneBagFreeSlotsAtEnd()
+	end
+	return settings and settings.oneBagFreeSlotsAtEnd == true or false
+end
+
+local ONE_BAG_RESET_BAG_SLOT_FLAGS = {
+	Enum and Enum.BagSlotFlags and Enum.BagSlotFlags.ClassEquipment,
+	Enum and Enum.BagSlotFlags and Enum.BagSlotFlags.ClassConsumables,
+	Enum and Enum.BagSlotFlags and Enum.BagSlotFlags.ClassProfessionGoods,
+	Enum and Enum.BagSlotFlags and Enum.BagSlotFlags.ClassJunk,
+	Enum and Enum.BagSlotFlags and Enum.BagSlotFlags.ClassQuestItems,
+	Enum and Enum.BagSlotFlags and Enum.BagSlotFlags.ClassReagents,
+}
+
+local function resetNativeBagFiltersForOneBagMode(settings, forceReset)
+	if not isOneBagMode(settings) then
+		state.nativeBagFiltersResetForOneBag = false
+		return false
+	end
+	if state.nativeBagFiltersResetForOneBag and not forceReset then
+		return false
+	end
+
+	state.nativeBagFiltersResetForOneBag = true
+
+	if not C_Container then
+		return false
+	end
+
+	for bagID = Core.BACKPACK_ID, Core.LAST_CHARACTER_BAG_ID do
+		if C_Container.SetBagSlotFlag then
+			for _, flag in ipairs(ONE_BAG_RESET_BAG_SLOT_FLAGS) do
+				if flag then
+					C_Container.SetBagSlotFlag(bagID, flag, false)
+				end
+			end
+		end
+
+		if bagID == Core.BACKPACK_ID then
+			if C_Container.SetBackpackAutosortDisabled then
+				C_Container.SetBackpackAutosortDisabled(false)
+			end
+			if C_Container.SetBackpackSellJunkDisabled then
+				C_Container.SetBackpackSellJunkDisabled(false)
+			end
+		elseif C_Container.SetBagSlotFlag and Enum and Enum.BagSlotFlags then
+			C_Container.SetBagSlotFlag(bagID, Enum.BagSlotFlags.DisableAutoSort, false)
+			C_Container.SetBagSlotFlag(bagID, Enum.BagSlotFlags.ExcludeJunkSell, false)
+		end
+
+		local settingsManager = _G.ContainerFrameSettingsManager
+		if settingsManager and settingsManager.ClearFilterFlag then
+			settingsManager:ClearFilterFlag(bagID)
+		end
+	end
+
+	return true
+end
+
 local function getFramePaddingSignature(settings)
 	return string.format(
-		"%d:%d:%d:%d:%d:%d:%d:%d:%d:%d:%d:%d",
+		"%d:%d:%d:%d:%d:%d:%d:%d:%d:%d:%d:%d:%d:%d",
 		getOutsideHeaderPadding(settings),
 		getOutsideFooterPadding(settings),
 		getInsideHorizontalPadding(settings),
@@ -796,7 +870,9 @@ local function getFramePaddingSignature(settings)
 		addon.GetCompactCategoryGap and addon.GetCompactCategoryGap() or Core.SECTION_HORIZONTAL_GAP,
 		(addon.GetCategoryTreeView and addon.GetCategoryTreeView()) and 1 or 0,
 		addon.GetCategoryTreeIndent and addon.GetCategoryTreeIndent() or 0,
-		(addon.GetShowCloseButton and addon.GetShowCloseButton()) and 1 or 0
+		(addon.GetShowCloseButton and addon.GetShowCloseButton()) and 1 or 0,
+		isOneBagMode(settings) and 1 or 0,
+		shouldMoveOneBagFreeSlotsToEnd(settings) and 1 or 0
 	)
 end
 
@@ -829,9 +905,13 @@ local function applyFramePadding(settings)
 			frame.SettingsButton:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -insideHorizontalPadding, -8)
 		end
 	end
+	if frame.SortButton then
+		frame.SortButton:ClearAllPoints()
+		frame.SortButton:SetPoint("RIGHT", frame.SettingsButton or frame, frame.SettingsButton and "LEFT" or "RIGHT", frame.SettingsButton and -6 or -insideHorizontalPadding, frame.SettingsButton and 0 or -8)
+	end
 	if frame.BagSlotsButton then
 		frame.BagSlotsButton:ClearAllPoints()
-		frame.BagSlotsButton:SetPoint("RIGHT", frame.SettingsButton or frame, frame.SettingsButton and "LEFT" or "RIGHT", frame.SettingsButton and -8 or -insideHorizontalPadding, frame.SettingsButton and 0 or -8)
+		frame.BagSlotsButton:SetPoint("RIGHT", frame.SortButton or frame.SettingsButton or frame, (frame.SortButton or frame.SettingsButton) and "LEFT" or "RIGHT", (frame.SortButton or frame.SettingsButton) and -8 or -insideHorizontalPadding, (frame.SortButton or frame.SettingsButton) and 0 or -8)
 	end
 	if frame.SearchBox then
 		frame.SearchBox:ClearAllPoints()
@@ -914,6 +994,10 @@ applyActiveSkin = function()
 		if frame.SettingsButton and frame.SettingsButton.HighlightTexture then
 			frame.SettingsButton.HighlightTexture:SetVertexColor(unpackSkinColor(skin.accentColor, 1, 1, 1, 1))
 			frame.SettingsButton.HighlightTexture:SetAlpha(0.4)
+		end
+		if frame.SortButton and frame.SortButton.HighlightTexture then
+			frame.SortButton.HighlightTexture:SetVertexColor(unpackSkinColor(skin.accentColor, 1, 1, 1, 1))
+			frame.SortButton.HighlightTexture:SetAlpha(0.4)
 		end
 		if frame.BagSlotsButton and frame.BagSlotsButton.HighlightTexture then
 			frame.BagSlotsButton.HighlightTexture:SetVertexColor(unpackSkinColor(skin.accentColor, 1, 1, 1, 1))
@@ -2405,6 +2489,66 @@ function Bags.functions.RefreshEquippedBagSlotPanels()
 	BagSlotPanel.Refresh()
 end
 
+local function createNativeBagSortButton(parent)
+	local button = CreateFrame("Button", nil, parent)
+	button:SetSize(24, 24)
+	button:SetHitRectInsets(-4, -4, -4, -4)
+	button:RegisterForClicks("LeftButtonUp")
+	button.Icon = button:CreateTexture(nil, "ARTWORK")
+	button.Icon:SetPoint("CENTER")
+	button.Icon:SetSize(24, 24)
+	if C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo("bags-button-autosort-up") then
+		button.Icon:SetAtlas("bags-button-autosort-up")
+	else
+		button.Icon:SetTexture("Interface\\Icons\\INV_Misc_EngGizmos_17")
+		button.Icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	end
+
+	local highlight = button:CreateTexture(nil, "HIGHLIGHT")
+	highlight:SetPoint("CENTER")
+	highlight:SetSize(24, 24)
+	highlight:SetTexture("Interface\\Buttons\\ButtonHilight-Square")
+	highlight:SetBlendMode("ADD")
+	highlight:SetAlpha(0.4)
+	button.HighlightTexture = highlight
+
+	button:SetScript("OnMouseDown", function(self)
+		if self.Icon and C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo("bags-button-autosort-down") then
+			self.Icon:SetAtlas("bags-button-autosort-down")
+		elseif self.Icon then
+			self.Icon:AdjustPointsOffset(1, -1)
+		end
+	end)
+	button:SetScript("OnMouseUp", function(self)
+		if self.Icon and C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo("bags-button-autosort-up") then
+			self.Icon:SetAtlas("bags-button-autosort-up")
+		elseif self.Icon then
+			self.Icon:AdjustPointsOffset(-1, 1)
+		end
+	end)
+	button:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:SetText(_G.BAG_CLEANUP_BAGS or "Clean Up Bags", 1, 0.82, 0)
+		GameTooltip:Show()
+	end)
+	button:SetScript("OnLeave", function()
+		GameTooltip:Hide()
+	end)
+	button:SetScript("OnClick", function()
+		if PlaySound and SOUNDKIT and SOUNDKIT.UI_BAG_SORTING_01 then
+			PlaySound(SOUNDKIT.UI_BAG_SORTING_01)
+		end
+		resetNativeBagFiltersForOneBagMode(getSettings(), true)
+		if C_Container and C_Container.SortBags then
+			C_Container.SortBags()
+		end
+		if scheduleUpdate then
+			scheduleUpdate(true, true, true)
+		end
+	end)
+	return button
+end
+
 local function closeNativeBagsFromCustomHide()
 	if state.suppressNativeBagClose then
 		return
@@ -2539,8 +2683,12 @@ local function createMainFrame()
 
 	frame.BagSlotsPanel = BagSlotPanel.Create(frame)
 
+	local sortButton = createNativeBagSortButton(frame)
+	sortButton:SetPoint("RIGHT", settingsButton, "LEFT", -6, 0)
+	frame.SortButton = sortButton
+
 	local bagSlotsButton = BagSlotPanel.CreateToggleButton(frame, frame.BagSlotsPanel)
-	bagSlotsButton:SetPoint("RIGHT", settingsButton, "LEFT", -8, 0)
+	bagSlotsButton:SetPoint("RIGHT", sortButton, "LEFT", -8, 0)
 	frame.BagSlotsButton = bagSlotsButton
 
 	local searchBox = CreateFrame("EditBox", "BagsItemSearchBox", frame, "BagSearchBoxTemplate")
@@ -4326,7 +4474,9 @@ end
 
 local function buildLayoutData()
 	local settings = getSettings()
-	local hasCustomCategories = settings.showCategories and addon.HasCustomCategories and addon.HasCustomCategories() or false
+	local oneBagMode = isOneBagMode(settings)
+	local oneBagFreeSlotsAtEnd = shouldMoveOneBagFreeSlotsToEnd(settings)
+	local hasCustomCategories = not oneBagMode and settings.showCategories and addon.HasCustomCategories and addon.HasCustomCategories() or false
 	local ruleUsage = hasCustomCategories and addon.GetCategoryRuleContextUsage and addon.GetCategoryRuleContextUsage() or nil
 	local ruleRuntimeContext = hasCustomCategories and createRuleRuntimeContext(ruleUsage) or nil
 	local layoutData = {
@@ -4350,8 +4500,22 @@ local function buildLayoutData()
 		},
 		collapsedItems = {},
 		flatStorageSectionIDs = {},
+		oneBagFreeSlots = {},
 	}
-	layoutData.sectionDefinitions, layoutData.sectionDefinitionsByID = buildSectionDefinitions()
+	if oneBagMode then
+		layoutData.sectionDefinitions = {}
+		layoutData.sectionDefinitionsByID = {}
+		layoutData.sectionDefinitionsByID.oneBagNormal = {
+			id = "oneBagNormal",
+			collapsible = false,
+		}
+		layoutData.sectionDefinitionsByID.oneBagReagent = {
+			id = "oneBagReagent",
+			collapsible = false,
+		}
+	else
+		layoutData.sectionDefinitions, layoutData.sectionDefinitionsByID = buildSectionDefinitions()
+	end
 
 	for bagID = Core.BACKPACK_ID, Core.LAST_CHARACTER_BAG_ID do
 		local slotCount = C_Container.GetContainerNumSlots(bagID) or 0
@@ -4373,9 +4537,9 @@ local function buildLayoutData()
 
 			if hasItem then
 				local questInfo
-				local sectionID = "misc"
+				local sectionID = oneBagMode and (isReagentBag and "oneBagReagent" or "oneBagNormal") or "misc"
 				local collapseRef = nil
-				if settings.showCategories or settings.combineUnstackableItems or isOpenSessionNewItem(bagID, slotID, info) then
+				if not oneBagMode and (settings.showCategories or settings.combineUnstackableItems or isOpenSessionNewItem(bagID, slotID, info)) then
 					questInfo = settings.showCategories and C_Container.GetContainerItemQuestInfo(bagID, slotID) or nil
 					sectionID, collapseRef = resolveCategoryForItem(
 						bagID,
@@ -4388,7 +4552,7 @@ local function buildLayoutData()
 					)
 				end
 				local itemRef = info and (info.hyperlink or info.itemID)
-				if shouldCombineDuplicateItem(itemRef, settings) then
+				if not oneBagMode and shouldCombineDuplicateItem(itemRef, settings) then
 					local collapsedSection = layoutData.collapsedItems[sectionID]
 					if not collapsedSection then
 						collapsedSection = {}
@@ -4435,7 +4599,17 @@ local function buildLayoutData()
 					end
 				end
 
-				if settings.showFreeSlots ~= false and not settings.combineFreeSlots then
+				if oneBagMode then
+					if settings.showFreeSlots ~= false and oneBagFreeSlotsAtEnd then
+						layoutData.oneBagFreeSlots[#layoutData.oneBagFreeSlots + 1] = {
+							bagID = bagID,
+							slotID = slotID,
+							sectionID = isReagentBag and "oneBagReagent" or "oneBagNormal",
+						}
+					elseif settings.showFreeSlots ~= false then
+						addSlotMapping(layoutData, isReagentBag and "oneBagReagent" or "oneBagNormal", bagID, slotID)
+					end
+				elseif settings.showFreeSlots ~= false and not settings.combineFreeSlots then
 					local sectionID = settings.showCategories and Core.FREE_SLOTS_SECTION_ID or "misc"
 					addSlotMapping(layoutData, sectionID, bagID, slotID)
 				end
@@ -4443,7 +4617,13 @@ local function buildLayoutData()
 		end
 	end
 
-	if settings.showFreeSlots ~= false and settings.combineFreeSlots then
+	if oneBagMode and oneBagFreeSlotsAtEnd and settings.showFreeSlots ~= false then
+		for _, freeSlot in ipairs(layoutData.oneBagFreeSlots) do
+			addSlotMapping(layoutData, freeSlot.sectionID or "oneBagNormal", freeSlot.bagID, freeSlot.slotID)
+		end
+	end
+
+	if not oneBagMode and settings.showFreeSlots ~= false and settings.combineFreeSlots then
 		local sectionID = settings.showCategories and Core.FREE_SLOTS_SECTION_ID or "misc"
 
 		if layoutData.footer.normalFree > 0 and layoutData.combinedFreeSlots.normal.bagID then
@@ -4473,13 +4653,24 @@ local function buildLayoutData()
 		end
 	end
 
-	sortLayoutSections(layoutData)
+	if not oneBagMode then
+		sortLayoutSections(layoutData)
+	end
 
 	for _, context in ipairs(getVisibleFlatBankContexts()) do
 		addFlatStorageContext(layoutData, context)
 	end
 
-	if settings.showCategories then
+	if oneBagMode then
+		for _, sectionID in ipairs({ "oneBagNormal", "oneBagReagent" }) do
+			local flatSection = layoutData.sectionMap[sectionID]
+			if flatSection and #flatSection.slotIndices > 0 then
+				flatSection.label = nil
+				flatSection.collapsible = false
+				layoutData.sections[#layoutData.sections + 1] = flatSection
+			end
+		end
+	elseif settings.showCategories then
 		for _, definition in ipairs(layoutData.sectionDefinitions) do
 			local section = layoutData.sectionMap[definition.id]
 			if section and #section.slotIndices > 0 then
@@ -5333,6 +5524,11 @@ local function processUpdate()
 		end
 	end
 	local settings = getSettings()
+	if shouldBeVisible then
+		resetNativeBagFiltersForOneBagMode(settings)
+	else
+		state.nativeBagFiltersResetForOneBag = false
+	end
 	if shouldBeVisible then
 		flushStaleBagsForContentDecision()
 	end

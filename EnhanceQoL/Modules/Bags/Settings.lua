@@ -102,7 +102,16 @@ local function isBasicCategoryMode()
 	return getActiveCategoryMode() == "basic"
 end
 
+local function isOneBagModeEnabled()
+	local settings = getSettings()
+	return addon.GetOneBagMode and addon.GetOneBagMode() or settings.oneBagMode == true
+end
+
 local function isSettingsPageVisibleForMode(pageID)
+	if pageID == "categories" and isOneBagModeEnabled() then
+		return false
+	end
+
 	if not isBasicCategoryMode() then
 		return true
 	end
@@ -3202,16 +3211,44 @@ local function createLayoutPage(parent)
 
 	local contentParent = content
 
+	page.OneBagMode = createCheckbox(
+		contentParent,
+		L["settingsOneBagMode"] or "One Bag mode",
+		L["settingsOneBagModeTooltip"] or "",
+		0,
+		-8,
+		function(value)
+			if addon.SetOneBagMode and addon.SetOneBagMode(value) then
+				addon.RefreshSettingsFrame("layout")
+				requestBagRefresh(true, true)
+			end
+		end
+	)
+
 	page.ShowCategories = createCheckbox(
 		contentParent,
 		L["settingsShowCategories"] or "Show item categories",
 		L["settingsShowCategoriesTooltip"] or "",
 		0,
-		-8,
+		-38,
 		function(value)
 			getSettings().showCategories = value
 			addon.RefreshSettingsFrame("layout")
 			requestBagRefresh(true)
+		end
+	)
+
+	page.OneBagFreeSlotsAtEnd = createCheckbox(
+		contentParent,
+		L["settingsOneBagFreeSlotsAtEnd"] or "Move free slots to end",
+		L["settingsOneBagFreeSlotsAtEndTooltip"] or "",
+		0,
+		-68,
+		function(value)
+			if addon.SetOneBagFreeSlotsAtEnd and addon.SetOneBagFreeSlotsAtEnd(value) then
+				addon.RefreshSettingsFrame("layout")
+				requestBagRefresh(true, true)
+			end
 		end
 	)
 
@@ -3220,7 +3257,7 @@ local function createLayoutPage(parent)
 		L["settingsCombineFreeSlots"] or "Combine free slots into indicators",
 		L["settingsCombineFreeSlotsTooltip"] or "",
 		0,
-		-38,
+		-68,
 		function(value)
 			getSettings().combineFreeSlots = value
 			requestBagRefresh(true)
@@ -3232,7 +3269,7 @@ local function createLayoutPage(parent)
 		L["settingsShowFreeSlots"] or "Show free slots",
 		L["settingsShowFreeSlotsTooltip"] or "",
 		0,
-		-68,
+		-98,
 		function(value)
 			if addon.SetShowFreeSlots and addon.SetShowFreeSlots(value) then
 				addon.RefreshSettingsFrame("layout")
@@ -3246,7 +3283,7 @@ local function createLayoutPage(parent)
 		L["settingsCombineUnstackableItems"] or "Combine identical items",
 		L["settingsCombineUnstackableItemsTooltip"] or "",
 		0,
-		-98,
+		-128,
 		function(value)
 			getSettings().combineUnstackableItems = value
 			requestBagRefresh(true)
@@ -3258,7 +3295,7 @@ local function createLayoutPage(parent)
 		L["settingsClearNewItemsOnHeaderClick"] or "Click New Items header to clear",
 		L["settingsClearNewItemsOnHeaderClickTooltip"] or "",
 		0,
-		-128,
+		-158,
 		function(value)
 			if addon.SetClearNewItemsOnHeaderClick and addon.SetClearNewItemsOnHeaderClick(value) then
 				addon.RefreshSettingsFrame("layout")
@@ -3272,7 +3309,7 @@ local function createLayoutPage(parent)
 		L["settingsCompactCategoryLayout"] or "Compact category layout",
 		L["settingsCompactCategoryLayoutTooltip"] or "",
 		0,
-		-158,
+		-188,
 		function(value)
 			if addon.SetCompactCategoryLayout and addon.SetCompactCategoryLayout(value) then
 				addon.RefreshSettingsFrame("layout")
@@ -3286,7 +3323,7 @@ local function createLayoutPage(parent)
 		L["settingsCategoryTreeView"] or "Tree view for grouped categories",
 		L["settingsCategoryTreeViewTooltip"] or "",
 		0,
-		-188,
+		-218,
 		function(value)
 			if addon.SetCategoryTreeView and addon.SetCategoryTreeView(value) then
 				addon.RefreshSettingsFrame("layout")
@@ -3300,7 +3337,7 @@ local function createLayoutPage(parent)
 		L["settingsShowCloseButton"] or "Show close button",
 		L["settingsShowCloseButtonTooltip"] or "",
 		0,
-		-218,
+		-248,
 		function(value)
 			if addon.SetShowCloseButton and addon.SetShowCloseButton(value) then
 				addon.RefreshSettingsFrame("layout")
@@ -3314,7 +3351,7 @@ local function createLayoutPage(parent)
 		L["settingsRememberLastBankTab"] or "Remember last bank tab",
 		L["settingsRememberLastBankTabTooltip"] or "",
 		0,
-		-248,
+		-278,
 		function(value)
 			if addon.SetRememberLastBankTab and addon.SetRememberLastBankTab(value) then
 				addon.RefreshSettingsFrame("layout")
@@ -4144,36 +4181,69 @@ refreshLayoutPage = function(page)
 
 	local settings = getSettings()
 	local appearance = addon.GetTextAppearance and addon.GetTextAppearance() or {}
+	local oneBagMode = addon.GetOneBagMode and addon.GetOneBagMode() or settings.oneBagMode == true
 
+	if page.OneBagMode then
+		page.OneBagMode:SetChecked(oneBagMode)
+	end
+	if page.OneBagFreeSlotsAtEnd then
+		page.OneBagFreeSlotsAtEnd:SetChecked(addon.GetOneBagFreeSlotsAtEnd and addon.GetOneBagFreeSlotsAtEnd() or settings.oneBagFreeSlotsAtEnd == true)
+	end
 	if page.ShowCategories then
 		page.ShowCategories:SetChecked(settings.showCategories)
+		page.ShowCategories:SetEnabled(not oneBagMode)
+		page.ShowCategories:SetAlpha(oneBagMode and 0.45 or 1)
+		if page.ShowCategories.Label then
+			page.ShowCategories.Label:SetAlpha(oneBagMode and 0.45 or 1)
+		end
 	end
 	if page.CombineFreeSlots then
 		page.CombineFreeSlots:SetChecked(settings.combineFreeSlots)
+		page.CombineFreeSlots:SetEnabled(not oneBagMode)
+		page.CombineFreeSlots:SetAlpha(oneBagMode and 0.45 or 1)
+		if page.CombineFreeSlots.Label then
+			page.CombineFreeSlots.Label:SetAlpha(oneBagMode and 0.45 or 1)
+		end
 	end
 	if page.ShowFreeSlots then
 		page.ShowFreeSlots:SetChecked(addon.GetShowFreeSlots == nil or addon.GetShowFreeSlots())
 	end
 	if page.CombineDuplicateItems then
 		page.CombineDuplicateItems:SetChecked(settings.combineUnstackableItems)
+		page.CombineDuplicateItems:SetEnabled(not oneBagMode)
+		page.CombineDuplicateItems:SetAlpha(oneBagMode and 0.45 or 1)
+		if page.CombineDuplicateItems.Label then
+			page.CombineDuplicateItems.Label:SetAlpha(oneBagMode and 0.45 or 1)
+		end
 	end
 	if page.ClearNewItemsOnHeaderClick then
 		page.ClearNewItemsOnHeaderClick:SetChecked(addon.GetClearNewItemsOnHeaderClick and addon.GetClearNewItemsOnHeaderClick() or false)
+		page.ClearNewItemsOnHeaderClick:SetEnabled(not oneBagMode)
+		page.ClearNewItemsOnHeaderClick:SetAlpha(oneBagMode and 0.45 or 1)
+		if page.ClearNewItemsOnHeaderClick.Label then
+			page.ClearNewItemsOnHeaderClick.Label:SetAlpha(oneBagMode and 0.45 or 1)
+		end
 	end
 	if page.CategoryTreeView then
 		page.CategoryTreeView:SetChecked(addon.GetCategoryTreeView and addon.GetCategoryTreeView() or false)
+		page.CategoryTreeView:SetEnabled(not oneBagMode)
+		page.CategoryTreeView:SetAlpha(oneBagMode and 0.45 or 1)
+		if page.CategoryTreeView.Label then
+			page.CategoryTreeView.Label:SetAlpha(oneBagMode and 0.45 or 1)
+		end
 	end
 	if page.CompactCategoryLayout then
 		local compactLayoutEnabled = addon.GetCompactCategoryLayout and addon.GetCompactCategoryLayout() or settings.compactCategoryLayout == true
+		local categoryOptionsEnabled = settings.showCategories and not oneBagMode
 		page.CompactCategoryLayout:SetChecked(compactLayoutEnabled)
-		page.CompactCategoryLayout:SetEnabled(settings.showCategories)
-		page.CompactCategoryLayout:SetAlpha(settings.showCategories and 1 or 0.45)
+		page.CompactCategoryLayout:SetEnabled(categoryOptionsEnabled)
+		page.CompactCategoryLayout:SetAlpha(categoryOptionsEnabled and 1 or 0.45)
 		if page.CompactCategoryLayout.Label then
-			page.CompactCategoryLayout.Label:SetAlpha(settings.showCategories and 1 or 0.45)
+			page.CompactCategoryLayout.Label:SetAlpha(categoryOptionsEnabled and 1 or 0.45)
 		end
 		if page.CompactCategoryGapControl and page.CompactCategoryGapControl.Value then
 			local compactGap = addon.GetCompactCategoryGap and addon.GetCompactCategoryGap() or 8
-			local gapEnabled = settings.showCategories and compactLayoutEnabled
+			local gapEnabled = categoryOptionsEnabled and compactLayoutEnabled
 			page.CompactCategoryGapControl.Row:SetAlpha(gapEnabled and 1 or 0.45)
 			page.CompactCategoryGapControl.Value:SetText(tostring(compactGap))
 			page.CompactCategoryGapControl.DownButton:SetEnabled(gapEnabled and compactGap > 0)
@@ -4183,6 +4253,7 @@ refreshLayoutPage = function(page)
 	if page.CategoryTreeIndentControl and page.CategoryTreeIndentControl.Value then
 		local treeViewEnabled = addon.GetCategoryTreeView and addon.GetCategoryTreeView() or false
 		local treeIndent = addon.GetCategoryTreeIndent and addon.GetCategoryTreeIndent() or 14
+		treeViewEnabled = treeViewEnabled and not oneBagMode
 		page.CategoryTreeIndentControl.Row:SetAlpha(treeViewEnabled and 1 or 0.45)
 		page.CategoryTreeIndentControl.Value:SetText(tostring(treeIndent))
 		page.CategoryTreeIndentControl.DownButton:SetEnabled(treeViewEnabled and treeIndent > 0)
@@ -4743,30 +4814,79 @@ local function anchorTextAppearanceControl(card, hint, label, control, previousC
 	label:SetJustifyV("MIDDLE")
 end
 
+local function setLayoutCheckboxVisible(button, visible)
+	if not button then
+		return
+	end
+	button:SetShown(visible)
+	if button.Label then
+		button.Label:SetShown(visible)
+	end
+end
+
 applyLayoutPageMode = function(page)
 	if not page then
 		return
 	end
 
 	local basicMode = isBasicCategoryMode()
+	local oneBagMode = isOneBagModeEnabled()
+	local previousControl
+	local function placeLayoutCheckbox(button, visible)
+		setLayoutCheckboxVisible(button, visible)
+		if not visible or not button then
+			return
+		end
 
-	if page.ShowCategories then
-		page.ShowCategories:SetShown(not basicMode)
-		if page.ShowCategories.Label then
-			page.ShowCategories.Label:SetShown(not basicMode)
+		button:ClearAllPoints()
+		if previousControl then
+			button:SetPoint("TOPLEFT", previousControl, "BOTTOMLEFT", 0, -8)
+		else
+			button:SetPoint("TOPLEFT", page.Content, "TOPLEFT", 0, -8)
 		end
+		previousControl = button
 	end
-	if page.CompactCategoryLayout then
-		page.CompactCategoryLayout:SetShown(true)
-		if page.CompactCategoryLayout.Label then
-			page.CompactCategoryLayout.Label:SetShown(true)
-		end
-	end
+
+	placeLayoutCheckbox(page.OneBagMode, true)
+	placeLayoutCheckbox(page.OneBagFreeSlotsAtEnd, oneBagMode)
+	placeLayoutCheckbox(page.ShowCategories, not basicMode and not oneBagMode)
+	placeLayoutCheckbox(page.CombineFreeSlots, not oneBagMode)
+	placeLayoutCheckbox(page.ShowFreeSlots, true)
+	placeLayoutCheckbox(page.CombineDuplicateItems, not oneBagMode)
+	placeLayoutCheckbox(page.ClearNewItemsOnHeaderClick, not oneBagMode)
+	placeLayoutCheckbox(page.CompactCategoryLayout, not oneBagMode)
+	placeLayoutCheckbox(page.CategoryTreeView, not oneBagMode)
+	placeLayoutCheckbox(page.ShowCloseButton, true)
+	placeLayoutCheckbox(page.RememberLastBankTab, true)
+
 	if page.CompactCategoryGapControl and page.CompactCategoryGapControl.Row then
-		page.CompactCategoryGapControl.Row:SetShown(true)
+		page.CompactCategoryGapControl.Row:SetShown(not oneBagMode)
+		if not oneBagMode then
+			page.CompactCategoryGapControl.Row:ClearAllPoints()
+			page.CompactCategoryGapControl.Row:SetPoint("TOPLEFT", previousControl, "BOTTOMLEFT", 24, -14)
+			page.CompactCategoryGapControl.Row:SetPoint("RIGHT", page.Content, "RIGHT", -14, 0)
+			previousControl = page.CompactCategoryGapControl.Row
+		end
 	end
 	if page.CategoryTreeIndentControl and page.CategoryTreeIndentControl.Row then
-		page.CategoryTreeIndentControl.Row:SetShown(true)
+		page.CategoryTreeIndentControl.Row:SetShown(not oneBagMode)
+		if not oneBagMode then
+			page.CategoryTreeIndentControl.Row:ClearAllPoints()
+			page.CategoryTreeIndentControl.Row:SetPoint("TOPLEFT", previousControl, "BOTTOMLEFT", 0, -10)
+			page.CategoryTreeIndentControl.Row:SetPoint("RIGHT", page.Content, "RIGHT", -14, 0)
+			previousControl = page.CategoryTreeIndentControl.Row
+		end
+	end
+	if page.ResetButton and previousControl then
+		page.ResetButton:ClearAllPoints()
+		local resetOffsetX = (previousControl == (page.CompactCategoryGapControl and page.CompactCategoryGapControl.Row)
+			or previousControl == (page.CategoryTreeIndentControl and page.CategoryTreeIndentControl.Row)) and -20 or 4
+		page.ResetButton:SetPoint("TOPLEFT", previousControl, "BOTTOMLEFT", resetOffsetX, -18)
+	end
+	if page.PaddingCard and page.ResetButton then
+		page.PaddingCard:ClearAllPoints()
+		page.PaddingCard:SetPoint("TOPLEFT", page.ResetButton, "BOTTOMLEFT", -4, -18)
+		page.PaddingCard:SetPoint("RIGHT", page.Content, "RIGHT", -12, 0)
 	end
 
 	if page.PaddingCard then

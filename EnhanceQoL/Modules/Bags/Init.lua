@@ -82,6 +82,8 @@ local TEXT_ELEMENT_DEFINITIONS = {
 
 local defaultSettings = {
 	manualVisible = false,
+	oneBagMode = false,
+	oneBagFreeSlotsAtEnd = false,
 	showCategories = true,
 	compactCategoryLayout = true,
 	compactCategoryGap = 8,
@@ -1226,6 +1228,40 @@ function addon.SetMaxColumns(value)
 	end
 
 	settings.maxColumns = clampedValue
+	return true
+end
+
+function addon.GetOneBagMode()
+	local settings = addon.GetSettings()
+	settings.oneBagMode = normalizeBooleanSetting(settings.oneBagMode, defaultSettings.oneBagMode)
+	return settings.oneBagMode
+end
+
+function addon.SetOneBagMode(enabled)
+	local settings = addon.GetSettings()
+	enabled = normalizeBooleanSetting(enabled, defaultSettings.oneBagMode)
+	if settings.oneBagMode == enabled then
+		return false
+	end
+
+	settings.oneBagMode = enabled
+	return true
+end
+
+function addon.GetOneBagFreeSlotsAtEnd()
+	local settings = addon.GetSettings()
+	settings.oneBagFreeSlotsAtEnd = normalizeBooleanSetting(settings.oneBagFreeSlotsAtEnd, defaultSettings.oneBagFreeSlotsAtEnd)
+	return settings.oneBagFreeSlotsAtEnd
+end
+
+function addon.SetOneBagFreeSlotsAtEnd(enabled)
+	local settings = addon.GetSettings()
+	enabled = normalizeBooleanSetting(enabled, defaultSettings.oneBagFreeSlotsAtEnd)
+	if settings.oneBagFreeSlotsAtEnd == enabled then
+		return false
+	end
+
+	settings.oneBagFreeSlotsAtEnd = enabled
 	return true
 end
 
