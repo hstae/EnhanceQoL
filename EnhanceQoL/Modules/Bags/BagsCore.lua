@@ -2077,6 +2077,69 @@ function BagSlotPanel.ApplyCursorToBagSlot(bagID)
 	end
 end
 
+local function getCursorItemLocation()
+	if not C_Cursor or not C_Cursor.GetCursorItem or not C_Item or not C_Item.DoesItemExist then
+		return nil
+	end
+
+	local itemLocation = C_Cursor.GetCursorItem()
+	if not itemLocation or not itemLocation.HasAnyLocation or not itemLocation:HasAnyLocation() then
+		return nil
+	end
+	if not C_Item.DoesItemExist(itemLocation) then
+		return nil
+	end
+
+	return itemLocation
+end
+
+local function getFirstEmptyBagSlot()
+	if not C_Container or not C_Container.GetContainerNumSlots or not C_Container.GetContainerItemInfo then
+		return nil, nil
+	end
+
+	for bagID = Core.BACKPACK_ID, Core.LAST_CHARACTER_BAG_ID do
+		local slotCount = C_Container.GetContainerNumSlots(bagID) or 0
+		for slotID = 1, slotCount do
+			local info = C_Container.GetContainerItemInfo(bagID, slotID)
+			if not (info and info.iconFileID) then
+				return bagID, slotID
+			end
+		end
+	end
+
+	return nil, nil
+end
+
+local function receiveCursorItemIntoBags()
+	if not getCursorItemLocation() or not C_Container or not C_Container.PickupContainerItem then
+		return false
+	end
+
+	local targetBagID, targetSlotID = getFirstEmptyBagSlot()
+	if not targetBagID or not targetSlotID then
+		return false
+	end
+
+	C_Container.PickupContainerItem(targetBagID, targetSlotID)
+	scheduleUpdate(true, true, true)
+	if Bags.functions and Bags.functions.RequestBankLayoutUpdate then
+		Bags.functions.RequestBankLayoutUpdate(true, true)
+	end
+	return true
+end
+
+local function installFrameDropReceiver(frame)
+	if not frame or frame._bagsFrameDropReceiverInstalled then
+		return
+	end
+	frame:EnableMouse(true)
+	frame:SetScript("OnReceiveDrag", function()
+		receiveCursorItemIntoBags()
+	end)
+	frame._bagsFrameDropReceiverInstalled = true
+end
+
 function BagSlotPanel.RefreshButton(button)
 	if not button or not button.bagID then
 		return
@@ -2506,6 +2569,9 @@ local function createMainFrame()
 	end
 	scrollFrame:SetScrollChild(content)
 	frame.Content = content
+	installFrameDropReceiver(frame)
+	installFrameDropReceiver(scrollFrame)
+	installFrameDropReceiver(content)
 
 	local footer = CreateFrame("Frame", nil, frame)
 	footer:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", Core.FRAME_PADDING, 0)

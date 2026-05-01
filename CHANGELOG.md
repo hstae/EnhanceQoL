@@ -7,6 +7,9 @@
 ### ✨ Added
 
 - Bags: Added an optional New Items header click action to clear the current new-item markers immediately without deleting any items.
+- Bags: Added frame-level item drop handling so items can be dropped onto empty bag or bank window space and moved into the next available slot.
+- Resource Bars / Shared Mode: Expanded the Power Color editor into Power Overrides, allowing text display and bar texture overrides per selected power type.
+- Resource Bars / Shared Mode: Added default text overrides for stack- and point-based shared resources such as Combo Points, Holy Power, Chi, Soul Shards, Arcane Charges, Icicles, Essence, Maelstrom Weapon, and Tip of the Spear so they show current values instead of inheriting percent-style slot text.
 
 ### 🐛 Fixed
 

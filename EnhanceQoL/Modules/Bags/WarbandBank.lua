@@ -1,4 +1,4 @@
--- luacheck: globals ACCOUNT_BANK_TITLE ACCOUNT_BANK_DEPOSIT_BUTTON_LABEL CHARACTER_BANK_DEPOSIT_BUTTON_LABEL C_Bank ItemUtil ScrollFrameTemplate_OnMouseWheel BANK_DEPOSIT_INCLUDE_REAGENTS_CHECKBOX_LABEL ClearItemButtonOverlay SetItemButtonQuality ItemButtonUtil PanelTemplates_TabResize ITEM_SEARCHBAR_LIST BagSearch_OnHide BagSearch_OnTextChanged BagSearch_OnChar BankPanelIncludeReagentsCheckboxMixin BankPanelPurchaseTabButtonMixin UIPanelScrollFrame_OnLoad COPPER_PER_GOLD COPPER_PER_SILVER WHITE_FONT_COLOR COSTS
+-- luacheck: globals ACCOUNT_BANK_TITLE ACCOUNT_BANK_DEPOSIT_BUTTON_LABEL CHARACTER_BANK_DEPOSIT_BUTTON_LABEL C_Bank C_Cursor ItemUtil ScrollFrameTemplate_OnMouseWheel BANK_DEPOSIT_INCLUDE_REAGENTS_CHECKBOX_LABEL ClearItemButtonOverlay SetItemButtonQuality ItemButtonUtil PanelTemplates_TabResize ITEM_SEARCHBAR_LIST BagSearch_OnHide BagSearch_OnTextChanged BagSearch_OnChar BankPanelIncludeReagentsCheckboxMixin BankPanelPurchaseTabButtonMixin UIPanelScrollFrame_OnLoad COPPER_PER_GOLD COPPER_PER_SILVER WHITE_FONT_COLOR COSTS
 local addonName, addon = ...
 addon = addon or {}
 _G[addonName] = addon
@@ -167,6 +167,7 @@ local itemLevelEligibilityCache = {}
 local cachedOverlayRuntimeConfig
 local scheduleUpdate
 local applyActiveSkin
+local getVisibleContext
 local hiddenBankFrameParent = CreateFrame("Frame")
 hiddenBankFrameParent:Hide()
 
@@ -582,6 +583,91 @@ local function autoDepositItemsIntoContextBank(context)
 	else
 		C_Bank.AutoDepositItemsIntoBank(bankType)
 	end
+end
+
+local function getCursorItemLocation()
+	if not C_Cursor or not C_Cursor.GetCursorItem or not C_Item or not C_Item.DoesItemExist then
+		return nil
+	end
+
+	local itemLocation = C_Cursor.GetCursorItem()
+	if not itemLocation or not itemLocation.HasAnyLocation or not itemLocation:HasAnyLocation() then
+		return nil
+	end
+	if not C_Item.DoesItemExist(itemLocation) then
+		return nil
+	end
+
+	return itemLocation
+end
+
+local function getFirstEmptyBankSlot(context)
+	if not context or not C_Container or not C_Container.GetContainerNumSlots or not C_Container.GetContainerItemInfo then
+		return nil, nil
+	end
+
+	for _, bagID in ipairs(context.bagIDs or {}) do
+		local slotCount = C_Container.GetContainerNumSlots(bagID) or 0
+		for slotID = 1, slotCount do
+			local info = C_Container.GetContainerItemInfo(bagID, slotID)
+			if not (info and info.iconFileID) then
+				return bagID, slotID
+			end
+		end
+	end
+
+	return nil, nil
+end
+
+local function receiveCursorItemIntoVisibleBank()
+	local itemLocation = getCursorItemLocation()
+	if not itemLocation or not C_Container or not C_Container.PickupContainerItem then
+		return false
+	end
+
+	local context = getVisibleContext()
+	local bankType = getBankTypeForContext(context)
+	if bankType == nil then
+		return false
+	end
+
+	if C_Bank and C_Bank.IsItemAllowedInBankType and not C_Bank.IsItemAllowedInBankType(bankType, itemLocation) then
+		return false
+	end
+
+	local targetBagID, targetSlotID = getFirstEmptyBankSlot(context)
+	if not targetBagID or not targetSlotID then
+		return false
+	end
+
+	if bankType == ACCOUNT_BANK_TYPE and C_Item and C_Item.CanBeRefunded and C_Item.CanBeRefunded(itemLocation) then
+		local targetItemLocation = ItemLocation and ItemLocation:CreateFromBagAndSlot(targetBagID, targetSlotID) or nil
+		if StaticPopup_Show and Item and C_Item.GetItemGUID and C_Item.GetItemGUID(itemLocation) then
+			StaticPopup_Show("ACCOUNT_BANK_DEPOSIT_NO_REFUND_CONFIRM", nil, nil, {
+				itemToDeposit = Item:CreateFromItemGUID(C_Item.GetItemGUID(itemLocation)),
+				targetItemLocation = targetItemLocation,
+			})
+			return true
+		end
+	end
+
+	C_Container.PickupContainerItem(targetBagID, targetSlotID)
+	scheduleUpdate(true, true, true)
+	if Bags.functions and Bags.functions.RequestLayoutUpdate then
+		Bags.functions.RequestLayoutUpdate(true, true)
+	end
+	return true
+end
+
+local function installFrameDropReceiver(frame)
+	if not frame or frame._bagsBankFrameDropReceiverInstalled then
+		return
+	end
+	frame:EnableMouse(true)
+	frame:SetScript("OnReceiveDrag", function()
+		receiveCursorItemIntoVisibleBank()
+	end)
+	frame._bagsBankFrameDropReceiverInstalled = true
 end
 
 local function toggleMoneyTransferPopup(dialogName, otherDialogName, context)
@@ -3032,7 +3118,7 @@ local function setActiveContextID(contextID)
 	getFrameDB().activeContextID = contextID
 end
 
-local function getVisibleContext()
+getVisibleContext = function()
 	local contexts = getVisibleContexts()
 	local preferredContextID = state.activeContextID or getFrameDB().activeContextID
 	local context = findContextByID(contexts, preferredContextID) or contexts[1]
@@ -3480,6 +3566,9 @@ local function createMainFrame()
 	end
 	scrollFrame:SetScrollChild(content)
 	frame.Content = content
+	installFrameDropReceiver(frame)
+	installFrameDropReceiver(scrollFrame)
+	installFrameDropReceiver(content)
 
 	state.frame = frame
 	state.scrollFrame = scrollFrame
