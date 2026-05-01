@@ -2047,7 +2047,11 @@ local function parseItemID(input)
 		return nil
 	end
 
-	local itemID = value:match("item:(%d+)") or value:match("|Hitem:(%d+)") or value:match("^(%d+)$")
+	local itemID = value:match("|Hitem:(%d+)")
+		or value:match("item:(%d+)")
+		or value:match("|Hkeystone:(%d+)")
+		or value:match("keystone:(%d+)")
+		or value:match("^(%d+)$")
 	itemID = tonumber(itemID)
 	if itemID and itemID > 0 then
 		return itemID

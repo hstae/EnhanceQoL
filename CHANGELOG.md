@@ -13,6 +13,10 @@
 
 - Bags: Improved tree-view indentation so standalone category items can align with subcategories while their category headers stay left-aligned.
 
+### 🐛 Fixed
+
+- Bags: Fixed Keystone links not being accepted when assigning items to custom categories via Alt-drag or the Assigned Items drop target.
+
 ## [10.10.0-beta3] - 2026-05-01
 
 ### ✨ Added
