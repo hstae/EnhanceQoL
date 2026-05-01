@@ -64,18 +64,11 @@
 
 <!--@end-eqol-beta@-->
 
-## [10.9.3] - 2026-05-01
-
-### 🐛 Fixed
-
-- Profiles / Group Frames: Fixed imported profiles initially applying stale Group Frame Edit Mode positions from the global UF profile until a second UI reload.
-
----
-
 ## [10.9.2] - 2026-05-01
 
 ### 🐛 Fixed
 
+- Profiles / Group Frames: Fixed imported profiles initially applying stale Group Frame Edit Mode positions from the global UF profile until a second UI reload.
 - Resource Bars / Shared Mode: Fixed Druid shared resource bars keeping stale power colors after shapeshifting between forms such as Cat Form and Moonkin Form.
 - Resource Bars / Edit Mode: Fixed the shared Power Color editor not refreshing its color and override controls immediately after switching the selected power type.
 
