@@ -2,6 +2,13 @@
 
 <!--@eqol-beta@-->
 
+## [10.10.0-beta4] - 2026-05-01
+
+### ✨ Added
+
+- Bags: Added an optional group spacer for custom category groups to visually separate grouped sections.
+- Bags: Added Mounts and Pets to the Basic category preset so collection items are grouped automatically.
+
 ## [10.10.0-beta3] - 2026-05-01
 
 ### ✨ Added
@@ -10,13 +17,13 @@
 - Bags: Added frame-level item drop handling so items can be dropped onto empty bag or bank window space and moved into the next available slot.
 - Bags: Added an option for the integrated bank to reopen on the last used Personal Bank or Warband Bank tab.
 - Bags: Added an optional tree-view layout for grouped categories with configurable subcategory indentation.
-- Bags: Added Mounts and Pets to the Basic category preset so collection items are grouped automatically.
 - Resource Bars / Shared Mode: Expanded the Power Color editor into Power Overrides, allowing text display and bar texture overrides per selected power type.
 - Resource Bars / Shared Mode: Added default text overrides for stack- and point-based shared resources such as Combo Points, Holy Power, Chi, Soul Shards, Arcane Charges, Icicles, Essence, Maelstrom Weapon, and Tip of the Spear so they show current values instead of inheriting percent-style slot text.
 
 ### 🐛 Fixed
 
 - Bags: Fixed New Items session handling so unacknowledged items stay in New Items across bag reopen, while acknowledged items move to their normal category on the next open unless header-click clearing is enabled.
+- Bags: Fixed the remembered bank tab being cleared by the close update before the next bank open.
 
 ## [10.10.0-beta2] - 2026-04-30
 

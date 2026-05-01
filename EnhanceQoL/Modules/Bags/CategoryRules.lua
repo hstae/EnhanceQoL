@@ -1287,6 +1287,7 @@ local function buildCompiledCustomCategoryState(categories, groups)
 					groupLabel = group.name,
 					groupColor = group.color,
 					groupCollapseID = string.format("group:%s", group.id),
+					groupSpacerBefore = group.spacerBefore == true,
 					collapsible = false,
 				}
 			end
@@ -1419,6 +1420,7 @@ local function sanitizeCustomGroup(settings, group, index)
 	group.sortOrder = math.floor(tonumber(group.sortOrder) or allocateSortOrder(settings))
 	group.name = sanitizeGroupName(group.name) or string.format("%s %d", L["settingsCategoryGroupLabel"] or "Group", index)
 	group.color = sanitizeColor(group.color, getDefaultCategoryColor(index))
+	group.spacerBefore = group.spacerBefore == true
 	return group
 end
 
@@ -2679,6 +2681,22 @@ function addon.SetCustomCategoryGroupColor(groupID, color)
 	end
 
 	return false
+end
+
+function addon.SetCustomCategoryGroupSpacerBefore(groupID, enabled)
+	local group = findGroupByID(groupID)
+	if not group then
+		return false
+	end
+
+	enabled = enabled == true
+	if group.spacerBefore == enabled then
+		return false
+	end
+
+	group.spacerBefore = enabled
+	markCustomCategoryStateDirty()
+	return true
 end
 
 function addon.SetCustomCategoryParentGroup(categoryID, groupID)

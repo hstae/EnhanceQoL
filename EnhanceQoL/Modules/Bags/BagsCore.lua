@@ -34,6 +34,8 @@ Core.GROUP_HEADER_GAP = 4
 Core.SECTION_CONTENT_TOP_PADDING = 6
 Core.SECTION_GAP = 10
 Core.SECTION_HORIZONTAL_GAP = 8
+Core.GROUP_SPACER_TOP_GAP = 6
+Core.GROUP_SPACER_BOTTOM_GAP = 8
 Core.CLUSTER_GAP = 12
 Core.MIN_FRAME_WIDTH = 240
 Core.MIN_SCROLL_CONTENT_HEIGHT = 160
@@ -139,6 +141,7 @@ Bags.variables.state = state
 state.buttons = state.buttons or {}
 state.slotMappings = state.slotMappings or {}
 state.sectionHeaders = state.sectionHeaders or {}
+state.groupSpacers = state.groupSpacers or {}
 state.currencyButtons = state.currencyButtons or {}
 state.itemRuleDataCache = state.itemRuleDataCache or {}
 state.tooltipBindTypeCache = state.tooltipBindTypeCache or {}
@@ -933,6 +936,12 @@ applyActiveSkin = function()
 		applySectionHeaderSkin(header, skin)
 	end
 
+	for _, spacer in ipairs(state.groupSpacers or {}) do
+		if spacer and spacer.Line then
+			spacer.Line:SetColorTexture(unpackSkinColor(skin and skin.dividerColor, 1, 1, 1, 0.08))
+		end
+	end
+
 	for _, button in ipairs(state.currencyButtons or {}) do
 		if button and button.Count then
 			button.Count:SetTextColor(unpackSkinColor(skin.accentColor, 1, 1, 1, 1))
@@ -1700,6 +1709,21 @@ local function acquireSectionHeader(index)
 	applySectionHeaderSkin(header, getActiveFrameSkin())
 	state.sectionHeaders[index] = header
 	return header
+end
+
+local function acquireGroupSpacer(index)
+	local spacer = state.groupSpacers[index]
+	if spacer then
+		return spacer
+	end
+
+	spacer = CreateFrame("Frame", nil, state.content)
+	spacer:SetHeight(1)
+	spacer.Line = spacer:CreateTexture(nil, "BORDER")
+	spacer.Line:SetAllPoints()
+	spacer.Line:SetColorTexture(1, 1, 1, 0.08)
+	state.groupSpacers[index] = spacer
+	return spacer
 end
 
 local function formatTrackedCurrencyQuantity(quantity)
@@ -3283,6 +3307,7 @@ local function buildSectionDefinitions()
 			groupLabel = definition.groupLabel,
 			groupColor = definition.groupColor,
 			groupCollapseID = definition.groupCollapseID,
+			groupSpacerBefore = definition.groupSpacerBefore == true,
 			collapsible = definition.collapsible ~= false,
 			forceHeader = definition.forceHeader == true,
 		}
@@ -4050,6 +4075,7 @@ local function ensureSection(layoutData, sectionID)
 		groupLabel = definition.groupLabel,
 		groupColor = definition.groupColor,
 		groupCollapseID = definition.groupCollapseID,
+		groupSpacerBefore = definition.groupSpacerBefore == true,
 		collapsible = definition.collapsible ~= false,
 		columnCount = tonumber(definition.columnCount) or nil,
 		forceHeader = definition.forceHeader == true,
@@ -4855,9 +4881,24 @@ local function getSectionCollapsedState(section, showSectionHeader)
 	return isSectionCollapsed(collapseID)
 end
 
-local function renderSectionGroupHeader(section, currentHeaderCount, yOffset, isCollapsed)
+local function renderSectionGroupHeader(section, currentHeaderCount, currentSpacerCount, yOffset, isCollapsed)
 	if not section or not section.groupID or not section.groupLabel or section.groupLabel == "" then
-		return currentHeaderCount, yOffset
+		return currentHeaderCount, currentSpacerCount, yOffset
+	end
+
+	if section.groupSpacerBefore and yOffset > 0 then
+		yOffset = yOffset + Core.GROUP_SPACER_TOP_GAP
+		currentSpacerCount = currentSpacerCount + 1
+		local spacer = acquireGroupSpacer(currentSpacerCount)
+		spacer:ClearAllPoints()
+		spacer:SetPoint("TOPLEFT", state.content, "TOPLEFT", 0, -yOffset)
+		spacer:SetPoint("RIGHT", state.content, "RIGHT", 0, 0)
+		if spacer.Line then
+			local skin = getActiveFrameSkin()
+			spacer.Line:SetColorTexture(unpackSkinColor(skin and skin.dividerColor, 1, 1, 1, 0.08))
+		end
+		spacer:Show()
+		yOffset = yOffset + 1 + Core.GROUP_SPACER_BOTTOM_GAP
 	end
 
 	currentHeaderCount = currentHeaderCount + 1
@@ -4875,7 +4916,7 @@ local function renderSectionGroupHeader(section, currentHeaderCount, yOffset, is
 	header:SetPoint("RIGHT", state.content, "RIGHT", 0, 0)
 	header:Show()
 
-	return currentHeaderCount, yOffset + Core.GROUP_HEADER_HEIGHT + Core.GROUP_HEADER_GAP
+	return currentHeaderCount, currentSpacerCount, yOffset + Core.GROUP_HEADER_HEIGHT + Core.GROUP_HEADER_GAP
 end
 
 local function getGroupedCategoryIndent(section)
@@ -4893,6 +4934,7 @@ local function layoutFrame(layoutData)
 	local buttonSize = getButtonSize(settings)
 	local buttonSpacing = getButtonSpacing(settings)
 	local currentHeaderCount = 0
+	local currentSpacerCount = 0
 	local contentWidth = 1
 	local yOffset = 0
 	local activeGroupID = nil
@@ -4916,7 +4958,7 @@ local function layoutFrame(layoutData)
 
 		if section.groupID then
 			if activeGroupID ~= section.groupID then
-				currentHeaderCount, yOffset = renderSectionGroupHeader(section, currentHeaderCount, yOffset, groupCollapsed)
+				currentHeaderCount, currentSpacerCount, yOffset = renderSectionGroupHeader(section, currentHeaderCount, currentSpacerCount, yOffset, groupCollapsed)
 				activeGroupID = section.groupID
 			end
 		else
@@ -5085,6 +5127,9 @@ local function layoutFrame(layoutData)
 
 	for index = currentHeaderCount + 1, #state.sectionHeaders do
 		state.sectionHeaders[index]:Hide()
+	end
+	for index = currentSpacerCount + 1, #state.groupSpacers do
+		state.groupSpacers[index]:Hide()
 	end
 
 	local contentHeight = getLayoutContentHeight(settings, yOffset)

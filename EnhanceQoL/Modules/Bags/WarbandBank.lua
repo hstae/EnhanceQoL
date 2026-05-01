@@ -29,6 +29,8 @@ local GROUP_HEADER_GAP = 4
 local SECTION_CONTENT_TOP_PADDING = 6
 local SECTION_GAP = 10
 local SECTION_HORIZONTAL_GAP = 8
+local GROUP_SPACER_TOP_GAP = 6
+local GROUP_SPACER_BOTTOM_GAP = 8
 local CLUSTER_GAP = 12
 local MIN_FRAME_WIDTH = 420
 local MIN_SCROLL_CONTENT_HEIGHT = 160
@@ -153,6 +155,7 @@ Bags.variables.warbandBankState = state
 state.buttons = state.buttons or {}
 state.slotMappings = state.slotMappings or {}
 state.sectionHeaders = state.sectionHeaders or {}
+state.groupSpacers = state.groupSpacers or {}
 state.itemRuleDataCache = state.itemRuleDataCache or {}
 state.tooltipBindTypeCache = state.tooltipBindTypeCache or {}
 state.slotCategoryCache = state.slotCategoryCache or {}
@@ -295,6 +298,12 @@ applyActiveSkin = function()
 
 	for _, header in ipairs(state.sectionHeaders or {}) do
 		applySectionHeaderSkin(header, skin)
+	end
+
+	for _, spacer in ipairs(state.groupSpacers or {}) do
+		if spacer and spacer.Line then
+			spacer.Line:SetColorTexture(unpackSkinColor(skin and skin.dividerColor, 1, 1, 1, 0.08))
+		end
 	end
 
 	for index, tab in ipairs(state.frame and state.frame.Tabs or {}) do
@@ -1874,6 +1883,7 @@ local function buildSectionDefinitions()
 			groupLabel = definition.groupLabel,
 			groupColor = definition.groupColor,
 			groupCollapseID = definition.groupCollapseID,
+			groupSpacerBefore = definition.groupSpacerBefore == true,
 			collapsible = definition.collapsible ~= false,
 			forceHeader = definition.forceHeader == true,
 		}
@@ -2094,6 +2104,7 @@ local function ensureSection(layoutData, sectionID)
 		groupLabel = definition.groupLabel,
 		groupColor = definition.groupColor,
 		groupCollapseID = definition.groupCollapseID,
+		groupSpacerBefore = definition.groupSpacerBefore == true,
 		collapsible = definition.collapsible ~= false,
 		forceHeader = definition.forceHeader == true,
 		slotIndices = {},
@@ -2504,6 +2515,21 @@ local function acquireSectionHeader(index)
 	return header
 end
 
+local function acquireGroupSpacer(index)
+	local spacer = state.groupSpacers[index]
+	if spacer then
+		return spacer
+	end
+
+	spacer = CreateFrame("Frame", nil, state.content)
+	spacer:SetHeight(1)
+	spacer.Line = spacer:CreateTexture(nil, "BORDER")
+	spacer.Line:SetAllPoints()
+	spacer.Line:SetColorTexture(1, 1, 1, 0.08)
+	state.groupSpacers[index] = spacer
+	return spacer
+end
+
 local function hasMatchingButtonRenderState(
 	button,
 	bagID,
@@ -2878,9 +2904,24 @@ local function layoutFrame(layoutData, context)
 		return isSectionCollapsed(collapseID)
 	end
 
-	local function renderSectionGroupHeader(section, headerCount, offsetY, isCollapsed)
+	local function renderSectionGroupHeader(section, headerCount, spacerCount, offsetY, isCollapsed)
 		if not section or not section.groupID or not section.groupLabel or section.groupLabel == "" then
-			return headerCount, offsetY
+			return headerCount, spacerCount, offsetY
+		end
+
+		if section.groupSpacerBefore and offsetY > 0 then
+			offsetY = offsetY + GROUP_SPACER_TOP_GAP
+			spacerCount = spacerCount + 1
+			local spacer = acquireGroupSpacer(spacerCount)
+			spacer:ClearAllPoints()
+			spacer:SetPoint("TOPLEFT", state.content, "TOPLEFT", 0, -offsetY)
+			spacer:SetPoint("RIGHT", state.content, "RIGHT", 0, 0)
+			if spacer.Line then
+				local skin = getActiveFrameSkin()
+				spacer.Line:SetColorTexture(unpackSkinColor(skin and skin.dividerColor, 1, 1, 1, 0.08))
+			end
+			spacer:Show()
+			offsetY = offsetY + 1 + GROUP_SPACER_BOTTOM_GAP
 		end
 
 		headerCount = headerCount + 1
@@ -2898,7 +2939,7 @@ local function layoutFrame(layoutData, context)
 		header:SetPoint("RIGHT", state.content, "RIGHT", 0, 0)
 		header:Show()
 
-		return headerCount, offsetY + GROUP_HEADER_HEIGHT + GROUP_HEADER_GAP
+		return headerCount, spacerCount, offsetY + GROUP_HEADER_HEIGHT + GROUP_HEADER_GAP
 	end
 
 	local function getGroupedCategoryIndent(section)
@@ -2913,13 +2954,14 @@ local function layoutFrame(layoutData, context)
 
 		local sectionIndex = 1
 		local activeGroupID = nil
+		local currentSpacerCount = 0
 		while sectionIndex <= #layoutData.sections do
 			local section = layoutData.sections[sectionIndex]
 			local groupCollapsed = section.groupID and section.groupCollapseID and isSectionCollapsed(section.groupCollapseID) or false
 
 			if section.groupID then
 				if activeGroupID ~= section.groupID then
-					currentHeaderCount, yOffset = renderSectionGroupHeader(section, currentHeaderCount, yOffset, groupCollapsed)
+					currentHeaderCount, currentSpacerCount, yOffset = renderSectionGroupHeader(section, currentHeaderCount, currentSpacerCount, yOffset, groupCollapsed)
 					activeGroupID = section.groupID
 				end
 		else
@@ -3102,6 +3144,9 @@ local function layoutFrame(layoutData, context)
 
 	for index = currentHeaderCount + 1, #state.sectionHeaders do
 		state.sectionHeaders[index]:Hide()
+	end
+	for index = currentSpacerCount + 1, #state.groupSpacers do
+		state.groupSpacers[index]:Hide()
 	end
 
 	local contentHeight = math.max(1, yOffset)

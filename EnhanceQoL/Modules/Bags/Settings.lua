@@ -2662,6 +2662,24 @@ local function createCategoriesPage(parent)
 	priorityHint:SetText(L["settingsCategoryPriorityHint"] or "Higher priority wins when one item matches multiple categories.")
 	page.PriorityHint = priorityHint
 
+	local groupSpacerBefore = createInlineCheckbox(
+		detailContent,
+		L["settingsCategoryGroupSpacerBefore"] or "Add spacer before group",
+		L["settingsCategoryGroupSpacerBeforeTooltip"] or "",
+		function(value)
+			local selection = getCategoryPageSelection()
+			if selection.selectedType == "group" and selection.selectedGroup and addon.SetCustomCategoryGroupSpacerBefore then
+				addon.SetCustomCategoryGroupSpacerBefore(selection.selectedGroup.id, value)
+				requestCategoryRefresh()
+			end
+		end
+	)
+	groupSpacerBefore:SetPoint("TOPLEFT", priorityHint, "BOTTOMLEFT", -4, -14)
+	if groupSpacerBefore.Label then
+		groupSpacerBefore.Label:SetPoint("RIGHT", detailContent, "RIGHT", -14, 0)
+	end
+	page.GroupSpacerBefore = groupSpacerBefore
+
 	local matchPriorityLabel = detailContent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	matchPriorityLabel:SetPoint("TOPLEFT", priorityHint, "BOTTOMLEFT", 0, -16)
 	matchPriorityLabel:SetText(L["settingsCategoryPriorityLabel"] or "Priority")
@@ -2988,6 +3006,10 @@ refreshCategoriesPage = function(page)
 	page.CategoryColorLabel:SetShown(hasSelection)
 	page.CategoryColorSwatch:SetShown(hasSelection)
 	page.PriorityHint:SetShown(hasSelection)
+	page.GroupSpacerBefore:SetShown(isGroupSelection)
+	if page.GroupSpacerBefore.Label then
+		page.GroupSpacerBefore.Label:SetShown(isGroupSelection)
+	end
 	page.ItemsCard:SetShown(isCategorySelection)
 	page.RulesCard:SetShown(isCategorySelection)
 
@@ -3024,6 +3046,7 @@ refreshCategoriesPage = function(page)
 		page.PriorityHint:SetPoint("RIGHT", page.DetailContent, "RIGHT", -14, 0)
 		page.PriorityHint:SetText(L["settingsCategoryOrderHint"] or "Lower values render earlier. This only changes where the entry appears, not which items match its rules.")
 		page.SortButton:SetText(L["settingsCategorySortDefault"] or "Default")
+		page.GroupSpacerBefore:SetChecked(selectedGroup.spacerBefore == true)
 		if not page.PriorityValue:HasFocus() then
 			page.PriorityValue:SetText(tostring(selectedGroup.sortOrder or 0))
 		end
@@ -3038,12 +3061,12 @@ refreshCategoriesPage = function(page)
 		end
 
 		local detailTop = page.DetailContent:GetTop()
-		local hintBottom = page.PriorityHint:GetBottom()
+		local groupSpacerBottom = page.GroupSpacerBefore:GetBottom()
 		local contentHeight
-		if detailTop and hintBottom then
-			contentHeight = math.ceil((detailTop - hintBottom) + 24)
+		if detailTop and groupSpacerBottom then
+			contentHeight = math.ceil((detailTop - groupSpacerBottom) + 24)
 		else
-			contentHeight = 148
+			contentHeight = 184
 		end
 		updateScrollContainer(page.DetailScrollFrame, page.DetailContent, contentHeight)
 		return
