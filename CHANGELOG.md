@@ -2,6 +2,13 @@
 
 <!--@eqol-beta@-->
 
+## [10.10.0-beta5] - 2026-05-01
+
+### 🐛 Fixed
+
+- Vendor: Fixed sell and destroy mask overlays ignoring custom bag item shapes.
+- Vendor: Hid the extra sell corner icon on junk items that already show the default junk coin marker.
+
 ## [10.10.0-beta4] - 2026-05-01
 
 ### ✨ Added

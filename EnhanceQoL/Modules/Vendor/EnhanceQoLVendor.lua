@@ -152,6 +152,42 @@ local function hideSellDestroyOverlays(itemButton)
 	if itemButton.DestroyOverlay then itemButton.DestroyOverlay:Hide() end
 end
 
+local function applyItemButtonShapeMask(texture, itemButton)
+	if not texture or not texture.AddMaskTexture then
+		return
+	end
+
+	local mask = itemButton and itemButton.BagsShapeIconMask
+	local previousMask = texture._enhanceQoLVendorShapeMask
+	if previousMask == mask then
+		return
+	end
+
+	if previousMask and texture.RemoveMaskTexture then
+		texture:RemoveMaskTexture(previousMask)
+	end
+
+	if mask then
+		texture:AddMaskTexture(mask)
+	end
+
+	texture._enhanceQoLVendorShapeMask = mask
+end
+
+local function itemButtonHasDefaultJunkMark(itemButton, bag, slot)
+	if itemButton and itemButton.JunkIcon and itemButton.JunkIcon.IsShown and itemButton.JunkIcon:IsShown() then
+		return true
+	end
+
+	local quality = itemButton and (itemButton._bagsRenderQuality or itemButton._bagsWarbandRenderQuality)
+	if quality == nil and C_Container and C_Container.GetContainerItemInfo then
+		local info = C_Container.GetContainerItemInfo(bag, slot)
+		quality = info and info.quality
+	end
+
+	return quality == 0
+end
+
 local function isBaganatorBackpackItemButton(itemButton)
 	local bag = getBagSlotFromItemButton(itemButton)
 	return type(bag) == "number" and bag >= 0 and bag <= NUM_TOTAL_EQUIPPED_BAG_SLOTS
@@ -577,6 +613,7 @@ applySellDestroyOverlayToItemButton = function(itemButton, overlaySell, overlayD
 	local showDestroy = overlayDestroy and isDestroy
 	local matchesSearch = itemButtonMatchesSearch(itemButton)
 	local useBaganatorCornerIcons = itemButton.BGR ~= nil and isBaganatorCornerWidgetActive()
+	local hasDefaultJunkMark = itemButtonHasDefaultJunkMark(itemButton, bag, slot)
 
 	if showSell then
 		if not itemButton.SellOverlay then
@@ -584,7 +621,8 @@ applySellDestroyOverlayToItemButton = function(itemButton, overlaySell, overlayD
 			itemButton.SellOverlay:SetAllPoints()
 			itemButton.SellOverlay:SetColorTexture(1, 0, 0, 0.45)
 		end
-		if useBaganatorCornerIcons then
+		applyItemButtonShapeMask(itemButton.SellOverlay, itemButton)
+		if useBaganatorCornerIcons or hasDefaultJunkMark then
 			if itemButton.ItemMarkSell then itemButton.ItemMarkSell:Hide() end
 		else
 			if not itemButton.ItemMarkSell then
@@ -619,6 +657,7 @@ applySellDestroyOverlayToItemButton = function(itemButton, overlaySell, overlayD
 			itemButton.DestroyOverlay:SetAllPoints()
 			itemButton.DestroyOverlay:SetColorTexture(0.85, 0.1, 0.1, 0.45)
 		end
+		applyItemButtonShapeMask(itemButton.DestroyOverlay, itemButton)
 		if useBaganatorCornerIcons then
 			if itemButton.ItemMarkDestroy then itemButton.ItemMarkDestroy:Hide() end
 		else
