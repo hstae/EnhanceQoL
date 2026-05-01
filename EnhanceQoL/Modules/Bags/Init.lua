@@ -85,8 +85,11 @@ local defaultSettings = {
 	showCategories = true,
 	compactCategoryLayout = true,
 	compactCategoryGap = 8,
+	categoryTreeView = false,
+	categoryTreeIndent = 14,
 	showCloseButton = true,
 	clearNewItemsOnHeaderClick = false,
+	rememberLastBankTab = true,
 	combineFreeSlots = true,
 	showFreeSlots = true,
 	combineUnstackableItems = true,
@@ -958,6 +961,17 @@ local function clampPaddingValue(padding, defaultValue)
 	return padding
 end
 
+local function clampCategorySpacingValue(spacing, defaultValue)
+	spacing = math.floor((tonumber(spacing) or defaultValue or 0) + 0.5)
+	if spacing < 0 then
+		spacing = 0
+	elseif spacing > 40 then
+		spacing = 40
+	end
+
+	return spacing
+end
+
 local function clampItemScaleValue(scale, defaultValue)
 	scale = tonumber(scale) or defaultValue or 100
 	scale = math.floor(((scale / 5) + 0.5)) * 5
@@ -1234,18 +1248,52 @@ end
 
 function addon.GetCompactCategoryGap()
 	local settings = addon.GetSettings()
-	settings.compactCategoryGap = clampPaddingValue(settings.compactCategoryGap, defaultSettings.compactCategoryGap)
+	settings.compactCategoryGap = clampCategorySpacingValue(settings.compactCategoryGap, defaultSettings.compactCategoryGap)
 	return settings.compactCategoryGap
 end
 
 function addon.SetCompactCategoryGap(value)
 	local settings = addon.GetSettings()
-	local clampedValue = clampPaddingValue(value, defaultSettings.compactCategoryGap)
+	local clampedValue = clampCategorySpacingValue(value, defaultSettings.compactCategoryGap)
 	if settings.compactCategoryGap == clampedValue then
 		return false
 	end
 
 	settings.compactCategoryGap = clampedValue
+	return true
+end
+
+function addon.GetCategoryTreeView()
+	local settings = addon.GetSettings()
+	settings.categoryTreeView = normalizeBooleanSetting(settings.categoryTreeView, defaultSettings.categoryTreeView)
+	return settings.categoryTreeView
+end
+
+function addon.SetCategoryTreeView(enabled)
+	local settings = addon.GetSettings()
+	enabled = normalizeBooleanSetting(enabled, defaultSettings.categoryTreeView)
+	if settings.categoryTreeView == enabled then
+		return false
+	end
+
+	settings.categoryTreeView = enabled
+	return true
+end
+
+function addon.GetCategoryTreeIndent()
+	local settings = addon.GetSettings()
+	settings.categoryTreeIndent = clampCategorySpacingValue(settings.categoryTreeIndent, defaultSettings.categoryTreeIndent)
+	return settings.categoryTreeIndent
+end
+
+function addon.SetCategoryTreeIndent(value)
+	local settings = addon.GetSettings()
+	local clampedValue = clampCategorySpacingValue(value, defaultSettings.categoryTreeIndent)
+	if settings.categoryTreeIndent == clampedValue then
+		return false
+	end
+
+	settings.categoryTreeIndent = clampedValue
 	return true
 end
 
@@ -1280,6 +1328,23 @@ function addon.SetClearNewItemsOnHeaderClick(enabled)
 	end
 
 	settings.clearNewItemsOnHeaderClick = enabled
+	return true
+end
+
+function addon.GetRememberLastBankTab()
+	local settings = addon.GetSettings()
+	settings.rememberLastBankTab = normalizeBooleanSetting(settings.rememberLastBankTab, defaultSettings.rememberLastBankTab)
+	return settings.rememberLastBankTab
+end
+
+function addon.SetRememberLastBankTab(enabled)
+	local settings = addon.GetSettings()
+	enabled = normalizeBooleanSetting(enabled, defaultSettings.rememberLastBankTab)
+	if settings.rememberLastBankTab == enabled then
+		return false
+	end
+
+	settings.rememberLastBankTab = enabled
 	return true
 end
 

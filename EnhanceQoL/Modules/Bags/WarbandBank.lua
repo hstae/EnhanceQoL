@@ -2901,6 +2901,16 @@ local function layoutFrame(layoutData, context)
 		return headerCount, offsetY + GROUP_HEADER_HEIGHT + GROUP_HEADER_GAP
 	end
 
+	local function getGroupedCategoryIndent(section)
+		if not (section and section.groupID) then
+			return 0
+		end
+		if not (addon.GetCategoryTreeView and addon.GetCategoryTreeView()) then
+			return 0
+		end
+		return addon.GetCategoryTreeIndent and addon.GetCategoryTreeIndent() or 0
+	end
+
 		local sectionIndex = 1
 		local activeGroupID = nil
 		while sectionIndex <= #layoutData.sections do
@@ -2950,6 +2960,8 @@ local function layoutFrame(layoutData, context)
 					local rowWidth = 0
 					local rowHeight = 0
 					local rowGroupID = section.groupID
+					local rowIndent = getGroupedCategoryIndent(section)
+					local rowMaxContentWidth = math.max(buttonSize, maxContentWidth - rowIndent)
 
 					while sectionIndex <= #layoutData.sections do
 						local candidate = layoutData.sections[sectionIndex]
@@ -2977,7 +2989,7 @@ local function layoutFrame(layoutData, context)
 							nextWidth = nextWidth + compactSectionGap
 						end
 
-						if #rowSections > 0 and (rowWidth + nextWidth) > maxContentWidth then
+						if #rowSections > 0 and (rowWidth + nextWidth) > rowMaxContentWidth then
 							break
 						end
 
@@ -2991,7 +3003,7 @@ local function layoutFrame(layoutData, context)
 						sectionIndex = sectionIndex + 1
 					end
 
-					local blockX = 0
+					local blockX = rowIndent
 					for _, entry in ipairs(rowSections) do
 						local rowSection = entry.section
 						local rowMetrics = entry.metrics
@@ -3039,6 +3051,7 @@ local function layoutFrame(layoutData, context)
 					if showSectionHeader then
 						currentHeaderCount = currentHeaderCount + 1
 						local header = acquireSectionHeader(currentHeaderCount)
+						local categoryIndent = getGroupedCategoryIndent(section)
 						configureSectionHeader(header, {
 							sectionID = section.id,
 							label = section.label,
@@ -3048,17 +3061,18 @@ local function layoutFrame(layoutData, context)
 							textElementID = section.groupID and "subcategoryHeader" or "categoryHeader",
 						})
 						header:ClearAllPoints()
-						header:SetPoint("TOPLEFT", state.content, "TOPLEFT", 0, -yOffset)
-						header:SetPoint("RIGHT", state.content, "RIGHT", 0, 0)
+						header:SetPoint("TOPLEFT", state.content, "TOPLEFT", categoryIndent, -yOffset)
+						header:SetPoint("RIGHT", state.content, "RIGHT", -categoryIndent, 0)
 						header:Show()
 						yOffset = yOffset + SECTION_HEADER_HEIGHT
 					end
 
 					if metrics.itemCount > 0 and not sectionCollapsed then
+						local categoryIndent = getGroupedCategoryIndent(section)
 						if showSectionHeader then
 							yOffset = yOffset + SECTION_CONTENT_TOP_PADDING
 						end
-						contentWidth = math.max(contentWidth, metrics.sectionWidth)
+						contentWidth = math.max(contentWidth, categoryIndent + metrics.sectionWidth)
 
 						for visualIndex, mappingIndex in ipairs(section.slotIndices) do
 							local button = state.buttons[mappingIndex]
@@ -3070,7 +3084,7 @@ local function layoutFrame(layoutData, context)
 								"TOPLEFT",
 								state.content,
 								"TOPLEFT",
-								column * (buttonSize + buttonSpacing),
+								categoryIndent + (column * (buttonSize + buttonSpacing)),
 								-(yOffset + (row * (buttonSize + buttonSpacing)))
 							)
 						end
@@ -3113,18 +3127,33 @@ local function findContextByID(contexts, contextID)
 	return nil
 end
 
-local function setActiveContextID(contextID)
+local function shouldRememberLastBankTab()
+	return addon.GetRememberLastBankTab == nil or addon.GetRememberLastBankTab()
+end
+
+local function setActiveContextID(contextID, persist)
 	state.activeContextID = contextID
-	getFrameDB().activeContextID = contextID
+	if persist and shouldRememberLastBankTab() then
+		getFrameDB().activeContextID = contextID
+	end
 end
 
 getVisibleContext = function()
 	local contexts = getVisibleContexts()
-	local preferredContextID = state.activeContextID or getFrameDB().activeContextID
+	local rememberLastBankTab = shouldRememberLastBankTab()
+	if not rememberLastBankTab then
+		getFrameDB().activeContextID = nil
+	end
+
+	if #contexts == 0 then
+		return nil, contexts
+	end
+
+	local preferredContextID = state.activeContextID or (rememberLastBankTab and getFrameDB().activeContextID or nil)
 	local context = findContextByID(contexts, preferredContextID) or contexts[1]
 
 	if state.activeContextID ~= (context and context.id or nil) then
-		setActiveContextID(context and context.id or nil)
+		setActiveContextID(context and context.id or nil, false)
 	end
 
 	return context, contexts
@@ -3344,6 +3373,10 @@ local function createMainFrame()
 	frame.BackgroundShade = backgroundShade
 	tinsert(UISpecialFrames, "BagsWarbandBankFrame")
 	frame:SetScript("OnHide", function()
+		if not shouldRememberLastBankTab() then
+			state.activeContextID = nil
+			getFrameDB().activeContextID = nil
+		end
 		if C_Bank and C_Bank.CloseBankFrame and addon.AreAnyBankContextsViewable and addon.AreAnyBankContextsViewable() then
 			C_Bank.CloseBankFrame()
 		end
@@ -3453,7 +3486,7 @@ local function createMainFrame()
 		tab.contextID = definition.id
 		tab:SetScript("OnClick", function(self)
 			if self.contextID and self.contextID ~= state.activeContextID then
-				setActiveContextID(self.contextID)
+				setActiveContextID(self.contextID, true)
 				syncBlizzardBankStateForContextID(self.contextID)
 				notifyItemContextChanged()
 				if scheduleUpdate then

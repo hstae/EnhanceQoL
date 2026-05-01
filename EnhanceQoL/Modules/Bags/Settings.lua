@@ -3175,7 +3175,7 @@ local function createLayoutPage(parent)
 	scrollFrame:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -28, 0)
 	page.ScrollFrame = scrollFrame
 	page.Content = content
-	page.LayoutContentHeight = 1544
+	page.LayoutContentHeight = 1640
 
 	local contentParent = content
 
@@ -3258,12 +3258,26 @@ local function createLayoutPage(parent)
 		end
 	)
 
+	page.CategoryTreeView = createCheckbox(
+		contentParent,
+		L["settingsCategoryTreeView"] or "Tree view for grouped categories",
+		L["settingsCategoryTreeViewTooltip"] or "",
+		0,
+		-188,
+		function(value)
+			if addon.SetCategoryTreeView and addon.SetCategoryTreeView(value) then
+				addon.RefreshSettingsFrame("layout")
+				requestBagRefresh(true, true)
+			end
+		end
+	)
+
 	page.ShowCloseButton = createCheckbox(
 		contentParent,
 		L["settingsShowCloseButton"] or "Show close button",
 		L["settingsShowCloseButtonTooltip"] or "",
 		0,
-		-188,
+		-218,
 		function(value)
 			if addon.SetShowCloseButton and addon.SetShowCloseButton(value) then
 				addon.RefreshSettingsFrame("layout")
@@ -3272,9 +3286,23 @@ local function createLayoutPage(parent)
 		end
 	)
 
+	page.RememberLastBankTab = createCheckbox(
+		contentParent,
+		L["settingsRememberLastBankTab"] or "Remember last bank tab",
+		L["settingsRememberLastBankTabTooltip"] or "",
+		0,
+		-248,
+		function(value)
+			if addon.SetRememberLastBankTab and addon.SetRememberLastBankTab(value) then
+				addon.RefreshSettingsFrame("layout")
+				requestBagRefresh(true, true)
+			end
+		end
+	)
+
 	local compactGapRow = CreateFrame("Frame", nil, contentParent)
 	compactGapRow:SetHeight(22)
-	compactGapRow:SetPoint("TOPLEFT", page.ShowCloseButton, "BOTTOMLEFT", 24, -14)
+	compactGapRow:SetPoint("TOPLEFT", page.RememberLastBankTab, "BOTTOMLEFT", 24, -14)
 	compactGapRow:SetPoint("RIGHT", contentParent, "RIGHT", -14, 0)
 	page.CompactCategoryGapRow = compactGapRow
 
@@ -3329,9 +3357,66 @@ local function createLayoutPage(parent)
 		Value = compactGapValue,
 	}
 
+	local treeIndentRow = CreateFrame("Frame", nil, contentParent)
+	treeIndentRow:SetHeight(22)
+	treeIndentRow:SetPoint("TOPLEFT", compactGapRow, "BOTTOMLEFT", 0, -10)
+	treeIndentRow:SetPoint("RIGHT", contentParent, "RIGHT", -14, 0)
+	page.CategoryTreeIndentRow = treeIndentRow
+
+	local treeIndentLabel = treeIndentRow:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	treeIndentLabel:SetPoint("LEFT", treeIndentRow, "LEFT", 0, 0)
+	treeIndentLabel:SetPoint("RIGHT", treeIndentRow, "RIGHT", -172, 0)
+	treeIndentLabel:SetJustifyH("LEFT")
+	treeIndentLabel:SetJustifyV("MIDDLE")
+	treeIndentLabel:SetText(L["settingsCategoryTreeIndentLabel"] or "Tree category indent")
+
+	local treeIndentStepper = CreateFrame("Frame", nil, treeIndentRow)
+	treeIndentStepper:SetSize(156, 22)
+	treeIndentStepper:SetPoint("RIGHT", treeIndentRow, "RIGHT", 0, 0)
+
+	local treeIndentDownButton = CreateFrame("Button", nil, treeIndentStepper, "UIPanelButtonTemplate")
+	treeIndentDownButton:SetSize(24, 22)
+	treeIndentDownButton:SetPoint("LEFT", treeIndentStepper, "LEFT", 0, 0)
+	treeIndentDownButton:SetText("-")
+	setButtonFontObject(treeIndentDownButton, GameFontNormalSmall)
+	treeIndentDownButton:SetScript("OnClick", function()
+		local currentValue = addon.GetCategoryTreeIndent and addon.GetCategoryTreeIndent() or 14
+		if addon.SetCategoryTreeIndent and addon.SetCategoryTreeIndent(currentValue - 1) then
+			addon.RefreshSettingsFrame("layout")
+			requestBagRefresh(true, true)
+		end
+	end)
+
+	local treeIndentUpButton = CreateFrame("Button", nil, treeIndentStepper, "UIPanelButtonTemplate")
+	treeIndentUpButton:SetSize(24, 22)
+	treeIndentUpButton:SetPoint("RIGHT", treeIndentStepper, "RIGHT", 0, 0)
+	treeIndentUpButton:SetText("+")
+	setButtonFontObject(treeIndentUpButton, GameFontNormalSmall)
+	treeIndentUpButton:SetScript("OnClick", function()
+		local currentValue = addon.GetCategoryTreeIndent and addon.GetCategoryTreeIndent() or 14
+		if addon.SetCategoryTreeIndent and addon.SetCategoryTreeIndent(currentValue + 1) then
+			addon.RefreshSettingsFrame("layout")
+			requestBagRefresh(true, true)
+		end
+	end)
+
+	local treeIndentValue = treeIndentStepper:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	treeIndentValue:SetPoint("LEFT", treeIndentDownButton, "RIGHT", 10, 0)
+	treeIndentValue:SetPoint("RIGHT", treeIndentUpButton, "LEFT", -10, 0)
+	treeIndentValue:SetJustifyH("CENTER")
+
+	page.CategoryTreeIndentControl = {
+		Row = treeIndentRow,
+		Label = treeIndentLabel,
+		Stepper = treeIndentStepper,
+		DownButton = treeIndentDownButton,
+		UpButton = treeIndentUpButton,
+		Value = treeIndentValue,
+	}
+
 	local resetButton = CreateFrame("Button", nil, contentParent, "UIPanelButtonTemplate")
 	resetButton:SetSize(190, 22)
-	resetButton:SetPoint("TOPLEFT", compactGapRow, "BOTTOMLEFT", -20, -18)
+	resetButton:SetPoint("TOPLEFT", treeIndentRow, "BOTTOMLEFT", -20, -18)
 	resetButton:SetText(L["settingsResetPosition"] or "Reset window position")
 	resetButton:SetScript("OnClick", function()
 		if Bags.functions and Bags.functions.ResetFramePosition then
@@ -4052,6 +4137,9 @@ refreshLayoutPage = function(page)
 	if page.ClearNewItemsOnHeaderClick then
 		page.ClearNewItemsOnHeaderClick:SetChecked(addon.GetClearNewItemsOnHeaderClick and addon.GetClearNewItemsOnHeaderClick() or false)
 	end
+	if page.CategoryTreeView then
+		page.CategoryTreeView:SetChecked(addon.GetCategoryTreeView and addon.GetCategoryTreeView() or false)
+	end
 	if page.CompactCategoryLayout then
 		local compactLayoutEnabled = addon.GetCompactCategoryLayout and addon.GetCompactCategoryLayout() or settings.compactCategoryLayout == true
 		page.CompactCategoryLayout:SetChecked(compactLayoutEnabled)
@@ -4066,11 +4154,22 @@ refreshLayoutPage = function(page)
 			page.CompactCategoryGapControl.Row:SetAlpha(gapEnabled and 1 or 0.45)
 			page.CompactCategoryGapControl.Value:SetText(tostring(compactGap))
 			page.CompactCategoryGapControl.DownButton:SetEnabled(gapEnabled and compactGap > 0)
-			page.CompactCategoryGapControl.UpButton:SetEnabled(gapEnabled and compactGap < 24)
+			page.CompactCategoryGapControl.UpButton:SetEnabled(gapEnabled and compactGap < 40)
 		end
+	end
+	if page.CategoryTreeIndentControl and page.CategoryTreeIndentControl.Value then
+		local treeViewEnabled = addon.GetCategoryTreeView and addon.GetCategoryTreeView() or false
+		local treeIndent = addon.GetCategoryTreeIndent and addon.GetCategoryTreeIndent() or 14
+		page.CategoryTreeIndentControl.Row:SetAlpha(treeViewEnabled and 1 or 0.45)
+		page.CategoryTreeIndentControl.Value:SetText(tostring(treeIndent))
+		page.CategoryTreeIndentControl.DownButton:SetEnabled(treeViewEnabled and treeIndent > 0)
+		page.CategoryTreeIndentControl.UpButton:SetEnabled(treeViewEnabled and treeIndent < 40)
 	end
 	if page.ShowCloseButton then
 		page.ShowCloseButton:SetChecked(addon.GetShowCloseButton == nil or addon.GetShowCloseButton())
+	end
+	if page.RememberLastBankTab then
+		page.RememberLastBankTab:SetChecked(addon.GetRememberLastBankTab == nil or addon.GetRememberLastBankTab())
 	end
 	if page.OutsideHeaderPaddingControl and page.OutsideHeaderPaddingControl.Value then
 		local outsideHeaderPadding = addon.GetOutsideHeaderPadding and addon.GetOutsideHeaderPadding() or 0
@@ -4642,6 +4741,9 @@ applyLayoutPageMode = function(page)
 	end
 	if page.CompactCategoryGapControl and page.CompactCategoryGapControl.Row then
 		page.CompactCategoryGapControl.Row:SetShown(true)
+	end
+	if page.CategoryTreeIndentControl and page.CategoryTreeIndentControl.Row then
+		page.CategoryTreeIndentControl.Row:SetShown(true)
 	end
 
 	if page.PaddingCard then

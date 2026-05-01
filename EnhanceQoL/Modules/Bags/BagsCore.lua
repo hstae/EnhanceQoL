@@ -781,7 +781,7 @@ end
 
 local function getFramePaddingSignature(settings)
 	return string.format(
-		"%d:%d:%d:%d:%d:%d:%d:%d:%d:%d",
+		"%d:%d:%d:%d:%d:%d:%d:%d:%d:%d:%d:%d",
 		getOutsideHeaderPadding(settings),
 		getOutsideFooterPadding(settings),
 		getInsideHorizontalPadding(settings),
@@ -791,6 +791,8 @@ local function getFramePaddingSignature(settings)
 		getMaxColumns(settings),
 		(addon.GetCompactCategoryLayout and addon.GetCompactCategoryLayout()) and 1 or 0,
 		addon.GetCompactCategoryGap and addon.GetCompactCategoryGap() or Core.SECTION_HORIZONTAL_GAP,
+		(addon.GetCategoryTreeView and addon.GetCategoryTreeView()) and 1 or 0,
+		addon.GetCategoryTreeIndent and addon.GetCategoryTreeIndent() or 0,
 		(addon.GetShowCloseButton and addon.GetShowCloseButton()) and 1 or 0
 	)
 end
@@ -4876,6 +4878,16 @@ local function renderSectionGroupHeader(section, currentHeaderCount, yOffset, is
 	return currentHeaderCount, yOffset + Core.GROUP_HEADER_HEIGHT + Core.GROUP_HEADER_GAP
 end
 
+local function getGroupedCategoryIndent(section)
+	if not (section and section.groupID) then
+		return 0
+	end
+	if not (addon.GetCategoryTreeView and addon.GetCategoryTreeView()) then
+		return 0
+	end
+	return addon.GetCategoryTreeIndent and addon.GetCategoryTreeIndent() or 0
+end
+
 local function layoutFrame(layoutData)
 	local settings = getSettings()
 	local buttonSize = getButtonSize(settings)
@@ -4934,6 +4946,8 @@ local function layoutFrame(layoutData)
 				local rowWidth = 0
 				local rowHeight = 0
 				local rowGroupID = section.groupID
+				local rowIndent = getGroupedCategoryIndent(section)
+				local rowMaxContentWidth = math.max(buttonSize, maxContentWidth - rowIndent)
 
 				while sectionIndex <= #layoutData.sections do
 					local candidate = layoutData.sections[sectionIndex]
@@ -4956,7 +4970,7 @@ local function layoutFrame(layoutData)
 						nextWidth = nextWidth + compactSectionGap
 					end
 
-					if #rowSections > 0 and (rowWidth + nextWidth) > maxContentWidth then
+					if #rowSections > 0 and (rowWidth + nextWidth) > rowMaxContentWidth then
 						break
 					end
 
@@ -4970,7 +4984,7 @@ local function layoutFrame(layoutData)
 					sectionIndex = sectionIndex + 1
 				end
 
-				local blockX = 0
+				local blockX = rowIndent
 				for _, entry in ipairs(rowSections) do
 					local rowSection = entry.section
 					local rowMetrics = entry.metrics
@@ -5019,6 +5033,7 @@ local function layoutFrame(layoutData)
 				if showSectionHeader then
 					currentHeaderCount = currentHeaderCount + 1
 					local header = acquireSectionHeader(currentHeaderCount)
+					local categoryIndent = getGroupedCategoryIndent(section)
 					configureSectionHeader(header, {
 						sectionID = section.id,
 						label = section.label,
@@ -5029,17 +5044,18 @@ local function layoutFrame(layoutData)
 						textElementID = section.groupID and "subcategoryHeader" or "categoryHeader",
 					})
 					header:ClearAllPoints()
-					header:SetPoint("TOPLEFT", state.content, "TOPLEFT", 0, -yOffset)
-					header:SetPoint("RIGHT", state.content, "RIGHT", 0, 0)
+					header:SetPoint("TOPLEFT", state.content, "TOPLEFT", categoryIndent, -yOffset)
+					header:SetPoint("RIGHT", state.content, "RIGHT", -categoryIndent, 0)
 					header:Show()
 					yOffset = yOffset + Core.SECTION_HEADER_HEIGHT
 				end
 
 				if metrics.itemCount > 0 and not sectionCollapsed then
+					local categoryIndent = getGroupedCategoryIndent(section)
 					if showSectionHeader then
 						yOffset = yOffset + Core.SECTION_CONTENT_TOP_PADDING
 					end
-					contentWidth = math.max(contentWidth, metrics.sectionWidth)
+					contentWidth = math.max(contentWidth, categoryIndent + metrics.sectionWidth)
 
 					for visualIndex, mappingIndex in ipairs(section.slotIndices) do
 						local button = state.buttons[mappingIndex]
@@ -5051,7 +5067,7 @@ local function layoutFrame(layoutData)
 							"TOPLEFT",
 							state.content,
 							"TOPLEFT",
-							column * (buttonSize + buttonSpacing),
+							categoryIndent + (column * (buttonSize + buttonSpacing)),
 							-(yOffset + (row * (buttonSize + buttonSpacing)))
 						)
 					end

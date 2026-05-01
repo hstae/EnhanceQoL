@@ -177,7 +177,7 @@ local customCategoryStateHiddenBuiltIn
 local customCategoryCompiledState
 local cachedCategoryRuleContextUsage
 local cachedCategorySectionDefinitions
-local BASIC_PRESET_VERSION = 14
+local BASIC_PRESET_VERSION = 15
 local CATEGORY_MODE_IDS = {
 	basic = true,
 	advanced = true,
@@ -1760,6 +1760,29 @@ local function seedBasicPresetIntoModeState(modeState)
 			name = L["basicPresetGroupSpecial"] or "Special",
 			color = { 1, 0.9, 0.44 },
 			categories = {
+				{
+					name = L["basicPresetCategoryMounts"] or "Mounts",
+					priority = 34,
+					sortMode = "quality",
+					color = { 0.72, 0.86, 1 },
+					ruleTree = function(counterState)
+						return buildPresetRuleGroup(counterState, "AND", {
+							buildPresetRule(counterState, "subClassKey", "EQUALS", "15:5"),
+						})
+					end,
+				},
+				{
+					name = L["basicPresetCategoryPets"] or "Pets",
+					priority = 33,
+					sortMode = "quality",
+					color = { 0.95, 0.7, 1 },
+					ruleTree = function(counterState)
+						return buildPresetRuleGroup(counterState, "OR", {
+							buildPresetRule(counterState, "subClassKey", "EQUALS", "15:2"),
+							buildPresetRule(counterState, "classID", "EQUALS", 17),
+						})
+					end,
+				},
 				{
 					name = L["basicPresetCategoryBags"] or "Bags",
 					priority = 32,

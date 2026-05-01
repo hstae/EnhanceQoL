@@ -381,6 +381,11 @@ local COSMETIC_BAR_KEYS = {
 	"backdrop",
 }
 ResourceBars.POWER_TYPE_STYLE_OVERRIDE_KEYS = {
+	"barTexture",
+	"textStyle",
+	"shortNumbers",
+	"percentRounding",
+	"hidePercentSign",
 	"useBarColor",
 	"barColor",
 	"useClassColor",
@@ -1148,6 +1153,17 @@ ResourceBars.SHARED_SLOT_FRAME_NAME = {
 	MAIN = "EQOLSharedMainBar",
 	SECONDARY = "EQOLSharedSecondaryBar",
 }
+ResourceBars.SHARED_POWER_TYPE_DEFAULT_OVERRIDES = {
+	ARCANE_CHARGES = { textStyle = "CURRENT" },
+	CHI = { textStyle = "CURRENT" },
+	COMBO_POINTS = { textStyle = "CURRENT" },
+	ESSENCE = { textStyle = "CURRENT" },
+	HOLY_POWER = { textStyle = "CURRENT" },
+	ICICLES = { textStyle = "CURRENT" },
+	MAELSTROM_WEAPON = { textStyle = "CURRENT" },
+	SOUL_SHARDS = { textStyle = "CURRENT" },
+	TIP_OF_THE_SPEAR = { textStyle = "CURRENT" },
+}
 ResourceBars.SHARED_SLOT_ASSIGNMENTS = {
 	PALADIN = {
 		[1] = { MAIN = "MANA", SECONDARY = "HOLY_POWER" },
@@ -1195,6 +1211,18 @@ ResourceBars._sharedSlotResolvedTypes = ResourceBars._sharedSlotResolvedTypes or
 local function normalizeSharedSlotStore(store)
 	if type(store) ~= "table" then store = {} end
 	store.TERTIARY = nil
+	for _, slot in ipairs({ "MAIN", "SECONDARY" }) do
+		local cfg = store[slot]
+		if type(cfg) == "table" then
+			cfg.powerTypeOverrides = cfg.powerTypeOverrides or {}
+			for pType, defaults in pairs(ResourceBars.SHARED_POWER_TYPE_DEFAULT_OVERRIDES or {}) do
+				if cfg.powerTypeOverrides[pType] == nil then
+					cfg.powerTypeOverrides[pType] = CopyTable(defaults)
+					cfg.powerTypeOverrides[pType].enabled = true
+				end
+			end
+		end
+	end
 	return store
 end
 
