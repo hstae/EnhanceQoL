@@ -9,6 +9,10 @@
 - Bags: Added an optional group spacer for custom category groups to visually separate grouped sections.
 - Bags: Added Mounts and Pets to the Basic category preset so collection items are grouped automatically.
 
+### 🔄 Changed
+
+- Bags: Improved tree-view indentation so standalone category items can align with subcategories while their category headers stay left-aligned.
+
 ## [10.10.0-beta3] - 2026-05-01
 
 ### ✨ Added

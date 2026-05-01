@@ -4929,6 +4929,30 @@ local function getGroupedCategoryIndent(section)
 	return addon.GetCategoryTreeIndent and addon.GetCategoryTreeIndent() or 0
 end
 
+local function getCategoryContentIndent(section)
+	if not (section and section.label) then
+		return 0
+	end
+	if not (addon.GetCategoryTreeView and addon.GetCategoryTreeView()) then
+		return 0
+	end
+	return addon.GetCategoryTreeIndent and addon.GetCategoryTreeIndent() or 0
+end
+
+local function getCompactSectionContentOffset(section)
+	if section and section.groupID then
+		return 0
+	end
+	return getCategoryContentIndent(section)
+end
+
+local function getCompactSectionBlockWidth(section, metrics)
+	if not metrics then
+		return Core.BUTTON_SIZE
+	end
+	return (metrics.blockWidth or metrics.sectionWidth or Core.BUTTON_SIZE) + getCompactSectionContentOffset(section)
+end
+
 local function layoutFrame(layoutData)
 	local settings = getSettings()
 	local buttonSize = getButtonSize(settings)
@@ -5007,7 +5031,7 @@ local function layoutFrame(layoutData)
 						break
 					end
 
-					local nextWidth = candidateMetrics.blockWidth
+					local nextWidth = getCompactSectionBlockWidth(candidate, candidateMetrics)
 					if #rowSections > 0 then
 						nextWidth = nextWidth + compactSectionGap
 					end
@@ -5030,6 +5054,8 @@ local function layoutFrame(layoutData)
 				for _, entry in ipairs(rowSections) do
 					local rowSection = entry.section
 					local rowMetrics = entry.metrics
+					local rowContentOffset = getCompactSectionContentOffset(rowSection)
+					local rowBlockWidth = getCompactSectionBlockWidth(rowSection, rowMetrics)
 
 					currentHeaderCount = currentHeaderCount + 1
 					local header = acquireSectionHeader(currentHeaderCount)
@@ -5044,7 +5070,7 @@ local function layoutFrame(layoutData)
 					})
 					header:ClearAllPoints()
 					header:SetPoint("TOPLEFT", state.content, "TOPLEFT", blockX, -yOffset)
-					header:SetWidth(rowMetrics.blockWidth)
+					header:SetWidth(rowBlockWidth)
 					header:Show()
 
 					local buttonYOffset = yOffset + Core.SECTION_HEADER_HEIGHT + Core.SECTION_CONTENT_TOP_PADDING
@@ -5058,13 +5084,13 @@ local function layoutFrame(layoutData)
 							"TOPLEFT",
 							state.content,
 							"TOPLEFT",
-							blockX + (column * (buttonSize + buttonSpacing)),
+							blockX + rowContentOffset + (column * (buttonSize + buttonSpacing)),
 							-(buttonYOffset + (row * (buttonSize + buttonSpacing)))
 						)
 					end
 
-					contentWidth = math.max(contentWidth, blockX + rowMetrics.blockWidth)
-					blockX = blockX + rowMetrics.blockWidth + compactSectionGap
+					contentWidth = math.max(contentWidth, blockX + rowBlockWidth)
+					blockX = blockX + rowBlockWidth + compactSectionGap
 				end
 
 				yOffset = yOffset + rowHeight
@@ -5093,7 +5119,7 @@ local function layoutFrame(layoutData)
 				end
 
 				if metrics.itemCount > 0 and not sectionCollapsed then
-					local categoryIndent = getGroupedCategoryIndent(section)
+					local categoryIndent = getCategoryContentIndent(section)
 					if showSectionHeader then
 						yOffset = yOffset + Core.SECTION_CONTENT_TOP_PADDING
 					end
