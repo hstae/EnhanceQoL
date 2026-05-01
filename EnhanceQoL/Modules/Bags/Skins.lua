@@ -1,4 +1,4 @@
--- luacheck: globals GetItemButtonIconTexture ColorManager
+-- luacheck: globals GetItemButtonIconTexture SetItemButtonTextureVertexColor ColorManager
 local addonName, addon = ...
 addon = addon or {}
 _G[addonName] = addon
@@ -7,6 +7,7 @@ addon.Bags = addon.Bags or {}
 addon.Bags.functions = addon.Bags.functions or {}
 addon.Bags.variables = addon.Bags.variables or {}
 
+local Bags = addon.Bags
 local L = addon.L or {}
 
 local SKIN_PRESET_ORDER = {
@@ -64,6 +65,43 @@ local ITEM_FRAME_MASK_KEYS = {
 	"BagIndicator",
 	"ExtendedSlot",
 }
+
+Bags.functions.IsRecipeUnusableByPlayer = Bags.functions.IsRecipeUnusableByPlayer
+	or function(itemID, itemLink)
+		local numericItemID = tonumber(itemID)
+		local itemRef = itemLink or numericItemID
+		if not numericItemID or not itemRef or not C_PlayerInfo or not C_PlayerInfo.CanUseItem then
+			return false
+		end
+
+		local classID = select(6, GetItemInfoInstant(itemRef))
+		if classID ~= (Enum and Enum.ItemClass and Enum.ItemClass.Recipe) then
+			return false
+		end
+
+		return C_PlayerInfo.CanUseItem(numericItemID) == false
+	end
+
+Bags.functions.ApplyRecipeUsabilityVisual = Bags.functions.ApplyRecipeUsabilityVisual
+	or function(button, isUnusableRecipe)
+		if not button then
+			return
+		end
+
+		local r, g, b = 1, 1, 1
+		if isUnusableRecipe then
+			r, g, b = 1, 0.18, 0.18
+		end
+
+		if SetItemButtonTextureVertexColor then
+			SetItemButtonTextureVertexColor(button, r, g, b)
+		else
+			local icon = button.Icon or button.icon
+			if icon and icon.SetVertexColor then
+				icon:SetVertexColor(r, g, b)
+			end
+		end
+	end
 
 local function copyColor(color)
 	return {

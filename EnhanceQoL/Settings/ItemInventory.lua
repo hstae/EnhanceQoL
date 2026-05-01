@@ -2176,6 +2176,7 @@ if addon.Bags then
 	})
 end
 
+if addon.db["enableBagsModule"] ~= true then
 addon.functions.SettingsCreateHeadline(cInventory, BAGSLOT, { parentSection = expandable })
 
 local function refreshBagFrames(includeBankPanel)
@@ -2522,6 +2523,7 @@ addon.functions.SettingsCreateDropdown(cInventory, {
 	type = Settings.VarType.String,
 	parentSection = expandable,
 })
+end
 -- moved Money Tracker to Vendors & Economy → Money
 
 ---- REGION END

@@ -1,4 +1,4 @@
--- luacheck: globals ACCOUNT_BANK_TITLE ACCOUNT_BANK_DEPOSIT_BUTTON_LABEL CHARACTER_BANK_DEPOSIT_BUTTON_LABEL C_Bank C_Cursor ItemUtil ScrollFrameTemplate_OnMouseWheel BANK_DEPOSIT_INCLUDE_REAGENTS_CHECKBOX_LABEL ClearItemButtonOverlay SetItemButtonQuality ItemButtonUtil PanelTemplates_TabResize ITEM_SEARCHBAR_LIST BagSearch_OnHide BagSearch_OnTextChanged BagSearch_OnChar BankPanelIncludeReagentsCheckboxMixin BankPanelPurchaseTabButtonMixin UIPanelScrollFrame_OnLoad COPPER_PER_GOLD COPPER_PER_SILVER WHITE_FONT_COLOR COSTS
+-- luacheck: globals ACCOUNT_BANK_TITLE ACCOUNT_BANK_DEPOSIT_BUTTON_LABEL CHARACTER_BANK_DEPOSIT_BUTTON_LABEL C_Bank C_Cursor ItemUtil ScrollFrameTemplate_OnMouseWheel BANK_DEPOSIT_INCLUDE_REAGENTS_CHECKBOX_LABEL ClearItemButtonOverlay SetItemButtonQuality SetItemButtonTextureVertexColor ItemButtonUtil PanelTemplates_TabResize ITEM_SEARCHBAR_LIST BagSearch_OnHide BagSearch_OnTextChanged BagSearch_OnChar BankPanelIncludeReagentsCheckboxMixin BankPanelPurchaseTabButtonMixin UIPanelScrollFrame_OnLoad COPPER_PER_GOLD COPPER_PER_SILVER WHITE_FONT_COLOR COSTS
 local addonName, addon = ...
 addon = addon or {}
 _G[addonName] = addon
@@ -2600,6 +2600,7 @@ local function hasMatchingButtonRenderState(
 	questID,
 	questIsActive,
 	isNewItem,
+	isUnusableRecipe,
 	overlayVersion,
 	fontSignature,
 	freeSlotSignature
@@ -2619,6 +2620,7 @@ local function hasMatchingButtonRenderState(
 		and button._bagsWarbandRenderQuestID == questID
 		and button._bagsWarbandRenderQuestActive == questIsActive
 		and button._bagsWarbandRenderNewItem == isNewItem
+		and button._bagsWarbandRenderUnusableRecipe == isUnusableRecipe
 		and button._bagsWarbandRenderOverlayVersion == overlayVersion
 		and button._bagsWarbandRenderFontSignature == fontSignature
 		and button._bagsWarbandRenderFreeSlotSignature == freeSlotSignature
@@ -2647,6 +2649,7 @@ local function storeButtonRenderState(
 	questID,
 	questIsActive,
 	isNewItem,
+	isUnusableRecipe,
 	overlayVersion,
 	fontSignature,
 	freeSlotSignature
@@ -2667,6 +2670,7 @@ local function storeButtonRenderState(
 	button._bagsWarbandRenderQuestID = questID
 	button._bagsWarbandRenderQuestActive = questIsActive
 	button._bagsWarbandRenderNewItem = isNewItem
+	button._bagsWarbandRenderUnusableRecipe = isUnusableRecipe
 	button._bagsWarbandRenderOverlayVersion = overlayVersion
 	button._bagsWarbandRenderFontSignature = fontSignature
 	button._bagsWarbandRenderFreeSlotSignature = freeSlotSignature
@@ -2723,6 +2727,7 @@ local function updateButtonData(button, mapping, overlayRuntime, textAppearance,
 	local questID = questInfo and questInfo.questID or nil
 	local questIsActive = questInfo and questInfo.isActive or false
 	local isNewItem = isNewItemAtSlot(bagID, slotID)
+	local isUnusableRecipe = texture and Bags.functions.IsRecipeUnusableByPlayer and Bags.functions.IsRecipeUnusableByPlayer(itemID, itemLink) or false
 	local freeSlotGroup = mapping and mapping.freeSlotGroup or nil
 	local freeSlotSignature = getFreeSlotRenderSignature(freeSlotGroup)
 	overlayRuntime = overlayRuntime or getOverlayRuntimeConfig()
@@ -2746,6 +2751,7 @@ local function updateButtonData(button, mapping, overlayRuntime, textAppearance,
 		questID,
 		questIsActive,
 		isNewItem,
+		isUnusableRecipe,
 		overlayVersion,
 		fontSignature,
 		freeSlotSignature
@@ -2755,6 +2761,9 @@ local function updateButtonData(button, mapping, overlayRuntime, textAppearance,
 		end
 		if addon.ApplyItemButtonSkin then
 			addon.ApplyItemButtonSkin(button, quality)
+		end
+		if Bags.functions.ApplyRecipeUsabilityVisual then
+			Bags.functions.ApplyRecipeUsabilityVisual(button, isUnusableRecipe)
 		end
 		if button._bagsWarbandRenderFiltered ~= isFiltered then
 			updateButtonSearchState(button, isFiltered)
@@ -2802,6 +2811,9 @@ local function updateButtonData(button, mapping, overlayRuntime, textAppearance,
 	if addon.ApplyItemButtonSkin then
 		addon.ApplyItemButtonSkin(button, quality)
 	end
+	if Bags.functions.ApplyRecipeUsabilityVisual then
+		Bags.functions.ApplyRecipeUsabilityVisual(button, isUnusableRecipe)
+	end
 	if addon.RefreshItemButtonCooldownMask then
 		addon.RefreshItemButtonCooldownMask(button)
 	end
@@ -2827,6 +2839,7 @@ local function updateButtonData(button, mapping, overlayRuntime, textAppearance,
 		questID,
 		questIsActive,
 		isNewItem,
+		isUnusableRecipe,
 		overlayVersion,
 		fontSignature,
 		freeSlotSignature

@@ -1,4 +1,4 @@
--- luacheck: globals BagsItemButton_OnLoad ItemButtonUtil ContainerFrameItemButtonMixin ScrollFrameTemplate_OnMouseWheel IsAnyStandardHeldBagOpen BackpackTokenFrame BagItemAutoSortButton ITEM_SEARCHBAR_LIST BagSearch_OnHide BagSearch_OnTextChanged BagSearch_OnChar UIPanelScrollFrame_OnLoad ClearItemButtonOverlay SetItemButtonQuality SetItemButtonCount SetItemButtonDesaturated ContainerFrame_AllowedToOpenBags C_Cursor COPPER_PER_GOLD COPPER_PER_SILVER NUM_BAG_SLOTS NUM_REAGENTBAG_SLOTS GetInventoryItemTexture GetInventoryItemID GetInventoryItemQuality GetInventorySlotInfo PickupBagFromSlot PutItemInBag CloseAllBags BAGS EQUIP_CONTAINER EQUIP_CONTAINER_REAGENT
+-- luacheck: globals BagsItemButton_OnLoad ItemButtonUtil ContainerFrameItemButtonMixin ScrollFrameTemplate_OnMouseWheel IsAnyStandardHeldBagOpen BackpackTokenFrame BagItemAutoSortButton ITEM_SEARCHBAR_LIST BagSearch_OnHide BagSearch_OnTextChanged BagSearch_OnChar UIPanelScrollFrame_OnLoad ClearItemButtonOverlay SetItemButtonQuality SetItemButtonCount SetItemButtonDesaturated SetItemButtonTextureVertexColor ContainerFrame_AllowedToOpenBags C_Cursor COPPER_PER_GOLD COPPER_PER_SILVER NUM_BAG_SLOTS NUM_REAGENTBAG_SLOTS GetInventoryItemTexture GetInventoryItemID GetInventoryItemQuality GetInventorySlotInfo PickupBagFromSlot PutItemInBag CloseAllBags BAGS EQUIP_CONTAINER EQUIP_CONTAINER_REAGENT
 local addonName, addon = ...
 addon = addon or {}
 _G[addonName] = addon
@@ -3162,6 +3162,7 @@ local function hasMatchingButtonRenderState(
 	questID,
 	questIsActive,
 	isNewItem,
+	isUnusableRecipe,
 	overlayVersion,
 	fontSignature,
 	freeSlotSignature
@@ -3181,6 +3182,7 @@ local function hasMatchingButtonRenderState(
 		and button._bagsRenderQuestID == questID
 		and button._bagsRenderQuestActive == questIsActive
 		and button._bagsRenderNewItem == isNewItem
+		and button._bagsRenderUnusableRecipe == isUnusableRecipe
 		and button._bagsRenderOverlayVersion == overlayVersion
 		and button._bagsRenderFontSignature == fontSignature
 		and button._bagsRenderFreeSlotSignature == freeSlotSignature
@@ -3209,6 +3211,7 @@ local function storeButtonRenderState(
 	questID,
 	questIsActive,
 	isNewItem,
+	isUnusableRecipe,
 	overlayVersion,
 	fontSignature,
 	freeSlotSignature
@@ -3229,6 +3232,7 @@ local function storeButtonRenderState(
 	button._bagsRenderQuestID = questID
 	button._bagsRenderQuestActive = questIsActive
 	button._bagsRenderNewItem = isNewItem
+	button._bagsRenderUnusableRecipe = isUnusableRecipe
 	button._bagsRenderOverlayVersion = overlayVersion
 	button._bagsRenderFontSignature = fontSignature
 	button._bagsRenderFreeSlotSignature = freeSlotSignature
@@ -3284,6 +3288,7 @@ local function updateButtonData(button, mapping, overlayRuntime, textAppearance,
 	local questIsActive = questInfo and questInfo.isActive or false
 	local isNewItem = isNewItemAtSlot(bagID, slotID)
 	local freeSlotGroup = mapping and mapping.freeSlotGroup or nil
+	local isUnusableRecipe = texture and Bags.functions.IsRecipeUnusableByPlayer and Bags.functions.IsRecipeUnusableByPlayer(itemID, itemLink) or false
 	local freeSlotSignature = getFreeSlotRenderSignature(freeSlotGroup)
 	overlayRuntime = overlayRuntime or getOverlayRuntimeConfig()
 	fontSignature = fontSignature or getTextAppearanceSignature(textAppearance)
@@ -3306,6 +3311,7 @@ local function updateButtonData(button, mapping, overlayRuntime, textAppearance,
 		questID,
 		questIsActive,
 		isNewItem,
+		isUnusableRecipe,
 		overlayVersion,
 		fontSignature,
 		freeSlotSignature
@@ -3314,6 +3320,9 @@ local function updateButtonData(button, mapping, overlayRuntime, textAppearance,
 			button:Show()
 		end
 		applyItemButtonSkinIfNeeded(button, quality, false)
+		if Bags.functions.ApplyRecipeUsabilityVisual then
+			Bags.functions.ApplyRecipeUsabilityVisual(button, isUnusableRecipe)
+		end
 		updateReagentBagVisuals(button)
 		if button._bagsRenderFiltered ~= isFiltered then
 			updateButtonSearchState(button, isFiltered)
@@ -3359,6 +3368,9 @@ local function updateButtonData(button, mapping, overlayRuntime, textAppearance,
 	button._bagsHasPendingRenderTexture = true
 	button._bagsPendingRenderTexture = texture
 	applyItemButtonSkinIfNeeded(button, quality, true)
+	if Bags.functions.ApplyRecipeUsabilityVisual then
+		Bags.functions.ApplyRecipeUsabilityVisual(button, isUnusableRecipe)
+	end
 	if addon.RefreshItemButtonCooldownMask then
 		addon.RefreshItemButtonCooldownMask(button)
 	end
@@ -3385,6 +3397,7 @@ local function updateButtonData(button, mapping, overlayRuntime, textAppearance,
 		questID,
 		questIsActive,
 		isNewItem,
+		isUnusableRecipe,
 		overlayVersion,
 		fontSignature,
 		freeSlotSignature
