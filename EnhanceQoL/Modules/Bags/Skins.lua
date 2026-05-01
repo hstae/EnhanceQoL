@@ -290,6 +290,26 @@ local function normalizeFrameBorderOffset(value)
 	return value
 end
 
+local function normalizeFrameBorderColor(color)
+	if type(color) ~= "table" then
+		return nil
+	end
+
+	local r = tonumber(color[1]) or tonumber(color.r)
+	local g = tonumber(color[2]) or tonumber(color.g)
+	local b = tonumber(color[3]) or tonumber(color.b)
+	local a = tonumber(color[4]) or tonumber(color.a) or 1
+	if not r or not g or not b then
+		return nil
+	end
+
+	r = math.max(0, math.min(1, r))
+	g = math.max(0, math.min(1, g))
+	b = math.max(0, math.min(1, b))
+	a = math.max(0, math.min(1, a))
+	return { r, g, b, a }
+end
+
 local function unpackColor(color, defaultAlpha)
 	return color and color[1] or 1,
 		color and color[2] or 1,
@@ -992,6 +1012,21 @@ function addon.GetFrameBorderOffset()
 	return settings.frameBorderOffset
 end
 
+function addon.HasCustomFrameBorderColor()
+	local settings = getSettings()
+	return normalizeFrameBorderColor(settings and settings.frameBorderColor) ~= nil
+end
+
+function addon.GetFrameBorderColor(fallbackColor)
+	local settings = getSettings()
+	local color = normalizeFrameBorderColor(settings and settings.frameBorderColor)
+	if color then
+		settings.frameBorderColor = color
+		return color
+	end
+	return copyColor(fallbackColor or { 0.35, 0.35, 0.42, 1 })
+end
+
 function addon.SetIconShape(value)
 	local shapeID = normalizeIconShapeID(value)
 	if not shapeID then
@@ -1133,6 +1168,41 @@ function addon.SetFrameBorderOffset(value)
 	return true
 end
 
+function addon.SetFrameBorderColor(r, g, b, a)
+	local settings = getSettings()
+	if not settings then
+		return false
+	end
+
+	local color = normalizeFrameBorderColor({ r, g, b, a or 1 })
+	if not color then
+		return false
+	end
+
+	local current = normalizeFrameBorderColor(settings.frameBorderColor)
+	if current
+		and math.abs((current[1] or 0) - color[1]) < 0.001
+		and math.abs((current[2] or 0) - color[2]) < 0.001
+		and math.abs((current[3] or 0) - color[3]) < 0.001
+		and math.abs((current[4] or 1) - color[4]) < 0.001
+	then
+		return false
+	end
+
+	settings.frameBorderColor = color
+	return true
+end
+
+function addon.ClearFrameBorderColor()
+	local settings = getSettings()
+	if not settings or settings.frameBorderColor == nil then
+		return false
+	end
+
+	settings.frameBorderColor = nil
+	return true
+end
+
 function addon.GetIconShapeOptions()
 	local options = {}
 	for index, shapeID in ipairs(ICON_SHAPE_ORDER) do
@@ -1256,6 +1326,8 @@ function addon.GetSkinSignature()
 		addon.GetFrameBorderTexture and addon.GetFrameBorderTexture() or FRAME_BORDER_SKIN_VALUE,
 		tostring(addon.GetFrameBorderSize and addon.GetFrameBorderSize() or 1),
 		tostring(addon.GetFrameBorderOffset and addon.GetFrameBorderOffset() or 0),
+		(addon.HasCustomFrameBorderColor and addon.HasCustomFrameBorderColor()) and "custom" or "skin",
+		colorToSignature(addon.GetFrameBorderColor and addon.GetFrameBorderColor(frame.borderColor) or frame.borderColor or {}),
 		frame.backdropAtlas or "",
 		colorToSignature(frame.backdropColor or {}),
 		frame.borderAtlas or "",
@@ -1305,7 +1377,8 @@ function addon.ApplyFrameBackgroundSkin(frame, skin)
 	}, requestedOpacity)
 
 	frame:SetBackdropColor(backdropR, backdropG, backdropB, backdropBaseAlpha * opacityScale)
-	frame:SetBackdropBorderColor(unpackColor(skin.borderColor, 1))
+	local borderColor = addon.GetFrameBorderColor and addon.GetFrameBorderColor(skin.borderColor) or skin.borderColor
+	frame:SetBackdropBorderColor(unpackColor(borderColor, 1))
 
 	local texture = frame.BackgroundTexture
 	if texture then
@@ -1371,7 +1444,7 @@ function addon.ApplyFrameBackgroundSkin(frame, skin)
 				edgeFile = borderTextureSetting,
 				edgeSize = borderSize,
 			})
-			border:SetBackdropBorderColor(unpackColor(skin.borderColor, 1))
+			border:SetBackdropBorderColor(unpackColor(borderColor, 1))
 			border:Show()
 		end
 	end

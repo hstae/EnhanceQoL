@@ -3649,7 +3649,7 @@ local function createLayoutPage(parent)
 	local textAppearanceCard = CreateFrame("Frame", nil, contentParent, "BackdropTemplate")
 	textAppearanceCard:SetPoint("TOPLEFT", paddingCard, "BOTTOMLEFT", 0, -18)
 	textAppearanceCard:SetPoint("RIGHT", contentParent, "RIGHT", -12, 0)
-	textAppearanceCard:SetHeight(808)
+	textAppearanceCard:SetHeight(836)
 	createCardBackdrop(textAppearanceCard)
 	page.TextAppearanceCard = textAppearanceCard
 
@@ -3887,6 +3887,43 @@ local function createLayoutPage(parent)
 	page.FrameBorderTextureButton = frameBorderTextureButton
 	anchorTextAppearanceRow(frameBorderTextureLabel, frameBorderTextureButton, backgroundOpacityStepper)
 
+	local frameBorderColorLabel = textAppearanceCard:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	frameBorderColorLabel:SetText(L["settingsFrameBorderColorLabel"] or "Border color")
+	page.FrameBorderColorLabel = frameBorderColorLabel
+
+	local frameBorderColorSwatch = CreateFrame("Button", nil, textAppearanceCard, "ColorSwatchTemplate")
+	frameBorderColorSwatch:SetSize(22, 22)
+	frameBorderColorSwatch:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+	frameBorderColorSwatch:SetScript("OnClick", function(_, button)
+		if button == "RightButton" then
+			if addon.ClearFrameBorderColor and addon.ClearFrameBorderColor() then
+				addon.RefreshSettingsFrame("layout")
+				requestBagRefresh(true)
+			end
+			return
+		end
+
+		local skin = addon.GetActiveSkinDefinition and addon.GetActiveSkinDefinition() or nil
+		local color = addon.GetFrameBorderColor and addon.GetFrameBorderColor(skin and skin.frame and skin.frame.borderColor) or { 0.35, 0.35, 0.42, 1 }
+		openColorPicker(color, function(r, g, b)
+			if addon.SetFrameBorderColor and addon.SetFrameBorderColor(r, g, b) then
+				addon.RefreshSettingsFrame("layout")
+				requestBagRefresh(true)
+			end
+		end)
+	end)
+	frameBorderColorSwatch:HookScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+		GameTooltip:SetText(L["settingsFrameBorderColorLabel"] or "Border color")
+		GameTooltip:AddLine(L["settingsFrameBorderColorTooltip"] or "Right-click to follow the selected skin color.", 0.78, 0.78, 0.78, true)
+		GameTooltip:Show()
+	end)
+	frameBorderColorSwatch:HookScript("OnLeave", function()
+		GameTooltip:Hide()
+	end)
+	page.FrameBorderColorSwatch = frameBorderColorSwatch
+	anchorTextAppearanceRow(frameBorderColorLabel, frameBorderColorSwatch, frameBorderTextureButton)
+
 	local frameBorderSizeLabel = textAppearanceCard:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	frameBorderSizeLabel:SetText(L["settingsFrameBorderSizeLabel"] or "Border size")
 	page.FrameBorderSizeLabel = frameBorderSizeLabel
@@ -3894,7 +3931,7 @@ local function createLayoutPage(parent)
 	local frameBorderSizeStepper = CreateFrame("Frame", nil, textAppearanceCard)
 	frameBorderSizeStepper:SetSize(textAppearanceControlWidth, 22)
 	page.FrameBorderSizeStepper = frameBorderSizeStepper
-	anchorTextAppearanceRow(frameBorderSizeLabel, frameBorderSizeStepper, frameBorderTextureButton)
+	anchorTextAppearanceRow(frameBorderSizeLabel, frameBorderSizeStepper, frameBorderColorSwatch)
 
 	local frameBorderSizeDownButton = CreateFrame("Button", nil, frameBorderSizeStepper, "UIPanelButtonTemplate")
 	frameBorderSizeDownButton:SetSize(24, 22)
@@ -4462,6 +4499,14 @@ refreshLayoutPage = function(page)
 	end
 	if page.FrameBorderTextureButton then
 		page.FrameBorderTextureButton:SetText(getOptionLabel(addon.GetFrameBorderTextureOptions and addon.GetFrameBorderTextureOptions() or {}, addon.GetFrameBorderTexture and addon.GetFrameBorderTexture() or "__skin__", L["settingsFrameBorderTextureLabel"] or "Border texture"))
+	end
+	if page.FrameBorderColorSwatch then
+		local skin = addon.GetActiveSkinDefinition and addon.GetActiveSkinDefinition() or nil
+		local color = addon.GetFrameBorderColor and addon.GetFrameBorderColor(skin and skin.frame and skin.frame.borderColor) or { 0.35, 0.35, 0.42, 1 }
+		page.FrameBorderColorSwatch:SetColorRGB(color[1] or 0.35, color[2] or 0.35, color[3] or 0.42)
+	end
+	if page.FrameBorderColorLabel then
+		page.FrameBorderColorLabel:SetAlpha((addon.HasCustomFrameBorderColor and addon.HasCustomFrameBorderColor()) and 1 or 0.78)
 	end
 	if page.FrameBorderSizeValue then
 		local borderSize = addon.GetFrameBorderSize and addon.GetFrameBorderSize() or 1
@@ -5040,7 +5085,7 @@ applyLayoutPageMode = function(page)
 	end
 
 	if page.TextAppearanceCard then
-		page.TextAppearanceCard:SetHeight(basicMode and 636 or 920)
+		page.TextAppearanceCard:SetHeight(basicMode and 664 or 948)
 	end
 	if page.TextAppearanceTitle then
 		page.TextAppearanceTitle:SetText((basicMode and (L["settingsBasicLookTitle"] or "Look")) or (L["settingsTextAppearanceTitle"] or "Text appearance"))
@@ -5097,7 +5142,8 @@ applyLayoutPageMode = function(page)
 	anchorTextAppearanceControl(page.TextAppearanceCard, page.TextAppearanceHint, page.FrameBackgroundColorLabel, page.FrameBackgroundColorSwatch, page.FrameBackgroundButton)
 	anchorTextAppearanceControl(page.TextAppearanceCard, page.TextAppearanceHint, page.FrameBackgroundOpacityLabel, page.FrameBackgroundOpacityStepper, page.FrameBackgroundColorSwatch)
 	anchorTextAppearanceControl(page.TextAppearanceCard, page.TextAppearanceHint, page.FrameBorderTextureLabel, page.FrameBorderTextureButton, page.FrameBackgroundOpacityStepper)
-	anchorTextAppearanceControl(page.TextAppearanceCard, page.TextAppearanceHint, page.FrameBorderSizeLabel, page.FrameBorderSizeStepper, page.FrameBorderTextureButton)
+	anchorTextAppearanceControl(page.TextAppearanceCard, page.TextAppearanceHint, page.FrameBorderColorLabel, page.FrameBorderColorSwatch, page.FrameBorderTextureButton)
+	anchorTextAppearanceControl(page.TextAppearanceCard, page.TextAppearanceHint, page.FrameBorderSizeLabel, page.FrameBorderSizeStepper, page.FrameBorderColorSwatch)
 	anchorTextAppearanceControl(page.TextAppearanceCard, page.TextAppearanceHint, page.FrameBorderOffsetLabel, page.FrameBorderOffsetStepper, page.FrameBorderSizeStepper)
 	anchorTextAppearanceControl(page.TextAppearanceCard, page.TextAppearanceHint, page.TextFontLabel, page.TextFontButton, page.FrameBorderOffsetStepper)
 	anchorTextAppearanceControl(page.TextAppearanceCard, page.TextAppearanceHint, page.TextSizeLabel, page.TextSizeStepper, page.TextFontButton)
