@@ -3281,7 +3281,7 @@ function UF.ui.appendDataBarSettings(list, unit, def, refresh, refreshSelf, addD
 	dataBarHeight.isEnabled = isDataBarEnabled
 	list[#list + 1] = dataBarHeight
 
-	local dataBarGap = slider(L["UFDataBarGap"] or "Data bar gap", 0, 40, 1, function()
+	local dataBarGap = slider(L["UFDataBarGap"] or "Data bar gap", -40, 40, 1, function()
 		return getValue(unit, { "dataBar", "gap" }, dataBarDef.gap or 0)
 	end, function(val)
 		debounced(unit .. "_dataBarGap", function()
@@ -3435,12 +3435,138 @@ function UF.ui.appendDataBarSettings(list, unit, def, refresh, refreshSelf, addD
 	dataBarFontOutline.isEnabled = isDataBarEnabled
 	list[#list + 1] = dataBarFontOutline
 
+	local function showDataBarTextOffsets(key, fallback)
+		local mode = normalizeTextMode(getValue(unit, { "dataBar", key }, fallback))
+		return mode ~= "NONE"
+	end
+
+	local dataBarLeftX = slider(
+		L["TextLeftOffsetX"] or "Left text X offset",
+		-OFFSET_RANGE,
+		OFFSET_RANGE,
+		1,
+		function() return getValue(unit, { "dataBar", "offsetLeft", "x" }, (dataBarDef.offsetLeft and dataBarDef.offsetLeft.x) or 0) end,
+		function(val)
+			debounced(unit .. "_dataBarLeftX", function()
+				setValue(unit, { "dataBar", "offsetLeft", "x" }, val or 0)
+				refresh()
+			end)
+		end,
+		(dataBarDef.offsetLeft and dataBarDef.offsetLeft.x) or 0,
+		"dataBar",
+		true
+	)
+	dataBarLeftX.isEnabled = isDataBarEnabled
+	dataBarLeftX.isShown = function() return showDataBarTextOffsets("textLeft", dataBarDef.textLeft or "NAME") end
+	list[#list + 1] = dataBarLeftX
+
+	local dataBarLeftY = slider(
+		L["TextLeftOffsetY"] or "Left text Y offset",
+		-OFFSET_RANGE,
+		OFFSET_RANGE,
+		1,
+		function() return getValue(unit, { "dataBar", "offsetLeft", "y" }, (dataBarDef.offsetLeft and dataBarDef.offsetLeft.y) or 0) end,
+		function(val)
+			debounced(unit .. "_dataBarLeftY", function()
+				setValue(unit, { "dataBar", "offsetLeft", "y" }, val or 0)
+				refresh()
+			end)
+		end,
+		(dataBarDef.offsetLeft and dataBarDef.offsetLeft.y) or 0,
+		"dataBar",
+		true
+	)
+	dataBarLeftY.isEnabled = isDataBarEnabled
+	dataBarLeftY.isShown = function() return showDataBarTextOffsets("textLeft", dataBarDef.textLeft or "NAME") end
+	list[#list + 1] = dataBarLeftY
+
+	local dataBarCenterX = slider(
+		L["TextCenterOffsetX"] or "Center text X offset",
+		-OFFSET_RANGE,
+		OFFSET_RANGE,
+		1,
+		function() return getValue(unit, { "dataBar", "offsetCenter", "x" }, (dataBarDef.offsetCenter and dataBarDef.offsetCenter.x) or 0) end,
+		function(val)
+			debounced(unit .. "_dataBarCenterX", function()
+				setValue(unit, { "dataBar", "offsetCenter", "x" }, val or 0)
+				refresh()
+			end)
+		end,
+		(dataBarDef.offsetCenter and dataBarDef.offsetCenter.x) or 0,
+		"dataBar",
+		true
+	)
+	dataBarCenterX.isEnabled = isDataBarEnabled
+	dataBarCenterX.isShown = function() return showDataBarTextOffsets("textCenter", dataBarDef.textCenter or "CURMAX") end
+	list[#list + 1] = dataBarCenterX
+
+	local dataBarCenterY = slider(
+		L["TextCenterOffsetY"] or "Center text Y offset",
+		-OFFSET_RANGE,
+		OFFSET_RANGE,
+		1,
+		function() return getValue(unit, { "dataBar", "offsetCenter", "y" }, (dataBarDef.offsetCenter and dataBarDef.offsetCenter.y) or 0) end,
+		function(val)
+			debounced(unit .. "_dataBarCenterY", function()
+				setValue(unit, { "dataBar", "offsetCenter", "y" }, val or 0)
+				refresh()
+			end)
+		end,
+		(dataBarDef.offsetCenter and dataBarDef.offsetCenter.y) or 0,
+		"dataBar",
+		true
+	)
+	dataBarCenterY.isEnabled = isDataBarEnabled
+	dataBarCenterY.isShown = function() return showDataBarTextOffsets("textCenter", dataBarDef.textCenter or "CURMAX") end
+	list[#list + 1] = dataBarCenterY
+
+	local dataBarRightX = slider(
+		L["TextRightOffsetX"] or "Right text X offset",
+		-OFFSET_RANGE,
+		OFFSET_RANGE,
+		1,
+		function() return getValue(unit, { "dataBar", "offsetRight", "x" }, (dataBarDef.offsetRight and dataBarDef.offsetRight.x) or 0) end,
+		function(val)
+			debounced(unit .. "_dataBarRightX", function()
+				setValue(unit, { "dataBar", "offsetRight", "x" }, val or 0)
+				refresh()
+			end)
+		end,
+		(dataBarDef.offsetRight and dataBarDef.offsetRight.x) or 0,
+		"dataBar",
+		true
+	)
+	dataBarRightX.isEnabled = isDataBarEnabled
+	dataBarRightX.isShown = function() return showDataBarTextOffsets("textRight", dataBarDef.textRight or "PERCENT") end
+	list[#list + 1] = dataBarRightX
+
+	local dataBarRightY = slider(
+		L["TextRightOffsetY"] or "Right text Y offset",
+		-OFFSET_RANGE,
+		OFFSET_RANGE,
+		1,
+		function() return getValue(unit, { "dataBar", "offsetRight", "y" }, (dataBarDef.offsetRight and dataBarDef.offsetRight.y) or 0) end,
+		function(val)
+			debounced(unit .. "_dataBarRightY", function()
+				setValue(unit, { "dataBar", "offsetRight", "y" }, val or 0)
+				refresh()
+			end)
+		end,
+		(dataBarDef.offsetRight and dataBarDef.offsetRight.y) or 0,
+		"dataBar",
+		true
+	)
+	dataBarRightY.isEnabled = isDataBarEnabled
+	dataBarRightY.isShown = function() return showDataBarTextOffsets("textRight", dataBarDef.textRight or "PERCENT") end
+	list[#list + 1] = dataBarRightY
+	addDivider("dataBar")
+
 	local dataBarTexture = checkboxDropdown(L["Bar Texture"] or "Bar Texture", textureOptions, function()
-		return getValue(unit, { "dataBar", "texture" }, dataBarDef.texture or "DEFAULT")
+		return getValue(unit, { "dataBar", "texture" }, dataBarDef.texture or "SOLID")
 	end, function(val)
-		setValue(unit, { "dataBar", "texture" }, val or "DEFAULT")
+		setValue(unit, { "dataBar", "texture" }, val or "SOLID")
 		refresh()
-	end, dataBarDef.texture or "DEFAULT", "dataBar")
+	end, dataBarDef.texture or "SOLID", "dataBar")
 	dataBarTexture.isEnabled = isDataBarEnabled
 	list[#list + 1] = dataBarTexture
 end

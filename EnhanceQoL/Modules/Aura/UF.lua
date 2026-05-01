@@ -1669,7 +1669,7 @@ local defaults = {
 			useShortNumbers = true,
 			hidePercentSymbol = false,
 			roundPercent = false,
-			texture = "DEFAULT",
+			texture = "SOLID",
 		},
 		power = {
 			enabled = true,
@@ -7311,11 +7311,14 @@ local function updateHealth(cfg, unit)
 		local showTempLoss = hc.tempMaxHealthLossEnabled
 		if showTempLoss == nil then showTempLoss = defH.tempMaxHealthLossEnabled ~= false end
 		if showTempLoss then
+			local loss = GetUnitTotalModifiedMaxHealthPercent(unit) or 0
 			st.tempMaxHealthLoss:SetMinMaxValues(0, 1)
-			st.tempMaxHealthLoss:SetValue(GetUnitTotalModifiedMaxHealthPercent(unit) or 0, interpolation)
+			st.tempMaxHealthLoss:SetValue(loss, interpolation)
+			if st.tempMaxHealthLoss.SetAlpha then st.tempMaxHealthLoss:SetAlpha(loss > 0 and 1 or 0) end
 			st.tempMaxHealthLoss:Show()
 		else
 			st.tempMaxHealthLoss:SetValue(0, interpolation)
+			if st.tempMaxHealthLoss.SetAlpha then st.tempMaxHealthLoss:SetAlpha(0) end
 			st.tempMaxHealthLoss:Hide()
 		end
 	end
@@ -8336,7 +8339,11 @@ local function layoutFrame(cfg, unit)
 	local dataBarCfg = cfg.dataBar or {}
 	local dataBarDef = def.dataBar or {}
 	local dataBarHeight = dataBarEnabled and max(1, tonumber(dataBarCfg.height or dataBarDef.height or 16) or 16) or 0
-	local dataBarGap = dataBarEnabled and max(0, tonumber(dataBarCfg.gap or dataBarDef.gap or 0) or 0) or 0
+	local dataBarGap = dataBarEnabled and (tonumber(dataBarCfg.gap or dataBarDef.gap or 0) or 0) or 0
+	if dataBarEnabled then
+		if dataBarGap < -dataBarHeight then dataBarGap = -dataBarHeight end
+		if dataBarGap > 40 then dataBarGap = 40 end
+	end
 	local dataBarPosition = UF.DataBar.GetPosition(cfg, def)
 	local dataBarOuterHeight = dataBarEnabled and (dataBarHeight + dataBarGap) or 0
 	local borderCfg = cfg.border or {}
@@ -9060,6 +9067,7 @@ local function applyBars(cfg, unit)
 		UFHelper.applyStatusBarReverseFill(st.tempMaxHealthLoss, not reverseHealth)
 		st.tempMaxHealthLoss:SetMinMaxValues(0, 1)
 		st.tempMaxHealthLoss:SetValue(0, interpolation)
+		if st.tempMaxHealthLoss.SetAlpha then st.tempMaxHealthLoss:SetAlpha(0) end
 		st.tempMaxHealthLoss:SetShown(hc.tempMaxHealthLossEnabled ~= false)
 	end
 	local healthBackdropR, healthBackdropG, healthBackdropB, healthBackdropA
@@ -9253,10 +9261,15 @@ local function applyBars(cfg, unit)
 		local dcfg = cfg.dataBar or {}
 		local ddef = def.dataBar or {}
 		if UF.DataBar.IsEnabled(cfg, def) then
-			local textureKey = dcfg.texture or ddef.texture or "DEFAULT"
+			local textureKey = dcfg.texture or ddef.texture or "SOLID"
 			st.dataBar:SetStatusBarTexture(UFHelper.resolveTexture(textureKey))
 			if st.dataBar.SetStatusBarDesaturated then st.dataBar:SetStatusBarDesaturated(false) end
-			UFHelper.configureSpecialTexture(st.dataBar, "HEALTH", textureKey, dcfg)
+			local tex = st.dataBar.GetStatusBarTexture and st.dataBar:GetStatusBarTexture()
+			if tex then
+				if tex.SetTexCoord then tex:SetTexCoord(0, 1, 0, 1) end
+				if tex.SetHorizTile then tex:SetHorizTile(false) end
+				if tex.SetVertTile then tex:SetVertTile(false) end
+			end
 			UFHelper.applyStatusBarReverseFill(st.dataBar, false)
 			applyBarBackdrop(st.dataBar, { backdrop = { enabled = false } })
 			UFHelper.applyFont(st.dataBarTextLeft, dcfg.font, dcfg.fontSize or ddef.fontSize or 12, dcfg.fontOutline or ddef.fontOutline)

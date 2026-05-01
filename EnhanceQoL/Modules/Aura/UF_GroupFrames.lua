@@ -12575,6 +12575,20 @@ function GF:RefreshRoleIcons()
 	end
 end
 
+function GF:ScheduleRoleIconRefresh()
+	if GF._roleIconRefreshQueued then return end
+	GF._roleIconRefreshQueued = true
+	local function refresh()
+		GF._roleIconRefreshQueued = nil
+		GF:RefreshRoleIcons()
+	end
+	if C_Timer and C_Timer.After then
+		C_Timer.After(0, refresh)
+	else
+		refresh()
+	end
+end
+
 function GF:RefreshGroupIcons()
 	if not isFeatureEnabled() then return end
 	for _, header in pairs(GF.headers or {}) do
@@ -30125,6 +30139,10 @@ do
 		elseif event == "PLAYER_SPECIALIZATION_CHANGED" or event == "ACTIVE_PLAYER_SPECIALIZATION_CHANGED" then
 			local unit = ...
 			if event == "PLAYER_SPECIALIZATION_CHANGED" and unit and unit ~= "player" then return end
+			if not IsInGroup() then
+				GF:RefreshRoleIcons()
+				GF:ScheduleRoleIconRefresh()
+			end
 			GF:RefreshPowerVisibility()
 			GF:RefreshSplitRoleHeadersForViewerRoleChange()
 			GF:RefreshCustomSortNameList("raid")

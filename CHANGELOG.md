@@ -47,6 +47,7 @@
 ### 🐛 Fixed
 
 - Cooldown Panels: Fixed Blizzard Cooldown Manager tracked aura icons briefly disappearing during spell override updates.
+- Group Frames / Party: Fixed the solo party role icon not updating after active specialization changes.
 
 ---
 
