@@ -41,6 +41,8 @@ local DEFAULT_PUSHED_TEXTURE = "Interface\\Buttons\\UI-Quickslot-Depress"
 local DEFAULT_HIGHLIGHT_TEXTURE = "Interface\\Buttons\\ButtonHilight-Square"
 local ROUND_MASK_TEXTURE = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
 local HEXAGON_MASK_TEXTURE = "Interface\\AddOns\\Blizzard_SharedTalentUI\\talents-hexagon-mask.png"
+local FRAME_BORDER_SKIN_VALUE = "__skin__"
+local DEFAULT_FRAME_BORDER_TEXTURE = "Interface\\Buttons\\WHITE8X8"
 
 local ITEM_ICON_MASK_KEYS = {
 	"icon",
@@ -259,6 +261,33 @@ local function normalizeFrameBackgroundID(value)
 	end
 
 	return nil
+end
+
+local function normalizeFrameBorderTexture(value)
+	if type(value) ~= "string" or value == "" then
+		return FRAME_BORDER_SKIN_VALUE
+	end
+	return value
+end
+
+local function normalizeFrameBorderSize(value)
+	value = math.floor((tonumber(value) or 1) + 0.5)
+	if value < 0 then
+		value = 0
+	elseif value > 64 then
+		value = 64
+	end
+	return value
+end
+
+local function normalizeFrameBorderOffset(value)
+	value = math.floor((tonumber(value) or 0) + 0.5)
+	if value < -32 then
+		value = -32
+	elseif value > 32 then
+		value = 32
+	end
+	return value
 end
 
 local function unpackColor(color, defaultAlpha)
@@ -936,6 +965,33 @@ function addon.GetFrameBackgroundColor()
 	return color
 end
 
+function addon.GetFrameBorderTexture()
+	local settings = getSettings()
+	if not settings then
+		return FRAME_BORDER_SKIN_VALUE
+	end
+	settings.frameBorderTexture = normalizeFrameBorderTexture(settings.frameBorderTexture)
+	return settings.frameBorderTexture
+end
+
+function addon.GetFrameBorderSize()
+	local settings = getSettings()
+	if not settings then
+		return 1
+	end
+	settings.frameBorderSize = normalizeFrameBorderSize(settings.frameBorderSize)
+	return settings.frameBorderSize
+end
+
+function addon.GetFrameBorderOffset()
+	local settings = getSettings()
+	if not settings then
+		return 0
+	end
+	settings.frameBorderOffset = normalizeFrameBorderOffset(settings.frameBorderOffset)
+	return settings.frameBorderOffset
+end
+
 function addon.SetIconShape(value)
 	local shapeID = normalizeIconShapeID(value)
 	if not shapeID then
@@ -1032,6 +1088,51 @@ function addon.SetFrameBackgroundColor(r, g, b)
 	return true
 end
 
+function addon.SetFrameBorderTexture(value)
+	local settings = getSettings()
+	if not settings then
+		return false
+	end
+
+	value = normalizeFrameBorderTexture(value)
+	if settings.frameBorderTexture == value then
+		return false
+	end
+
+	settings.frameBorderTexture = value
+	return true
+end
+
+function addon.SetFrameBorderSize(value)
+	local settings = getSettings()
+	if not settings then
+		return false
+	end
+
+	value = normalizeFrameBorderSize(value)
+	if tonumber(settings.frameBorderSize) == value then
+		return false
+	end
+
+	settings.frameBorderSize = value
+	return true
+end
+
+function addon.SetFrameBorderOffset(value)
+	local settings = getSettings()
+	if not settings then
+		return false
+	end
+
+	value = normalizeFrameBorderOffset(value)
+	if tonumber(settings.frameBorderOffset) == value then
+		return false
+	end
+
+	settings.frameBorderOffset = value
+	return true
+end
+
 function addon.GetIconShapeOptions()
 	local options = {}
 	for index, shapeID in ipairs(ICON_SHAPE_ORDER) do
@@ -1062,6 +1163,26 @@ function addon.GetFrameBackgroundOptions()
 		}
 	end
 
+	return options
+end
+
+function addon.GetFrameBorderTextureOptions()
+	local options = {
+		{
+			value = FRAME_BORDER_SKIN_VALUE,
+			label = L["settingsFrameBorderTextureSkin"] or "Follow skin",
+		},
+	}
+	local names = addon.functions and addon.functions.GetLSMMediaNames and addon.functions.GetLSMMediaNames("border") or {}
+	for i = 1, #names do
+		local name = names[i]
+		if type(name) == "string" and name ~= "" then
+			options[#options + 1] = {
+				value = name,
+				label = name,
+			}
+		end
+	end
 	return options
 end
 
@@ -1132,6 +1253,9 @@ function addon.GetSkinSignature()
 		addon.GetFrameBackground and addon.GetFrameBackground() or "solid",
 		colorToSignature(addon.GetFrameBackgroundColor and addon.GetFrameBackgroundColor() or {}),
 		tostring(addon.GetFrameBackgroundOpacity and addon.GetFrameBackgroundOpacity() or 60),
+		addon.GetFrameBorderTexture and addon.GetFrameBorderTexture() or FRAME_BORDER_SKIN_VALUE,
+		tostring(addon.GetFrameBorderSize and addon.GetFrameBorderSize() or 1),
+		tostring(addon.GetFrameBorderOffset and addon.GetFrameBorderOffset() or 0),
 		frame.backdropAtlas or "",
 		colorToSignature(frame.backdropColor or {}),
 		frame.borderAtlas or "",
@@ -1181,6 +1305,7 @@ function addon.ApplyFrameBackgroundSkin(frame, skin)
 	}, requestedOpacity)
 
 	frame:SetBackdropColor(backdropR, backdropG, backdropB, backdropBaseAlpha * opacityScale)
+	frame:SetBackdropBorderColor(unpackColor(skin.borderColor, 1))
 
 	local texture = frame.BackgroundTexture
 	if texture then
@@ -1222,6 +1347,32 @@ function addon.ApplyFrameBackgroundSkin(frame, skin)
 		else
 			shade:SetColorTexture(0, 0, 0, 0)
 			shade:Hide()
+		end
+	end
+
+	local border = frame.CustomBorderFrame
+	if border then
+		local borderTextureSetting = addon.GetFrameBorderTexture and addon.GetFrameBorderTexture() or FRAME_BORDER_SKIN_VALUE
+		local borderSize = addon.GetFrameBorderSize and addon.GetFrameBorderSize() or 1
+		if borderTextureSetting == FRAME_BORDER_SKIN_VALUE then
+			borderTextureSetting = DEFAULT_FRAME_BORDER_TEXTURE
+		elseif addon.functions and addon.functions.ResolveLSMMedia then
+			borderTextureSetting = addon.functions.ResolveLSMMedia("border", borderTextureSetting, DEFAULT_FRAME_BORDER_TEXTURE, true) or DEFAULT_FRAME_BORDER_TEXTURE
+		end
+
+		if borderSize <= 0 then
+			border:Hide()
+		else
+			local borderOffset = addon.GetFrameBorderOffset and addon.GetFrameBorderOffset() or 0
+			border:ClearAllPoints()
+			border:SetPoint("TOPLEFT", frame, "TOPLEFT", -borderOffset, borderOffset)
+			border:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", borderOffset, -borderOffset)
+			border:SetBackdrop({
+				edgeFile = borderTextureSetting,
+				edgeSize = borderSize,
+			})
+			border:SetBackdropBorderColor(unpackColor(skin.borderColor, 1))
+			border:Show()
 		end
 	end
 end

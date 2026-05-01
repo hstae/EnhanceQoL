@@ -980,7 +980,11 @@ applyActiveSkin = function()
 		else
 			frame:SetBackdropColor(unpackSkinColor(skin.backdropColor, 0.05, 0.06, 0.08, 0.94))
 		end
-		frame:SetBackdropBorderColor(unpackSkinColor(skin.borderColor, 0.35, 0.35, 0.42, 1))
+		if not frame.CustomBorderFrame then
+			frame:SetBackdropBorderColor(unpackSkinColor(skin.borderColor, 0.35, 0.35, 0.42, 1))
+		else
+			frame:SetBackdropBorderColor(0, 0, 0, 0)
+		end
 
 		if frame.Divider then
 			frame.Divider:SetColorTexture(unpackSkinColor(skin.dividerColor, 1, 1, 1, 0.08))
@@ -2601,6 +2605,12 @@ local function createMainFrame()
 	backgroundShade:SetAllPoints(backgroundTexture)
 	backgroundShade:Hide()
 	frame.BackgroundShade = backgroundShade
+
+	local customBorderFrame = CreateFrame("Frame", nil, frame, "BackdropTemplate")
+	customBorderFrame:SetFrameLevel(frame:GetFrameLevel() + 2)
+	customBorderFrame:EnableMouse(false)
+	customBorderFrame:Hide()
+	frame.CustomBorderFrame = customBorderFrame
 	tinsert(UISpecialFrames, "BagsMainFrame")
 	frame:SetScript("OnHide", function(self)
 		state.manualVisible = false

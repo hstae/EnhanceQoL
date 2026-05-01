@@ -15137,7 +15137,7 @@ function GF._applyGroupCopyRefresh(targetKind, editModeId)
 	refreshAllAuras()
 	if GF._previewActive and GF._previewActive[targetKind] then GF:UpdatePreviewLayout(targetKind) end
 	-- Do not call EditMode:RefreshFrame here: it reapplies layout data via onApply.
-	-- Instead, sync the stored layout record so future applies (e.g. dragging the frame)
+	-- Instead, sync the runtime layout values so future applies (e.g. dragging the frame)
 	-- do not overwrite freshly copied cfg values with stale ones.
 	if editModeId and GF._syncGroupEditModeLayoutData then GF._syncGroupEditModeLayoutData(targetKind, editModeId) end
 	if addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RefreshSettingValues then addon.EditModeLib.internal:RefreshSettingValues() end
@@ -27765,6 +27765,14 @@ function GF.SyncGroupEditModePositionValues(kind, editModeId, cfg, layoutName)
 	EditMode:SetValue(editModeId, "y", y, layoutName, true)
 end
 
+function GF.SyncAllGroupEditModeLayoutData(layoutName)
+	if not EDITMODE_IDS then return end
+	for _, kind in ipairs({ "party", "raid", "mt", "ma" }) do
+		local editModeId = EDITMODE_IDS[kind]
+		if editModeId then GF._syncGroupEditModeLayoutData(kind, editModeId, layoutName) end
+	end
+end
+
 local function applyEditModeData(kind, data)
 	if not data then return end
 	-- EditMode may fire apply callbacks during login/reload/profile refresh with
@@ -29634,9 +29642,10 @@ function GF:EnsureEditMode()
 				frame = anchor,
 				title = (kind == "party" and (PARTY or "Party")) or (kind == "raid" and (RAID or "Raid")) or (kind == "mt" and "Main Tank") or (kind == "ma" and "Main Assist") or tostring(kind),
 				layoutDefaults = defaults,
+				persistPosition = false,
 				settings = buildEditModeSettings(kind, EDITMODE_IDS[kind]),
 				onApply = function(_, layoutName, data)
-					local token = addon.db
+					local token = getCfg(kind) or addon.db
 					if anchor._eqolEditModeHydratedToken ~= token then
 						anchor._eqolEditModeHydratedToken = token
 						if GF._syncGroupEditModeLayoutData then GF._syncGroupEditModeLayoutData(kind, EDITMODE_IDS[kind], layoutName) end
@@ -29912,6 +29921,7 @@ end
 function GF:RunProfileChangeRefreshPass()
 	if not isFeatureEnabled() then return end
 	self:EnsureHeaders()
+	self.SyncAllGroupEditModeLayoutData()
 	-- Profile switches can flip secure header attributes like showPlayer while
 	-- the group header is live. Use the lighter refresh path so the secure
 	-- header owns child rebuilding unless the layout key actually changed.
