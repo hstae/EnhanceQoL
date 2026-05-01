@@ -4621,25 +4621,26 @@ function getBarSettings(pType)
 	return nil
 end
 
-function ResourceBars.GetFrameRuntimeConfigToken(specIndex)
+function ResourceBars.GetFrameRuntimeConfigToken(pType, specIndex)
 	local class = tostring(addon.variables.unitClass or "")
 	local spec = tonumber(specIndex or addon.variables.unitSpec) or 0
 	local mode = (ResourceBars.SpecUsesSharedMode and ResourceBars.SpecUsesSharedMode(spec)) and "SHARED" or "SPEC"
-	return class .. "|" .. tostring(spec) .. "|" .. mode
+	local form = (class == "DRUID" and ResourceBars.GetCurrentDruidFormKey and ResourceBars.GetCurrentDruidFormKey()) or ""
+	return class .. "|" .. tostring(spec) .. "|" .. mode .. "|" .. tostring(pType or "") .. "|" .. tostring(form or "")
 end
 
-function ResourceBars.AssignFrameRuntimeConfig(frame, cfg, specIndex)
+function ResourceBars.AssignFrameRuntimeConfig(frame, cfg, pType, specIndex)
 	if not frame then return cfg end
 	frame._cfg = cfg
-	frame._rbCfgCacheToken = cfg and ResourceBars.GetFrameRuntimeConfigToken(specIndex) or nil
+	frame._rbCfgCacheToken = cfg and ResourceBars.GetFrameRuntimeConfigToken(pType, specIndex) or nil
 	return cfg
 end
 
 function ResourceBars.GetFrameRuntimeConfig(pType, frame, specIndex)
 	if not frame then return getBarSettings(pType) end
-	local token = ResourceBars.GetFrameRuntimeConfigToken(specIndex)
+	local token = ResourceBars.GetFrameRuntimeConfigToken(pType, specIndex)
 	if frame._cfg and frame._rbCfgCacheToken == token then return frame._cfg end
-	return ResourceBars.AssignFrameRuntimeConfig(frame, getBarSettings(pType), specIndex)
+	return ResourceBars.AssignFrameRuntimeConfig(frame, getBarSettings(pType), pType, specIndex)
 end
 
 local function wantsRelativeFrameWidthMatch(anchor) return anchor and (anchor.relativeFrame or "UIParent") ~= "UIParent" and anchor.matchRelativeWidth == true end
@@ -6263,6 +6264,13 @@ function ResourceBars.ResetReusedPowerBarVisualState(bar, previousType, nextType
 	deactivateRuneTicker(bar)
 	if ResourceBars.DeactivateEssenceTicker then ResourceBars.DeactivateEssenceTicker(bar) end
 	if ResourceBars.InvalidateEssenceSegmentCaches then ResourceBars.InvalidateEssenceSegmentCaches(bar) end
+	bar._rbCfgCacheToken = nil
+	bar._lastColor = nil
+	bar._baseColor = nil
+	bar._usingMaxColor = nil
+	bar._usingAbsoluteThresholdColor = nil
+	bar._usingHolyThreeColor = nil
+	bar._usingMaelstromFiveColor = nil
 
 	hideBarChildSegments(bar.runes, true)
 	hideBarChildSegments(bar.essences, false)
@@ -6389,7 +6397,7 @@ local function createPowerBar(type, anchor, sharedSlot)
 	local w = max(RB.MIN_RESOURCE_BAR_WIDTH, (settings and settings.width) or RB.DEFAULT_POWER_WIDTH)
 	local h = settings and settings.height or RB.DEFAULT_POWER_HEIGHT
 	ResourceBars.ResetReusedPowerBarVisualState(bar, previousType, type)
-	ResourceBars.AssignFrameRuntimeConfig(bar, settings)
+	ResourceBars.AssignFrameRuntimeConfig(bar, settings, type)
 	bar._rbType = type
 	bar._rbSharedSlot = sharedSlot
 	if sharedSlot and ResourceBars.BindSharedSlotRuntimeFrame then

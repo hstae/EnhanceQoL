@@ -51,6 +51,15 @@
 
 <!--@end-eqol-beta@-->
 
+## [10.9.2] - 2026-05-01
+
+### 🐛 Fixed
+
+- Resource Bars / Shared Mode: Fixed Druid shared resource bars keeping stale power colors after shapeshifting between forms such as Cat Form and Moonkin Form.
+- Resource Bars / Edit Mode: Fixed the shared Power Color editor not refreshing its color and override controls immediately after switching the selected power type.
+
+---
+
 ## [10.9.1] - 2026-05-01
 
 ### 🐛 Fixed
@@ -58,6 +67,7 @@
 - Cooldown Panels: Fixed Blizzard Cooldown Manager tracked aura icons briefly disappearing during spell override updates.
 - Group Frames / Party: Fixed the solo party role icon not updating after active specialization changes.
 - Group Frames: Fixed custom Party/Raid sorting sometimes showing incomplete or overlapping units immediately after joining a group until a later roster update or reload.
+- Unit Frames: Fixed Data Bar texture and spacing issues, added text offset controls, and allowed negative Data Bar gaps for precise alignment.
 
 ---
 

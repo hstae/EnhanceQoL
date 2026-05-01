@@ -3020,14 +3020,14 @@ registerEditModeBars = function()
 								end, function()
 									if selectedSharedPowerType == pType then return end
 									selectedSharedPowerType = pType
-									if addon.EditModeLib and addon.EditModeLib.internal then addon.EditModeLib.internal:RefreshSettings() end
+									refreshSettingsUI()
 								end)
 							end
 						end,
 						get = function() return selectedSharedPowerTypeTarget() end,
 						set = function(_, value)
 							selectedSharedPowerType = value
-							if addon.EditModeLib and addon.EditModeLib.internal then addon.EditModeLib.internal:RefreshSettings() end
+							refreshSettingsUI()
 						end,
 						default = currentEditorPowerType() or barType,
 					}
