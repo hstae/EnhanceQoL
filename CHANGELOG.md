@@ -42,6 +42,14 @@
 
 <!--@end-eqol-beta@-->
 
+## [10.9.1] - 2026-05-01
+
+### 🐛 Fixed
+
+- Cooldown Panels: Fixed Blizzard Cooldown Manager tracked aura icons briefly disappearing during spell override updates.
+
+---
+
 ## [10.9.0] - 2026-04-30
 
 ### ✨ Added

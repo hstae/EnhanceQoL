@@ -2208,11 +2208,6 @@ function CDMAuras:HandleResetEvent(event, ...)
 		local unit = ...
 		if unit and unit ~= "player" then return end
 	end
-	if event == "COOLDOWN_VIEWER_SPELL_OVERRIDE_UPDATED" then
-		self:EnsureCooldownViewerHooks()
-		self:ScheduleTrackedPanelsRescan("HandleResetEvent:" .. tostring(event))
-		return
-	end
 	self:EnsureCooldownViewerHooks()
 	self:InvalidateScan(true, "HandleResetEvent:" .. tostring(event))
 	self:SweepInvalidStates()
