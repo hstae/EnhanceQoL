@@ -759,11 +759,72 @@ local function importHBP(encoded)
 	return applyImportedHBPState(payload.data)
 end
 
+local UF_GROUP_EDITMODE_IDS = {
+	party = "EQOL_UF_GROUP_PARTY",
+	raid = "EQOL_UF_GROUP_RAID",
+	mt = "EQOL_UF_GROUP_MT",
+	ma = "EQOL_UF_GROUP_MA",
+}
+
+local function getCurrentSpecID()
+	if not (GetSpecialization and GetSpecializationInfo) then return nil end
+	local specIndex = GetSpecialization()
+	if not specIndex then return nil end
+	return GetSpecializationInfo(specIndex)
+end
+
+local function resolveImportedUFProfileName(profileData)
+	local profiles = type(profileData) == "table" and profileData.ufProfiles or nil
+	if type(profiles) ~= "table" then return nil end
+
+	local guid = UnitGUID and UnitGUID("player") or nil
+	local keys = type(profileData.ufProfileKeys) == "table" and profileData.ufProfileKeys or nil
+	local mapped = guid and keys and keys[guid] or nil
+	if type(mapped) == "string" and profiles[mapped] then return mapped end
+
+	local specID = getCurrentSpecID()
+	local specKeys = guid and type(profileData.ufProfileSpecKeys) == "table" and profileData.ufProfileSpecKeys[guid] or nil
+	if specID and type(specKeys) == "table" then
+		mapped = specKeys[specID] or specKeys[tostring(specID)]
+		if type(mapped) == "string" and profiles[mapped] then return mapped end
+	end
+
+	mapped = profileData.ufProfileGlobal
+	if type(mapped) == "string" and profiles[mapped] then return mapped end
+	return nil
+end
+
+local function syncImportedUFGroupEditModeData(profileData)
+	if type(profileData) ~= "table" then return end
+
+	local profileName = resolveImportedUFProfileName(profileData)
+	local ufProfile = profileName and profileData.ufProfiles and profileData.ufProfiles[profileName] or nil
+	local groupFrames = type(ufProfile) == "table" and ufProfile.ufGroupFrames or profileData.ufGroupFrames
+	if type(groupFrames) ~= "table" then return end
+
+	local editModeData = type(profileData.editModeData) == "table" and profileData.editModeData or nil
+	if not editModeData then return end
+
+	for kind, editModeId in pairs(UF_GROUP_EDITMODE_IDS) do
+		local cfg = type(groupFrames[kind]) == "table" and groupFrames[kind] or nil
+		if cfg then
+			local data = type(editModeData[editModeId]) == "table" and editModeData[editModeId] or {}
+			data.point = cfg.point
+			data.relativePoint = cfg.relativePoint or cfg.point
+			data.x = cfg.x
+			data.y = cfg.y
+			data.anchorTarget = cfg.relativeTo
+			editModeData[editModeId] = data
+		end
+	end
+end
+
 local function normalizeProfileStorage(profileData, meta)
 	if type(profileData) ~= "table" then return end
 	if addon and addon.EditMode and addon.EditMode.MigrateProfileData then addon.EditMode:MigrateProfileData(profileData) end
 	if addon and addon.ContainerActions and addon.ContainerActions.MigrateProfileData then addon.ContainerActions:MigrateProfileData(profileData) end
 	if type(meta) == "table" then remapImportedUFCharacterState(profileData, meta) end
+	syncImportedUFGroupEditModeData(profileData)
 end
 
 local function resolveExportProfileName(profileName)
