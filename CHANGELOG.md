@@ -2,18 +2,17 @@
 
 <!--@eqol-beta@-->
 
-## [10.10.0-beta6] - 2026-05-01
+## [10.10.0-beta5] - 2026-05-01
 
 ### ✨ Added
 
 - Bags: Added a One Bag mode that shows items in one flat grid without categories, groups, category sorting, or combined free-slot indicators, with an option to move visible free slots to the end.
 - Bags: Added a native bag cleanup button to the integrated bag header using Blizzard's `C_Container.SortBags()` sort.
+- Bags: Added SharedMedia border texture controls for the custom bag and Warband Bank frames, including border color, size, and offset settings.
 
 ### 🔄 Changed
 
 - Bags: One Bag mode now clears native Blizzard bag filter and cleanup-ignore flags while the integrated custom bag frame is used, so native cleanup sorting starts from an unfiltered bag setup.
-
-## [10.10.0-beta5] - 2026-05-01
 
 ### 🐛 Fixed
 
@@ -89,6 +88,14 @@
 ---
 
 <!--@end-eqol-beta@-->
+
+## [10.9.3] - 2026-05-01
+
+### 🐛 Fixed
+
+- Group Frames: Fixed Party and Raid frames sometimes using positions from another Unit Frames profile after profile changes or reloads.
+
+---
 
 ## [10.9.2] - 2026-05-01
 
