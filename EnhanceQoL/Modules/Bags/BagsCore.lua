@@ -144,6 +144,7 @@ state.itemRuleDataCache = state.itemRuleDataCache or {}
 state.tooltipBindTypeCache = state.tooltipBindTypeCache or {}
 state.slotCategoryCache = state.slotCategoryCache or {}
 state.openSessionNewItems = state.openSessionNewItems or {}
+state.acknowledgedOpenSessionNewItems = state.acknowledgedOpenSessionNewItems or {}
 state.staleBags = state.staleBags or {}
 state.staleBagCount = state.staleBagCount or 0
 state.slotContentState = state.slotContentState or {}
@@ -174,6 +175,7 @@ local installVisibilityHooks
 local installTokenWatcherHooks
 local cachedOverlayRuntimeConfig
 local updateReagentBagVisuals
+local markOpenSessionNewItemAcknowledged
 local itemLevelEligibilityCache = {}
 local BagSlotPanel = {}
 
@@ -215,7 +217,14 @@ function BagsItemButton_OnLoad(self)
 		end)
 		self._bagsVendorClickHookInstalled = true
 	end
-
+	if not self._bagsNewItemAcknowledgementHookInstalled and self.HookScript then
+		self:HookScript("OnEnter", function(button)
+			if markOpenSessionNewItemAcknowledged then
+				markOpenSessionNewItemAcknowledged(button)
+			end
+		end)
+		self._bagsNewItemAcknowledgementHookInstalled = true
+	end
 	applyConfiguredItemButtonFonts(self)
 	self.ItemLevelText:Hide()
 	if self.ItemUpgradeText then
@@ -254,11 +263,119 @@ local function isNewItemAtSlot(bagID, slotID)
 end
 
 local function resetOpenSessionNewItems()
+	local hadSessionItems = false
+	for _, bucket in pairs(state.openSessionNewItems or {}) do
+		if next(bucket) ~= nil then
+			hadSessionItems = true
+			break
+		end
+	end
+
 	if wipe then
 		wipe(state.openSessionNewItems)
 	else
 		state.openSessionNewItems = {}
 	end
+	return hadSessionItems
+end
+
+local function clearOpenSessionNewItemSlot(bagID, slotID)
+	if bagID == nil or slotID == nil then
+		return false
+	end
+
+	local cleared = false
+	if C_NewItems and C_NewItems.RemoveNewItem then
+		if not C_NewItems.IsNewItem or C_NewItems.IsNewItem(bagID, slotID) then
+			C_NewItems.RemoveNewItem(bagID, slotID)
+			cleared = true
+		end
+	end
+
+	local bucket = state.openSessionNewItems and state.openSessionNewItems[bagID]
+	if bucket and bucket[slotID] ~= nil then
+		bucket[slotID] = nil
+		cleared = true
+	end
+
+	local categoryBucket = state.slotCategoryCache and state.slotCategoryCache[bagID]
+	if categoryBucket then
+		categoryBucket[slotID] = nil
+	end
+
+	return cleared
+end
+
+local function addNewItemClearSlot(slots, seen, bagID, slotID)
+	if bagID == nil or slotID == nil then
+		return
+	end
+
+	local seenBag = seen[bagID]
+	if not seenBag then
+		seenBag = {}
+		seen[bagID] = seenBag
+	end
+	if seenBag[slotID] then
+		return
+	end
+
+	seenBag[slotID] = true
+	slots[#slots + 1] = {
+		bagID = bagID,
+		slotID = slotID,
+	}
+end
+
+local function clearNewItemsSection()
+	local slotsToClear = {}
+	local seen = {}
+	local hasNativeNewItems = false
+
+	for bagID = Core.BACKPACK_ID, Core.LAST_CHARACTER_BAG_ID do
+		local slotCount = C_Container.GetContainerNumSlots(bagID) or 0
+		local sessionBucket = state.openSessionNewItems and state.openSessionNewItems[bagID] or nil
+		for slotID = 1, slotCount do
+			local nativeNew = isNewItemAtSlot(bagID, slotID)
+			if nativeNew then
+				hasNativeNewItems = true
+			end
+			if nativeNew or (sessionBucket and sessionBucket[slotID] ~= nil) then
+				addNewItemClearSlot(slotsToClear, seen, bagID, slotID)
+			end
+		end
+	end
+
+	for bagID, bucket in pairs(state.openSessionNewItems or {}) do
+		for slotID in pairs(bucket) do
+			if isNewItemAtSlot(bagID, slotID) then
+				hasNativeNewItems = true
+			end
+			addNewItemClearSlot(slotsToClear, seen, bagID, slotID)
+		end
+	end
+
+	if hasNativeNewItems then
+		state.rebuildAfterNewItemsHeaderClear = true
+	end
+
+	local cleared = false
+	for _, slot in ipairs(slotsToClear) do
+		if clearOpenSessionNewItemSlot(slot.bagID, slot.slotID) then
+			cleared = true
+		end
+	end
+
+	if resetOpenSessionNewItems() then
+		cleared = true
+	end
+
+	wipeTable(state.slotCategoryCache)
+	state.pendingRebuild = true
+	state.pendingRefresh = true
+	state.newItemsVisualDirty = true
+
+	return cleared or #slotsToClear > 0
 end
 
 local function getOpenSessionNewItemIdentity(bagID, slotID, info)
@@ -286,6 +403,68 @@ local function getOpenSessionNewItemsBucket(bagID, create)
 		state.openSessionNewItems[bagID] = bucket
 	end
 	return bucket
+end
+
+local function getAcknowledgedOpenSessionNewItemsBucket(bagID, create)
+	local bucket = state.acknowledgedOpenSessionNewItems[bagID]
+	if not bucket and create then
+		bucket = {}
+		state.acknowledgedOpenSessionNewItems[bagID] = bucket
+	end
+	return bucket
+end
+
+markOpenSessionNewItemAcknowledged = function(button)
+	if addon.GetClearNewItemsOnHeaderClick and addon.GetClearNewItemsOnHeaderClick() then
+		return
+	end
+
+	if not button then
+		return
+	end
+
+	local bagID = button.GetBagID and button:GetBagID() or nil
+	local slotID = button.GetID and button:GetID() or nil
+	if bagID == nil or slotID == nil then
+		return
+	end
+
+	local sessionBucket = getOpenSessionNewItemsBucket(bagID, false)
+	local sessionIdentity = sessionBucket and sessionBucket[slotID] or nil
+	if sessionIdentity == nil and not isNewItemAtSlot(bagID, slotID) then
+		return
+	end
+
+	local info = C_Container.GetContainerItemInfo(bagID, slotID)
+	local identity = sessionIdentity or getOpenSessionNewItemIdentity(bagID, slotID, info)
+	if not identity then
+		return
+	end
+
+	getAcknowledgedOpenSessionNewItemsBucket(bagID, true)[slotID] = identity
+end
+
+local function clearAcknowledgedOpenSessionNewItems()
+	local cleared = false
+	for bagID, bucket in pairs(state.acknowledgedOpenSessionNewItems or {}) do
+		local sessionBucket = getOpenSessionNewItemsBucket(bagID, false)
+		for slotID, acknowledgedIdentity in pairs(bucket) do
+			if sessionBucket and sessionBucket[slotID] ~= nil then
+				if acknowledgedIdentity == true or sessionBucket[slotID] == acknowledgedIdentity then
+					sessionBucket[slotID] = nil
+					cleared = true
+				end
+			end
+
+			local categoryBucket = state.slotCategoryCache and state.slotCategoryCache[bagID]
+			if categoryBucket then
+				categoryBucket[slotID] = nil
+			end
+		end
+	end
+
+	wipeTable(state.acknowledgedOpenSessionNewItems)
+	return cleared
 end
 
 local function isOpenSessionNewItem(bagID, slotID, info)
@@ -1370,6 +1549,9 @@ local function configureSectionHeader(header, options)
 	header.categoryColor = color
 	header.isCustomCategory = not not options.isCustom
 	header.canCollapse = isCollapsible
+	header.canClearNewItems = options.sectionID == "newItems"
+		and addon.GetClearNewItemsOnHeaderClick
+		and addon.GetClearNewItemsOnHeaderClick()
 	header._bagsTextElementID = options.textElementID or "subcategoryHeader"
 	if isCollapsible then
 		header.Icon.Left:SetAtlas(Core.SECTION_TOGGLE_LEFT_ATLAS, false)
@@ -1484,6 +1666,13 @@ local function acquireSectionHeader(index)
 	header.AssignButton = assignButton
 
 	header:SetScript("OnClick", function(self)
+		if self.canClearNewItems then
+			clearNewItemsSection()
+			state.newItemsVisualDirty = true
+			scheduleUpdate(true, true, true)
+			return
+		end
+
 		if self.canCollapse then
 			toggleSectionCollapsed(self.sectionID)
 		end
@@ -1496,6 +1685,9 @@ local function acquireSectionHeader(index)
 		local color = self.categoryColor or { 1, 1, 1 }
 		GameTooltip:SetOwner(self, "ANCHOR_TOP")
 		GameTooltip:SetText(self.categoryLabel, color[1] or 1, color[2] or 1, color[3] or 1)
+		if self.canClearNewItems then
+			GameTooltip:AddLine(GREEN_FONT_COLOR:WrapTextInColorCode(L["categoryNewItemsClearTooltip"] or "Click to clear New Items."))
+		end
 		GameTooltip:Show()
 	end)
 	header:SetScript("OnLeave", function()
@@ -4983,7 +5175,9 @@ local function processUpdate()
 	setActiveBagEventRegistration(shouldBeVisible)
 	if openingFrame then
 		state.footerDirty = true
-		resetOpenSessionNewItems()
+		if clearAcknowledgedOpenSessionNewItems() then
+			state.pendingRebuild = true
+		end
 	end
 	local settings = getSettings()
 	if shouldBeVisible then
@@ -5354,7 +5548,11 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
 		end
 	elseif event == "BAG_NEW_ITEMS_UPDATED" then
 		state.newItemsVisualDirty = true
-		scheduleUpdate(true, false)
+		local requestRebuild = state.rebuildAfterNewItemsHeaderClear == true
+		if requestRebuild then
+			state.rebuildAfterNewItemsHeaderClear = nil
+		end
+		scheduleUpdate(true, requestRebuild)
 	elseif event == "ITEM_DATA_LOAD_RESULT" then
 		local itemID, success = ...
 		if success and (state.pendingRuleItemDataIDs[itemID] or state.awaitingRuleItemData) then

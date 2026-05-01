@@ -3230,12 +3230,26 @@ local function createLayoutPage(parent)
 		end
 	)
 
+	page.ClearNewItemsOnHeaderClick = createCheckbox(
+		contentParent,
+		L["settingsClearNewItemsOnHeaderClick"] or "Click New Items header to clear",
+		L["settingsClearNewItemsOnHeaderClickTooltip"] or "",
+		0,
+		-128,
+		function(value)
+			if addon.SetClearNewItemsOnHeaderClick and addon.SetClearNewItemsOnHeaderClick(value) then
+				addon.RefreshSettingsFrame("layout")
+				requestBagRefresh(true, true)
+			end
+		end
+	)
+
 	page.CompactCategoryLayout = createCheckbox(
 		contentParent,
 		L["settingsCompactCategoryLayout"] or "Compact category layout",
 		L["settingsCompactCategoryLayoutTooltip"] or "",
 		0,
-		-128,
+		-158,
 		function(value)
 			if addon.SetCompactCategoryLayout and addon.SetCompactCategoryLayout(value) then
 				addon.RefreshSettingsFrame("layout")
@@ -3249,7 +3263,7 @@ local function createLayoutPage(parent)
 		L["settingsShowCloseButton"] or "Show close button",
 		L["settingsShowCloseButtonTooltip"] or "",
 		0,
-		-158,
+		-188,
 		function(value)
 			if addon.SetShowCloseButton and addon.SetShowCloseButton(value) then
 				addon.RefreshSettingsFrame("layout")
@@ -4034,6 +4048,9 @@ refreshLayoutPage = function(page)
 	end
 	if page.CombineDuplicateItems then
 		page.CombineDuplicateItems:SetChecked(settings.combineUnstackableItems)
+	end
+	if page.ClearNewItemsOnHeaderClick then
+		page.ClearNewItemsOnHeaderClick:SetChecked(addon.GetClearNewItemsOnHeaderClick and addon.GetClearNewItemsOnHeaderClick() or false)
 	end
 	if page.CompactCategoryLayout then
 		local compactLayoutEnabled = addon.GetCompactCategoryLayout and addon.GetCompactCategoryLayout() or settings.compactCategoryLayout == true

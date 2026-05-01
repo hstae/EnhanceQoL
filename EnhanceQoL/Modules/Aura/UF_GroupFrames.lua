@@ -13072,6 +13072,22 @@ function GF.BuildRaidRuntimeSortState(cfg)
 	}
 end
 
+function GF:IsCustomRosterSortActive(kind)
+	if kind ~= "party" and kind ~= "raid" then return false end
+	local db = DB or ensureDB()
+	local cfg = db and db[kind]
+	if not cfg then return false end
+	local raw = cfg.sortMethod
+	local method = tostring(raw or ""):upper()
+	if method == "CUSTOM" or method == "NAMELIST" then return true end
+	local custom = cfg.customSort
+	return custom and custom.enabled == true and (raw == nil or raw == "")
+end
+
+function GF:HasCustomRosterSort()
+	return GF:IsCustomRosterSortActive("party") or GF:IsCustomRosterSortActive("raid")
+end
+
 function GF:RefreshCustomSortNameList(kind)
 	if not isFeatureEnabled() then return end
 	kind = kind or "raid"
@@ -29822,6 +29838,8 @@ registerFeatureEvents = function(frame)
 		frame:RegisterEvent("UNIT_CONNECTION")
 		frame:RegisterEvent("PARTY_MEMBER_ENABLE")
 		frame:RegisterEvent("PARTY_MEMBER_DISABLE")
+		frame:RegisterEvent("GROUP_FORMED")
+		frame:RegisterEvent("GROUP_JOINED")
 		frame:RegisterEvent("GROUP_ROSTER_UPDATE")
 		frame:RegisterEvent("RAID_ROSTER_UPDATE")
 		frame:RegisterEvent("UNIT_NAME_UPDATE")
@@ -29855,6 +29873,8 @@ unregisterFeatureEvents = function(frame)
 		frame:UnregisterEvent("UNIT_CONNECTION")
 		frame:UnregisterEvent("PARTY_MEMBER_ENABLE")
 		frame:UnregisterEvent("PARTY_MEMBER_DISABLE")
+		frame:UnregisterEvent("GROUP_FORMED")
+		frame:UnregisterEvent("GROUP_JOINED")
 		frame:UnregisterEvent("GROUP_ROSTER_UPDATE")
 		frame:UnregisterEvent("RAID_ROSTER_UPDATE")
 		frame:UnregisterEvent("UNIT_NAME_UPDATE")
@@ -29929,6 +29949,16 @@ function GF:RunPostRosterRefreshPass()
 		self:ApplyHeaderAttributes("mt", options)
 		self:ApplyHeaderAttributes("ma", options)
 	else
+		local options = GF._lightHeaderRefreshOptions
+		if self:IsCustomRosterSortActive("party") then
+			self:ApplyHeaderAttributes("party", options)
+			appliedHeaders = true
+		end
+		if self:IsCustomRosterSortActive("raid") then
+			self:ApplyHeaderAttributes("raid", options)
+			appliedHeaders = true
+		end
+
 		local function nudgeVisible(header)
 			if not (header and header.IsShown and header:IsShown()) then return end
 			nudgeHeaderLayout(header)
@@ -30060,16 +30090,18 @@ do
 		elseif event == "PLAYER_FLAGS_CHANGED" then
 			local refreshed = GF:RefreshConnectionState(...)
 			if refreshed == 0 then GF:RefreshStatusText() end
-		elseif event == "INSPECT_READY" then
-			if GFH and GFH.OnInspectReady then
-				local updated = GFH.OnInspectReady(...)
-				if updated then
-					GF:RefreshCustomSortNameList("raid")
-					if GF._previewActive and GF._previewActive.raid then GF:UpdatePreviewLayout("raid") end
+			elseif event == "INSPECT_READY" then
+				if GFH and GFH.OnInspectReady then
+					local updated = GFH.OnInspectReady(...)
+					if updated then
+						GF:RefreshCustomSortNameList("raid")
+						if GF._previewActive and GF._previewActive.raid then GF:UpdatePreviewLayout("raid") end
+					end
 				end
-			end
-		elseif event == "GROUP_ROSTER_UPDATE" then
-			local headerStateChanged = GF:DidRosterStateChange()
+			elseif event == "GROUP_FORMED" or event == "GROUP_JOINED" then
+				if GF:HasCustomRosterSort() then GF:SchedulePostRosterRefresh() end
+			elseif event == "GROUP_ROSTER_UPDATE" then
+				local headerStateChanged = GF:DidRosterStateChange()
 			local cfg = getCfg("raid")
 			local custom = cfg and GFH and GFH.EnsureCustomSortConfig and GFH.EnsureCustomSortConfig(cfg)
 			local sortMethod = cfg and resolveSortMethod(cfg) or "INDEX"

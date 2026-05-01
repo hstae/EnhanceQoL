@@ -2,12 +2,21 @@
 
 <!--@eqol-beta@-->
 
+## [10.10.0-beta3] - 2026-05-01
+
+### ✨ Added
+
+- Bags: Added an optional New Items header click action to clear the current new-item markers immediately without deleting any items.
+
+### 🐛 Fixed
+
+- Bags: Fixed New Items session handling so unacknowledged items stay in New Items across bag reopen, while acknowledged items move to their normal category on the next open unless header-click clearing is enabled.
+
 ## [10.10.0-beta2] - 2026-04-30
 
 ### 🐛 Fixed
 
 - Bags: Fixed the integrated bag frame opening invisibly when Blizzard's hidden native container frames were still reported as shown but had no valid screen position.
-- Bags: Added an optional New Items header click action to clear the current new-item markers immediately without deleting any items.
 - Cooldown Panels / Bars: Fixed segmented Charge bars for spells with more than two charges, including cleaner 2/3-charge rendering, spec-switch max-charge updates in shared panels, and duration text following the currently recharging segment.
 
 ## [10.10.0-beta1] - 2026-04-30
@@ -48,6 +57,7 @@
 
 - Cooldown Panels: Fixed Blizzard Cooldown Manager tracked aura icons briefly disappearing during spell override updates.
 - Group Frames / Party: Fixed the solo party role icon not updating after active specialization changes.
+- Group Frames: Fixed custom Party/Raid sorting sometimes showing incomplete or overlapping units immediately after joining a group until a later roster update or reload.
 
 ---
 

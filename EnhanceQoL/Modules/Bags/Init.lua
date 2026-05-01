@@ -86,6 +86,7 @@ local defaultSettings = {
 	compactCategoryLayout = true,
 	compactCategoryGap = 8,
 	showCloseButton = true,
+	clearNewItemsOnHeaderClick = false,
 	combineFreeSlots = true,
 	showFreeSlots = true,
 	combineUnstackableItems = true,
@@ -1262,6 +1263,23 @@ function addon.SetShowCloseButton(enabled)
 	end
 
 	settings.showCloseButton = enabled
+	return true
+end
+
+function addon.GetClearNewItemsOnHeaderClick()
+	local settings = addon.GetSettings()
+	settings.clearNewItemsOnHeaderClick = normalizeBooleanSetting(settings.clearNewItemsOnHeaderClick, defaultSettings.clearNewItemsOnHeaderClick)
+	return settings.clearNewItemsOnHeaderClick
+end
+
+function addon.SetClearNewItemsOnHeaderClick(enabled)
+	local settings = addon.GetSettings()
+	enabled = normalizeBooleanSetting(enabled, defaultSettings.clearNewItemsOnHeaderClick)
+	if settings.clearNewItemsOnHeaderClick == enabled then
+		return false
+	end
+
+	settings.clearNewItemsOnHeaderClick = enabled
 	return true
 end
 
