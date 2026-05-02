@@ -2133,17 +2133,17 @@ function CDMAuras:BuildRuntimeData(panelId, entryId, entry, entryLayout, alwaysS
 		if not scanInfo or staleFrameScanInfo then
 			local rescanEpoch = runtime.scanEpoch or scanEpoch
 				local rescanned
-				local rescannedBySpellID
 				local rescannedByCooldownKey
 				if runtime.forcedRescanEpoch == rescanEpoch then
-					_, rescanned, rescannedBySpellID, rescannedByCooldownKey = self:ScanTrackedBuffs(false, "runtime")
+					local _, rescannedByCooldownID, _rescannedBySpellID, rescannedCooldownLookup = self:ScanTrackedBuffs(false, "runtime")
+					rescanned = rescannedByCooldownID
+					rescannedByCooldownKey = rescannedCooldownLookup
 				else
 					-- A negative first lookup can happen before Cooldown Viewer data or frames are ready.
 					-- Clear cached viewer info too so the forced rescan can recover once Blizzard finishes initialization.
 					self:InvalidateScan(true, "BuildRuntimeData:ForcedRescan")
 					local _, rescannedByCooldownID, rescannedBySpellLookup, rescannedCooldownLookup = self:ScanTrackedBuffs(true, "runtime")
 					rescanned = rescannedByCooldownID
-					rescannedBySpellID = rescannedBySpellLookup
 					rescannedByCooldownKey = rescannedCooldownLookup
 					runtime.forcedRescanEpoch = runtime.scanEpoch or rescanEpoch
 				end
@@ -2193,13 +2193,16 @@ function CDMAuras:BuildRuntimeData(panelId, entryId, entry, entryLayout, alwaysS
 		local runtimePass = runtime.runtimePass
 		if not chosenFrameLooksActive or not chosenFrameMatchesTrackedSpell then
 			local rescannedByCooldownID
-				local rescannedBySpellID
 				local rescannedByCooldownKey
 				if runtimePass and runtime.reacquireRescanPass == runtimePass then
-					_, rescannedByCooldownID, rescannedBySpellID, rescannedByCooldownKey = self:ScanTrackedBuffs(false, "runtime")
+					local _, latestByCooldownID, _latestBySpellID, latestByCooldownKey = self:ScanTrackedBuffs(false, "runtime")
+					rescannedByCooldownID = latestByCooldownID
+					rescannedByCooldownKey = latestByCooldownKey
 				else
 					self:InvalidateScan(false, "BuildRuntimeData:Reacquire")
-					_, rescannedByCooldownID, rescannedBySpellID, rescannedByCooldownKey = self:ScanTrackedBuffs(true, "runtime")
+					local _, latestByCooldownID, _latestBySpellID, latestByCooldownKey = self:ScanTrackedBuffs(true, "runtime")
+					rescannedByCooldownID = latestByCooldownID
+					rescannedByCooldownKey = latestByCooldownKey
 					if runtimePass then runtime.reacquireRescanPass = runtimePass end
 				end
 				scanInfo, resolvedCooldownID = resolveRuntimeEntryScanInfo(entry, runtime.scan, rescannedByCooldownID, rescannedByCooldownKey)
