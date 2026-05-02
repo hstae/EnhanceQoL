@@ -1,6 +1,18 @@
 # Changelog
 
 <!--@eqol-beta@-->
+## [10.10.0-beta8] - 2026-05-02
+
+### ⚡ Performance
+
+- Cooldown Panels / Bars: Reduced runtime bar refresh allocations by caching static bar state, reusing per-icon runtime state, and avoiding repeated text/font layout work when bar text styling has not changed.
+- Cooldown Panels / Bars: Reduced repeated keybind lookup work by caching per-entry keybind text and avoiding unnecessary action-bar binding rescans during panel refreshes.
+
+### 🐛 Fixed
+
+- Cooldown Panels / Bars: Fixed Button/Bar display mode changes requiring a UI reload before the runtime bar index updated outside layout edit mode.
+- Cooldown Panels / Bars: Hardened reused bar runtime state so charge, cooldown, and native timer fields are reset cleanly between refreshes.
+
 ## [10.10.0-beta7] - 2026-05-02
 
 ### ⚡ Performance
