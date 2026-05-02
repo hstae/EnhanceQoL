@@ -96,6 +96,8 @@
 
 ## [10.9.4] - 2026-05-01
 
+## First improvement of CD Panel performance for quick fix
+
 ### ⚡ Performance
 
 - In some edge cases (over 1000 entries in CD Panels) there was an increase in build work leading to stutter
