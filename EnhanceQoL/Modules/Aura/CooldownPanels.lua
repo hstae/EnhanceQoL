@@ -4210,6 +4210,9 @@ function CooldownPanels:RebuildSpellIndex()
 	local cdmAuraPanels = {}
 	local cdmAuraPanelIds = {}
 	local cdmAuraEntryIdsByPanel = {}
+	local cdmAuraCooldownKeys = {}
+	local cdmAuraSpellIds = {}
+	local cdmAuraHasSpellOnlyEntries = false
 	local cdmAuraEntryCount = 0
 	local enabledPanelsBySpec = {}
 	local enabledPanelIdsBySpec = {}
@@ -4271,10 +4274,21 @@ function CooldownPanels:RebuildSpellIndex()
 							cdmAuraPanelIds[#cdmAuraPanelIds + 1] = panelId
 							entryIds = {}
 							cdmAuraEntryIdsByPanel[panelId] = entryIds
+							end
+							entryIds[#entryIds + 1] = entryId
+							cdmAuraEntryCount = cdmAuraEntryCount + 1
+							local cooldownID = entry.cooldownID
+							if type(cooldownID) == "number" and cooldownID > 0 then
+								cdmAuraCooldownKeys[cooldownID] = true
+							elseif type(cooldownID) == "string" and cooldownID ~= "" then
+								cdmAuraCooldownKeys[cooldownID] = true
+							end
+							local cdmAuraSpellID = tonumber(entry.spellID)
+							if cdmAuraSpellID and cdmAuraSpellID > 0 then
+								cdmAuraSpellIds[cdmAuraSpellID] = true
+								if not cooldownID then cdmAuraHasSpellOnlyEntries = true end
+							end
 						end
-						entryIds[#entryIds + 1] = entryId
-						cdmAuraEntryCount = cdmAuraEntryCount + 1
-					end
 					if entry and entry.type == "SPELL" and entry.spellID then
 						spellId = tonumber(entry.spellID)
 					elseif entry and entry.type == "MACRO" then
@@ -4418,6 +4432,9 @@ function CooldownPanels:RebuildSpellIndex()
 	runtime.cdmAuraPanels = cdmAuraPanels
 	runtime.cdmAuraPanelIds = cdmAuraPanelIds
 	runtime.cdmAuraEntryIdsByPanel = cdmAuraEntryIdsByPanel
+	runtime.cdmAuraCooldownKeys = cdmAuraCooldownKeys
+	runtime.cdmAuraSpellIds = cdmAuraSpellIds
+	runtime.cdmAuraHasSpellOnlyEntries = cdmAuraHasSpellOnlyEntries
 	runtime.cdmAuraEntryCount = cdmAuraEntryCount
 	runtime.itemPanels = itemPanels
 	runtime.itemUsesPanels = itemUsesPanels
