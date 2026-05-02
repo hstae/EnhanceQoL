@@ -3972,8 +3972,6 @@ function CooldownPanels:DuplicatePanel(panelId)
 	markRootOrderDirty(root)
 	Keybinds.MarkPanelsDirty()
 	self:RebuildSpellIndex()
-	local cdmAuras = CooldownPanels.CDMAuras
-	if cdmAuras and cdmAuras.HandleRootRefresh then cdmAuras:HandleRootRefresh() end
 	self:UpdateCursorAnchorState()
 	self:RefreshPanel(id)
 	return id, panel
@@ -4001,8 +3999,6 @@ function CooldownPanels:DeletePanel(panelId)
 		CooldownPanels.runtime[panelId] = nil
 	end
 	self:RebuildSpellIndex()
-	local cdmAuras = CooldownPanels.CDMAuras
-	if cdmAuras and cdmAuras.HandleRootRefresh then cdmAuras:HandleRootRefresh() end
 	self:UpdateCursorAnchorState()
 end
 
@@ -4075,10 +4071,6 @@ function CooldownPanels:AddEntry(panelId, entryType, idValue, overrides)
 		if macro and macro.kind == "ITEM" and macro.itemID then updateItemCountCacheForItem(macro.itemID) end
 	end
 	self:RebuildSpellIndex()
-	if entry.type == "CDM_AURA" then
-		local cdmAuras = self.CDMAuras
-		if cdmAuras and cdmAuras.HandleRootRefresh then cdmAuras:HandleRootRefresh() end
-	end
 	self:RefreshPanel(panelId)
 	return entryId, entry
 end
@@ -4144,8 +4136,6 @@ function CooldownPanels:RemoveEntry(panelId, entryId)
 	Helper.SyncOrder(panel.order, panel.entries)
 	Helper.InvalidateFixedLayoutCache(panel)
 	self:RebuildSpellIndex()
-	local cdmAuras = CooldownPanels.CDMAuras
-	if cdmAuras and cdmAuras.HandleRootRefresh then cdmAuras:HandleRootRefresh() end
 	self:RefreshPanel(panelId)
 end
 
@@ -4439,7 +4429,7 @@ function CooldownPanels:RebuildSpellIndex()
 	self:PrimeReadySoundStates()
 	local cdmAuras = self.CDMAuras
 	if cdmAuras and cdmAuras.HandleRuntimeIndexChanged then
-		cdmAuras:HandleRuntimeIndexChanged("RebuildSpellIndex")
+		cdmAuras:HandleRuntimeIndexChanged("RebuildSpellIndex", false)
 	elseif cdmAuras and cdmAuras.UpdateEventRegistration then
 		cdmAuras:UpdateEventRegistration()
 	end
@@ -4723,8 +4713,6 @@ function CooldownPanels:NormalizeAll()
 		if Helper.IsFixedLayout(panel.layout) then Helper.EnsureFixedSlotAssignments(panel) end
 	end
 	self:RebuildSpellIndex()
-	local cdmAuras = CooldownPanels.CDMAuras
-	if cdmAuras and cdmAuras.HandleRootRefresh then cdmAuras:HandleRootRefresh() end
 end
 
 function CooldownPanels:AddEntrySafe(panelId, entryType, idValue, overrides)

@@ -85,8 +85,16 @@ end
 
 function cdm.ResetPersistentFrameCaches(runtime)
 	if not runtime then return end
-	runtime.frameEpochByFrame = cdm.EnsureWeakKeyTable(nil)
-	runtime.frameAuraSnapshotByFrame = cdm.EnsureWeakKeyTable(nil)
+	if type(runtime.frameEpochByFrame) == "table" then
+		wipe(runtime.frameEpochByFrame)
+	else
+		runtime.frameEpochByFrame = cdm.EnsureWeakKeyTable(nil)
+	end
+	if type(runtime.frameAuraSnapshotByFrame) == "table" then
+		wipe(runtime.frameAuraSnapshotByFrame)
+	else
+		runtime.frameAuraSnapshotByFrame = cdm.EnsureWeakKeyTable(nil)
+	end
 end
 
 local function getRuntime()
@@ -1940,12 +1948,12 @@ function CDMAuras:HandleRootRefresh()
 	refreshAllTrackedPanels()
 end
 
-function CDMAuras:HandleRuntimeIndexChanged(reason)
+function CDMAuras:HandleRuntimeIndexChanged(reason, clearCooldownViewerInfo)
 	local runtime = getRuntime()
 	self:SweepInvalidStates()
 	clearTrackedPanelIndex(runtime)
 	if not self:UpdateEventRegistration() then return end
-	self:InvalidateScan(true, reason or "RuntimeIndexChanged")
+	self:InvalidateScan(clearCooldownViewerInfo == true, reason or "RuntimeIndexChanged")
 	refreshAllTrackedPanels()
 end
 
@@ -2316,14 +2324,13 @@ function CDMAuras:ScheduleTrackedPanelsRescan(reason)
 	pending.reason = pending.reason or reason
 	if pending.queued == true then return end
 	pending.queued = true
-	C_Timer.After(RESHUFFLE_REFRESH_DELAY, function()
+	C_Timer.After(0, function()
 		local latestRuntime = getRuntime()
 		local latestPending = latestRuntime.pendingRescanRefresh
 		latestRuntime.pendingRescanRefresh = nil
-		if not self:HasActiveTrackedPanels() then return end
-		self:InvalidateScan(false, latestPending and latestPending.reason or reason or "TrackedPanelsRescan")
-		self:SweepInvalidStates()
-		self:RebuildTrackedPanelIndex()
+		if not CDMAuras:HasActiveTrackedPanels() then return end
+		CDMAuras:InvalidateScan(false, latestPending and latestPending.reason or reason or "TrackedPanelsRescan")
+		clearTrackedPanelIndex(latestRuntime)
 		refreshAllTrackedPanels()
 	end)
 end
