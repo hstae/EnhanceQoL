@@ -4217,6 +4217,10 @@ function CooldownPanels:RebuildSpellIndex()
 	local slotEntryMeta = {}
 	local enabledPanels = {}
 	local enabledPanelIds = {}
+	local cdmAuraPanels = {}
+	local cdmAuraPanelIds = {}
+	local cdmAuraEntryIdsByPanel = {}
+	local cdmAuraEntryCount = 0
 	local enabledPanelsBySpec = {}
 	local enabledPanelIdsBySpec = {}
 	local itemPanels = {}
@@ -4270,6 +4274,17 @@ function CooldownPanels:RebuildSpellIndex()
 					local spellEntryMetaData
 					local itemEntryMetaData
 					local slotEntryMetaData
+					if entry and entry.type == "CDM_AURA" then
+						local entryIds = cdmAuraEntryIdsByPanel[panelId]
+						if not entryIds then
+							cdmAuraPanels[panelId] = true
+							cdmAuraPanelIds[#cdmAuraPanelIds + 1] = panelId
+							entryIds = {}
+							cdmAuraEntryIdsByPanel[panelId] = entryIds
+						end
+						entryIds[#entryIds + 1] = entryId
+						cdmAuraEntryCount = cdmAuraEntryCount + 1
+					end
 					if entry and entry.type == "SPELL" and entry.spellID then
 						spellId = tonumber(entry.spellID)
 					elseif entry and entry.type == "MACRO" then
@@ -4410,6 +4425,10 @@ function CooldownPanels:RebuildSpellIndex()
 	runtime.slotEntryMeta = slotEntryMeta
 	runtime.enabledPanels = enabledPanels
 	runtime.enabledPanelIds = enabledPanelIds
+	runtime.cdmAuraPanels = cdmAuraPanels
+	runtime.cdmAuraPanelIds = cdmAuraPanelIds
+	runtime.cdmAuraEntryIdsByPanel = cdmAuraEntryIdsByPanel
+	runtime.cdmAuraEntryCount = cdmAuraEntryCount
 	runtime.itemPanels = itemPanels
 	runtime.itemUsesPanels = itemUsesPanels
 	runtime.itemTrackedIds = itemTrackedIds
@@ -4419,7 +4438,11 @@ function CooldownPanels:RebuildSpellIndex()
 	self:RebuildChargesIndex()
 	self:PrimeReadySoundStates()
 	local cdmAuras = self.CDMAuras
-	if cdmAuras and cdmAuras.UpdateEventRegistration then cdmAuras:UpdateEventRegistration() end
+	if cdmAuras and cdmAuras.HandleRuntimeIndexChanged then
+		cdmAuras:HandleRuntimeIndexChanged("RebuildSpellIndex")
+	elseif cdmAuras and cdmAuras.UpdateEventRegistration then
+		cdmAuras:UpdateEventRegistration()
+	end
 	if self.UpdateEventRegistration then self:UpdateEventRegistration() end
 	return index
 end
