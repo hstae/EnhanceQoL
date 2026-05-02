@@ -2412,13 +2412,18 @@ local function buildLayoutData(context)
 						layoutData.oneBagFreeSlots[#layoutData.oneBagFreeSlots + 1] = {
 							bagID = bagID,
 							slotID = slotID,
+							freeSlotGroup = "normal",
 						}
 					elseif settings.showFreeSlots ~= false then
-						addSlotMapping(layoutData, "misc", bagID, slotID)
+						addSlotMapping(layoutData, "misc", bagID, slotID, {
+							freeSlotGroup = "normal",
+						})
 					end
 				elseif settings.showFreeSlots ~= false and not settings.combineFreeSlots then
 					local sectionID = settings.showCategories and FREE_SLOTS_SECTION_ID or "misc"
-					addSlotMapping(layoutData, sectionID, bagID, slotID)
+					addSlotMapping(layoutData, sectionID, bagID, slotID, {
+						freeSlotGroup = "normal",
+					})
 				end
 			end
 		end
@@ -2426,7 +2431,9 @@ local function buildLayoutData(context)
 
 	if oneBagMode and oneBagFreeSlotsAtEnd and settings.showFreeSlots ~= false then
 		for _, freeSlot in ipairs(layoutData.oneBagFreeSlots) do
-			addSlotMapping(layoutData, "misc", freeSlot.bagID, freeSlot.slotID)
+			addSlotMapping(layoutData, "misc", freeSlot.bagID, freeSlot.slotID, {
+				freeSlotGroup = freeSlot.freeSlotGroup or "normal",
+			})
 		end
 	end
 

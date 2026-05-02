@@ -5,6 +5,7 @@
 
 ### 🐛 Fixed
 
+- Bags: Fixed One Bag mode still showing the reagent icon on empty reagent bag slots when Free slot display was set to Without icon or Colored slots.
 - Tooltips: Fixed a secret-value error when resolving spell tooltip icon IDs for spell IDs marked as secret values.
 
 ## [10.10.0-beta5] - 2026-05-01

@@ -4662,13 +4662,18 @@ local function buildLayoutData()
 							bagID = bagID,
 							slotID = slotID,
 							sectionID = isReagentBag and "oneBagReagent" or "oneBagNormal",
+							freeSlotGroup = isReagentBag and "reagent" or "normal",
 						}
 					elseif settings.showFreeSlots ~= false then
-						addSlotMapping(layoutData, isReagentBag and "oneBagReagent" or "oneBagNormal", bagID, slotID)
+						addSlotMapping(layoutData, isReagentBag and "oneBagReagent" or "oneBagNormal", bagID, slotID, {
+							freeSlotGroup = isReagentBag and "reagent" or "normal",
+						})
 					end
 				elseif settings.showFreeSlots ~= false and not settings.combineFreeSlots then
 					local sectionID = settings.showCategories and Core.FREE_SLOTS_SECTION_ID or "misc"
-					addSlotMapping(layoutData, sectionID, bagID, slotID)
+					addSlotMapping(layoutData, sectionID, bagID, slotID, {
+						freeSlotGroup = isReagentBag and "reagent" or "normal",
+					})
 				end
 			end
 		end
@@ -4676,7 +4681,9 @@ local function buildLayoutData()
 
 	if oneBagMode and oneBagFreeSlotsAtEnd and settings.showFreeSlots ~= false then
 		for _, freeSlot in ipairs(layoutData.oneBagFreeSlots) do
-			addSlotMapping(layoutData, freeSlot.sectionID or "oneBagNormal", freeSlot.bagID, freeSlot.slotID)
+			addSlotMapping(layoutData, freeSlot.sectionID or "oneBagNormal", freeSlot.bagID, freeSlot.slotID, {
+				freeSlotGroup = freeSlot.freeSlotGroup or "normal",
+			})
 		end
 	end
 
