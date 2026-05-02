@@ -4455,6 +4455,7 @@ function CooldownPanels:RebuildSpellIndex()
 	runtime.barPanelIds = barPanelIds
 	runtime.barEntryIdsByPanel = barEntryIdsByPanel
 	runtime.barEntryCount = barEntryCount
+	runtime.barStaticGeneration = (runtime.barStaticGeneration or 0) + 1
 	runtime.barLabelGeneration = (runtime.barLabelGeneration or 0) + 1
 	runtime.itemPanels = itemPanels
 	runtime.itemUsesPanels = itemUsesPanels

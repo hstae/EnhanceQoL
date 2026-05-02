@@ -716,6 +716,7 @@ local function mutateBarEntry(panelId, entryId, mutator, reopenDialog)
 	local isBar = Bars.IsBarDisplayModeValue(entry.displayMode)
 	if type(entry._eqolBarsStaticVersion) ~= "number" then entry._eqolBarsStaticVersion = 0 end
 	entry._eqolBarsStaticVersion = entry._eqolBarsStaticVersion + 1
+	if Bars._eqolBarColorCache then Bars._eqolBarColorCache[entry] = nil end
 	Bars.MarkReservationCacheDirty(panel)
 	if wasBar ~= isBar and CooldownPanels.RebuildSpellIndex then
 		CooldownPanels:RebuildSpellIndex()
@@ -2902,6 +2903,152 @@ getChargeSegmentDescriptors = function(state, segmentCount)
 	return descriptors
 end
 
+Bars.GetBarStaticState = function(entry, mode, resolvedType, resolvedSpellId, label, staticVersion, staticGeneration, labelGeneration)
+	if not entry then return nil end
+	staticVersion = staticVersion or entry._eqolBarsStaticVersion or 0
+	staticGeneration = staticGeneration or 0
+	labelGeneration = labelGeneration or 0
+	local mediaGeneration = addon.functions and addon.functions.GetLSMMediaVersion and addon.functions.GetLSMMediaVersion() or 0
+	local state = entry._eqolBarsStaticState
+	if
+		state
+		and state.version == staticVersion
+		and state.staticGeneration == staticGeneration
+		and state.labelGeneration == labelGeneration
+		and state.mediaGeneration == mediaGeneration
+		and state.mode == mode
+		and state.resolvedType == resolvedType
+		and state.resolvedSpellId == resolvedSpellId
+		and state.label == label
+	then
+		return state
+	end
+
+	state = state or {}
+	entry._eqolBarsStaticState = state
+	state.version = staticVersion
+	state.staticGeneration = staticGeneration
+	state.labelGeneration = labelGeneration
+	state.mediaGeneration = mediaGeneration
+	state.mode = mode
+	state.resolvedType = resolvedType
+	state.resolvedSpellId = resolvedSpellId
+	state.label = label
+	state.showIcon = getStoredBoolean(entry, "barShowIcon", Bars.DEFAULTS.barShowIcon)
+	state.showLabel = getStoredBoolean(entry, "barShowLabel", Bars.DEFAULTS.barShowLabel)
+	state.showStackText = getStoredBoolean(entry, "barShowStackText", Bars.DEFAULTS.barShowStackText)
+		and (
+			mode == Bars.BAR_MODE.STACKS
+			or (mode == Bars.BAR_MODE.COOLDOWN and resolvedType == "CDM_AURA" and Bars.ShouldEntryShowStacks(entry, resolvedType))
+		)
+	state.showStacks = Bars.ShouldEntryShowStacks(entry, resolvedType)
+	state.configuredSpan = normalizeBarSpan(entry.barSpan, Bars.DEFAULTS.barSpan)
+	state.barWidth = normalizeBarWidth(entry.barWidth, Bars.DEFAULTS.barWidth)
+	state.barHeight = normalizeBarHeight(entry.barHeight, Bars.DEFAULTS.barHeight)
+	state.barOffsetX = normalizeBarOffset(entry.barOffsetX, Bars.DEFAULTS.barOffsetX)
+	state.barOffsetY = normalizeBarOffset(entry.barOffsetY, Bars.DEFAULTS.barOffsetY)
+	state.orientation = normalizeBarOrientation(entry.barOrientation, Bars.DEFAULTS.barOrientation)
+	state.reverseFill = mode == Bars.BAR_MODE.COOLDOWN and getStoredBoolean(entry, "barReverseFill", Bars.DEFAULTS.barReverseFill)
+	state.segmentDirection = normalizeBarSegmentDirection(entry.barSegmentDirection, Bars.DEFAULTS.barSegmentDirection)
+	state.segmentReverse = getStoredBoolean(entry, "barSegmentReverse", Bars.DEFAULTS.barSegmentReverse)
+	state.barTexture = resolveBarTexture(entry.barTexture)
+	state.fillColor = getBarModeColor(entry, mode)
+	state.backgroundColor = Bars.GetCachedEntryColor(entry, "barBackgroundColor", Bars.DEFAULTS.barBackgroundColor)
+	state.borderEnabled = getStoredBoolean(entry, "barBorderEnabled", Bars.DEFAULTS.barBorderEnabled)
+	state.borderColor = Bars.GetCachedEntryColor(entry, "barBorderColor", Bars.DEFAULTS.barBorderColor)
+	state.procGlowColor = Bars.GetCachedEntryColor(entry, "barProcGlowColor", Bars.DEFAULTS.barProcGlowColor)
+	state.borderTexture = resolveBarBorderTexture(entry.barBorderTexture)
+	state.borderOffset = normalizeBarBorderOffset(entry.barBorderOffset, Bars.DEFAULTS.barBorderOffset)
+	state.borderSize = normalizeBarBorderSize(entry.barBorderSize, Bars.DEFAULTS.barBorderSize)
+	state.iconSize = normalizeBarIconSize(entry.barIconSize, Bars.DEFAULTS.barIconSize)
+	state.iconPosition = normalizeBarIconPosition(entry.barIconPosition, Bars.DEFAULTS.barIconPosition)
+	state.iconOffsetX = normalizeBarIconOffset(entry.barIconOffsetX, Bars.DEFAULTS.barIconOffsetX)
+	state.iconOffsetY = normalizeBarIconOffset(entry.barIconOffsetY, Bars.DEFAULTS.barIconOffsetY)
+	state.segmentedCharges = mode == Bars.BAR_MODE.CHARGES and getStoredBoolean(entry, "barChargesSegmented", Bars.DEFAULTS.barChargesSegmented)
+	state.chargesGap = normalizeBarChargesGap(entry.barChargesGap, Bars.DEFAULTS.barChargesGap)
+	state.segmentedStacks = mode == Bars.BAR_MODE.STACKS and getStoredBoolean(entry, "barStacksSegmented", Bars.DEFAULTS.barStacksSegmented)
+	state.stackSeparatedOffset = normalizeBarChargesGap(entry.barStackSeparatedOffset, Bars.DEFAULTS.barStackSeparatedOffset)
+	state.stackDividerColor = Bars.GetCachedEntryColor(entry, "barStackDividerColor", Bars.DEFAULTS.barStackDividerColor)
+	state.stackDividerThickness = normalizeBarStackDividerThickness(entry.barStackDividerThickness, Bars.DEFAULTS.barStackDividerThickness)
+	state.stackMax = Bars.NormalizeBarStackMax(entry.barStackMax, Bars.DEFAULTS.barStackMax)
+	state.stackAnchor = Bars.NormalizeTextAnchor(entry.barStackAnchor, Bars.DEFAULTS.barStackAnchor)
+	state.stackFont = normalizeBarFont(entry.barStackFont, Bars.DEFAULTS.barStackFont)
+	state.stackOffsetX = normalizeBarOffset(entry.barStackOffsetX, Bars.DEFAULTS.barStackOffsetX)
+	state.stackOffsetY = normalizeBarOffset(entry.barStackOffsetY, Bars.DEFAULTS.barStackOffsetY)
+	state.stackSize = normalizeBarFontSize(entry.barStackSize, Bars.DEFAULTS.barStackSize)
+	state.stackStyle = normalizeBarFontStyle(entry.barStackStyle, Bars.DEFAULTS.barStackStyle)
+	state.stackColor = Bars.GetCachedEntryColor(entry, "barStackColor", Bars.DEFAULTS.barStackColor)
+	state.labelAnchor = Bars.NormalizeTextAnchor(entry.barLabelAnchor, Bars.DEFAULTS.barLabelAnchor)
+	state.labelFont = normalizeBarFont(entry.barLabelFont, Bars.DEFAULTS.barLabelFont)
+	state.labelOffsetX = normalizeBarOffset(entry.barLabelOffsetX, Bars.DEFAULTS.barLabelOffsetX)
+	state.labelOffsetY = normalizeBarOffset(entry.barLabelOffsetY, Bars.DEFAULTS.barLabelOffsetY)
+	state.labelSize = normalizeBarFontSize(entry.barLabelSize, Bars.DEFAULTS.barLabelSize)
+	state.labelStyle = normalizeBarFontStyle(entry.barLabelStyle, Bars.DEFAULTS.barLabelStyle)
+	state.labelColor = Bars.GetCachedEntryColor(entry, "barLabelColor", Bars.DEFAULTS.barLabelColor)
+	state.valueAnchor = Bars.NormalizeTextAnchor(entry.barValueAnchor, Bars.DEFAULTS.barValueAnchor)
+	state.valueFont = normalizeBarFont(entry.barValueFont, Bars.DEFAULTS.barValueFont)
+	state.valueOffsetX = normalizeBarOffset(entry.barValueOffsetX, Bars.DEFAULTS.barValueOffsetX)
+	state.valueOffsetY = normalizeBarOffset(entry.barValueOffsetY, Bars.DEFAULTS.barValueOffsetY)
+	state.valueSize = normalizeBarFontSize(entry.barValueSize, Bars.DEFAULTS.barValueSize)
+	state.valueStyle = normalizeBarFontStyle(entry.barValueStyle, Bars.DEFAULTS.barValueStyle)
+	state.valueColor = Bars.GetCachedEntryColor(entry, "barValueColor", Bars.DEFAULTS.barValueColor)
+	state.spellId = resolvedSpellId
+	return state
+end
+
+Bars.ResetBarRuntimeState = function(state)
+	if not state then return end
+	state.stackDisplayText = nil
+	state.progress = 1
+	state.fillDurationObject = nil
+	state.timerDirection = cdp.BAR_STATUS_TIMER_DIRECTION_ELAPSED
+	state.stackFillValue = nil
+	state.stackFillMax = nil
+	state.valueText = nil
+	state.valueTextIsChargeDuration = nil
+	state.animate = false
+	state.cooldownVisibilityActive = false
+	state.startTime = nil
+	state.duration = nil
+	state.rate = nil
+	state.chargesInfo = nil
+	state.chargeInfoActive = nil
+	state.cooldownDurationObject = nil
+	state.chargeDurationObject = nil
+	state.rawCooldownDurationObject = nil
+	state.cooldownRemaining = nil
+	state.cooldownEnabled = nil
+	state.cooldownGCD = nil
+	state.cooldownIsActive = nil
+	state.cooldownInfoActive = nil
+	state.currentCharges = nil
+	state.maxCharges = nil
+	state.rawCurrentCharges = nil
+	state.rawMaxCharges = nil
+	state.rechargeProgress = nil
+	state.lastNonGCDCooldownActive = nil
+	state.lastNonGCDCooldownDurationObject = nil
+	state.chargeDurationObjectRefreshed = nil
+	state.deferChargeTimerHandoff = nil
+	state.freezeChargeRender = nil
+	state.previousChargePhase = nil
+	state.chargePhase = nil
+	state.renderChargePhase = nil
+	state.cooldownStart = nil
+	state.cooldownDuration = nil
+	state.cooldownRate = nil
+	state.rechargeStart = nil
+	state.rechargeDuration = nil
+	state.rechargeRate = nil
+	state.chargeDurationTextActive = nil
+	state.chargeDurationTextObject = nil
+	state.chargeDurationTextStart = nil
+	state.chargeDurationTextDuration = nil
+	state.chargeDurationTextRate = nil
+	state.chargeDurationTextSegmentIndex = nil
+	state.chargeDurationTextNative = nil
+end
+
 buildBarState = function(panelId, entryId, entry, icon, preview, runtimeDataOverride)
 	if not entry then return nil end
 	local displayMode = normalizeDisplayMode(entry.displayMode, Bars.DEFAULTS.displayMode)
@@ -2919,6 +3066,7 @@ buildBarState = function(panelId, entryId, entry, icon, preview, runtimeDataOver
 	local resolvedSpellId = resolvedType == "SPELL" and getResolvedSpellId(entry, macro) or nil
 	local layoutEditActive = panelId and CooldownPanels.IsPanelLayoutEditActive and CooldownPanels:IsPanelLayoutEditActive(panelId) or false
 	local staticVersion = entry._eqolBarsStaticVersion or 0
+	local staticGeneration = CooldownPanels.runtime and CooldownPanels.runtime.barStaticGeneration or 0
 	local labelGeneration = CooldownPanels.runtime and CooldownPanels.runtime.barLabelGeneration or 0
 	local label = entry._eqolBarsCachedLabel
 	if
@@ -2971,88 +3119,89 @@ buildBarState = function(panelId, entryId, entry, icon, preview, runtimeDataOver
 	local showValueText = mode ~= Bars.BAR_MODE.STACKS and getStoredBoolean(entry, "barShowValueText", Bars.DEFAULTS.barShowValueText)
 	local showChargeCount = mode == Bars.BAR_MODE.CHARGES and showValueText == true or false
 	if showChargeDuration then showValueText = true end
-	local state = {
-		mode = mode,
-		label = label,
-		texture = texture,
-		preview = preview == true,
-		showIcon = getStoredBoolean(entry, "barShowIcon", Bars.DEFAULTS.barShowIcon),
-		showLabel = getStoredBoolean(entry, "barShowLabel", Bars.DEFAULTS.barShowLabel),
-		showValueText = showValueText,
-		showChargeDuration = showChargeDuration,
-		showChargeCount = showChargeCount,
-		showStackText = getStoredBoolean(entry, "barShowStackText", Bars.DEFAULTS.barShowStackText)
-			and (
-				mode == Bars.BAR_MODE.STACKS
-				or (mode == Bars.BAR_MODE.COOLDOWN and resolvedType == "CDM_AURA" and Bars.ShouldEntryShowStacks(entry, resolvedType))
-			),
-		showStacks = Bars.ShouldEntryShowStacks(entry, resolvedType),
-		stackDisplayText = nil,
-		progress = 1,
-		icon = icon,
-		panelId = panelId,
-		entryId = entryId,
-		fillDurationObject = nil,
-		timerDirection = cdp.BAR_STATUS_TIMER_DIRECTION_ELAPSED,
-		stackFillValue = nil,
-		stackFillMax = nil,
-		entryKey = entryKey,
-		configuredSpan = normalizeBarSpan(entry.barSpan, Bars.DEFAULTS.barSpan),
-		barWidth = normalizeBarWidth(entry.barWidth, Bars.DEFAULTS.barWidth),
-		barHeight = normalizeBarHeight(entry.barHeight, Bars.DEFAULTS.barHeight),
-		barOffsetX = normalizeBarOffset(entry.barOffsetX, Bars.DEFAULTS.barOffsetX),
-		barOffsetY = normalizeBarOffset(entry.barOffsetY, Bars.DEFAULTS.barOffsetY),
-		orientation = normalizeBarOrientation(entry.barOrientation, Bars.DEFAULTS.barOrientation),
-		reverseFill = mode == Bars.BAR_MODE.COOLDOWN and getStoredBoolean(entry, "barReverseFill", Bars.DEFAULTS.barReverseFill),
-		segmentDirection = normalizeBarSegmentDirection(entry.barSegmentDirection, Bars.DEFAULTS.barSegmentDirection),
-		segmentReverse = getStoredBoolean(entry, "barSegmentReverse", Bars.DEFAULTS.barSegmentReverse),
-		barTexture = resolveBarTexture(entry.barTexture),
-		fillColor = getBarModeColor(entry, mode),
-		backgroundColor = Bars.GetCachedEntryColor(entry, "barBackgroundColor", Bars.DEFAULTS.barBackgroundColor),
-		borderEnabled = getStoredBoolean(entry, "barBorderEnabled", Bars.DEFAULTS.barBorderEnabled),
-		borderColor = Bars.GetCachedEntryColor(entry, "barBorderColor", Bars.DEFAULTS.barBorderColor),
-		procGlowColor = Bars.GetCachedEntryColor(entry, "barProcGlowColor", Bars.DEFAULTS.barProcGlowColor),
-		procGlowActive = isBarProcGlowActive(resolvedType, resolvedSpellId),
-		borderTexture = resolveBarBorderTexture(entry.barBorderTexture),
-		borderOffset = normalizeBarBorderOffset(entry.barBorderOffset, Bars.DEFAULTS.barBorderOffset),
-		borderSize = normalizeBarBorderSize(entry.barBorderSize, Bars.DEFAULTS.barBorderSize),
-		iconSize = normalizeBarIconSize(entry.barIconSize, Bars.DEFAULTS.barIconSize),
-		iconPosition = normalizeBarIconPosition(entry.barIconPosition, Bars.DEFAULTS.barIconPosition),
-		iconOffsetX = normalizeBarIconOffset(entry.barIconOffsetX, Bars.DEFAULTS.barIconOffsetX),
-		iconOffsetY = normalizeBarIconOffset(entry.barIconOffsetY, Bars.DEFAULTS.barIconOffsetY),
-		segmentedCharges = mode == Bars.BAR_MODE.CHARGES and getStoredBoolean(entry, "barChargesSegmented", Bars.DEFAULTS.barChargesSegmented),
-		chargesGap = normalizeBarChargesGap(entry.barChargesGap, Bars.DEFAULTS.barChargesGap),
-		segmentedStacks = mode == Bars.BAR_MODE.STACKS and getStoredBoolean(entry, "barStacksSegmented", Bars.DEFAULTS.barStacksSegmented),
-		stackSeparatedOffset = normalizeBarChargesGap(entry.barStackSeparatedOffset, Bars.DEFAULTS.barStackSeparatedOffset),
-		stackDividerColor = Bars.GetCachedEntryColor(entry, "barStackDividerColor", Bars.DEFAULTS.barStackDividerColor),
-		stackDividerThickness = normalizeBarStackDividerThickness(entry.barStackDividerThickness, Bars.DEFAULTS.barStackDividerThickness),
-		stackMax = Bars.NormalizeBarStackMax(entry.barStackMax, Bars.DEFAULTS.barStackMax),
-		stackAnchor = Bars.NormalizeTextAnchor(entry.barStackAnchor, Bars.DEFAULTS.barStackAnchor),
-		stackFont = normalizeBarFont(entry.barStackFont, Bars.DEFAULTS.barStackFont),
-		stackOffsetX = normalizeBarOffset(entry.barStackOffsetX, Bars.DEFAULTS.barStackOffsetX),
-		stackOffsetY = normalizeBarOffset(entry.barStackOffsetY, Bars.DEFAULTS.barStackOffsetY),
-		stackSize = normalizeBarFontSize(entry.barStackSize, Bars.DEFAULTS.barStackSize),
-		stackStyle = normalizeBarFontStyle(entry.barStackStyle, Bars.DEFAULTS.barStackStyle),
-		stackColor = Bars.GetCachedEntryColor(entry, "barStackColor", Bars.DEFAULTS.barStackColor),
-		labelAnchor = Bars.NormalizeTextAnchor(entry.barLabelAnchor, Bars.DEFAULTS.barLabelAnchor),
-		labelFont = normalizeBarFont(entry.barLabelFont, Bars.DEFAULTS.barLabelFont),
-		labelOffsetX = normalizeBarOffset(entry.barLabelOffsetX, Bars.DEFAULTS.barLabelOffsetX),
-		labelOffsetY = normalizeBarOffset(entry.barLabelOffsetY, Bars.DEFAULTS.barLabelOffsetY),
-		labelSize = normalizeBarFontSize(entry.barLabelSize, Bars.DEFAULTS.barLabelSize),
-		labelStyle = normalizeBarFontStyle(entry.barLabelStyle, Bars.DEFAULTS.barLabelStyle),
-		labelColor = Bars.GetCachedEntryColor(entry, "barLabelColor", Bars.DEFAULTS.barLabelColor),
-		valueAnchor = Bars.NormalizeTextAnchor(entry.barValueAnchor, Bars.DEFAULTS.barValueAnchor),
-		valueFont = normalizeBarFont(entry.barValueFont, Bars.DEFAULTS.barValueFont),
-		valueOffsetX = normalizeBarOffset(entry.barValueOffsetX, Bars.DEFAULTS.barValueOffsetX),
-		valueOffsetY = normalizeBarOffset(entry.barValueOffsetY, Bars.DEFAULTS.barValueOffsetY),
-		valueSize = normalizeBarFontSize(entry.barValueSize, Bars.DEFAULTS.barValueSize),
-		valueStyle = normalizeBarFontStyle(entry.barValueStyle, Bars.DEFAULTS.barValueStyle),
-		valueColor = Bars.GetCachedEntryColor(entry, "barValueColor", Bars.DEFAULTS.barValueColor),
-		spellId = resolvedSpellId,
-		hideOnCooldown = hideOnCooldown == true,
-		showOnCooldown = showOnCooldown == true,
-		visible = true,
-	}
+	local staticState = Bars.GetBarStaticState(entry, mode, resolvedType, resolvedSpellId, label, staticVersion, staticGeneration, labelGeneration)
+	local state = icon and icon._eqolBarsRuntimeState or nil
+	if not state then
+		state = {}
+		if icon then icon._eqolBarsRuntimeState = state end
+	end
+	Bars.ResetBarRuntimeState(state)
+	state.mode = mode
+	state.label = staticState and staticState.label or label
+	state.texture = texture
+	state.preview = preview == true
+	state.showIcon = staticState and staticState.showIcon or false
+	state.showLabel = staticState and staticState.showLabel or false
+	state.showValueText = showValueText
+	state.showChargeDuration = showChargeDuration
+	state.showChargeCount = showChargeCount
+	state.showStackText = staticState and staticState.showStackText or false
+	state.showStacks = staticState and staticState.showStacks or false
+	state.stackDisplayText = nil
+	state.progress = 1
+	state.icon = icon
+	state.panelId = panelId
+	state.entryId = entryId
+	state.fillDurationObject = nil
+	state.timerDirection = cdp.BAR_STATUS_TIMER_DIRECTION_ELAPSED
+	state.stackFillValue = nil
+	state.stackFillMax = nil
+	state.entryKey = entryKey
+	state.configuredSpan = staticState and staticState.configuredSpan or Bars.DEFAULTS.barSpan
+	state.barWidth = staticState and staticState.barWidth or Bars.DEFAULTS.barWidth
+	state.barHeight = staticState and staticState.barHeight or Bars.DEFAULTS.barHeight
+	state.barOffsetX = staticState and staticState.barOffsetX or 0
+	state.barOffsetY = staticState and staticState.barOffsetY or 0
+	state.orientation = staticState and staticState.orientation or Bars.DEFAULTS.barOrientation
+	state.reverseFill = staticState and staticState.reverseFill or false
+	state.segmentDirection = staticState and staticState.segmentDirection or Bars.DEFAULTS.barSegmentDirection
+	state.segmentReverse = staticState and staticState.segmentReverse or false
+	state.barTexture = staticState and staticState.barTexture or BAR_TEXTURE_DEFAULT
+	state.fillColor = staticState and staticState.fillColor or getDefaultBarColorForMode(mode)
+	state.backgroundColor = staticState and staticState.backgroundColor or Bars.DEFAULTS.barBackgroundColor
+	state.borderEnabled = staticState and staticState.borderEnabled or false
+	state.borderColor = staticState and staticState.borderColor or Bars.DEFAULTS.barBorderColor
+	state.procGlowColor = staticState and staticState.procGlowColor or Bars.DEFAULTS.barProcGlowColor
+	state.procGlowActive = isBarProcGlowActive(resolvedType, resolvedSpellId)
+	state.borderTexture = staticState and staticState.borderTexture or nil
+	state.borderOffset = staticState and staticState.borderOffset or 0
+	state.borderSize = staticState and staticState.borderSize or 0
+	state.iconSize = staticState and staticState.iconSize or Bars.DEFAULTS.barIconSize
+	state.iconPosition = staticState and staticState.iconPosition or Bars.DEFAULTS.barIconPosition
+	state.iconOffsetX = staticState and staticState.iconOffsetX or 0
+	state.iconOffsetY = staticState and staticState.iconOffsetY or 0
+	state.segmentedCharges = staticState and staticState.segmentedCharges or false
+	state.chargesGap = staticState and staticState.chargesGap or 0
+	state.segmentedStacks = staticState and staticState.segmentedStacks or false
+	state.stackSeparatedOffset = staticState and staticState.stackSeparatedOffset or 0
+	state.stackDividerColor = staticState and staticState.stackDividerColor or Bars.DEFAULTS.barStackDividerColor
+	state.stackDividerThickness = staticState and staticState.stackDividerThickness or Bars.DEFAULTS.barStackDividerThickness
+	state.stackMax = staticState and staticState.stackMax or Bars.DEFAULTS.barStackMax
+	state.stackAnchor = staticState and staticState.stackAnchor or Bars.DEFAULTS.barStackAnchor
+	state.stackFont = staticState and staticState.stackFont or Bars.DEFAULTS.barStackFont
+	state.stackOffsetX = staticState and staticState.stackOffsetX or 0
+	state.stackOffsetY = staticState and staticState.stackOffsetY or 0
+	state.stackSize = staticState and staticState.stackSize or Bars.DEFAULTS.barStackSize
+	state.stackStyle = staticState and staticState.stackStyle or Bars.DEFAULTS.barStackStyle
+	state.stackColor = staticState and staticState.stackColor or Bars.DEFAULTS.barStackColor
+	state.labelAnchor = staticState and staticState.labelAnchor or Bars.DEFAULTS.barLabelAnchor
+	state.labelFont = staticState and staticState.labelFont or Bars.DEFAULTS.barLabelFont
+	state.labelOffsetX = staticState and staticState.labelOffsetX or 0
+	state.labelOffsetY = staticState and staticState.labelOffsetY or 0
+	state.labelSize = staticState and staticState.labelSize or Bars.DEFAULTS.barLabelSize
+	state.labelStyle = staticState and staticState.labelStyle or Bars.DEFAULTS.barLabelStyle
+	state.labelColor = staticState and staticState.labelColor or Bars.DEFAULTS.barLabelColor
+	state.valueAnchor = staticState and staticState.valueAnchor or Bars.DEFAULTS.barValueAnchor
+	state.valueFont = staticState and staticState.valueFont or Bars.DEFAULTS.barValueFont
+	state.valueOffsetX = staticState and staticState.valueOffsetX or 0
+	state.valueOffsetY = staticState and staticState.valueOffsetY or 0
+	state.valueSize = staticState and staticState.valueSize or Bars.DEFAULTS.barValueSize
+	state.valueStyle = staticState and staticState.valueStyle or Bars.DEFAULTS.barValueStyle
+	state.valueColor = staticState and staticState.valueColor or Bars.DEFAULTS.barValueColor
+	state.spellId = staticState and staticState.spellId or resolvedSpellId
+	state.hideOnCooldown = hideOnCooldown == true
+	state.showOnCooldown = showOnCooldown == true
+	state.visible = true
 
 	if preview then
 		if mode == Bars.BAR_MODE.COOLDOWN then
