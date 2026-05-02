@@ -11248,6 +11248,8 @@ function GF:UnitButton_RegisterUnitEvents(self, unit)
 		regUnit("UNIT_EXITING_VEHICLE")
 	end
 	regUnit("UNIT_FLAGS")
+	regUnit("UNIT_CTR_OPTIONS")
+	regUnit("UNIT_OTHER_PARTY_CHANGED")
 	local wantsLevel = self._eqolUFState and self._eqolUFState._wantsLevel
 	if not wantsLevel and UFHelper and UFHelper.textModeUsesLevel then
 		local hc = cfg and cfg.health or {}
@@ -11331,6 +11333,7 @@ local function dispatchUnitFlags(btn, unit)
 	GF:UpdateHealthValue(btn, unit, st)
 	GF:UpdateStatusText(btn, unit, st)
 	GF:UpdateName(btn, unit, st)
+	GF:UpdatePhaseIcon(btn)
 end
 local function dispatchUnitRange(btn, _, inRange) GF:UpdateRange(btn, inRange) end
 local function dispatchUnitAura(btn, _, updateInfo) GF:UpdateAuras(btn, updateInfo) end
@@ -11365,6 +11368,8 @@ local UNIT_DISPATCH = {
 	UNIT_EXITED_VEHICLE = dispatchUnitPortrait,
 	UNIT_EXITING_VEHICLE = dispatchUnitPortrait,
 	UNIT_FLAGS = dispatchUnitFlags,
+	UNIT_CTR_OPTIONS = function(btn) GF:UpdatePhaseIcon(btn) end,
+	UNIT_OTHER_PARTY_CHANGED = function(btn) GF:UpdatePhaseIcon(btn) end,
 	UNIT_IN_RANGE_UPDATE = dispatchUnitRange,
 	UNIT_AURA = dispatchUnitAura,
 	UNIT_THREAT_SITUATION_UPDATE = GF.DispatchUnitThreat,

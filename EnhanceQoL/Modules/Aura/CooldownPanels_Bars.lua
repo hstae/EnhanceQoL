@@ -382,6 +382,7 @@ Bars.GetLiveBarValueText = function(state)
 		return Bars.GetCooldownValueText(nil, state.chargeDurationTextObject, state.chargeDurationTextStart, state.chargeDurationTextDuration, state.chargeDurationTextRate)
 	end
 	if state.mode ~= Bars.BAR_MODE.COOLDOWN or state.cooldownVisibilityActive ~= true then return nil end
+	if state.chargeDurationTextNative == true then return nil end
 	return Bars.GetCooldownValueText(state.icon, state.fillDurationObject, state.startTime, state.duration, state.rate)
 end
 
@@ -684,9 +685,13 @@ local function mutateBarEntry(panelId, entryId, mutator, reopenDialog)
 	entryId = normalizeId(entryId)
 	local panel, entry = getBarEntry(panelId, entryId)
 	if not (panel and entry) then return nil, nil end
+	local previousDisplayMode = entry.displayMode
 	if type(mutator) == "function" then mutator(entry, panel) end
 	normalizeBarEntry(entry)
 	Bars.MarkReservationCacheDirty(panel)
+	if entry.displayMode ~= previousDisplayMode and CooldownPanels.RebuildSpellIndex then
+		CooldownPanels:RebuildSpellIndex()
+	end
 	refreshPanelContext(panelId)
 	refreshStandaloneEntryDialogForBars(panelId, entryId, reopenDialog == true)
 	return panel, entry
@@ -1903,18 +1908,62 @@ local function applyFontStringStyle(fontString, fontValue, sizeValue, styleValue
 	local fontSize = normalizeBarFontSize(sizeValue, fallbackSize)
 	local fontStyleChoice = normalizeBarFontStyle(styleValue, fallbackStyle)
 	local fontStyle = Helper.NormalizeFontStyle(fontStyleChoice, fallbackStyle) or ""
-	if fontString.SetFont then
+	if
+		fontString.SetFont
+		and (
+			fontString._eqolBarsFontPath ~= fontPath
+			or fontString._eqolBarsFontSize ~= fontSize
+			or fontString._eqolBarsFontStyle ~= fontStyle
+			or fontString._eqolBarsFontFallbackPath ~= fallbackPath
+		)
+	then
 		local applied
 		if Helper.SetFont then
 			applied = Helper.SetFont(fontString, fontPath, fontSize, fontStyle, fallbackPath)
 		else
 			applied = fontString:SetFont(fontPath, fontSize, fontStyle)
 		end
-		if applied == false then fontString:SetFont(STANDARD_TEXT_FONT, fontSize, fontStyle) end
+		if applied == false then
+			fontString:SetFont(STANDARD_TEXT_FONT, fontSize, fontStyle)
+			fontString._eqolBarsFontPath = nil
+			fontString._eqolBarsFontSize = nil
+			fontString._eqolBarsFontStyle = nil
+			fontString._eqolBarsFontFallbackPath = nil
+		else
+			fontString._eqolBarsFontPath = fontPath
+			fontString._eqolBarsFontSize = fontSize
+			fontString._eqolBarsFontStyle = fontStyle
+			fontString._eqolBarsFontFallbackPath = fallbackPath
+		end
 	end
 	local color = Helper.NormalizeColor(colorValue, { 1, 1, 1, 1 })
-	if fontString.SetTextColor then fontString:SetTextColor(color[1], color[2], color[3], color[4]) end
-	if addon.functions and addon.functions.ApplyFontStyleShadow then addon.functions.ApplyFontStyleShadow(fontString, fontStyleChoice, fallbackStyle) end
+	if
+		fontString.SetTextColor
+		and (
+			fontString._eqolBarsFontColorR ~= color[1]
+			or fontString._eqolBarsFontColorG ~= color[2]
+			or fontString._eqolBarsFontColorB ~= color[3]
+			or fontString._eqolBarsFontColorA ~= color[4]
+		)
+	then
+		fontString:SetTextColor(color[1], color[2], color[3], color[4])
+		fontString._eqolBarsFontColorR = color[1]
+		fontString._eqolBarsFontColorG = color[2]
+		fontString._eqolBarsFontColorB = color[3]
+		fontString._eqolBarsFontColorA = color[4]
+	end
+	if
+		addon.functions
+		and addon.functions.ApplyFontStyleShadow
+		and (
+			fontString._eqolBarsFontShadowStyleChoice ~= fontStyleChoice
+			or fontString._eqolBarsFontShadowFallbackStyle ~= fallbackStyle
+		)
+	then
+		addon.functions.ApplyFontStyleShadow(fontString, fontStyleChoice, fallbackStyle)
+		fontString._eqolBarsFontShadowStyleChoice = fontStyleChoice
+		fontString._eqolBarsFontShadowFallbackStyle = fallbackStyle
+	end
 end
 
 Bars.EnsureChargeDurationCountdown = function(barFrame)
@@ -2125,7 +2174,7 @@ Bars.ConfigureBarValueTextUpdater = function(barFrame, state)
 	if not barFrame then return end
 	local useDynamicText = state and state.preview ~= true and state.showValueText == true
 		and (
-			(state.mode == Bars.BAR_MODE.COOLDOWN and state.cooldownVisibilityActive == true)
+			(state.mode == Bars.BAR_MODE.COOLDOWN and state.cooldownVisibilityActive == true and state.chargeDurationTextNative ~= true)
 			or (
 				state.mode == Bars.BAR_MODE.CHARGES
 				and state.showChargeDuration == true
@@ -3039,18 +3088,15 @@ buildBarState = function(panelId, entryId, entry, icon, preview, runtimeDataOver
 			if auraActive ~= true then
 				progress = 0
 			elseif runtimeData and durationActive and durationObject ~= nil then
-				local remaining = getDurationObjectRemaining(durationObject)
-				local total = getDurationObjectTotal(durationObject)
-				progress = (remaining and total and total > 0) and clamp(remaining / total, 0, 1) or 0
-				valueText = durationToText(getDurationObjectRemaining(durationObject))
 				animate = true
 				cooldownValueVisible = true
 				cooldownVisibilityActive = true
 				state.fillDurationObject = durationObject
+				state.valueTextIsChargeDuration = true
+				state.chargeDurationTextActive = true
+				state.chargeDurationTextNative = true
+				state.chargeDurationTextObject = durationObject
 				state.timerDirection = cdp.BAR_STATUS_TIMER_DIRECTION_REMAINING
-				state.startTime = safeNumber(runtimeData.cooldownStart)
-				state.duration = safeNumber(runtimeData.cooldownDuration)
-				state.rate = safeNumber(runtimeData.cooldownRate) or 1
 			elseif runtimeData and auraActive then
 				local fallbackProgress = getCooldownProgress(runtimeData.cooldownStart, runtimeData.cooldownDuration, runtimeData.cooldownRate)
 				local fallbackRemaining = max(
@@ -3143,7 +3189,11 @@ buildBarState = function(panelId, entryId, entry, icon, preview, runtimeDataOver
 		state.visible = true
 	end
 	if mode == Bars.BAR_MODE.COOLDOWN then
-		state.valueText = cooldownValueVisible and (valueText or getCooldownText(icon) or nil) or nil
+		if state.chargeDurationTextNative == true then
+			state.valueText = nil
+		else
+			state.valueText = cooldownValueVisible and (valueText or getCooldownText(icon) or nil) or nil
+		end
 	elseif mode == Bars.BAR_MODE.STACKS then
 		state.valueText = nil
 	else
@@ -3597,10 +3647,12 @@ local function layoutBarTextElement(
 	local textValue = text or ""
 	local textInset = 4
 
-	fontString:ClearAllPoints()
-	if fontString.SetWordWrap then fontString:SetWordWrap(false) end
-	if fontString.SetNonSpaceWrap then fontString:SetNonSpaceWrap(false) end
-	if fontString.SetMaxLines then fontString:SetMaxLines(1) end
+	if fontString._eqolBarsTextStaticSetup ~= true then
+		if fontString.SetWordWrap then fontString:SetWordWrap(false) end
+		if fontString.SetNonSpaceWrap then fontString:SetNonSpaceWrap(false) end
+		if fontString.SetMaxLines then fontString:SetMaxLines(1) end
+		fontString._eqolBarsTextStaticSetup = true
+	end
 	fontString:SetWidth(0)
 	fontString:SetText(textValue)
 	local stringWidth = safeNumber(fontString.GetStringWidth and fontString:GetStringWidth() or nil)
@@ -3609,23 +3661,48 @@ local function layoutBarTextElement(
 	if stringWidth and stringWidth > 0 then
 		fontString:SetWidth(pixelSnap(max(1, stringWidth + 2), barFrame and barFrame.textOverlay or barFrame))
 	end
+	local anchorPoint = point
+	local anchorRelativePoint = relativePoint
+	local anchorOffsetX = insetX
+	local anchorOffsetY = insetY
 	if resolvedAnchor == Bars.TEXT_ANCHOR.LEFT then
-		fontString:SetPoint("LEFT", anchorFrame, "LEFT", textInset + insetX, insetY)
+		anchorPoint = "LEFT"
+		anchorRelativePoint = "LEFT"
+		anchorOffsetX = textInset + insetX
 	elseif resolvedAnchor == Bars.TEXT_ANCHOR.RIGHT then
-		fontString:SetPoint("RIGHT", anchorFrame, "RIGHT", -textInset + insetX, insetY)
+		anchorPoint = "RIGHT"
+		anchorRelativePoint = "RIGHT"
+		anchorOffsetX = -textInset + insetX
 	elseif resolvedAnchor == Bars.TEXT_ANCHOR.TOP then
-		insetY = insetY - textInset
+		anchorOffsetY = insetY - textInset
 		justifyV = "TOP"
-		fontString:SetPoint(point, anchorFrame, relativePoint, insetX, insetY)
 	elseif resolvedAnchor == Bars.TEXT_ANCHOR.BOTTOM then
-		insetY = insetY + textInset
+		anchorOffsetY = insetY + textInset
 		justifyV = "BOTTOM"
-		fontString:SetPoint(point, anchorFrame, relativePoint, insetX, insetY)
-	else
-		fontString:SetPoint(point, anchorFrame, relativePoint, insetX, insetY)
 	end
-	fontString:SetJustifyH(justifyH)
-	if fontString.SetJustifyV then fontString:SetJustifyV(justifyV) end
+	if
+		fontString._eqolBarsTextPoint ~= anchorPoint
+		or fontString._eqolBarsTextAnchorFrame ~= anchorFrame
+		or fontString._eqolBarsTextRelativePoint ~= anchorRelativePoint
+		or fontString._eqolBarsTextOffsetX ~= anchorOffsetX
+		or fontString._eqolBarsTextOffsetY ~= anchorOffsetY
+	then
+		fontString:ClearAllPoints()
+		fontString:SetPoint(anchorPoint, anchorFrame, anchorRelativePoint, anchorOffsetX, anchorOffsetY)
+		fontString._eqolBarsTextPoint = anchorPoint
+		fontString._eqolBarsTextAnchorFrame = anchorFrame
+		fontString._eqolBarsTextRelativePoint = anchorRelativePoint
+		fontString._eqolBarsTextOffsetX = anchorOffsetX
+		fontString._eqolBarsTextOffsetY = anchorOffsetY
+	end
+	if fontString._eqolBarsTextJustifyH ~= justifyH then
+		fontString:SetJustifyH(justifyH)
+		fontString._eqolBarsTextJustifyH = justifyH
+	end
+	if fontString.SetJustifyV and fontString._eqolBarsTextJustifyV ~= justifyV then
+		fontString:SetJustifyV(justifyV)
+		fontString._eqolBarsTextJustifyV = justifyV
+	end
 	fontString:Show()
 end
 
@@ -4249,23 +4326,111 @@ Bars.SuppressIconLayoutHandles = function(icon)
 	if icon.slotAnchorHandle and icon.slotAnchorHandle.EnableMouse then icon.slotAnchorHandle:EnableMouse(false) end
 end
 
+Bars.MarkActiveRuntimeBarIcon = function(runtime, icon, pass)
+	if not (runtime and icon and pass) then return end
+	runtime._eqolBarsActiveIcons = runtime._eqolBarsActiveIcons or {}
+	runtime._eqolBarsActiveIconSet = runtime._eqolBarsActiveIconSet or {}
+	icon._eqolBarsTouchedPass = pass
+	if runtime._eqolBarsActiveIconSet[icon] == true then return end
+	runtime._eqolBarsActiveIconSet[icon] = true
+	runtime._eqolBarsActiveIcons[#runtime._eqolBarsActiveIcons + 1] = icon
+end
+
+Bars.CleanupStaleRuntimeBarIcons = function(runtime, pass)
+	local activeIcons = runtime and runtime._eqolBarsActiveIcons or nil
+	if not activeIcons then return end
+	local activeIconSet = runtime._eqolBarsActiveIconSet
+	for index = #activeIcons, 1, -1 do
+		local icon = activeIcons[index]
+		if not icon or not pass or icon._eqolBarsTouchedPass ~= pass then
+			if icon then
+				hideBarPresentation(icon)
+				icon._eqolBarsTouchedPass = nil
+				if activeIconSet then activeIconSet[icon] = nil end
+			end
+			activeIcons[index] = activeIcons[#activeIcons]
+			activeIcons[#activeIcons] = nil
+		end
+	end
+end
+
 local function applyBarsToPanel(panelId, preview)
 	local panel = CooldownPanels.GetPanel and CooldownPanels:GetPanel(panelId) or nil
 	if not panel then return end
-	panel.layout = panel.layout or {}
-	local fixedLayout = Helper.IsFixedLayout and Helper.IsFixedLayout(panel.layout) or false
-	local cache = fixedLayout and Helper.GetFixedLayoutCache and Helper.GetFixedLayoutCache(panel) or nil
-	local runtime = CooldownPanels.runtime and CooldownPanels.runtime[panelId] or nil
+	local sharedRuntime = CooldownPanels.runtime
+	local runtime = sharedRuntime and sharedRuntime[panelId] or nil
 	local frame = runtime and runtime.frame or nil
 	if not frame or not frame.icons then return end
 
 	local layoutEditActive = CooldownPanels.IsPanelLayoutEditActive and CooldownPanels:IsPanelLayoutEditActive(panelId) or false
 	local effectivePreview = preview == true or layoutEditActive == true
+	local barEntryIdsByPanel = sharedRuntime and sharedRuntime.barEntryIdsByPanel or nil
+	local barEntryIds = barEntryIdsByPanel and barEntryIdsByPanel[panelId] or nil
+	if not effectivePreview and barEntryIdsByPanel and (not barEntryIds or #barEntryIds == 0) then
+		Bars.CleanupStaleRuntimeBarIcons(runtime, nil)
+		return
+	end
+
+	panel.layout = panel.layout or {}
+	local fixedLayout = Helper.IsFixedLayout and Helper.IsFixedLayout(panel.layout) or false
+	local cache = fixedLayout and Helper.GetFixedLayoutCache and Helper.GetFixedLayoutCache(panel) or nil
 	local entries = panel.entries or nil
 	local boundsColumns = fixedLayout and cache and cache.boundsColumns or 0
 	local reservedOwnerByIndex = layoutEditActive and fixedLayout and cache and cache._eqolBarsReservedOwnerByIndex or nil
 	local anchorCellByEntryId = fixedLayout and cache and cache._eqolBarsAnchorCellByEntryId or nil
 	local effectiveSpanByEntryId = fixedLayout and cache and cache._eqolBarsEffectiveSpanByEntryId or nil
+
+	if not effectivePreview and barEntryIds and runtime.entryToIcon then
+		local pass = (runtime._eqolBarsApplyPass or 0) + 1
+		runtime._eqolBarsApplyPass = pass
+		for index = 1, #barEntryIds do
+			local entryId = normalizeId(barEntryIds[index])
+			local icon = entryId and runtime.entryToIcon[entryId] or nil
+			if icon then
+				Bars.MarkActiveRuntimeBarIcon(runtime, icon, pass)
+				local slotColumn = Helper.NormalizeSlotCoordinate(icon._eqolPreviewCellColumn or icon._eqolLayoutSlotColumn)
+				local slotRow = Helper.NormalizeSlotCoordinate(icon._eqolPreviewCellRow or icon._eqolLayoutSlotRow)
+				local entry = entries and entries[entryId] or nil
+				local displayMode = entry and normalizeDisplayMode(entry.displayMode, Bars.DEFAULTS.displayMode) or Bars.DISPLAY_MODE.BUTTON
+				local anchorCell = entryId and anchorCellByEntryId and anchorCellByEntryId[entryId] or nil
+				local showBar = entry and displayMode == Bars.DISPLAY_MODE.BAR and fixedLayout and anchorCell ~= nil and anchorCell.column == slotColumn and anchorCell.row == slotRow
+				local barFrame = icon._eqolBarsFrame
+
+				if showBar then
+					icon._eqolBarsReservedOwnerId = nil
+					icon._eqolBarsReservedSlot = nil
+					if not barFrame then barFrame = ensureBarFrame(icon) end
+					local state = buildBarState(panelId, entryId, entry, icon, effectivePreview, icon._eqolRuntimeData)
+					local span = entryId and effectiveSpanByEntryId and effectiveSpanByEntryId[entryId] or 1
+					applyNativeSuppression(icon)
+					if state then
+						if state.visible == true then
+							layoutBarFrame(barFrame, icon, span, panel.layout, state)
+							stopBarAnimation(barFrame)
+						else
+							hideBarPresentation(icon)
+						end
+					else
+						hideBarPresentation(icon)
+					end
+				else
+					Bars.RestoreNativeIconOverlay(icon)
+					if barFrame and barFrame.IsShown and barFrame:IsShown() then
+						hideBarPresentation(icon)
+					elseif icon._eqolBarsReservedSlot or icon._eqolBarsReservedOwnerId then
+						hideBarPresentation(icon)
+					else
+						icon._eqolBarsReservedOwnerId = nil
+						icon._eqolBarsReservedSlot = nil
+					end
+					if icon and icon.staticText and icon._eqolBarsReservedSlot then icon.staticText:Hide() end
+				end
+			end
+		end
+		Bars.CleanupStaleRuntimeBarIcons(runtime, pass)
+		return
+	end
+
 	for _, icon in ipairs(frame.icons) do
 		local entryId = normalizeId(icon.entryId)
 		local slotColumn = Helper.NormalizeSlotCoordinate(icon._eqolPreviewCellColumn or icon._eqolLayoutSlotColumn)

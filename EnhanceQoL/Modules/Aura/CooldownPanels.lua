@@ -4214,6 +4214,10 @@ function CooldownPanels:RebuildSpellIndex()
 	local cdmAuraSpellIds = {}
 	local cdmAuraHasSpellOnlyEntries = false
 	local cdmAuraEntryCount = 0
+	local barPanels = {}
+	local barPanelIds = {}
+	local barEntryIdsByPanel = {}
+	local barEntryCount = 0
 	local enabledPanelsBySpec = {}
 	local enabledPanelIdsBySpec = {}
 	local itemPanels = {}
@@ -4267,6 +4271,17 @@ function CooldownPanels:RebuildSpellIndex()
 					local spellEntryMetaData
 					local itemEntryMetaData
 					local slotEntryMetaData
+					if entry and entry.displayMode == "BAR" then
+						local entryIds = barEntryIdsByPanel[panelId]
+						if not entryIds then
+							barPanels[panelId] = true
+							barPanelIds[#barPanelIds + 1] = panelId
+							entryIds = {}
+							barEntryIdsByPanel[panelId] = entryIds
+						end
+						entryIds[#entryIds + 1] = entryId
+						barEntryCount = barEntryCount + 1
+					end
 					if entry and entry.type == "CDM_AURA" then
 						local entryIds = cdmAuraEntryIdsByPanel[panelId]
 						if not entryIds then
@@ -4436,6 +4451,10 @@ function CooldownPanels:RebuildSpellIndex()
 	runtime.cdmAuraSpellIds = cdmAuraSpellIds
 	runtime.cdmAuraHasSpellOnlyEntries = cdmAuraHasSpellOnlyEntries
 	runtime.cdmAuraEntryCount = cdmAuraEntryCount
+	runtime.barPanels = barPanels
+	runtime.barPanelIds = barPanelIds
+	runtime.barEntryIdsByPanel = barEntryIdsByPanel
+	runtime.barEntryCount = barEntryCount
 	runtime.itemPanels = itemPanels
 	runtime.itemUsesPanels = itemUsesPanels
 	runtime.itemTrackedIds = itemTrackedIds
