@@ -164,6 +164,7 @@ end
 addon.functions.UpdateInspectEventRegistration = UpdateInspectEventRegistration
 
 local function IsValidSpellIdentifier(id)
+	if isSecret(id) then return false end
 	local idType = type(id)
 	return idType == "number" or idType == "string"
 end
@@ -500,7 +501,7 @@ local function checkSpell(tooltip, id, name, isSpell)
 	if not db then return end
 
 	local first = true
-	local showSpellID = db["TooltipShowSpellID"]
+	local showSpellID = db["TooltipShowSpellID"] and not isSecret(id)
 	local canResolveSpellIcon = isSpell and IsValidSpellIdentifier(id)
 	local showSpellIconInline = canResolveSpellIcon and db["TooltipShowSpellIconInline"]
 	local showSpellIcon = canResolveSpellIcon and db["TooltipShowSpellIcon"]

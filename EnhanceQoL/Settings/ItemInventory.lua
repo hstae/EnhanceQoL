@@ -1,4 +1,4 @@
--- luacheck: globals GenericTraitUI_LoadUI GenericTraitFrame
+-- luacheck: globals GenericTraitUI_LoadUI GenericTraitFrame SettingsInbound
 
 local addonName, addon = ...
 
@@ -2143,6 +2143,29 @@ local expandable = addon.functions.SettingsCreateExpandableSection(cInventory, {
 })
 addon.SettingsLayout.bagsInventorySection = expandable
 
+local function shouldShowNativeBagSettings()
+	return not (addon.db and addon.db["enableBagsModule"] == true)
+end
+
+local function refreshSettingsLayout()
+	if SettingsInbound and SettingsInbound.RepairDisplay then
+		SettingsInbound.RepairDisplay()
+	elseif SettingsPanel and SettingsPanel.RepairDisplay then
+		SettingsPanel:RepairDisplay()
+	end
+end
+
+local function gateNativeBagSetting(entry)
+	local initializer = entry
+	if type(entry) == "table" then
+		initializer = entry.initializer or entry.element or entry
+	end
+	if initializer and initializer.AddShownPredicate then
+		initializer:AddShownPredicate(shouldShowNativeBagSettings)
+	end
+	return entry
+end
+
 if addon.Bags then
 	addon.Bags.integrated = true
 	addon.functions.SettingsCreateCheckbox(cInventory, {
@@ -2172,12 +2195,13 @@ if addon.Bags then
 					addon.Bags.functions.Disable()
 				end
 			end
+			refreshSettingsLayout()
 		end,
-	})
-end
+		})
+	end
 
-if addon.db["enableBagsModule"] ~= true then
-addon.functions.SettingsCreateHeadline(cInventory, BAGSLOT, { parentSection = expandable })
+if shouldShowNativeBagSettings() then
+	gateNativeBagSetting(addon.functions.SettingsCreateHeadline(cInventory, BAGSLOT, { parentSection = expandable }))
 
 local function refreshBagFrames(includeBankPanel)
 	for _, frame in ipairs(ContainerFrameContainer.ContainerFrames) do
@@ -2266,7 +2290,7 @@ end
 local bindDesc = L["showBindOnBagItemsDesc"]
 if bindDesc then bindDesc = bindDesc:format(_G.ITEM_BIND_ON_EQUIP, _G.ITEM_ACCOUNTBOUND_UNTIL_EQUIP, _G.ITEM_BNETACCOUNTBOUND) end
 
-local bagDisplayDropdown = addon.functions.SettingsCreateMultiDropdown(cInventory, {
+local bagDisplayDropdown = gateNativeBagSetting(addon.functions.SettingsCreateMultiDropdown(cInventory, {
 	var = "bagDisplayOptions",
 	text = L["bagDisplayElements"] or "Bag indicators",
 	options = {
@@ -2279,9 +2303,9 @@ local bagDisplayDropdown = addon.functions.SettingsCreateMultiDropdown(cInventor
 	setSelectedFunc = function(key, selected) setBagDisplayOption(key, selected) end,
 	setSelection = applyBagDisplaySelection,
 	parentSection = expandable,
-})
+}))
 
-addon.functions.SettingsCreateDropdown(cInventory, {
+gateNativeBagSetting(addon.functions.SettingsCreateDropdown(cInventory, {
 	list = {
 		TOPLEFT = L["Top Left"],
 		TOP = DIRECTION_TOP_LABEL,
@@ -2306,9 +2330,9 @@ addon.functions.SettingsCreateDropdown(cInventory, {
 	var = "bagIlvlPosition",
 	type = Settings.VarType.String,
 	parentSection = expandable,
-})
+}))
 
-addon.functions.SettingsCreateDropdown(cInventory, {
+gateNativeBagSetting(addon.functions.SettingsCreateDropdown(cInventory, {
 	list = {
 		LEFT = DIRECTION_LEFT_LABEL,
 		TOP = DIRECTION_TOP_LABEL,
@@ -2328,9 +2352,9 @@ addon.functions.SettingsCreateDropdown(cInventory, {
 	var = "bagTrackPosition",
 	type = Settings.VarType.String,
 	parentSection = expandable,
-})
+}))
 
-addon.functions.SettingsCreateDropdown(cInventory, {
+gateNativeBagSetting(addon.functions.SettingsCreateDropdown(cInventory, {
 	list = {
 		TOPLEFT = L["Top Left"],
 		TOPRIGHT = L["Top Right"],
@@ -2358,7 +2382,7 @@ addon.functions.SettingsCreateDropdown(cInventory, {
 	var = "bagUpgradeIconPosition",
 	type = Settings.VarType.String,
 	parentSection = expandable,
-})
+}))
 
 local function isBagItemLevelTargetSelected(key)
 	if key == "bank" then return addon.db["showIlvlOnBankFrame"] == true end
@@ -2387,7 +2411,7 @@ local function applyBagItemLevelTargets(selection)
 	refreshMerchantButtons()
 end
 
-addon.functions.SettingsCreateMultiDropdown(cInventory, {
+gateNativeBagSetting(addon.functions.SettingsCreateMultiDropdown(cInventory, {
 	var = "bagItemLevelTargets",
 	text = L["bagItemLevelTargets"] or "Item level targets",
 	options = {
@@ -2398,9 +2422,9 @@ addon.functions.SettingsCreateMultiDropdown(cInventory, {
 	setSelectedFunc = function(key, selected) setBagItemLevelTarget(key, selected) end,
 	setSelection = applyBagItemLevelTargets,
 	parentSection = expandable,
-})
+}))
 
-addon.functions.SettingsCreateCheckbox(cInventory, {
+gateNativeBagSetting(addon.functions.SettingsCreateCheckbox(cInventory, {
 	var = "showBagFilterMenu",
 	text = L["showBagFilterMenu"],
 	desc = (L["showBagFilterMenuDesc"]):format(SHIFT_KEY_TEXT),
@@ -2428,9 +2452,9 @@ addon.functions.SettingsCreateCheckbox(cInventory, {
 		if _G.BankPanel and _G.BankPanel:IsShown() then addon.functions.updateBags(_G.BankPanel) end
 	end,
 	parentSection = expandable,
-})
+}))
 
-addon.functions.SettingsCreateCheckbox(cInventory, {
+gateNativeBagSetting(addon.functions.SettingsCreateCheckbox(cInventory, {
 	var = "fadeBagQualityIcons",
 	text = L["fadeBagQualityIcons"],
 	desc = L["fadeBagQualityIconsDesc"],
@@ -2443,9 +2467,9 @@ addon.functions.SettingsCreateCheckbox(cInventory, {
 		if _G.BankPanel and _G.BankPanel:IsShown() then addon.functions.updateBags(_G.BankPanel) end
 	end,
 	parentSection = expandable,
-})
+}))
 
-addon.functions.SettingsCreateCheckbox(cInventory, {
+gateNativeBagSetting(addon.functions.SettingsCreateCheckbox(cInventory, {
 	var = "enhancedRarityGlow",
 	text = L["enhancedRarityGlow"] or "Greater rarity glow",
 	desc = L["enhancedRarityGlowDesc"] or "Adds a stronger item-quality border to bags and the character panel.",
@@ -2455,14 +2479,14 @@ addon.functions.SettingsCreateCheckbox(cInventory, {
 		if addon.functions and addon.functions.setCharFrame then addon.functions.setCharFrame() end
 	end,
 	parentSection = expandable,
-})
+}))
 
-addon.functions.SettingsCreateHeadline(cInventory, L["bagOrderHeader"] or "Bag sort & loot order", { parentSection = expandable })
-addon.functions.SettingsCreateText(cInventory, L["bagOrderHint"] or "These options only change which bag position sorting/looting starts in. Bags still fill top-left to bottom-right.", {
+gateNativeBagSetting(addon.functions.SettingsCreateHeadline(cInventory, L["bagOrderHeader"] or "Bag sort & loot order", { parentSection = expandable }))
+gateNativeBagSetting(addon.functions.SettingsCreateText(cInventory, L["bagOrderHint"] or "These options only change which bag position sorting/looting starts in. Bags still fill top-left to bottom-right.", {
 	parentSection = expandable,
-})
+}))
 
-addon.functions.SettingsCreateCheckbox(cInventory, {
+gateNativeBagSetting(addon.functions.SettingsCreateCheckbox(cInventory, {
 	var = "bagSortOrderEnabled",
 	text = L["bagSortOrderEnabled"] or "Change sort order",
 	desc = L["bagSortOrderEnabledDesc"] or "Overrides the clean-up bags start position when enabled.",
@@ -2471,10 +2495,10 @@ addon.functions.SettingsCreateCheckbox(cInventory, {
 		if value then applyBagSortOrder() end
 	end,
 	parentSection = expandable,
-})
+}))
 
 local sortOrderParent = addon.SettingsLayout.elements["bagSortOrderEnabled"] and addon.SettingsLayout.elements["bagSortOrderEnabled"].element
-addon.functions.SettingsCreateDropdown(cInventory, {
+gateNativeBagSetting(addon.functions.SettingsCreateDropdown(cInventory, {
 	list = {
 		DEFAULT = L["bagSortOrderDefault"] or "Default (Left-to-Right)",
 		REVERSE = L["bagSortOrderReverse"] or "Reverse (Right-to-Left)",
@@ -2491,9 +2515,9 @@ addon.functions.SettingsCreateDropdown(cInventory, {
 	var = "bagSortOrderDirection",
 	type = Settings.VarType.String,
 	parentSection = expandable,
-})
+}))
 
-addon.functions.SettingsCreateCheckbox(cInventory, {
+gateNativeBagSetting(addon.functions.SettingsCreateCheckbox(cInventory, {
 	var = "bagLootOrderEnabled",
 	text = L["bagLootOrderEnabled"] or "Change loot order",
 	desc = L["bagLootOrderEnabledDesc"] or "Overrides the loot start position when enabled.",
@@ -2502,10 +2526,10 @@ addon.functions.SettingsCreateCheckbox(cInventory, {
 		if value then applyLootOrder() end
 	end,
 	parentSection = expandable,
-})
+}))
 
 local lootOrderParent = addon.SettingsLayout.elements["bagLootOrderEnabled"] and addon.SettingsLayout.elements["bagLootOrderEnabled"].element
-addon.functions.SettingsCreateDropdown(cInventory, {
+gateNativeBagSetting(addon.functions.SettingsCreateDropdown(cInventory, {
 	list = {
 		DEFAULT = L["bagLootOrderDefault"] or "Default (Right-to-Left)",
 		REVERSE = L["bagLootOrderReverse"] or "Reverse (Left-to-Right)",
@@ -2522,7 +2546,7 @@ addon.functions.SettingsCreateDropdown(cInventory, {
 	var = "bagLootOrderDirection",
 	type = Settings.VarType.String,
 	parentSection = expandable,
-})
+}))
 end
 -- moved Money Tracker to Vendors & Economy → Money
 

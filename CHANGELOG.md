@@ -1,6 +1,11 @@
 # Changelog
 
 <!--@eqol-beta@-->
+## [10.10.0-beta6] - 2026-05-02
+
+### 🐛 Fixed
+
+- Tooltips: Fixed a secret-value error when resolving spell tooltip icon IDs for spell IDs marked as secret values.
 
 ## [10.10.0-beta5] - 2026-05-01
 
@@ -88,6 +93,14 @@
 ---
 
 <!--@end-eqol-beta@-->
+
+## [10.9.4] - 2026-05-01
+
+### ⚡ Performance
+
+- In some edge cases (over 1000 entries in CD Panels) there was an increase in build work leading to stutter
+
+---
 
 ## [10.9.3] - 2026-05-01
 

@@ -1037,14 +1037,21 @@ local function getReservationSignature(panel)
 	for _, entryId in ipairs(panel and panel.order or {}) do
 		local entry = panel.entries and panel.entries[entryId] or nil
 		if entry then
+			local displayMode = normalizeDisplayMode(entry.displayMode, Bars.DEFAULTS.displayMode)
+			local barMode = normalizeBarMode(entry.barMode, Bars.DEFAULTS.barMode)
+			local segmentedCharges = getStoredBoolean(entry, "barChargesSegmented", Bars.DEFAULTS.barChargesSegmented)
 			buffer[#buffer + 1] = tostring(entryId)
-			buffer[#buffer + 1] = normalizeDisplayMode(entry.displayMode, Bars.DEFAULTS.displayMode)
-			buffer[#buffer + 1] = normalizeBarMode(entry.barMode, Bars.DEFAULTS.barMode)
+			buffer[#buffer + 1] = displayMode
+			buffer[#buffer + 1] = barMode
 			buffer[#buffer + 1] = tostring(normalizeBarSpan(entry.barSpan, Bars.DEFAULTS.barSpan))
 			buffer[#buffer + 1] = tostring(normalizeBarWidth(entry.barWidth, Bars.DEFAULTS.barWidth))
 			buffer[#buffer + 1] = tostring(normalizeBarOffset(entry.barOffsetX, Bars.DEFAULTS.barOffsetX))
-			buffer[#buffer + 1] = tostring(getStoredBoolean(entry, "barChargesSegmented", Bars.DEFAULTS.barChargesSegmented))
-			buffer[#buffer + 1] = tostring(Bars.GetEntryChargeSegmentCountHint(entry, 3))
+			buffer[#buffer + 1] = tostring(segmentedCharges)
+			if displayMode == Bars.DISPLAY_MODE.BAR and barMode == Bars.BAR_MODE.CHARGES and segmentedCharges == true then
+				buffer[#buffer + 1] = tostring(Bars.GetEntryChargeSegmentCountHint(entry, 3))
+			else
+				buffer[#buffer + 1] = ""
+			end
 			buffer[#buffer + 1] = tostring(normalizeBarChargesGap(entry.barChargesGap, Bars.DEFAULTS.barChargesGap))
 			buffer[#buffer + 1] = tostring(normalizeBarSegmentDirection(entry.barSegmentDirection, Bars.DEFAULTS.barSegmentDirection))
 			buffer[#buffer + 1] = tostring(Helper.NormalizeFixedGroupId(entry.fixedGroupId) or "")
@@ -1062,6 +1069,15 @@ end
 
 local function augmentFixedLayoutCache(panel, cache)
 	if not (panel and cache and Helper.IsFixedLayout and Helper.IsFixedLayout(panel.layout)) then return cache end
+	if
+		panel._eqolBarsReservationDirty ~= true
+		and cache._eqolBarsReservedOwnerByCell
+		and cache._eqolBarsReservedOwnerByIndex
+		and cache._eqolBarsEffectiveSpanByEntryId
+		and cache._eqolBarsAnchorCellByEntryId
+	then
+		return cache
+	end
 	local signature = getReservationSignature(panel)
 	if
 		panel._eqolBarsReservationDirty ~= true
@@ -4221,7 +4237,6 @@ local function applyBarsToPanel(panelId, preview)
 	panel.layout = panel.layout or {}
 	local fixedLayout = Helper.IsFixedLayout and Helper.IsFixedLayout(panel.layout) or false
 	local cache = fixedLayout and Helper.GetFixedLayoutCache and Helper.GetFixedLayoutCache(panel) or nil
-	cache = augmentFixedLayoutCache(panel, cache)
 	local runtime = CooldownPanels.runtime and CooldownPanels.runtime[panelId] or nil
 	local frame = runtime and runtime.frame or nil
 	if not frame or not frame.icons then return end

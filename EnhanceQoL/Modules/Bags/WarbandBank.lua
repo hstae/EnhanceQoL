@@ -171,6 +171,7 @@ local cachedOverlayRuntimeConfig
 local scheduleUpdate
 local applyActiveSkin
 local getVisibleContext
+local installFrameDropReceiver
 local hiddenBankFrameParent = CreateFrame("Frame")
 hiddenBankFrameParent:Hide()
 
@@ -672,7 +673,7 @@ local function receiveCursorItemIntoVisibleBank()
 	return true
 end
 
-local function installFrameDropReceiver(frame)
+installFrameDropReceiver = function(frame, receiveMouseUp)
 	if not frame or frame._bagsBankFrameDropReceiverInstalled then
 		return
 	end
@@ -680,6 +681,13 @@ local function installFrameDropReceiver(frame)
 	frame:SetScript("OnReceiveDrag", function()
 		receiveCursorItemIntoVisibleBank()
 	end)
+	if receiveMouseUp and frame.HookScript then
+		frame:HookScript("OnMouseUp", function(_, mouseButton)
+			if mouseButton == "LeftButton" then
+				receiveCursorItemIntoVisibleBank()
+			end
+		end)
+	end
 	frame._bagsBankFrameDropReceiverInstalled = true
 end
 
@@ -2522,6 +2530,9 @@ local function acquireSectionHeader(index)
 	header:SetScript("OnMouseWheel", function(_, delta)
 		handleScrollWheel(delta)
 	end)
+	if installFrameDropReceiver then
+		installFrameDropReceiver(header)
+	end
 
 	local highlight = header:CreateTexture(nil, "HIGHLIGHT")
 	highlight:SetPoint("TOPLEFT", header, "TOPLEFT", -2, 0)
@@ -2544,6 +2555,10 @@ local function acquireSectionHeader(index)
 	header.Text = text
 
 	header:SetScript("OnClick", function(self)
+		if receiveCursorItemIntoVisibleBank() then
+			return
+		end
+
 		if self.sectionID then
 			toggleSectionCollapsed(self.sectionID)
 		end
@@ -3742,9 +3757,9 @@ local function createMainFrame()
 	end
 	scrollFrame:SetScrollChild(content)
 	frame.Content = content
-	installFrameDropReceiver(frame)
-	installFrameDropReceiver(scrollFrame)
-	installFrameDropReceiver(content)
+	installFrameDropReceiver(frame, true)
+	installFrameDropReceiver(scrollFrame, true)
+	installFrameDropReceiver(content, true)
 
 	state.frame = frame
 	state.scrollFrame = scrollFrame

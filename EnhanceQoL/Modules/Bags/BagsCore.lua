@@ -1,4 +1,4 @@
--- luacheck: globals BagsItemButton_OnLoad ItemButtonUtil ContainerFrameItemButtonMixin ScrollFrameTemplate_OnMouseWheel IsAnyStandardHeldBagOpen BackpackTokenFrame BagItemAutoSortButton ITEM_SEARCHBAR_LIST BagSearch_OnHide BagSearch_OnTextChanged BagSearch_OnChar UIPanelScrollFrame_OnLoad ClearItemButtonOverlay SetItemButtonQuality SetItemButtonCount SetItemButtonDesaturated SetItemButtonTextureVertexColor ContainerFrame_AllowedToOpenBags C_Cursor COPPER_PER_GOLD COPPER_PER_SILVER NUM_BAG_SLOTS NUM_REAGENTBAG_SLOTS GetInventoryItemTexture GetInventoryItemID GetInventoryItemQuality GetInventorySlotInfo PickupBagFromSlot PutItemInBag CloseAllBags BAGS EQUIP_CONTAINER EQUIP_CONTAINER_REAGENT
+-- luacheck: globals BagsItemButton_OnLoad ItemButtonUtil ContainerFrameItemButtonMixin ScrollFrameTemplate_OnMouseWheel IsAnyStandardHeldBagOpen BackpackTokenFrame BagItemAutoSortButton ITEM_SEARCHBAR_LIST BagSearch_OnHide BagSearch_OnTextChanged BagSearch_OnChar UIPanelScrollFrame_OnLoad ClearItemButtonOverlay SetItemButtonQuality SetItemButtonCount SetItemButtonDesaturated SetItemButtonTextureVertexColor ContainerFrame_AllowedToOpenBags C_Cursor COPPER_PER_GOLD COPPER_PER_SILVER NUM_BAG_SLOTS NUM_REAGENTBAG_SLOTS GetInventoryItemTexture GetInventoryItemID GetInventoryItemQuality GetInventorySlotInfo PickupBagFromSlot PutItemInBackpack PutItemInBag CloseAllBags BAGS EQUIP_CONTAINER EQUIP_CONTAINER_REAGENT
 local addonName, addon = ...
 addon = addon or {}
 _G[addonName] = addon
@@ -179,6 +179,8 @@ local installTokenWatcherHooks
 local cachedOverlayRuntimeConfig
 local updateReagentBagVisuals
 local markOpenSessionNewItemAcknowledged
+local installFrameDropReceiver
+local receiveCursorItemIntoBags
 local itemLevelEligibilityCache = {}
 local BagSlotPanel = {}
 
@@ -1693,6 +1695,9 @@ local function acquireSectionHeader(index)
 	header:SetScript("OnMouseWheel", function(_, delta)
 		handleScrollWheel(delta)
 	end)
+	if installFrameDropReceiver then
+		installFrameDropReceiver(header)
+	end
 
 	local highlight = header:CreateTexture(nil, "HIGHLIGHT")
 	highlight:SetPoint("TOPLEFT", header, "TOPLEFT", -2, 0)
@@ -1765,6 +1770,10 @@ local function acquireSectionHeader(index)
 	header.AssignButton = assignButton
 
 	header:SetScript("OnClick", function(self)
+		if receiveCursorItemIntoBags() then
+			return
+		end
+
 		if self.canClearNewItems then
 			clearNewItemsSection()
 			state.newItemsVisualDirty = true
@@ -2207,9 +2216,9 @@ local function getCursorItemLocation()
 	return itemLocation
 end
 
-local function getFirstEmptyBagSlot()
+local function pickupCursorItemIntoFirstEmptyBagSlot()
 	if not C_Container or not C_Container.GetContainerNumSlots or not C_Container.GetContainerItemInfo then
-		return nil, nil
+		return false
 	end
 
 	for bagID = Core.BACKPACK_ID, Core.LAST_CHARACTER_BAG_ID do
@@ -2217,25 +2226,42 @@ local function getFirstEmptyBagSlot()
 		for slotID = 1, slotCount do
 			local info = C_Container.GetContainerItemInfo(bagID, slotID)
 			if not (info and info.iconFileID) then
-				return bagID, slotID
+				C_Container.PickupContainerItem(bagID, slotID)
+				if not getCursorItemLocation() then
+					return true
+				end
 			end
 		end
 	end
 
-	return nil, nil
+	return false
 end
 
-local function receiveCursorItemIntoBags()
-	if not getCursorItemLocation() or not C_Container or not C_Container.PickupContainerItem then
+receiveCursorItemIntoBags = function()
+	if not getCursorItemLocation() then
 		return false
 	end
 
-	local targetBagID, targetSlotID = getFirstEmptyBagSlot()
-	if not targetBagID or not targetSlotID then
+	local received = false
+	if type(PutItemInBackpack) == "function" and PutItemInBackpack() then
+		received = true
+	elseif type(PutItemInBag) == "function" then
+		for bagID = 1, Core.LAST_CHARACTER_BAG_ID do
+			local inventorySlot = BagSlotPanel.GetInventorySlot(bagID)
+			if inventorySlot and PutItemInBag(inventorySlot) then
+				received = true
+				break
+			end
+		end
+	end
+
+	if not received and C_Container and C_Container.PickupContainerItem then
+		received = pickupCursorItemIntoFirstEmptyBagSlot()
+	end
+	if not received then
 		return false
 	end
 
-	C_Container.PickupContainerItem(targetBagID, targetSlotID)
 	scheduleUpdate(true, true, true)
 	if Bags.functions and Bags.functions.RequestBankLayoutUpdate then
 		Bags.functions.RequestBankLayoutUpdate(true, true)
@@ -2243,7 +2269,7 @@ local function receiveCursorItemIntoBags()
 	return true
 end
 
-local function installFrameDropReceiver(frame)
+installFrameDropReceiver = function(frame, receiveMouseUp)
 	if not frame or frame._bagsFrameDropReceiverInstalled then
 		return
 	end
@@ -2251,6 +2277,13 @@ local function installFrameDropReceiver(frame)
 	frame:SetScript("OnReceiveDrag", function()
 		receiveCursorItemIntoBags()
 	end)
+	if receiveMouseUp and frame.HookScript then
+		frame:HookScript("OnMouseUp", function(_, mouseButton)
+			if mouseButton == "LeftButton" then
+				receiveCursorItemIntoBags()
+			end
+		end)
+	end
 	frame._bagsFrameDropReceiverInstalled = true
 end
 
@@ -2753,14 +2786,15 @@ local function createMainFrame()
 	end
 	scrollFrame:SetScrollChild(content)
 	frame.Content = content
-	installFrameDropReceiver(frame)
-	installFrameDropReceiver(scrollFrame)
-	installFrameDropReceiver(content)
+	installFrameDropReceiver(frame, true)
+	installFrameDropReceiver(scrollFrame, true)
+	installFrameDropReceiver(content, true)
 
 	local footer = CreateFrame("Frame", nil, frame)
 	footer:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", Core.FRAME_PADDING, 0)
 	footer:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -Core.FRAME_PADDING, 0)
 	footer:SetHeight(getFooterHeight(getSettings()))
+	installFrameDropReceiver(footer, true)
 	frame.Footer = footer
 
 	local footerDivider = frame:CreateTexture(nil, "BORDER")
