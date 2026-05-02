@@ -692,7 +692,25 @@ local function mutateBarEntry(panelId, entryId, mutator, reopenDialog)
 	return panel, entry
 end
 
-local function getBarModeColor(entry, mode) return Helper.NormalizeColor(entry and entry.barColor, getDefaultBarColorForMode(mode)) end
+Bars._eqolBarColorCache = Bars._eqolBarColorCache or setmetatable({}, { __mode = "k" })
+
+function Bars.GetCachedEntryColor(entry, field, fallback)
+	if not entry then return Helper.NormalizeColor(nil, fallback) end
+	local colorCache = Bars._eqolBarColorCache
+	local cache = colorCache[entry]
+	if not cache then
+		cache = {}
+		colorCache[entry] = cache
+	end
+	local rawValue = entry[field]
+	local cached = cache[field]
+	if cached and cached.rawValue == rawValue then return cached.color end
+	local color = Helper.NormalizeColor(rawValue, fallback)
+	cache[field] = { rawValue = rawValue, color = color }
+	return color
+end
+
+local function getBarModeColor(entry, mode) return Bars.GetCachedEntryColor(entry, "barColor", getDefaultBarColorForMode(mode)) end
 
 local function getBarTextureSelection(entry)
 	local texture = entry and entry.barTexture or nil
@@ -2874,10 +2892,10 @@ buildBarState = function(panelId, entryId, entry, icon, preview, runtimeDataOver
 		segmentReverse = getStoredBoolean(entry, "barSegmentReverse", Bars.DEFAULTS.barSegmentReverse),
 		barTexture = resolveBarTexture(entry.barTexture),
 		fillColor = getBarModeColor(entry, mode),
-		backgroundColor = Helper.NormalizeColor(entry.barBackgroundColor, Bars.DEFAULTS.barBackgroundColor),
+		backgroundColor = Bars.GetCachedEntryColor(entry, "barBackgroundColor", Bars.DEFAULTS.barBackgroundColor),
 		borderEnabled = getStoredBoolean(entry, "barBorderEnabled", Bars.DEFAULTS.barBorderEnabled),
-		borderColor = Helper.NormalizeColor(entry.barBorderColor, Bars.DEFAULTS.barBorderColor),
-		procGlowColor = Helper.NormalizeColor(entry.barProcGlowColor, Bars.DEFAULTS.barProcGlowColor),
+		borderColor = Bars.GetCachedEntryColor(entry, "barBorderColor", Bars.DEFAULTS.barBorderColor),
+		procGlowColor = Bars.GetCachedEntryColor(entry, "barProcGlowColor", Bars.DEFAULTS.barProcGlowColor),
 		procGlowActive = isBarProcGlowActive(resolvedType, resolvedSpellId),
 		borderTexture = resolveBarBorderTexture(entry.barBorderTexture),
 		borderOffset = normalizeBarBorderOffset(entry.barBorderOffset, Bars.DEFAULTS.barBorderOffset),
@@ -2890,7 +2908,7 @@ buildBarState = function(panelId, entryId, entry, icon, preview, runtimeDataOver
 		chargesGap = normalizeBarChargesGap(entry.barChargesGap, Bars.DEFAULTS.barChargesGap),
 		segmentedStacks = mode == Bars.BAR_MODE.STACKS and getStoredBoolean(entry, "barStacksSegmented", Bars.DEFAULTS.barStacksSegmented),
 		stackSeparatedOffset = normalizeBarChargesGap(entry.barStackSeparatedOffset, Bars.DEFAULTS.barStackSeparatedOffset),
-		stackDividerColor = Helper.NormalizeColor(entry.barStackDividerColor, Bars.DEFAULTS.barStackDividerColor),
+		stackDividerColor = Bars.GetCachedEntryColor(entry, "barStackDividerColor", Bars.DEFAULTS.barStackDividerColor),
 		stackDividerThickness = normalizeBarStackDividerThickness(entry.barStackDividerThickness, Bars.DEFAULTS.barStackDividerThickness),
 		stackMax = Bars.NormalizeBarStackMax(entry.barStackMax, Bars.DEFAULTS.barStackMax),
 		stackAnchor = Bars.NormalizeTextAnchor(entry.barStackAnchor, Bars.DEFAULTS.barStackAnchor),
@@ -2899,21 +2917,21 @@ buildBarState = function(panelId, entryId, entry, icon, preview, runtimeDataOver
 		stackOffsetY = normalizeBarOffset(entry.barStackOffsetY, Bars.DEFAULTS.barStackOffsetY),
 		stackSize = normalizeBarFontSize(entry.barStackSize, Bars.DEFAULTS.barStackSize),
 		stackStyle = normalizeBarFontStyle(entry.barStackStyle, Bars.DEFAULTS.barStackStyle),
-		stackColor = Helper.NormalizeColor(entry.barStackColor, Bars.DEFAULTS.barStackColor),
+		stackColor = Bars.GetCachedEntryColor(entry, "barStackColor", Bars.DEFAULTS.barStackColor),
 		labelAnchor = Bars.NormalizeTextAnchor(entry.barLabelAnchor, Bars.DEFAULTS.barLabelAnchor),
 		labelFont = normalizeBarFont(entry.barLabelFont, Bars.DEFAULTS.barLabelFont),
 		labelOffsetX = normalizeBarOffset(entry.barLabelOffsetX, Bars.DEFAULTS.barLabelOffsetX),
 		labelOffsetY = normalizeBarOffset(entry.barLabelOffsetY, Bars.DEFAULTS.barLabelOffsetY),
 		labelSize = normalizeBarFontSize(entry.barLabelSize, Bars.DEFAULTS.barLabelSize),
 		labelStyle = normalizeBarFontStyle(entry.barLabelStyle, Bars.DEFAULTS.barLabelStyle),
-		labelColor = Helper.NormalizeColor(entry.barLabelColor, Bars.DEFAULTS.barLabelColor),
+		labelColor = Bars.GetCachedEntryColor(entry, "barLabelColor", Bars.DEFAULTS.barLabelColor),
 		valueAnchor = Bars.NormalizeTextAnchor(entry.barValueAnchor, Bars.DEFAULTS.barValueAnchor),
 		valueFont = normalizeBarFont(entry.barValueFont, Bars.DEFAULTS.barValueFont),
 		valueOffsetX = normalizeBarOffset(entry.barValueOffsetX, Bars.DEFAULTS.barValueOffsetX),
 		valueOffsetY = normalizeBarOffset(entry.barValueOffsetY, Bars.DEFAULTS.barValueOffsetY),
 		valueSize = normalizeBarFontSize(entry.barValueSize, Bars.DEFAULTS.barValueSize),
 		valueStyle = normalizeBarFontStyle(entry.barValueStyle, Bars.DEFAULTS.barValueStyle),
-		valueColor = Helper.NormalizeColor(entry.barValueColor, Bars.DEFAULTS.barValueColor),
+		valueColor = Bars.GetCachedEntryColor(entry, "barValueColor", Bars.DEFAULTS.barValueColor),
 		spellId = resolvedSpellId,
 		hideOnCooldown = hideOnCooldown == true,
 		showOnCooldown = showOnCooldown == true,
@@ -3647,12 +3665,12 @@ layoutBarFrame = function(barFrame, icon, span, layout, state)
 	applyStatusBarOrientation(barFrame.fill, orientation)
 	barFrame.fillBg:SetTexture(fillTexturePath)
 
-	local fillColor = Helper.NormalizeColor(state and state.fillColor, getDefaultBarColorForMode(state and state.mode or Bars.BAR_MODE.COOLDOWN))
-	local backgroundColor = Helper.NormalizeColor(state and state.backgroundColor, Bars.DEFAULTS.barBackgroundColor)
-	local borderColor = Helper.NormalizeColor(state and state.borderColor, Bars.DEFAULTS.barBorderColor)
+	local fillColor = state and state.fillColor or getDefaultBarColorForMode(state and state.mode or Bars.BAR_MODE.COOLDOWN)
+	local backgroundColor = state and state.backgroundColor or Bars.DEFAULTS.barBackgroundColor
+	local borderColor = state and state.borderColor or Bars.DEFAULTS.barBorderColor
 	if state and state.procGlowActive == true then
-		fillColor = Helper.NormalizeColor(state.procGlowColor, fillColor)
-		borderColor = Helper.NormalizeColor(state.procGlowColor, borderColor)
+		fillColor = state.procGlowColor or fillColor
+		borderColor = state.procGlowColor or borderColor
 	end
 	local outerPadding = 2
 	local iconSpacing = 4
