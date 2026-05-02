@@ -3,8 +3,14 @@
 <!--@eqol-beta@-->
 ## [10.10.0-beta7] - 2026-05-02
 
+### ⚡ Performance
+
+- Cooldown Panels / Bars: Reduced large fixed-layout profile stutters by avoiding repeated bar reservation signature rebuilds, limiting normal runtime bar refreshes to actual bar entries, and caching repeated bar text, font, color, label, and key lookup work.
+- Cooldown Panels / Cooldown Manager Auras: Reduced tracked aura reset and scan spikes by using active runtime panel indexes, avoiding full tracked-panel rebuilds during reset events, and using a lighter runtime scan path.
+
 ### 🐛 Fixed
 
+- Cooldown Panels / Bars: Fixed Cooldown Manager aura bar timer text sometimes showing an incorrect fallback value or disappearing while the bar itself continued to update correctly.
 - Resource Bars: Fixed absorb glow configuration for the standalone health bar and corrected heal absorb layering so it no longer renders over custom borders.
 
 ## [10.10.0-beta6] - 2026-05-02

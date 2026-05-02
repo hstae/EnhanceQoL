@@ -220,6 +220,24 @@ local function getTextValue(value)
 	return nil
 end
 
+Bars.DEFAULT_TEXT_RGBA = Bars.DEFAULT_TEXT_RGBA or { 1, 1, 1, 1 }
+
+function Bars.GetPlainNumber(value)
+	if type(value) ~= "number" or isSecretValue(value) then return nil end
+	if value ~= value or value == math.huge or value == -math.huge then return nil end
+	return value
+end
+
+function Bars.ResolvePlainRGBA(value, fallback)
+	fallback = fallback or Bars.DEFAULT_TEXT_RGBA
+	if type(value) ~= "table" or isSecretValue(value) then return fallback[1], fallback[2], fallback[3], fallback[4] end
+	local r = Bars.GetPlainNumber(value[1] or value.r)
+	local g = Bars.GetPlainNumber(value[2] or value.g)
+	local b = Bars.GetPlainNumber(value[3] or value.b)
+	local a = Bars.GetPlainNumber(value[4] or value.a)
+	return r or fallback[1] or 1, g or fallback[2] or 1, b or fallback[3] or 1, a or fallback[4] or 1
+end
+
 local function getOppositeTimerDirection(direction)
 	if direction == cdp.BAR_STATUS_TIMER_DIRECTION_REMAINING then return cdp.BAR_STATUS_TIMER_DIRECTION_ELAPSED end
 	return cdp.BAR_STATUS_TIMER_DIRECTION_REMAINING
@@ -688,6 +706,8 @@ local function mutateBarEntry(panelId, entryId, mutator, reopenDialog)
 	local previousDisplayMode = entry.displayMode
 	if type(mutator) == "function" then mutator(entry, panel) end
 	normalizeBarEntry(entry)
+	if type(entry._eqolBarsStaticVersion) ~= "number" then entry._eqolBarsStaticVersion = 0 end
+	entry._eqolBarsStaticVersion = entry._eqolBarsStaticVersion + 1
 	Bars.MarkReservationCacheDirty(panel)
 	if entry.displayMode ~= previousDisplayMode and CooldownPanels.RebuildSpellIndex then
 		CooldownPanels:RebuildSpellIndex()
@@ -1936,21 +1956,21 @@ local function applyFontStringStyle(fontString, fontValue, sizeValue, styleValue
 			fontString._eqolBarsFontFallbackPath = fallbackPath
 		end
 	end
-	local color = Helper.NormalizeColor(colorValue, { 1, 1, 1, 1 })
+	local colorR, colorG, colorB, colorA = Bars.ResolvePlainRGBA(colorValue, Bars.DEFAULT_TEXT_RGBA)
 	if
 		fontString.SetTextColor
 		and (
-			fontString._eqolBarsFontColorR ~= color[1]
-			or fontString._eqolBarsFontColorG ~= color[2]
-			or fontString._eqolBarsFontColorB ~= color[3]
-			or fontString._eqolBarsFontColorA ~= color[4]
+			fontString._eqolBarsFontColorR ~= colorR
+			or fontString._eqolBarsFontColorG ~= colorG
+			or fontString._eqolBarsFontColorB ~= colorB
+			or fontString._eqolBarsFontColorA ~= colorA
 		)
 	then
-		fontString:SetTextColor(color[1], color[2], color[3], color[4])
-		fontString._eqolBarsFontColorR = color[1]
-		fontString._eqolBarsFontColorG = color[2]
-		fontString._eqolBarsFontColorB = color[3]
-		fontString._eqolBarsFontColorA = color[4]
+		fontString:SetTextColor(colorR, colorG, colorB, colorA)
+		fontString._eqolBarsFontColorR = colorR
+		fontString._eqolBarsFontColorG = colorG
+		fontString._eqolBarsFontColorB = colorB
+		fontString._eqolBarsFontColorA = colorA
 	end
 	if
 		addon.functions
@@ -2890,7 +2910,27 @@ buildBarState = function(panelId, entryId, entry, icon, preview, runtimeDataOver
 	local reusableRuntimeData = runtimeReuseUtil.GetBarRuntimeData(icon, runtimeDataOverride, resolvedType, preview)
 	local resolvedSpellId = resolvedType == "SPELL" and getResolvedSpellId(entry, macro) or nil
 	local layoutEditActive = panelId and CooldownPanels.IsPanelLayoutEditActive and CooldownPanels:IsPanelLayoutEditActive(panelId) or false
-	local label = getEntryLabel(entry)
+	local staticVersion = entry._eqolBarsStaticVersion or 0
+	local label = entry._eqolBarsCachedLabel
+	if
+		entry._eqolBarsCachedLabelVersion ~= staticVersion
+		or entry._eqolBarsCachedLabelType ~= entry.type
+		or entry._eqolBarsCachedLabelSpellID ~= entry.spellID
+		or entry._eqolBarsCachedLabelItemID ~= entry.itemID
+		or entry._eqolBarsCachedLabelSlotID ~= entry.slotID
+		or entry._eqolBarsCachedLabelCooldownID ~= entry.cooldownID
+		or entry._eqolBarsCachedLabelBuffName ~= entry.buffName
+	then
+		label = getEntryLabel(entry)
+		entry._eqolBarsCachedLabel = label
+		entry._eqolBarsCachedLabelVersion = staticVersion
+		entry._eqolBarsCachedLabelType = entry.type
+		entry._eqolBarsCachedLabelSpellID = entry.spellID
+		entry._eqolBarsCachedLabelItemID = entry.itemID
+		entry._eqolBarsCachedLabelSlotID = entry.slotID
+		entry._eqolBarsCachedLabelCooldownID = entry.cooldownID
+		entry._eqolBarsCachedLabelBuffName = entry.buffName
+	end
 	local texture = icon and icon.texture and icon.texture.GetTexture and icon.texture:GetTexture() or nil
 	local progress = 1
 	local valueText = nil
@@ -2898,7 +2938,13 @@ buildBarState = function(panelId, entryId, entry, icon, preview, runtimeDataOver
 	local cooldownValueVisible = false
 	local cooldownVisibilityActive = false
 	local runtimeData = nil
-	local entryKey = Helper.GetEntryKey(panelId, entryId)
+	local entryKey = entry._eqolBarsCachedEntryKey
+	if entry._eqolBarsCachedEntryKeyPanelId ~= panelId or entry._eqolBarsCachedEntryKeyEntryId ~= entryId then
+		entryKey = Helper.GetEntryKey(panelId, entryId)
+		entry._eqolBarsCachedEntryKey = entryKey
+		entry._eqolBarsCachedEntryKeyPanelId = panelId
+		entry._eqolBarsCachedEntryKeyEntryId = entryId
+	end
 	local barsRuntime = getRuntimeState()
 	local showChargeDuration = mode == Bars.BAR_MODE.CHARGES and getStoredBoolean(entry, "barShowChargeDuration", Bars.DEFAULTS.barShowChargeDuration) or false
 	local showValueText = mode ~= Bars.BAR_MODE.STACKS and getStoredBoolean(entry, "barShowValueText", Bars.DEFAULTS.barShowValueText)
