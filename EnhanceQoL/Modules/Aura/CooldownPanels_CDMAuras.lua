@@ -555,6 +555,7 @@ local function resolveSpellFromCooldownID(cooldownID, frame)
 end
 
 local ensureScanInfoDerived
+local ensureScanInfoSpellLookup
 local rememberScanInfoSpellLookup
 
 local function resolveEntryScanInfo(entry, byCooldownID, bySpellID, byCooldownKey)
@@ -587,22 +588,34 @@ end
 local function findRuntimeScanInfoBySpellID(scan, spellID)
 	spellID = tonumber(spellID)
 	if not (scan and isUsableSpellID(spellID)) then return nil, nil end
-	local cached = scan.bySpellID and scan.bySpellID[spellID] or nil
+	local bySpellID = scan.bySpellID
+	local cached = bySpellID and bySpellID[spellID] or nil
 	if type(cached) == "table" then
 		local resolvedCooldownID = isValidCooldownID(cached.cooldownID) and cached.cooldownID or nil
 		return cached, resolvedCooldownID
 	end
+	if cached == false or scan.spellLookupComplete == true then
+		if bySpellID and cached == nil then bySpellID[spellID] = false end
+		return nil, nil
+	end
 	local list = scan.list
 	if type(list) ~= "table" then return nil, nil end
-	for i = 1, #list do
+	local startIndex = (tonumber(scan.spellLookupCursor) or 0) + 1
+	for i = startIndex, #list do
+		scan.spellLookupCursor = i
 		local info = list[i]
 		local cooldownID = info and info.cooldownID or nil
 		if isValidCooldownID(cooldownID) then
-			ensureScanInfoDerived(info, cooldownID, info.iconFrame or info.barFrame, false)
-			rememberScanInfoSpellLookup(scan, info)
-			if tonumber(info.spellID) == spellID then return info, cooldownID end
+			ensureScanInfoSpellLookup(scan, info, cooldownID)
+			local matched = bySpellID and bySpellID[spellID] or nil
+			if type(matched) == "table" then
+				local resolvedCooldownID = isValidCooldownID(matched.cooldownID) and matched.cooldownID or cooldownID
+				return matched, resolvedCooldownID
+			end
 		end
 	end
+	scan.spellLookupComplete = true
+	if bySpellID and bySpellID[spellID] == nil then bySpellID[spellID] = false end
 	return nil, nil
 end
 
@@ -610,7 +623,8 @@ local function resolveRuntimeEntryScanInfo(entry, scan, byCooldownID, byCooldown
 	local scanInfo, resolvedCooldownID = resolveEntryScanInfo(entry, byCooldownID, nil, byCooldownKey)
 	if scanInfo then return scanInfo, resolvedCooldownID end
 	local spellID = tonumber(entry and entry.spellID)
-	if isUsableSpellID(spellID) then
+	local trackedSpellIDs = CooldownPanels.runtime and CooldownPanels.runtime.cdmAuraSpellIds or nil
+	if isUsableSpellID(spellID) and (not trackedSpellIDs or trackedSpellIDs[spellID] == true) then
 		local spellInfo, spellCooldownID = findRuntimeScanInfoBySpellID(scan, spellID)
 		if spellInfo then return spellInfo, spellCooldownID or resolvedCooldownID end
 	end
@@ -706,15 +720,60 @@ local function populateScanInfoDerivedFields(info, cooldownID, frame, overwrite)
 	mergeResolvedScanInfo(info, spellID, buffName, iconTextureID, overwrite)
 end
 
-ensureScanInfoDerived = function(info, cooldownID, frame, overwrite)
+ensureScanInfoDerived = function(info, cooldownID, frame, overwrite, runtimeOnly)
 	if not (info and isValidCooldownID(cooldownID)) then return end
 	if info.derived == true and not overwrite then return end
 	populateScanInfoDerivedFields(info, cooldownID, frame, overwrite)
 	info.spellID = tonumber(info.spellID)
 	info.buffName = info.buffName or getSpellName(info.spellID) or tostring(cooldownID)
 	info.iconTextureID = info.iconTextureID or getSpellTexture(info.spellID) or Helper.PREVIEW_ICON
-	info.sortName = string.lower(tostring(info.buffName or ""))
+	if not runtimeOnly then info.sortName = string.lower(tostring(info.buffName or "")) end
 	info.derived = true
+end
+
+local function resolveSpellIDOnlyFromCooldownID(cooldownID, frame)
+	local frameInfo = frame and frame.cooldownInfo or nil
+	local auraSpellID = frame and frame.auraSpellID or nil
+	if isUsableSpellID(auraSpellID) then return auraSpellID end
+	if type(frameInfo) == "table" then
+		local linkedSpellIDs = frameInfo.linkedSpellIDs
+		local firstLinkedSpellID = type(linkedSpellIDs) == "table" and linkedSpellIDs[1] or nil
+		local spellID = getFirstUsableSpellID(
+			frameInfo.overrideTooltipSpellID,
+			frameInfo.linkedSpellID,
+			firstLinkedSpellID,
+			frameInfo.overrideSpellID,
+			frameInfo.spellID
+		)
+		if isUsableSpellID(spellID) then return spellID end
+	end
+	local apiInfo = getCooldownViewerInfo(cooldownID)
+	if type(apiInfo) == "table" then
+		local linkedSpellIDs = apiInfo.linkedSpellIDs
+		local firstLinkedSpellID = type(linkedSpellIDs) == "table" and linkedSpellIDs[1] or nil
+		return getFirstUsableSpellID(
+			apiInfo.overrideTooltipSpellID,
+			apiInfo.linkedSpellID,
+			firstLinkedSpellID,
+			apiInfo.overrideSpellID,
+			apiInfo.spellID
+		)
+	end
+	return nil
+end
+
+ensureScanInfoSpellLookup = function(scan, info, cooldownID)
+	if not (scan and info and isValidCooldownID(cooldownID)) then return nil end
+	local spellID = tonumber(info.spellID)
+	if not isUsableSpellID(spellID) then
+		spellID = resolveSpellIDOnlyFromCooldownID(cooldownID, info.iconFrame or info.barFrame)
+		if isUsableSpellID(spellID) then info.spellID = spellID end
+	end
+	if isUsableSpellID(spellID) then
+		rememberScanInfoSpellLookup(scan, info)
+		return spellID
+	end
+	return nil
 end
 
 local function frameHasActiveAuraOrTotem(frame)
@@ -764,6 +823,8 @@ end
 rememberScanInfoSpellLookup = function(scan, info)
 	local spellID = tonumber(info and info.spellID)
 	if not isUsableSpellID(spellID) then return end
+	local trackedSpellIDs = scan and scan.runtimeMode and CooldownPanels.runtime and CooldownPanels.runtime.cdmAuraSpellIds or nil
+	if trackedSpellIDs and trackedSpellIDs[spellID] ~= true then return end
 	local current = scan.bySpellID[spellID]
 	if current == nil or shouldPreferSpellLookupInfo(current, info) then scan.bySpellID[spellID] = info end
 end
@@ -907,6 +968,8 @@ function CDMAuras:ScanTrackedBuffs(force, mode)
 	scan.runtimeMode = runtimeMode
 	scan.fullDerived = false
 	scan.sorted = false
+	scan.spellLookupCursor = 0
+	scan.spellLookupComplete = false
 	local seenFrames = runtime.scratchSeenFrames
 	local seenInfo = runtime.scratchSeenInfo
 	wipe(seenFrames)
@@ -2121,7 +2184,7 @@ function CDMAuras:BuildRuntimeData(panelId, entryId, entry, entryLayout, alwaysS
 
 	local preferredSource = normalizeSourceType(entry.sourceType)
 	local chosenFrame, chosenSource, _, fallbackFrame = selectScanInfoFrame(scanInfo, preferredSource, resolvedCooldownID)
-	if scanInfo then ensureScanInfoDerived(scanInfo, resolvedCooldownID, chosenFrame or fallbackFrame, false) end
+	if scanInfo then ensureScanInfoDerived(scanInfo, resolvedCooldownID, chosenFrame or fallbackFrame, false, true) end
 	local trackedUnit = getEntryTrackedUnit(scanInfo, state, chosenFrame or fallbackFrame, resolvedCooldownID or entry.cooldownID, preferredSource)
 
 	if state.lastActive == true and chosenFrame then
@@ -2149,7 +2212,7 @@ function CDMAuras:BuildRuntimeData(panelId, entryId, entry, entryLayout, alwaysS
 			state.cachedResolvedCooldownID = resolvedCooldownID
 				local reacquiredChosenFrame, reacquiredChosenSource, _, reacquiredFallbackFrame = selectScanInfoFrame(scanInfo, preferredSource, resolvedCooldownID)
 				chosenFrame, chosenSource, fallbackFrame = reacquiredChosenFrame, reacquiredChosenSource, reacquiredFallbackFrame
-				if scanInfo then ensureScanInfoDerived(scanInfo, resolvedCooldownID, chosenFrame or fallbackFrame, false) end
+				if scanInfo then ensureScanInfoDerived(scanInfo, resolvedCooldownID, chosenFrame or fallbackFrame, false, true) end
 				trackedUnit = getEntryTrackedUnit(scanInfo, state, chosenFrame or fallbackFrame, resolvedCooldownID or entry.cooldownID, preferredSource)
 			if runtimePass then state.frameReacquirePass = runtimePass end
 		end
