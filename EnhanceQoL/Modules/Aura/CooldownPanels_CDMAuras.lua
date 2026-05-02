@@ -998,10 +998,31 @@ function CDMAuras:SweepInvalidStates()
 		wipe(valid)
 	end
 	local root = CooldownPanels.GetRoot and CooldownPanels:GetRoot() or nil
-	if root and root.panels then
+	local enabledPanels = CooldownPanels.runtime and CooldownPanels.runtime.enabledPanels or nil
+	local enabledPanelIds = CooldownPanels.runtime and CooldownPanels.runtime.enabledPanelIds or nil
+	if root and root.panels and enabledPanels then
+		if enabledPanelIds and #enabledPanelIds > 0 then
+			for i = 1, #enabledPanelIds do
+				local panelId = enabledPanelIds[i]
+				local panel = enabledPanels[panelId] == true and root.panels[panelId] or nil
+				for entryId, entry in pairs(panel and panel.entries or {}) do
+					if entry and entry.type == ENTRY_TYPE then valid[getEntryKey(panelId, entryId)] = true end
+				end
+			end
+		else
+			for panelId in pairs(enabledPanels) do
+				local panel = root.panels[panelId]
+				for entryId, entry in pairs(panel and panel.entries or {}) do
+					if entry and entry.type == ENTRY_TYPE then valid[getEntryKey(panelId, entryId)] = true end
+				end
+			end
+		end
+	elseif root and root.panels then
 		for panelId, panel in pairs(root.panels) do
-			for entryId, entry in pairs(panel and panel.entries or {}) do
-				if entry and entry.type == ENTRY_TYPE then valid[getEntryKey(panelId, entryId)] = true end
+			if panel and panel.enabled ~= false then
+				for entryId, entry in pairs(panel.entries or {}) do
+					if entry and entry.type == ENTRY_TYPE then valid[getEntryKey(panelId, entryId)] = true end
+				end
 			end
 		end
 	end
@@ -1055,19 +1076,34 @@ end
 function CDMAuras:HasActiveTrackedPanels()
 	local root = CooldownPanels.GetRoot and CooldownPanels:GetRoot() or nil
 	if not (root and root.panels) then return false end
-
 	local enabledPanels = CooldownPanels.runtime and CooldownPanels.runtime.enabledPanels or nil
-	local useEnabledFilter = enabledPanels ~= nil
-
-	for panelId, panel in pairs(root.panels) do
-		local panelEnabled = useEnabledFilter and enabledPanels[panelId] == true or (panel and panel.enabled ~= false)
-		if panelEnabled and panel and panel.entries then
-			for _, entry in pairs(panel.entries) do
-				if entry and entry.type == ENTRY_TYPE then return true end
+	local enabledPanelIds = CooldownPanels.runtime and CooldownPanels.runtime.enabledPanelIds or nil
+	if enabledPanels then
+		if enabledPanelIds and #enabledPanelIds > 0 then
+			for i = 1, #enabledPanelIds do
+				local panelId = enabledPanelIds[i]
+				local panel = enabledPanels[panelId] == true and root.panels[panelId] or nil
+				for _, entry in pairs(panel and panel.entries or {}) do
+					if entry and entry.type == ENTRY_TYPE then return true end
+				end
+			end
+		else
+			for panelId in pairs(enabledPanels) do
+				local panel = root.panels[panelId]
+				for _, entry in pairs(panel and panel.entries or {}) do
+					if entry and entry.type == ENTRY_TYPE then return true end
+				end
+			end
+		end
+	else
+		for _, panel in pairs(root.panels) do
+			if panel and panel.enabled ~= false then
+				for _, entry in pairs(panel.entries or {}) do
+					if entry and entry.type == ENTRY_TYPE then return true end
+				end
 			end
 		end
 	end
-
 	return false
 end
 
@@ -1112,27 +1148,61 @@ function CDMAuras:RebuildTrackedPanelIndex()
 	local runtime = getRuntime()
 	clearTrackedPanelIndex(runtime)
 	if not self:HasActiveTrackedPanels() then return end
+	local _, byCooldownID, bySpellID, byCooldownKey = self:ScanTrackedBuffs(false)
 
 	local root = CooldownPanels.GetRoot and CooldownPanels:GetRoot() or nil
 	if not (root and root.panels) then return end
-
 	local enabledPanels = CooldownPanels.runtime and CooldownPanels.runtime.enabledPanels or nil
-	local useEnabledFilter = enabledPanels ~= nil
-	local _, byCooldownID, bySpellID, byCooldownKey = self:ScanTrackedBuffs(false)
-
-	for panelId, panel in pairs(root.panels) do
-		local panelEnabled = useEnabledFilter and enabledPanels[panelId] == true or (panel and panel.enabled ~= false)
-		if panelEnabled and panel and panel.entries then
-			for entryId, entry in pairs(panel.entries) do
-				if entry and entry.type == ENTRY_TYPE then
-					local key = getEntryKey(panelId, entryId)
-					local state = runtime.entryStates[key]
-					local scanInfo, resolvedCooldownID = resolveEntryScanInfo(entry, byCooldownID, bySpellID, byCooldownKey)
-					local expectedCooldownID = isValidCooldownID(resolvedCooldownID) and resolvedCooldownID or entry.cooldownID
-					local matchingFrame = getScanInfoMatchingFrame(scanInfo, entry.sourceType, expectedCooldownID)
-					local trackedUnit = getEntryTrackedUnit(scanInfo, state, matchingFrame, expectedCooldownID, entry.sourceType)
-					if state then state.trackUnit = trackedUnit end
-					registerTrackedPanel(runtime, trackedUnit, panelId)
+	local enabledPanelIds = CooldownPanels.runtime and CooldownPanels.runtime.enabledPanelIds or nil
+	if enabledPanels then
+		if enabledPanelIds and #enabledPanelIds > 0 then
+			for i = 1, #enabledPanelIds do
+				local panelId = enabledPanelIds[i]
+				local panel = enabledPanels[panelId] == true and root.panels[panelId] or nil
+				for entryId, entry in pairs(panel and panel.entries or {}) do
+					if entry and entry.type == ENTRY_TYPE then
+						local key = getEntryKey(panelId, entryId)
+						local state = runtime.entryStates[key]
+						local scanInfo, resolvedCooldownID = resolveEntryScanInfo(entry, byCooldownID, bySpellID, byCooldownKey)
+						local expectedCooldownID = isValidCooldownID(resolvedCooldownID) and resolvedCooldownID or entry.cooldownID
+						local matchingFrame = getScanInfoMatchingFrame(scanInfo, entry.sourceType, expectedCooldownID)
+						local trackedUnit = getEntryTrackedUnit(scanInfo, state, matchingFrame, expectedCooldownID, entry.sourceType)
+						if state then state.trackUnit = trackedUnit end
+						registerTrackedPanel(runtime, trackedUnit, panelId)
+					end
+				end
+			end
+		else
+			for panelId in pairs(enabledPanels) do
+				local panel = root.panels[panelId]
+				for entryId, entry in pairs(panel and panel.entries or {}) do
+					if entry and entry.type == ENTRY_TYPE then
+						local key = getEntryKey(panelId, entryId)
+						local state = runtime.entryStates[key]
+						local scanInfo, resolvedCooldownID = resolveEntryScanInfo(entry, byCooldownID, bySpellID, byCooldownKey)
+						local expectedCooldownID = isValidCooldownID(resolvedCooldownID) and resolvedCooldownID or entry.cooldownID
+						local matchingFrame = getScanInfoMatchingFrame(scanInfo, entry.sourceType, expectedCooldownID)
+						local trackedUnit = getEntryTrackedUnit(scanInfo, state, matchingFrame, expectedCooldownID, entry.sourceType)
+						if state then state.trackUnit = trackedUnit end
+						registerTrackedPanel(runtime, trackedUnit, panelId)
+					end
+				end
+			end
+		end
+	else
+		for panelId, panel in pairs(root.panels) do
+			if panel and panel.enabled ~= false then
+				for entryId, entry in pairs(panel.entries or {}) do
+					if entry and entry.type == ENTRY_TYPE then
+						local key = getEntryKey(panelId, entryId)
+						local state = runtime.entryStates[key]
+						local scanInfo, resolvedCooldownID = resolveEntryScanInfo(entry, byCooldownID, bySpellID, byCooldownKey)
+						local expectedCooldownID = isValidCooldownID(resolvedCooldownID) and resolvedCooldownID or entry.cooldownID
+						local matchingFrame = getScanInfoMatchingFrame(scanInfo, entry.sourceType, expectedCooldownID)
+						local trackedUnit = getEntryTrackedUnit(scanInfo, state, matchingFrame, expectedCooldownID, entry.sourceType)
+						if state then state.trackUnit = trackedUnit end
+						registerTrackedPanel(runtime, trackedUnit, panelId)
+					end
 				end
 			end
 		end
@@ -2056,11 +2126,40 @@ local function refreshAllTrackedPanels(unit)
 
 	local root = CooldownPanels.GetRoot and CooldownPanels:GetRoot() or nil
 	if not (root and root.panels) then return end
-	for panelId, panel in pairs(root.panels) do
-		for _, entry in pairs(panel and panel.entries or {}) do
-			if entry and entry.type == ENTRY_TYPE then
-				requestPanelRefresh(panelId)
-				break
+	local enabledPanels = CooldownPanels.runtime and CooldownPanels.runtime.enabledPanels or nil
+	local enabledPanelIds = CooldownPanels.runtime and CooldownPanels.runtime.enabledPanelIds or nil
+	if enabledPanels then
+		if enabledPanelIds and #enabledPanelIds > 0 then
+			for i = 1, #enabledPanelIds do
+				local panelId = enabledPanelIds[i]
+				local panel = enabledPanels[panelId] == true and root.panels[panelId] or nil
+				for _, entry in pairs(panel and panel.entries or {}) do
+					if entry and entry.type == ENTRY_TYPE then
+						requestPanelRefresh(panelId)
+						break
+					end
+				end
+			end
+		else
+			for panelId in pairs(enabledPanels) do
+				local panel = root.panels[panelId]
+				for _, entry in pairs(panel and panel.entries or {}) do
+					if entry and entry.type == ENTRY_TYPE then
+						requestPanelRefresh(panelId)
+						break
+					end
+				end
+			end
+		end
+	else
+		for panelId, panel in pairs(root.panels) do
+			if panel and panel.enabled ~= false then
+				for _, entry in pairs(panel.entries or {}) do
+					if entry and entry.type == ENTRY_TYPE then
+						requestPanelRefresh(panelId)
+						break
+					end
+				end
 			end
 		end
 	end
@@ -2083,6 +2182,38 @@ function CDMAuras:ScheduleTrackedPanelsRescan(reason)
 		self:RebuildTrackedPanelIndex()
 		refreshAllTrackedPanels()
 	end)
+end
+
+function CDMAuras:ScheduleResetEvent(reason)
+	local runtime = getRuntime()
+	runtime.pendingResetEvent = runtime.pendingResetEvent or {}
+	local pending = runtime.pendingResetEvent
+	pending.reason = pending.reason or reason
+	pending.clearCooldownViewerInfo = true
+	if pending.queued == true then return end
+	pending.queued = true
+	local function run()
+		local latestRuntime = getRuntime()
+		local latestPending = latestRuntime.pendingResetEvent
+		latestRuntime.pendingResetEvent = nil
+		if not self:HasActiveTrackedPanels() then return end
+		self:EnsureCooldownViewerHooks()
+		self:InvalidateScan(latestPending and latestPending.clearCooldownViewerInfo == true, latestPending and latestPending.reason or reason or "ResetEvent")
+		self:SweepInvalidStates()
+		cdm.BumpUnitAuraEpoch(latestRuntime, "player")
+		cdm.BumpUnitAuraEpoch(latestRuntime, "target")
+		cdm.ResetPersistentFrameCaches(latestRuntime)
+		for key, state in pairs(latestRuntime.entryStates) do
+			clearEntryState(key, state, true)
+		end
+		self:RebuildTrackedPanelIndex()
+		refreshAllTrackedPanels()
+	end
+	if C_Timer and C_Timer.After then
+		C_Timer.After(RESHUFFLE_REFRESH_DELAY, run)
+	else
+		run()
+	end
 end
 
 function CDMAuras:EnsureCooldownViewerHooks()
@@ -2208,18 +2339,7 @@ function CDMAuras:HandleResetEvent(event, ...)
 		local unit = ...
 		if unit and unit ~= "player" then return end
 	end
-	self:EnsureCooldownViewerHooks()
-	self:InvalidateScan(true, "HandleResetEvent:" .. tostring(event))
-	self:SweepInvalidStates()
-	local runtime = getRuntime()
-	cdm.BumpUnitAuraEpoch(runtime, "player")
-	cdm.BumpUnitAuraEpoch(runtime, "target")
-	cdm.ResetPersistentFrameCaches(runtime)
-	for key, state in pairs(runtime.entryStates) do
-		clearEntryState(key, state, true)
-	end
-	self:RebuildTrackedPanelIndex()
-	refreshAllTrackedPanels()
+	self:ScheduleResetEvent("HandleResetEvent:" .. tostring(event))
 end
 
 function CDMAuras:HandleTotemUpdate() refreshAllTrackedPanels("player") end
