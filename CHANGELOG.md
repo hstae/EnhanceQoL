@@ -1,6 +1,12 @@
 # Changelog
 
 <!--@eqol-beta@-->
+## [10.10.0-beta7] - 2026-05-02
+
+### 🐛 Fixed
+
+- Resource Bars: Fixed absorb glow configuration for the standalone health bar and corrected heal absorb layering so it no longer renders over custom borders.
+
 ## [10.10.0-beta6] - 2026-05-02
 
 ### 🐛 Fixed

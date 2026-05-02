@@ -2226,6 +2226,28 @@ registerEditModeBars = function()
 				}
 
 				settingsList[#settingsList + 1] = {
+					name = L["Use absorb glow"] or "Use absorb glow",
+					kind = settingType.Checkbox,
+					field = "useAbsorbGlow",
+					parentId = "absorb",
+					get = function()
+						local c = curSpecCfg()
+						return c and c.useAbsorbGlow == true
+					end,
+					set = function(_, value)
+						local c = curSpecCfg()
+						if not c then return end
+						c.useAbsorbGlow = value and true or false
+						queueRefresh()
+					end,
+					isEnabled = function()
+						local c = curSpecCfg()
+						return c and c.absorbEnabled ~= false
+					end,
+					default = false,
+				}
+
+				settingsList[#settingsList + 1] = {
 					name = L["Show sample absorb"] or "Show sample absorb",
 					kind = settingType.Checkbox,
 					field = "absorbSample",
