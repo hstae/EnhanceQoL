@@ -11,7 +11,8 @@
 ### 🐛 Fixed
 
 - Cooldown Panels / Bars: Fixed Cooldown Manager aura bar timer text sometimes showing an incorrect fallback value or disappearing while the bar itself continued to update correctly.
-- Resource Bars: Fixed absorb glow configuration for the standalone health bar and corrected heal absorb layering so it no longer renders over custom borders.
+- Resource Bars: Fixed absorb glow configuration for the standalone health bar, corrected heal absorb layering so it no longer renders over custom borders, and made sample absorbs respect Don't overflow health bar.
+- Resource Bars / Shared Mode: Fixed Secondary resource bars still showing current values when the shared slot text style was set to None.
 
 ## [10.10.0-beta6] - 2026-05-02
 

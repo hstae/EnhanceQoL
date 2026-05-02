@@ -698,18 +698,26 @@ local function getBarEntry(panelId, entryId)
 	return panel, entry
 end
 
+Bars.IsBarDisplayModeValue = function(value)
+	local mode = type(value) == "string" and string.upper(value) or nil
+	if mode == Bars.DISPLAY_MODE.BAR then return true end
+	if mode == Bars.DISPLAY_MODE.BUTTON then return false end
+	return Bars.DEFAULTS.displayMode == Bars.DISPLAY_MODE.BAR
+end
+
 local function mutateBarEntry(panelId, entryId, mutator, reopenDialog)
 	panelId = normalizeId(panelId)
 	entryId = normalizeId(entryId)
 	local panel, entry = getBarEntry(panelId, entryId)
 	if not (panel and entry) then return nil, nil end
-	local previousDisplayMode = entry.displayMode
+	local wasBar = Bars.IsBarDisplayModeValue(entry.displayMode)
 	if type(mutator) == "function" then mutator(entry, panel) end
 	normalizeBarEntry(entry)
+	local isBar = Bars.IsBarDisplayModeValue(entry.displayMode)
 	if type(entry._eqolBarsStaticVersion) ~= "number" then entry._eqolBarsStaticVersion = 0 end
 	entry._eqolBarsStaticVersion = entry._eqolBarsStaticVersion + 1
 	Bars.MarkReservationCacheDirty(panel)
-	if entry.displayMode ~= previousDisplayMode and CooldownPanels.RebuildSpellIndex then
+	if wasBar ~= isBar and CooldownPanels.RebuildSpellIndex then
 		CooldownPanels:RebuildSpellIndex()
 	end
 	refreshPanelContext(panelId)
@@ -2911,18 +2919,26 @@ buildBarState = function(panelId, entryId, entry, icon, preview, runtimeDataOver
 	local resolvedSpellId = resolvedType == "SPELL" and getResolvedSpellId(entry, macro) or nil
 	local layoutEditActive = panelId and CooldownPanels.IsPanelLayoutEditActive and CooldownPanels:IsPanelLayoutEditActive(panelId) or false
 	local staticVersion = entry._eqolBarsStaticVersion or 0
+	local labelGeneration = CooldownPanels.runtime and CooldownPanels.runtime.barLabelGeneration or 0
 	local label = entry._eqolBarsCachedLabel
 	if
-		entry._eqolBarsCachedLabelVersion ~= staticVersion
+		entry._eqolBarsCachedLabelGeneration ~= labelGeneration
+		or entry._eqolBarsCachedLabelVersion ~= staticVersion
 		or entry._eqolBarsCachedLabelType ~= entry.type
 		or entry._eqolBarsCachedLabelSpellID ~= entry.spellID
 		or entry._eqolBarsCachedLabelItemID ~= entry.itemID
 		or entry._eqolBarsCachedLabelSlotID ~= entry.slotID
 		or entry._eqolBarsCachedLabelCooldownID ~= entry.cooldownID
 		or entry._eqolBarsCachedLabelBuffName ~= entry.buffName
+		or entry._eqolBarsCachedLabelMacroID ~= entry.macroID
+		or entry._eqolBarsCachedLabelMacroName ~= entry.macroName
+		or entry._eqolBarsCachedLabelStanceID ~= (entry.stanceID or entry.stanceId)
+		or entry._eqolBarsCachedLabelStanceKey ~= entry.stanceKey
+		or entry._eqolBarsCachedLabelStanceClass ~= (entry.stanceClass or entry.classTag)
 	then
 		label = getEntryLabel(entry)
 		entry._eqolBarsCachedLabel = label
+		entry._eqolBarsCachedLabelGeneration = labelGeneration
 		entry._eqolBarsCachedLabelVersion = staticVersion
 		entry._eqolBarsCachedLabelType = entry.type
 		entry._eqolBarsCachedLabelSpellID = entry.spellID
@@ -2930,6 +2946,11 @@ buildBarState = function(panelId, entryId, entry, icon, preview, runtimeDataOver
 		entry._eqolBarsCachedLabelSlotID = entry.slotID
 		entry._eqolBarsCachedLabelCooldownID = entry.cooldownID
 		entry._eqolBarsCachedLabelBuffName = entry.buffName
+		entry._eqolBarsCachedLabelMacroID = entry.macroID
+		entry._eqolBarsCachedLabelMacroName = entry.macroName
+		entry._eqolBarsCachedLabelStanceID = entry.stanceID or entry.stanceId
+		entry._eqolBarsCachedLabelStanceKey = entry.stanceKey
+		entry._eqolBarsCachedLabelStanceClass = entry.stanceClass or entry.classTag
 	end
 	local texture = icon and icon.texture and icon.texture.GetTexture and icon.texture:GetTexture() or nil
 	local progress = 1

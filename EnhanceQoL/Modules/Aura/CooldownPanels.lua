@@ -4455,6 +4455,7 @@ function CooldownPanels:RebuildSpellIndex()
 	runtime.barPanelIds = barPanelIds
 	runtime.barEntryIdsByPanel = barEntryIdsByPanel
 	runtime.barEntryCount = barEntryCount
+	runtime.barLabelGeneration = (runtime.barLabelGeneration or 0) + 1
 	runtime.itemPanels = itemPanels
 	runtime.itemUsesPanels = itemUsesPanels
 	runtime.itemTrackedIds = itemTrackedIds
@@ -21480,7 +21481,7 @@ function CooldownPanels.EnsureUpdateFrame()
 			CooldownPanels:InvalidateTalentChoiceSpellVariantGroups()
 			if Keybinds.InvalidateButtonList then Keybinds.InvalidateButtonList() end
 			Keybinds.InvalidateCache()
-			Keybinds.RequestRefresh("Event:PLAYER_LOGIN")
+			Keybinds.RequestRefresh("Event:PLAYER_LOGIN", false)
 			if CooldownPanels.refreshAssistedHighlightCVarState then CooldownPanels.refreshAssistedHighlightCVarState("Event:PLAYER_LOGIN", true) end
 			refreshPanelsForCharges()
 			scheduleSpecAwareRebuild(event, false)

@@ -4120,6 +4120,14 @@ function updateHealthBar(evt)
 					abs = maxHealth * 0.6
 					glowAbsorbValue = abs
 				end
+				local absIsSecret = issecretvalue and issecretvalue(abs)
+				local curHealthIsSecret = issecretvalue and issecretvalue(curHealth)
+				if settings.absorbDontOverflowHealthBar == true and settings.absorbOverfill ~= true and not absIsSecret and not curHealthIsSecret then
+					local missingHealth = (tonumber(maxHealth) or 0) - (tonumber(curHealth) or 0)
+					if missingHealth < 0 then missingHealth = 0 end
+					if (abs or 0) > missingHealth then abs = missingHealth end
+					if settings.absorbSample then glowAbsorbValue = abs end
+				end
 				if healthBar.overAbsorbGlow then
 					if settings.useAbsorbGlow == true then
 						healthBar.overAbsorbGlow:SetAlpha(glowAbsorbValue or 0)
@@ -4133,7 +4141,6 @@ function updateHealthBar(evt)
 					absorbBar:SetMinMaxValues(0, maxHealth)
 					setBarValue(absorbBar, abs, smooth)
 				else
-					local absIsSecret = issecretvalue and issecretvalue(abs)
 					if not absIsSecret and abs > maxHealth then abs = maxHealth end
 					if absorbBar._lastMax ~= maxHealth then
 						absorbBar:SetMinMaxValues(0, maxHealth)
@@ -4623,8 +4630,9 @@ function ResourceBars.ApplySharedPowerTypeOverride(runtimeCfg, sourceCfg, pType)
 	local overrides = type(sourceCfg) == "table" and sourceCfg.powerTypeOverrides or nil
 	local override = type(overrides) == "table" and overrides[pType] or nil
 	if type(override) ~= "table" or override.enabled ~= true then return end
+	local slotTextDisabled = runtimeCfg and runtimeCfg.textStyle == "NONE"
 	for _, key in ipairs(ResourceBars.POWER_TYPE_STYLE_OVERRIDE_KEYS or {}) do
-		if override[key] ~= nil then runtimeCfg[key] = type(override[key]) == "table" and CopyTable(override[key]) or override[key] end
+		if override[key] ~= nil and not (slotTextDisabled and key == "textStyle") then runtimeCfg[key] = type(override[key]) == "table" and CopyTable(override[key]) or override[key] end
 	end
 end
 
