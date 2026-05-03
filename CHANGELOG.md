@@ -1,5 +1,13 @@
 # Changelog
 
+## [10.10.1] - 2026-05-03
+
+### 🐛 Fixed
+
+- Unit Frames / Resource Bars: Disabled Blizzard class-resource hide settings, such as Soul Shards and Combo Points, while the custom EQoL Player Frame is active so users are not shown controls that no longer affect the active frame.
+
+---
+
 ## [10.10.0] - 2026-05-03
 
 ### ✨ Added
