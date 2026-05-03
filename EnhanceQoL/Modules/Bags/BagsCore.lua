@@ -3567,7 +3567,10 @@ local function updateButtonData(button, mapping, overlayRuntime, textAppearance,
 		if not button:IsShown() then
 			button:Show()
 		end
-		applyItemButtonSkinIfNeeded(button, quality, false)
+		if addon.ApplyItemButtonSkin then
+			addon.ApplyItemButtonSkin(button, quality)
+			button._bagsAppliedSkinSignature = getCurrentItemButtonSkinSignature()
+		end
 		if Bags.functions.ApplyRecipeUsabilityVisual then
 			Bags.functions.ApplyRecipeUsabilityVisual(button, isUnusableRecipe)
 		end
@@ -4845,8 +4848,11 @@ local function buildLayoutData()
 						hasCustomCategories
 					)
 				end
+				local hideItem = not oneBagMode and addon.IsCategorySectionHidden and addon.IsCategorySectionHidden(sectionID)
 				local itemRef = info and (info.hyperlink or info.itemID)
-				if not oneBagMode and shouldCombineDuplicateItem(itemRef, settings) then
+				if hideItem then
+					clearSlotCategoryCacheEntry(bagID, slotID)
+				elseif not oneBagMode and shouldCombineDuplicateItem(itemRef, settings) then
 					local collapsedSection = layoutData.collapsedItems[sectionID]
 					if not collapsedSection then
 						collapsedSection = {}

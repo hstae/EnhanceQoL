@@ -1303,7 +1303,15 @@ local function buildCompiledCustomCategoryState(categories, groups)
 		itemIDToCategoryID = {},
 		contextUsage = {},
 		sectionDefinitions = {},
+		hiddenSectionIDs = {},
 	}
+
+	local hiddenGroupIDs = {}
+	for _, group in ipairs(groups or {}) do
+		if group.hidden == true then
+			hiddenGroupIDs[group.id] = true
+		end
+	end
 
 	local matchingCategories = {}
 	for _, category in ipairs(categories or {}) do
@@ -1320,10 +1328,14 @@ local function buildCompiledCustomCategoryState(categories, groups)
 			sortMode = category.sortMode,
 			color = category.color,
 			groupID = category.groupID,
+			hidden = category.hidden == true or hiddenGroupIDs[category.groupID] == true,
 			itemIDs = category.itemIDs,
 			ruleTree = buildCompiledRuleNode(category.ruleTree, compiledState.contextUsage),
 			isCustom = true,
 		}
+		if compiledCategory.hidden then
+			compiledState.hiddenSectionIDs[category.id] = true
+		end
 
 		for _, itemID in ipairs(category.itemIDs or {}) do
 			if compiledState.itemIDToCategoryID[itemID] == nil then
@@ -1342,31 +1354,38 @@ local function buildCompiledCustomCategoryState(categories, groups)
 	local function appendSectionDefinitionForEntry(entry)
 		if entry.kind == "group" then
 			local group = entry.group
+			if group.hidden == true then
+				return
+			end
 			for _, category in ipairs(categoriesByGroupID[group.id] or {}) do
+				if category.hidden ~= true then
+					compiledState.sectionDefinitions[#compiledState.sectionDefinitions + 1] = {
+						id = category.id,
+						label = category.name,
+						color = category.color,
+						sortMode = category.sortMode,
+						isCustom = true,
+						groupID = group.id,
+						groupLabel = group.name,
+						groupColor = group.color,
+						groupCollapseID = string.format("group:%s", group.id),
+						groupSpacerBefore = group.spacerBefore == true,
+						groupCombineSubcategories = group.combineSubcategories == true,
+						collapsible = false,
+					}
+				end
+			end
+		elseif entry.category then
+			local category = entry.category
+			if category.hidden ~= true then
 				compiledState.sectionDefinitions[#compiledState.sectionDefinitions + 1] = {
 					id = category.id,
 					label = category.name,
 					color = category.color,
 					sortMode = category.sortMode,
 					isCustom = true,
-					groupID = group.id,
-					groupLabel = group.name,
-					groupColor = group.color,
-					groupCollapseID = string.format("group:%s", group.id),
-					groupSpacerBefore = group.spacerBefore == true,
-					groupCombineSubcategories = group.combineSubcategories == true,
-					collapsible = false,
 				}
 			end
-		elseif entry.category then
-			local category = entry.category
-			compiledState.sectionDefinitions[#compiledState.sectionDefinitions + 1] = {
-				id = category.id,
-				label = category.name,
-				color = category.color,
-				sortMode = category.sortMode,
-				isCustom = true,
-			}
 		end
 	end
 
@@ -1489,6 +1508,7 @@ local function sanitizeCustomGroup(settings, group, index)
 	group.color = sanitizeColor(group.color, getDefaultCategoryColor(index))
 	group.spacerBefore = group.spacerBefore == true
 	group.combineSubcategories = group.combineSubcategories == true
+	group.hidden = group.hidden == true
 	return group
 end
 
@@ -1539,6 +1559,7 @@ local function sanitizeCategory(settings, category, index, validGroupLookup)
 	end
 	category.groupID = validGroupLookup and validGroupLookup[tostring(category.groupID or "")] and tostring(category.groupID) or nil
 	category.groupName = nil
+	category.hidden = category.hidden == true
 	category.itemIDs = sanitizeItemIDs(category.itemIDs)
 	category.ruleTree = sanitizeGroupNode(settings, category.ruleTree)
 	category.ruleTree.operator = category.ruleTree.operator == "AND" and "AND" or ROOT_GROUP_OPERATOR
@@ -2502,6 +2523,14 @@ function addon.GetCategorySectionDefinitions()
 	return cachedCategorySectionDefinitions
 end
 
+function addon.IsCategorySectionHidden(sectionID)
+	ensureCustomCategoryState()
+	return customCategoryCompiledState
+		and customCategoryCompiledState.hiddenSectionIDs
+		and customCategoryCompiledState.hiddenSectionIDs[sectionID] == true
+		or false
+end
+
 function addon.GetCategorySortModeOptions()
 	local options = {}
 	for _, definition in ipairs(CATEGORY_SORT_MODE_DEFINITIONS) do
@@ -2701,6 +2730,22 @@ function addon.SetCustomCategorySortOrder(categoryID, sortOrder)
 	return true
 end
 
+function addon.SetCustomCategoryHidden(categoryID, hidden)
+	local category = findCategoryByID(categoryID)
+	if not category then
+		return false
+	end
+
+	hidden = hidden == true
+	if category.hidden == hidden then
+		return false
+	end
+
+	category.hidden = hidden
+	markCustomCategoryStateDirty()
+	return true
+end
+
 function addon.SetCustomCategoryGroupSortOrder(groupID, sortOrder)
 	local group = findGroupByID(groupID)
 	if not group then
@@ -2719,6 +2764,22 @@ function addon.SetCustomCategoryGroupSortOrder(groupID, sortOrder)
 	end
 
 	group.sortOrder = sortOrder
+	markCustomCategoryStateDirty()
+	return true
+end
+
+function addon.SetCustomCategoryGroupHidden(groupID, hidden)
+	local group = findGroupByID(groupID)
+	if not group then
+		return false
+	end
+
+	hidden = hidden == true
+	if group.hidden == hidden then
+		return false
+	end
+
+	group.hidden = hidden
 	markCustomCategoryStateDirty()
 	return true
 end

@@ -433,6 +433,20 @@ local function clearTextureMask(texture)
 	texture._bagsAppliedMaskTexture = nil
 end
 
+local function hideTextureRegion(texture)
+	if not texture then
+		return
+	end
+
+	if texture.SetAtlas then
+		texture:SetAtlas(nil)
+	end
+	texture:SetTexture(nil)
+	texture:SetAlpha(0)
+	texture:Hide()
+	clearTextureMask(texture)
+end
+
 local function applyCooldownRegionMask(button, maskTexture)
 	local cooldown = button and button.Cooldown
 	if not cooldown or not cooldown.GetRegions or not cooldown.GetNumRegions then
@@ -850,13 +864,14 @@ local function applyCustomItemButtonShape(button, skinDefinition, shapeDefinitio
 			button:ClearNormalTexture()
 			normalTexture = button.GetNormalTexture and button:GetNormalTexture() or nil
 		else
-			normalTexture:SetTexture(nil)
-			normalTexture:SetAlpha(0)
-			normalTexture:Hide()
+			hideTextureRegion(normalTexture)
 		end
 	end
 	if normalTexture then
-		clearTextureMask(normalTexture)
+		hideTextureRegion(normalTexture)
+	end
+	if button.NormalTexture and button.NormalTexture ~= normalTexture then
+		hideTextureRegion(button.NormalTexture)
 	end
 
 	if renderTexture then

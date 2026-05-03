@@ -902,6 +902,7 @@ local function buildCustomCategoryListEntries(groups, categories)
 			name = group.name,
 			color = group.color,
 			sortOrder = group.sortOrder,
+			hidden = group.hidden == true,
 			childCategories = childCategories,
 		}
 	end
@@ -914,6 +915,7 @@ local function buildCustomCategoryListEntries(groups, categories)
 			color = category.color,
 			priority = category.priority,
 			sortOrder = category.sortOrder,
+			hidden = category.hidden == true,
 			indent = 0,
 		}
 	end
@@ -930,6 +932,7 @@ local function buildCustomCategoryListEntries(groups, categories)
 				name = entry.name,
 				color = entry.color,
 				sortOrder = entry.sortOrder,
+				hidden = entry.hidden == true,
 			}
 			for _, category in ipairs(childCategories) do
 				entries[#entries + 1] = {
@@ -939,6 +942,7 @@ local function buildCustomCategoryListEntries(groups, categories)
 					color = category.color,
 					priority = category.priority,
 					sortOrder = category.sortOrder,
+					hidden = category.hidden == true or entry.hidden == true,
 					indent = 1,
 				}
 			end
@@ -1429,7 +1433,7 @@ local function acquireRuleNodeFrame(page, index)
 	return frame
 end
 
-local function setCategoryButtonVisual(button, isSelected, color, entryType)
+local function setCategoryButtonVisual(button, isSelected, color, entryType, hidden)
 	if not button then
 		return
 	end
@@ -1437,12 +1441,13 @@ local function setCategoryButtonVisual(button, isSelected, color, entryType)
 	local r = color and color[1] or 0.8
 	local g = color and color[2] or 0.8
 	local b = color and color[3] or 0.8
-	button.ColorBar:SetColorTexture(r, g, b, isSelected and 1 or 0.72)
+	local alpha = hidden and 0.35 or (isSelected and 1 or 0.72)
+	button.ColorBar:SetColorTexture(r, g, b, alpha)
 
 	if isSelected then
 		button:SetBackdropColor(0.08, 0.08, 0.1, 0.82)
 		button:SetBackdropBorderColor(r, g, b, 0.95)
-		button.Name:SetTextColor(1, 0.87, 0.2)
+		button.Name:SetTextColor(1, hidden and 0.72 or 0.87, hidden and 0.45 or 0.2)
 		if button.Priority then
 			button.Priority:SetTextColor(1, 0.87, 0.2)
 		end
@@ -1450,12 +1455,12 @@ local function setCategoryButtonVisual(button, isSelected, color, entryType)
 		button:SetBackdropColor(0.03, 0.03, 0.04, 0.56)
 		button:SetBackdropBorderColor(0.42, 0.39, 0.27, 0.7)
 		if entryType == "group" then
-			button.Name:SetTextColor(1, 0.87, 0.2)
+			button.Name:SetTextColor(1, hidden and 0.62 or 0.87, hidden and 0.45 or 0.2)
 		else
-			button.Name:SetTextColor(0.95, 0.95, 0.95)
+			button.Name:SetTextColor(hidden and 0.55 or 0.95, hidden and 0.55 or 0.95, hidden and 0.55 or 0.95)
 		end
 		if button.Priority then
-			button.Priority:SetTextColor(0.65, 0.65, 0.65)
+			button.Priority:SetTextColor(hidden and 0.42 or 0.65, hidden and 0.42 or 0.65, hidden and 0.42 or 0.65)
 		end
 	end
 end
@@ -2549,8 +2554,29 @@ local function createCategoriesPage(parent)
 	groupHint:SetText(L["settingsCategoryGroupHint"] or "Categories inside the same parent group render under one shared header and collapse together in the bag and bank views.")
 	page.GroupHint = groupHint
 
+	local hideInBags = createInlineCheckbox(
+		detailContent,
+		L["settingsCategoryHideInBags"] or "Hide this category in bags",
+		L["settingsCategoryHideInBagsTooltip"] or "Completely hides this category or group and its matching items from the bag and bank views.",
+		function(value)
+			local selection = getCategoryPageSelection()
+			if selection.selectedType == "group" and selection.selectedGroup and addon.SetCustomCategoryGroupHidden then
+				addon.SetCustomCategoryGroupHidden(selection.selectedGroup.id, value)
+				requestCategoryRefresh()
+			elseif selection.selectedCategory and addon.SetCustomCategoryHidden then
+				addon.SetCustomCategoryHidden(selection.selectedCategory.id, value)
+				requestCategoryRefresh()
+			end
+		end
+	)
+	hideInBags:SetPoint("TOPLEFT", groupHint, "BOTTOMLEFT", -4, -12)
+	if hideInBags.Label then
+		hideInBags.Label:SetPoint("RIGHT", detailContent, "RIGHT", -14, 0)
+	end
+	page.HideInBags = hideInBags
+
 	local priorityLabel = detailContent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-	priorityLabel:SetPoint("TOPLEFT", groupHint, "BOTTOMLEFT", 0, -16)
+	priorityLabel:SetPoint("TOPLEFT", hideInBags, "BOTTOMLEFT", 4, -16)
 	priorityLabel:SetText(L["settingsCategoryPriorityLabel"] or "Priority")
 	page.PriorityLabel = priorityLabel
 
@@ -2995,7 +3021,8 @@ refreshCategoriesPage = function(page)
 			(entry.type == "group" and selectedType == "group" and selectedGroup and selectedGroup.id == entry.id)
 				or (entry.type == "category" and selectedType == "category" and selectedCategory and selectedCategory.id == entry.id),
 			entry.color,
-			entry.type
+			entry.type,
+			entry.hidden == true
 		)
 		button:Show()
 		listOffset = listOffset + button:GetHeight() + 6
@@ -3032,6 +3059,10 @@ refreshCategoriesPage = function(page)
 	page.SortHint:SetShown(isCategorySelection)
 	page.CategoryColorLabel:SetShown(hasSelection)
 	page.CategoryColorSwatch:SetShown(hasSelection)
+	page.HideInBags:SetShown(hasSelection)
+	if page.HideInBags.Label then
+		page.HideInBags.Label:SetShown(hasSelection)
+	end
 	page.PriorityHint:SetShown(hasSelection)
 	page.GroupSpacerBefore:SetShown(isGroupSelection)
 	if page.GroupSpacerBefore.Label then
@@ -3063,10 +3094,13 @@ refreshCategoriesPage = function(page)
 		local color = colorOwner.color or { 1, 1, 1 }
 		page.CategoryColorSwatch:SetColorRGB(color[1] or 1, color[2] or 1, color[3] or 1)
 	end
+	if page.HideInBags then
+		page.HideInBags:SetChecked((selectedCategory and selectedCategory.hidden == true) or (selectedGroup and selectedGroup.hidden == true) or false)
+	end
 
 	if isGroupSelection then
 		page.PriorityLabel:ClearAllPoints()
-		page.PriorityLabel:SetPoint("TOPLEFT", page.NameBox, "BOTTOMLEFT", 0, -18)
+		page.PriorityLabel:SetPoint("TOPLEFT", page.HideInBags, "BOTTOMLEFT", 4, -16)
 		page.PriorityLabel:SetText(L["settingsCategoryOrderLabel"] or "Display order")
 		page.CategoryColorLabel:ClearAllPoints()
 		page.CategoryColorLabel:SetPoint("LEFT", page.PriorityUpButton, "RIGHT", 20, 0)
@@ -3105,7 +3139,7 @@ refreshCategoriesPage = function(page)
 	end
 
 	page.PriorityLabel:ClearAllPoints()
-	page.PriorityLabel:SetPoint("TOPLEFT", page.GroupHint, "BOTTOMLEFT", 0, -16)
+	page.PriorityLabel:SetPoint("TOPLEFT", page.HideInBags, "BOTTOMLEFT", 4, -16)
 	page.PriorityLabel:SetText(L["settingsCategoryOrderLabel"] or "Display order")
 	page.CategoryColorLabel:ClearAllPoints()
 	page.CategoryColorLabel:SetPoint("LEFT", page.PriorityUpButton, "RIGHT", 20, 0)

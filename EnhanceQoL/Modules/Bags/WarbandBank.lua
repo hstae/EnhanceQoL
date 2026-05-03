@@ -2556,8 +2556,11 @@ local function buildLayoutData(context)
 						hasCustomCategories
 					)
 				end
+				local hideItem = not oneBagMode and addon.IsCategorySectionHidden and addon.IsCategorySectionHidden(sectionID)
 				local itemRef = info and (info.hyperlink or info.itemID)
-				if not oneBagMode and shouldCombineDuplicateItem(itemRef, settings) then
+				if hideItem then
+					clearSlotCategoryCacheEntry(bagID, slotID)
+				elseif not oneBagMode and shouldCombineDuplicateItem(itemRef, settings) then
 					local collapsedSection = layoutData.collapsedItems[sectionID]
 					if not collapsedSection then
 						collapsedSection = {}
