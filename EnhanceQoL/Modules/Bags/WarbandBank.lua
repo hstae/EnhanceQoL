@@ -3079,9 +3079,6 @@ local function updateButtonData(button, mapping, overlayRuntime, textAppearance,
 		if addon.ApplyItemButtonSkin then
 			addon.ApplyItemButtonSkin(button, quality)
 		end
-		if Bags.functions.ApplyRecipeUsabilityVisual then
-			Bags.functions.ApplyRecipeUsabilityVisual(button, isUnusableRecipe)
-		end
 		applyConfiguredOverlayAnchors(button, overlayRuntime)
 		updateEquipmentSetOverlay(button, bagID, slotID, info, overlayRuntime)
 		updateBindStatusOverlay(button, bagID, slotID, info, overlayRuntime)
@@ -3096,6 +3093,9 @@ local function updateButtonData(button, mapping, overlayRuntime, textAppearance,
 			if tooltipOwner then
 				button:CheckUpdateTooltip(tooltipOwner)
 			end
+		end
+		if Bags.functions.ApplyRecipeUsabilityVisual then
+			Bags.functions.ApplyRecipeUsabilityVisual(button, isUnusableRecipe)
 		end
 		return
 	end

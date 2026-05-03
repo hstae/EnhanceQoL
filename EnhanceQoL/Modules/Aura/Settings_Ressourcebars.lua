@@ -120,6 +120,16 @@ local function getSpecMode(specIndex)
 	return "SPEC"
 end
 
+local function classHasSharedTertiary(classTag)
+	local class = classTag or addon.variables and addon.variables.unitClass
+	local assignments = ResourceBars and ResourceBars.SHARED_SLOT_ASSIGNMENTS and ResourceBars.SHARED_SLOT_ASSIGNMENTS[class]
+	if type(assignments) ~= "table" then return false end
+	for _, specAssignments in pairs(assignments) do
+		if type(specAssignments) == "table" and specAssignments.TERTIARY then return true end
+	end
+	return false
+end
+
 local function setSpecMode(specIndex, mode)
 	if not (ResourceBars and ResourceBars.SetSpecMode) then return false end
 	return ResourceBars.SetSpecMode(specIndex, mode)
@@ -5169,7 +5179,7 @@ local function buildSettings()
 	do
 		local activeSpec = tonumber(getActiveSpecIndex()) or tonumber(addon.variables and addon.variables.unitSpec) or 0
 		local assignments = ResourceBars.ResolveSharedSlotAssignments and ResourceBars.ResolveSharedSlotAssignments(activeSpec) or nil
-		if not (assignments and assignments.TERTIARY) then
+		if not ((assignments and assignments.TERTIARY) or classHasSharedTertiary()) then
 			sharedEnableOptions = CopyTable(AUTO_ENABLE_OPTIONS)
 			sharedEnableOptions.TERTIARY = nil
 			sharedEnableOrder = { "HEALTH", "MAIN", "SECONDARY" }

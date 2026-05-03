@@ -14,6 +14,7 @@
 
 - Bags: Fixed the subcategory name spacing option so disabling it keeps compact category rows compact again.
 - Bags: Fixed bag text and overlay size controls so changes update the affected labels and item overlays immediately.
+- Bags: Fixed known-item highlights disappearing after search state changes.
 - Bags: Fixed manual item category assignment so moving an item to a new custom category now removes its old fixed assignment.
 - Mythic Plus / Talent Reminder: Delayed the zone-change talent check briefly so dungeon instance data can settle before showing missing talent loadout warnings.
 

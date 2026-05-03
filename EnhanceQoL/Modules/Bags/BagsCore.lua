@@ -3577,9 +3577,6 @@ local function updateButtonData(button, mapping, overlayRuntime, textAppearance,
 			addon.ApplyItemButtonSkin(button, quality)
 			button._bagsAppliedSkinSignature = getCurrentItemButtonSkinSignature()
 		end
-		if Bags.functions.ApplyRecipeUsabilityVisual then
-			Bags.functions.ApplyRecipeUsabilityVisual(button, isUnusableRecipe)
-		end
 		updateReagentBagVisuals(button)
 		applyConfiguredOverlayAnchors(button, overlayRuntime)
 		Core.UpdateEquipmentSetOverlay(button, bagID, slotID, info, overlayRuntime)
@@ -3595,6 +3592,9 @@ local function updateButtonData(button, mapping, overlayRuntime, textAppearance,
 			if tooltipOwner then
 				button:CheckUpdateTooltip(tooltipOwner)
 			end
+		end
+		if Bags.functions.ApplyRecipeUsabilityVisual then
+			Bags.functions.ApplyRecipeUsabilityVisual(button, isUnusableRecipe)
 		end
 		return
 	end
