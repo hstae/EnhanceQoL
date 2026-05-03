@@ -3977,6 +3977,121 @@ function CooldownPanels:DuplicatePanel(panelId)
 	return id, panel
 end
 
+function CooldownPanels:ReleaseDeletedPanelRuntime(panelId)
+	panelId = normalizeId(panelId)
+	local allRuntime = self.runtime
+	local runtime = allRuntime and panelId and allRuntime[panelId] or nil
+	if not runtime then return end
+
+	runtime.visibleCount = 0
+	runtime.visiblePowerSpellCount = 0
+	runtime._eqolDeletedPanelRuntime = true
+	if runtime.visibleEntries then
+		for i = 1, #runtime.visibleEntries do
+			runtime.visibleEntries[i] = nil
+		end
+	end
+	if runtime.visiblePowerSpells then
+		for i = 1, #runtime.visiblePowerSpells do
+			runtime.visiblePowerSpells[i] = nil
+		end
+	end
+
+	local frame = runtime.frame
+	if frame then
+		local detachedDriver = self:ApplyVisibilityDriverToFrame(frame, nil)
+		if allRuntime.pendingVisibilityDriverUpdates then
+			if detachedDriver then
+				allRuntime.pendingVisibilityDriverUpdates[frame] = nil
+			else
+				allRuntime.pendingVisibilityDriverUpdates[frame] = false
+			end
+		end
+		frame._eqolDeletedPanelRuntime = true
+		frame._eqolDeletedPanelId = panelId
+		frame.panelId = nil
+		if frame.EnableMouse then frame:EnableMouse(false) end
+		if frame.SetAlpha then frame:SetAlpha(0) end
+		if frame.bg then frame.bg:Hide() end
+		if frame.label then
+			frame.label:SetText("")
+			frame.label:Hide()
+		end
+		if frame.editDropZone then
+			frame.editDropZone:Hide()
+			frame.editDropZone:EnableMouse(false)
+			frame.editDropZone.panelId = nil
+		end
+		if frame.editPanelHandle then
+			frame.editPanelHandle:Hide()
+			frame.editPanelHandle:EnableMouse(false)
+			frame.editPanelHandle.panelId = nil
+		end
+		if frame.editMoveHandle then
+			frame.editMoveHandle:Hide()
+			frame.editMoveHandle:EnableMouse(false)
+			frame.editMoveHandle.panelId = nil
+		end
+		if frame.icons then
+			for i = 1, #frame.icons do
+				local icon = frame.icons[i]
+				if icon then
+					icon.entryId = nil
+					icon._eqolRuntimeData = nil
+					icon._eqolRuntimeSnapshot = nil
+					if CooldownPanels.StopAllIconGlows then CooldownPanels.StopAllIconGlows(icon) end
+					if icon.cooldown then
+						if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", nil) end
+						if icon.cooldown.Clear then icon.cooldown:Clear() end
+						icon.cooldown._eqolPanelId = nil
+						icon.cooldown._eqolEntryId = nil
+					end
+					if icon.count then icon.count:Hide() end
+					if icon.charges then icon.charges:Hide() end
+					if icon.rangeOverlay then icon.rangeOverlay:Hide() end
+					if icon.keybind then icon.keybind:Hide() end
+					if icon.staticText then icon.staticText:Hide() end
+					if icon.stateTexture then icon.stateTexture:Hide() end
+					if icon.stateTextureSecond then icon.stateTextureSecond:Hide() end
+					icon:Hide()
+				end
+			end
+		end
+		local inCombat = InCombatLockdown and InCombatLockdown()
+		local protected = frame.IsProtected and frame:IsProtected()
+		if not (inCombat and protected) then
+			frame:Hide()
+			if frame.ClearAllPoints then frame:ClearAllPoints() end
+			if frame.SetParent then pcall(frame.SetParent, frame, nil) end
+		end
+		runtime.frame = nil
+	end
+
+	allRuntime[panelId] = nil
+end
+
+function CooldownPanels:ClearAnchorsToDeletedPanel(root, deletedPanelId)
+	deletedPanelId = normalizeId(deletedPanelId)
+	local deletedFrameName = deletedPanelId and panelFrameName(deletedPanelId) or nil
+	if not (root and root.panels and deletedFrameName) then return end
+
+	local changed = false
+	for otherPanelId, otherPanel in pairs(root.panels) do
+		local anchor = ensurePanelAnchor(otherPanel)
+		if anchor and Helper.NormalizeRelativeFrameName(anchor.relativeFrame) == deletedFrameName then
+			anchor.relativeFrame = "UIParent"
+			changed = true
+			local runtime = self.runtime and self.runtime[normalizeId(otherPanelId)] or nil
+			if runtime then
+				runtime._eqolRelativeFrameCache = nil
+				if self.ClearAppliedAnchorCache then self.ClearAppliedAnchorCache(runtime) end
+			end
+		end
+	end
+
+	if changed then self.MarkRelativeFrameEntriesDirty() end
+end
+
 function CooldownPanels:DeletePanel(panelId)
 	local root = ensureRoot()
 	panelId = normalizeId(panelId)
@@ -3984,20 +4099,13 @@ function CooldownPanels:DeletePanel(panelId)
 	self:HideLayoutEntryStandaloneMenu(panelId)
 	self:HideLayoutPanelStandaloneMenu(panelId)
 	self:HideLayoutFixedGroupStandaloneMenu(panelId)
+	self:ReleaseDeletedPanelRuntime(panelId)
 	root.panels[panelId] = nil
 	markRootOrderDirty(root)
 	syncRootOrderIfDirty(root, true)
+	self:ClearAnchorsToDeletedPanel(root, panelId)
 	Keybinds.MarkPanelsDirty()
 	if root.selectedPanel == panelId then root.selectedPanel = root.order[1] end
-	local runtime = CooldownPanels.runtime and CooldownPanels.runtime[panelId]
-	if runtime then
-		if runtime.frame then
-			runtime.frame:Hide()
-			runtime.frame:SetParent(nil)
-			runtime.frame = nil
-		end
-		CooldownPanels.runtime[panelId] = nil
-	end
 	self:RebuildSpellIndex()
 	self:UpdateCursorAnchorState()
 end

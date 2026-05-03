@@ -1,6 +1,16 @@
 # Changelog
 
 <!--@eqol-beta@-->
+## [10.10.0-beta9] - 2026-05-03
+
+### ✨ Added
+
+- Group Frames: Added a Dispellable debuff filter for Party and Raid frames, allowing the debuff display to show only debuffs the player can dispel.
+
+### 🐛 Fixed
+
+- Cooldown Panels: Fixed deleted panels reappearing until UI reload by fully releasing their live runtime frame, visibility driver, and internal panel anchors during deletion.
+
 ## [10.10.0-beta8] - 2026-05-02
 
 ### ⚡ Performance
