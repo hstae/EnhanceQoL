@@ -1,134 +1,31 @@
 # Changelog
 
-<!--@eqol-beta@-->
-## [10.10.0-beta9] - 2026-05-03
+## [10.10.0] - 2026-05-03
 
 ### ✨ Added
 
+- Bags: Added an opt-in custom Bags, Bank, and Warband Bank module with category, One Bag, layout, appearance, and import/export controls.
+- Resource Bars / Shared Mode: Expanded Power Color controls into per-power overrides for text display and bar textures.
 - Group Frames: Added a Dispellable debuff filter for Party and Raid frames, allowing the debuff display to show only debuffs the player can dispel.
 
-### 🐛 Fixed
+### 🔄 Changed
 
-- Cooldown Panels: Fixed deleted panels reappearing until UI reload by fully releasing their live runtime frame, visibility driver, and internal panel anchors during deletion.
-
-## [10.10.0-beta8] - 2026-05-02
+- Resource Bars / Shared Mode: Added default text overrides for stack- and point-based shared resources such as Combo Points, Holy Power, Chi, Soul Shards, Arcane Charges, Icicles, Essence, Maelstrom Weapon, and Tip of the Spear so they show current values instead of inheriting percent-style slot text.
 
 ### ⚡ Performance
 
-- Cooldown Panels / Bars: Reduced runtime bar refresh allocations by caching static bar state, reusing per-icon runtime state, and avoiding repeated text/font layout work when bar text styling has not changed.
-- Cooldown Panels / Bars: Reduced repeated keybind lookup work by caching per-entry keybind text and avoiding unnecessary action-bar binding rescans during panel refreshes.
-
-### 🐛 Fixed
-
-- Cooldown Panels / Bars: Fixed Button/Bar display mode changes requiring a UI reload before the runtime bar index updated outside layout edit mode.
-- Cooldown Panels / Bars: Hardened reused bar runtime state so charge, cooldown, and native timer fields are reset cleanly between refreshes.
-
-## [10.10.0-beta7] - 2026-05-02
-
-### ⚡ Performance
-
-- Cooldown Panels / Bars: Reduced large fixed-layout profile stutters by avoiding repeated bar reservation signature rebuilds, limiting normal runtime bar refreshes to actual bar entries, and caching repeated bar text, font, color, label, and key lookup work.
+- Cooldown Panels / Bars: Reduced runtime bar refresh allocations, repeated keybind lookup work, and fixed-layout profile stutters.
 - Cooldown Panels / Cooldown Manager Auras: Reduced tracked aura reset and scan spikes by using active runtime panel indexes, avoiding full tracked-panel rebuilds during reset events, and using a lighter runtime scan path.
 
 ### 🐛 Fixed
 
-- Cooldown Panels / Bars: Fixed Cooldown Manager aura bar timer text sometimes showing an incorrect fallback value or disappearing while the bar itself continued to update correctly.
+- Cooldown Panels: Fixed deleted panels reappearing until UI reload by fully releasing their live runtime frame, visibility driver, and internal panel anchors during deletion.
+- Cooldown Panels / Bars: Fixed Button/Bar display mode updates, reused bar runtime reset state, segmented Charge bars with more than two charges, and Cooldown Manager aura bar timer text.
 - Resource Bars: Fixed absorb glow configuration for the standalone health bar, corrected heal absorb layering so it no longer renders over custom borders, and made sample absorbs respect Don't overflow health bar.
 - Resource Bars / Shared Mode: Fixed Secondary resource bars still showing current values when the shared slot text style was set to None.
-
-## [10.10.0-beta6] - 2026-05-02
-
-### 🐛 Fixed
-
-- Bags: Fixed One Bag mode still showing the reagent icon on empty reagent bag slots when Free slot display was set to Without icon or Colored slots.
 - Tooltips: Fixed a secret-value error when resolving spell tooltip icon IDs for spell IDs marked as secret values.
 
-## [10.10.0-beta5] - 2026-05-01
-
-### ✨ Added
-
-- Bags: Added a One Bag mode that shows items in one flat grid without categories, groups, category sorting, or combined free-slot indicators, with an option to move visible free slots to the end.
-- Bags: Added a native bag cleanup button to the integrated bag header using Blizzard's `C_Container.SortBags()` sort.
-- Bags: Added SharedMedia border texture controls for the custom bag and Warband Bank frames, including border color, size, and offset settings.
-
-### 🔄 Changed
-
-- Bags: One Bag mode now clears native Blizzard bag filter and cleanup-ignore flags while the integrated custom bag frame is used, so native cleanup sorting starts from an unfiltered bag setup.
-
-### 🐛 Fixed
-
-- Vendor: Fixed sell and destroy mask overlays ignoring custom bag item shapes.
-- Vendor: Hid the extra sell corner icon on junk items that already show the default junk coin marker.
-
-## [10.10.0-beta4] - 2026-05-01
-
-### ✨ Added
-
-- Bags: Added an optional group spacer for custom category groups to visually separate grouped sections.
-- Bags: Added Mounts and Pets to the Basic category preset so collection items are grouped automatically.
-
-### 🔄 Changed
-
-- Bags: Improved tree-view indentation so standalone category items can align with subcategories while their category headers stay left-aligned.
-
-### 🐛 Fixed
-
-- Bags: Fixed Keystone links not being accepted when assigning items to custom categories via Alt-drag or the Assigned Items drop target.
-
-## [10.10.0-beta3] - 2026-05-01
-
-### ✨ Added
-
-- Bags: Added an optional New Items header click action to clear the current new-item markers immediately without deleting any items.
-- Bags: Added frame-level item drop handling so items can be dropped onto empty bag or bank window space and moved into the next available slot.
-- Bags: Added an option for the integrated bank to reopen on the last used Personal Bank or Warband Bank tab.
-- Bags: Added an optional tree-view layout for grouped categories with configurable subcategory indentation.
-- Resource Bars / Shared Mode: Expanded the Power Color editor into Power Overrides, allowing text display and bar texture overrides per selected power type.
-- Resource Bars / Shared Mode: Added default text overrides for stack- and point-based shared resources such as Combo Points, Holy Power, Chi, Soul Shards, Arcane Charges, Icicles, Essence, Maelstrom Weapon, and Tip of the Spear so they show current values instead of inheriting percent-style slot text.
-
-### 🐛 Fixed
-
-- Bags: Fixed New Items session handling so unacknowledged items stay in New Items across bag reopen, while acknowledged items move to their normal category on the next open unless header-click clearing is enabled.
-- Bags: Fixed the remembered bank tab being cleared by the close update before the next bank open.
-
-## [10.10.0-beta2] - 2026-04-30
-
-### 🐛 Fixed
-
-- Bags: Fixed the integrated bag frame opening invisibly when Blizzard's hidden native container frames were still reported as shown but had no valid screen position.
-- Cooldown Panels / Bars: Fixed segmented Charge bars for spells with more than two charges, including cleaner 2/3-charge rendering, spec-switch max-charge updates in shared panels, and duration text following the currently recharging segment.
-
-## [10.10.0-beta1] - 2026-04-30
-
-### ✨ Added
-
-- Bags: Added the integrated custom Bags and Warband Bank module as an opt-in feature.
-- Bags: Added a solid background color picker for the integrated Bags and Warband Bank frames.
-- Bags: Added Advanced text style controls for category headers, subcategory headers, item overlays, and stack counts, including per-element font, size, case, and outline options where applicable.
-- Bags: Added an Inventory-only bag slot flyout for viewing equipped bag containers and swapping them via drag and drop.
-- Bags: Added bank tab purchase support for the integrated Bank and Warband Bank views using Blizzard's bank tab purchase flow.
-- Bags: Added an optional close button to the integrated Bags, Bank, and Warband Bank windows, enabled by default for users who prefer closing bags via the top-corner X.
-- Bags: Added a Layout option to hide Free Slots from the integrated Bags, Bank, and Warband Bank grids entirely.
-- Profiles: Added a separate import/export section for Bags categories, independent from full profile import/export.
-
-### ⚡ Performance
-
-- Bags: Reduced custom bag skin refresh overhead during vendor auto-sell and bag refresh paths.
-- Bags: Reduced open/close spikes by replacing expensive bag content snapshots with stale-bag tracking, and by avoiding vendor sell-mark rescans during pure bag visibility changes.
-
-### 🐛 Fixed
-
-- Bags: Improved text appearance handling so the integrated Bags and Warband Bank frames follow global font and font-style changes more reliably.
-- Bags: Fixed per-element font and outline changes sometimes requiring a UI reload by resolving text appearance caches per element instead of sharing one cache across all bag text styles.
-- Bags: Fixed Advanced Add Group/Add Category creating ID collisions with existing preset groups, which could mirror categories under the new group and remove too many entries when deleting.
-- Bags: Fixed Profession Group automatic rules using shifted Trade Goods subclass IDs, which could classify Cloth materials as Leatherworking / Skinning.
-- Bags: Fixed the Tracking settings page so its full content scrolls inside the settings panel instead of overflowing below the window at smaller heights.
-- Bags: Fixed collapsed compact-layout section headers such as Miscellaneous shrinking to `...` instead of keeping enough width for the label.
-- Bags: Fixed New Items moving into their normal category while the bag window is still open after mouseover clears Blizzard's new-item marker.
-
 ---
-
-<!--@end-eqol-beta@-->
 
 ## [10.9.4] - 2026-05-01
 
