@@ -10,6 +10,7 @@
 
 - Bags: Fixed the subcategory name spacing option so disabling it keeps compact category rows compact again.
 - Bags: Fixed bag text and overlay size controls so changes update the affected labels and item overlays immediately.
+- Bags: Fixed manual item category assignment so moving an item to a new custom category now removes its old fixed assignment.
 
 ---
 

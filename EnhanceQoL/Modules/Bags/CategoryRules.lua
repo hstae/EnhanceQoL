@@ -2857,9 +2857,24 @@ function addon.AddCustomCategoryItemID(categoryID, itemInput)
 		return false
 	end
 
+	local changed = false
+	for _, otherCategory in ipairs(getCustomCategoriesTable() or {}) do
+		if otherCategory.id ~= category.id then
+			for index = #(otherCategory.itemIDs or {}), 1, -1 do
+				if otherCategory.itemIDs[index] == itemID then
+					table.remove(otherCategory.itemIDs, index)
+					changed = true
+				end
+			end
+		end
+	end
+
 	for _, assignedItemID in ipairs(category.itemIDs or {}) do
 		if assignedItemID == itemID then
-			return false
+			if changed then
+				markCustomCategoryStateDirty()
+			end
+			return changed
 		end
 	end
 
