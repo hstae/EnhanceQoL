@@ -9650,12 +9650,8 @@ function CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFr
 
 	local function scheduleEntryDialogRefresh()
 		if refreshEntryDialogPending then return end
-		if not (C_Timer and C_Timer.After) then
-			updateEntryDialog()
-			return
-		end
 		refreshEntryDialogPending = true
-		C_Timer.After(0, function()
+		RunNextFrame(function()
 			refreshEntryDialogPending = false
 			local state = CooldownPanels:GetLayoutEntryStandaloneMenuState(false)
 			if not state or normalizeId(state.panelId) ~= panelId or normalizeId(state.entryId) ~= entryId then return end
@@ -12066,14 +12062,10 @@ function CooldownPanels:ScheduleLayoutFixedGroupStandaloneMenuRefresh(panelId, g
 	local state = self:GetLayoutFixedGroupStandaloneMenuState(false)
 	if not state then return end
 	if state.refreshPending then return end
-	if not (C_Timer and C_Timer.After) then
-		self:RefreshLayoutFixedGroupStandaloneMenu()
-		return
-	end
 	state.refreshPending = true
 	panelId = normalizeId(panelId)
 	groupId = Helper.NormalizeFixedGroupId(groupId)
-	C_Timer.After(0, function()
+	RunNextFrame(function()
 		local currentState = CooldownPanels:GetLayoutFixedGroupStandaloneMenuState(false)
 		if currentState then currentState.refreshPending = nil end
 		if not currentState then return end
@@ -21907,7 +21899,7 @@ function CooldownPanels:RequestUpdate(cause)
 	runtime.updatePending = true
 	runtime.updateCause = cause
 	runtime.updateFullRefresh = fullRefresh
-	C_Timer.After(0, function()
+	RunNextFrame(function()
 		local currentRuntime = self.runtime
 		if not currentRuntime then return end
 		local shouldFullRefresh = currentRuntime.updateFullRefresh == true

@@ -2604,11 +2604,7 @@ function UF.ScheduleRangeFadeRefresh(rebuildSpellList)
 		UF._rangeFadeRefreshNeedsSpellList = nil
 		UF.RefreshRangeFadeSpellsNow(wantsSpellListRefresh)
 	end
-	if After then
-		After(0, run)
-	else
-		run()
-	end
+	RunNextFrame(run)
 end
 
 local function copySettings(fromUnit, toUnit, opts)
@@ -10468,11 +10464,7 @@ function UF.SchedulePlayerDisplayPowerFlush(reason, wantFullRebuild)
 		end
 		UF.FlushPlayerDisplayPower(reason)
 	end
-	if After then
-		After(0, runner)
-	else
-		runner()
-	end
+	RunNextFrame(runner)
 end
 
 function UF.FlushPlayerDisplayPower(reason)
@@ -11211,7 +11203,7 @@ onEvent = function(self, event, unit, ...)
 			or event == "TRAIT_CONFIG_UPDATED"
 		then
 			reapplyPlayerFrameAfterSpecChange()
-			if After then After(0, reapplyPlayerFrameAfterSpecChange) end
+			RunNextFrame(reapplyPlayerFrameAfterSpecChange)
 		end
 		return
 	end
@@ -11348,11 +11340,7 @@ onEvent = function(self, event, unit, ...)
 					if not UnitExists(unitToken) then return end
 					UFHelper.ApplyPrivateAuras(st.privateAuras, unitToken, pcfg, st.frame, st.statusTextLayer or st.frame, UF.IsEditModeSampleEnabled and UF.IsEditModeSampleEnabled(unitToken), true)
 				end
-				if After then
-					After(0, applyPrivate)
-				else
-					applyPrivate()
-				end
+				RunNextFrame(applyPrivate)
 			end
 		else
 			AuraUtil.resetTargetAuras()

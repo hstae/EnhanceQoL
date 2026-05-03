@@ -1847,15 +1847,10 @@ local function updateMerchantButtonInfo()
 	if merchantRefreshPending then return end
 	merchantRefreshPending = true
 
-	if C_Timer and C_Timer.After then
-		C_Timer.After(0, function()
-			merchantRefreshPending = false
-			applyMerchantButtonInfo()
-		end)
-	else
+	RunNextFrame(function()
 		merchantRefreshPending = false
 		applyMerchantButtonInfo()
-	end
+	end)
 end
 
 function addon.functions.FlushDeferredItemInventoryAutoSellUpdates()

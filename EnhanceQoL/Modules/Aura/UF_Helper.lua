@@ -2985,15 +2985,13 @@ function H.layoutEmpowerStages(st)
 	local barLeft = st.castBar:GetLeft()
 	local barRight = st.castBar:GetRight()
 	if not barLeft or not barRight then
-		if After then
-			emp.layoutToken = (emp.layoutToken or 0) + 1
-			local token = emp.layoutToken
-			After(0, function()
-				local st2 = st
-				local emp2 = st2 and st2.castEmpower
-				if emp2 and emp2.layoutToken == token then H.layoutEmpowerStages(st2) end
-			end)
-		end
+		emp.layoutToken = (emp.layoutToken or 0) + 1
+		local token = emp.layoutToken
+		RunNextFrame(function()
+			local st2 = st
+			local emp2 = st2 and st2.castEmpower
+			if emp2 and emp2.layoutToken == token then H.layoutEmpowerStages(st2) end
+		end)
 		return
 	end
 	local barWidth = barRight - barLeft

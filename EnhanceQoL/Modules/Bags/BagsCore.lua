@@ -2186,7 +2186,7 @@ function BagSlotPanel.ApplyCursorToBagSlot(bagID)
 			end
 			completed = true
 			swapFrame:UnregisterAllEvents()
-			C_Timer.After(0, function()
+			RunNextFrame(function()
 				C_Container.PickupContainerItem(0, 1)
 				PutItemInBag(inventorySlot)
 				BagSlotPanel.Refresh()
@@ -2196,7 +2196,7 @@ function BagSlotPanel.ApplyCursorToBagSlot(bagID)
 		C_Timer.After(0.2, finishSwap)
 	else
 		PutItemInBag(inventorySlot)
-		C_Timer.After(0, BagSlotPanel.Refresh)
+		RunNextFrame(BagSlotPanel.Refresh)
 	end
 end
 
@@ -5647,7 +5647,7 @@ scheduleUpdate = function(requestRefresh, requestRebuild, forceWhenHidden)
 		return
 	end
 	state.updateScheduled = true
-	C_Timer.After(0, function()
+	RunNextFrame(function()
 		state.updateScheduled = false
 		processUpdate()
 	end)
@@ -5801,7 +5801,7 @@ local function scheduleNativeBagStateSync(requestRefresh, requestRebuild)
 	end
 
 	state.nativeBagStateSyncScheduled = true
-	C_Timer.After(0, function()
+	RunNextFrame(function()
 		syncFromNativeBagState(requestRefresh, requestRebuild)
 	end)
 end

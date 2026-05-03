@@ -232,7 +232,7 @@ local function requestBaganatorItemWidgetRefresh()
 	if not (api and api.RequestItemButtonsRefresh and constants and constants.RefreshReason and constants.RefreshReason.ItemWidgets) then return end
 	if pendingBaganatorWidgetRefresh then return end
 	pendingBaganatorWidgetRefresh = true
-	C_Timer.After(0, function()
+	RunNextFrame(function()
 		pendingBaganatorWidgetRefresh = false
 		api.RequestItemButtonsRefresh({ constants.RefreshReason.ItemWidgets })
 	end)
@@ -840,13 +840,13 @@ ensureBaganatorIntegration = function(existingButton)
 	if not baganatorCallbacksRegistered and _G.Baganator and _G.Baganator.CallbackRegistry and _G.Baganator.CallbackRegistry.RegisterCallback then
 		local callbackRegistry = _G.Baganator.CallbackRegistry
 		callbackRegistry:RegisterCallback("BagShow", function()
-			C_Timer.After(0, function()
+			RunNextFrame(function()
 				updateSellMarks(nil, true)
 				if addon.db and addon.db["vendorDestroyEnable"] then scheduleDestroyButtonUpdate() end
 			end)
 		end)
 		callbackRegistry:RegisterCallback("BackpackFrameChanged", function()
-			C_Timer.After(0, function()
+			RunNextFrame(function()
 				updateSellMarks(nil, true)
 				if addon.db and addon.db["vendorDestroyEnable"] then scheduleDestroyButtonUpdate() end
 			end)

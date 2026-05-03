@@ -12589,11 +12589,7 @@ function GF:ScheduleRoleIconRefresh()
 		GF._roleIconRefreshQueued = nil
 		GF:RefreshRoleIcons()
 	end
-	if C_Timer and C_Timer.After then
-		C_Timer.After(0, refresh)
-	else
-		refresh()
-	end
+	RunNextFrame(refresh)
 end
 
 function GF:RefreshGroupIcons()
@@ -29838,11 +29834,7 @@ function GF:OnExitEditMode(kind)
 		refreshAllPrivateAuras()
 		GF.ShowEditModeReloadIfRequired()
 	end
-	if C_Timer and C_Timer.After then
-		C_Timer.After(0, refreshAfterEditMode)
-	else
-		refreshAfterEditMode()
-	end
+	RunNextFrame(refreshAfterEditMode)
 end
 
 registerFeatureEvents = function(frame)

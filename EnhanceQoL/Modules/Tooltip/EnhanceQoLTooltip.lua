@@ -115,8 +115,8 @@ end
 
 local function FinishTooltipInspectRequest()
 	ClearTooltipInspectState()
-	if C_Timer and C_Timer.After and ClearInspectPlayer and not IsInspectUIBusy() then
-		C_Timer.After(0, function()
+	if ClearInspectPlayer and not IsInspectUIBusy() then
+		RunNextFrame(function()
 			if ClearInspectPlayer and not IsInspectUIBusy() then ClearInspectPlayer() end
 		end)
 	end
@@ -1312,7 +1312,7 @@ local function registerTooltipHooks()
 	addon.Tooltip.variables.hooksInitialized = true
 
 	-- Apply initial tooltip scale once the UI is ready
-	C_Timer.After(0, function()
+	RunNextFrame(function()
 		if addon.Tooltip and addon.Tooltip.ApplyScale then addon.Tooltip.ApplyScale() end
 	end)
 

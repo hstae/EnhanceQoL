@@ -1613,11 +1613,7 @@ Bars.ScheduleChargeTimerHandoffRefresh = function(state)
 		Bars.RequestChargeBarPanelRefresh(panelId)
 	end
 
-	if C_Timer and C_Timer.After then
-		C_Timer.After(0, refresh)
-	else
-		refresh()
-	end
+	RunNextFrame(refresh)
 end
 
 local function hideUnusedBarSegments(frame, firstIndex)
@@ -4374,12 +4370,8 @@ local function scheduleStandaloneEntryDialogUpdate(panelId, entryId)
 	Bars._eqolPendingDialogRefresh = Bars._eqolPendingDialogRefresh or {}
 	local key = tostring(panelId) .. ":" .. tostring(entryId)
 	if Bars._eqolPendingDialogRefresh[key] then return end
-	if not (C_Timer and C_Timer.After) then
-		updateStandaloneEntryDialogForBars(panelId, entryId)
-		return
-	end
 	Bars._eqolPendingDialogRefresh[key] = true
-	C_Timer.After(0, function()
+	RunNextFrame(function()
 		Bars._eqolPendingDialogRefresh[key] = nil
 		if isStandaloneDialogDragActive() then
 			scheduleStandaloneEntryDialogUpdate(panelId, entryId)
@@ -4401,14 +4393,10 @@ refreshStandaloneEntryDialogForBars = function(panelId, entryId, reopen)
 	end
 	local anchorFrame = state.anchorFrame or state.dialog or state.hostFrame
 	CooldownPanels:HideLayoutEntryStandaloneMenu(panelId)
-	if C_Timer and C_Timer.After then
-		C_Timer.After(0, function()
-			if CooldownPanels.IsPanelLayoutEditActive and not CooldownPanels:IsPanelLayoutEditActive(panelId) then return end
-			CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFrame)
-		end)
-	else
+	RunNextFrame(function()
+		if CooldownPanels.IsPanelLayoutEditActive and not CooldownPanels:IsPanelLayoutEditActive(panelId) then return end
 		CooldownPanels:OpenLayoutEntryStandaloneMenu(panelId, entryId, anchorFrame)
-	end
+	end)
 end
 
 local function setEntryDisplayMode(panelId, entryId, displayMode, barMode)

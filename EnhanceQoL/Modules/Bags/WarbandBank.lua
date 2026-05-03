@@ -4016,7 +4016,7 @@ scheduleUpdate = function(requestRefresh, requestRebuild, forceWhenHidden)
 		return
 	end
 	state.updateScheduled = true
-	C_Timer.After(0, function()
+	RunNextFrame(function()
 		state.updateScheduled = false
 		processUpdate()
 	end)

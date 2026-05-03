@@ -3673,10 +3673,9 @@ function ResourceBars.ScheduleDelayedSharedShapeshiftRefresh()
 	if addon.variables.unitClass ~= "DRUID" then return end
 	local spec = addon.variables.unitSpec
 	if not (ResourceBars.SpecUsesSharedMode and ResourceBars.SpecUsesSharedMode(spec)) then return end
-	if not After then return end
 	if frameAnchor and frameAnchor._sharedShapeshiftRefreshScheduled then return end
 	if frameAnchor then frameAnchor._sharedShapeshiftRefreshScheduled = true end
-	After(0, function()
+	RunNextFrame(function()
 		if frameAnchor then frameAnchor._sharedShapeshiftRefreshScheduled = false end
 		if not frameAnchor then return end
 		local runtimeSpec = addon.variables.unitSpec
@@ -5110,19 +5109,13 @@ function updatePowerBar(type, runeSlot)
 								else
 									prog = min(1, max(0, (n - data.start) / max(data.duration, 1)))
 									if prog >= 1 then
-										if not self._runeResync then
-											self._runeResync = true
-											if After then
-												After(0, function()
-													self._runeResync = false
-													updatePowerBar("RUNES")
-												end)
-											else
-												updatePowerBar("RUNES")
-												self._runeResync = false
-												return
-											end
-										end
+						if not self._runeResync then
+							self._runeResync = true
+							RunNextFrame(function()
+								self._runeResync = false
+								updatePowerBar("RUNES")
+							end)
+						end
 										runeReady = true
 										prog = 1
 									end
@@ -5655,14 +5648,10 @@ function updatePowerBar(type, runeSlot)
 							ResourceBars.UpdateEssenceSegments(self, cfgOnUpdate, current, maxPower, 0, RB.WHITE, ResourceBars.LayoutEssences, texOnUpdate)
 							return
 						end
-						if self._essenceNextTick <= now then
-							if After then
-								After(0, function() updatePowerBar("ESSENCE") end)
-							else
-								updatePowerBar("ESSENCE")
+							if self._essenceNextTick <= now then
+								RunNextFrame(function() updatePowerBar("ESSENCE") end)
+								return
 							end
-							return
-						end
 						local value = current + (fraction or 0)
 						if value > maxPower then value = maxPower end
 						self:SetValue(value)
@@ -7648,11 +7637,11 @@ local function eventHandler(self, event, unit, arg1)
 		if C_PetBattles and C_PetBattles.IsInBattle then ResourceBars._petBattleOpen = C_PetBattles.IsInBattle() == true end
 		updateHealthBar("UNIT_ABSORB_AMOUNT_CHANGED")
 		setPowerbars()
-		if After then After(0, function()
-			for pType, _ in pairs(RB.AURA_POWER_CONFIG or {}) do
-				if powerbar[pType] and powerbar[pType]:IsShown() then updatePowerBar(pType) end
-			end
-		end) end
+			RunNextFrame(function()
+				for pType, _ in pairs(RB.AURA_POWER_CONFIG or {}) do
+					if powerbar[pType] and powerbar[pType]:IsShown() then updatePowerBar(pType) end
+				end
+			end)
 		if scheduleRelativeFrameWidthSync then scheduleRelativeFrameWidthSync() end
 	elseif event == "UPDATE_SHAPESHIFT_FORM" then
 		local needsPostReanchor = setPowerbars({ fastReuseExisting = true }) == true

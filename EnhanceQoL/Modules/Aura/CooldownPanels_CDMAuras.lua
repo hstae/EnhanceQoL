@@ -2456,7 +2456,7 @@ function CDMAuras:ScheduleTrackedPanelsRescan(reason)
 	pending.reason = pending.reason or reason
 	if pending.queued == true then return end
 	pending.queued = true
-	C_Timer.After(0, function()
+	RunNextFrame(function()
 		local latestRuntime = getRuntime()
 		local latestPending = latestRuntime.pendingRescanRefresh
 		latestRuntime.pendingRescanRefresh = nil

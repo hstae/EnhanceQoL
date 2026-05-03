@@ -1094,7 +1094,7 @@ addon.Query.frame = eventFrame
 -- 	if v.OnSpellActivationOverlayGlowShowEvent then
 -- 		hooksecurefunc(v, "OnSpellActivationOverlayGlowShowEvent", function(self)
 -- 			-- print("Hide Glow on ", v:GetSpellID())
--- 			-- C_Timer.After(0, function() ActionButtonSpellAlertManager:HideAlert(self) end)
+-- 			-- RunNextFrame(function() ActionButtonSpellAlertManager:HideAlert(self) end)
 -- 		end)
 -- 	end
 -- end

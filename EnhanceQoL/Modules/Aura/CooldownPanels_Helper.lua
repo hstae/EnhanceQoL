@@ -3206,7 +3206,7 @@ function CooldownPanels:RequestPanelRefresh(panelId)
 	if rt._eqolPanelRefreshPending then return end
 	rt._eqolPanelRefreshPending = true
 
-	C_Timer.After(0, function()
+	RunNextFrame(function()
 		local runtime = CooldownPanels.runtime
 		if not runtime then return end
 		runtime._eqolPanelRefreshPending = nil

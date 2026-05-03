@@ -528,7 +528,7 @@ local function updateActiveTalentText()
 	if EditMode and not activeBuildEditModeRegistered and not activeBuildRegisterInProgress then registerActiveBuildEditMode() end
 	if not shouldShowActiveBuildText() then
 		refreshActiveBuildEditMode()
-		C_Timer.After(0, function() activeBuildFrame:Hide() end)
+		RunNextFrame(function() activeBuildFrame:Hide() end)
 		return
 	end
 
@@ -717,5 +717,5 @@ function addon.MythicPlus.functions.InitTalentReminder()
 	addon.MythicPlus.variables.talentReminderInitialized = true
 	registerEvents(frameLoad)
 	frameLoad:SetScript("OnEvent", eventHandler)
-	C_Timer.After(0, updateActiveTalentText)
+	RunNextFrame(updateActiveTalentText)
 end
