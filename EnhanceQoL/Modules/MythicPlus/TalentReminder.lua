@@ -683,7 +683,9 @@ local eventHandlers = {
 		updateActiveTalentText()
 	end,
 	["ZONE_CHANGED_NEW_AREA"] = function()
-		checkLoadout()
+		C_Timer.After(2, function()
+			if IsInInstance() then checkLoadout() end
+		end)
 		updateActiveTalentText()
 	end,
 	["PLAYER_ENTERING_WORLD"] = function()
