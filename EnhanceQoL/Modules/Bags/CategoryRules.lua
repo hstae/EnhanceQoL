@@ -177,7 +177,9 @@ local customCategoryStateHiddenBuiltIn
 local customCategoryCompiledState
 local cachedCategoryRuleContextUsage
 local cachedCategorySectionDefinitions
-local BASIC_PRESET_VERSION = 15
+local BASIC_PRESET_VERSION = 17
+local HOUSING_CLASS_ID = 20
+local ITEM_ENHANCEMENTS_CLASS_ID = 8
 local CATEGORY_MODE_IDS = {
 	basic = true,
 	advanced = true,
@@ -432,6 +434,27 @@ local function buildProfessionGroupOptions()
 		}
 	end
 	return options
+end
+
+local function getClassLabelByID(classID)
+	if not (C_Item and C_Item.GetItemClassInfo) then
+		return nil
+	end
+
+	local label = C_Item.GetItemClassInfo(classID)
+	if type(label) == "string" and label ~= "" then
+		return label
+	end
+
+	return nil
+end
+
+local function getHousingClassLabel()
+	return getClassLabelByID(HOUSING_CLASS_ID) or "Housing"
+end
+
+local function getItemEnhancementsClassLabel()
+	return getClassLabelByID(ITEM_ENHANCEMENTS_CLASS_ID) or "Item Enhancements"
 end
 
 function addon.GetProfessionGroupKeyForItem(classID, subClassID)
@@ -1797,8 +1820,30 @@ local function seedBasicPresetIntoModeState(modeState)
 					end,
 				},
 				{
-					name = L["basicPresetCategoryQuest"] or "Quest",
+					name = getHousingClassLabel(),
+					priority = 31,
+					sortMode = "quality",
+					color = { 0.9, 0.82, 0.98 },
+					ruleTree = function(counterState)
+						return buildPresetRuleGroup(counterState, "AND", {
+							buildPresetRule(counterState, "classID", "EQUALS", HOUSING_CLASS_ID),
+						})
+					end,
+				},
+				{
+					name = getItemEnhancementsClassLabel(),
 					priority = 30,
+					sortMode = "quality",
+					color = { 0.98, 0.88, 0.6 },
+					ruleTree = function(counterState)
+						return buildPresetRuleGroup(counterState, "AND", {
+							buildPresetRule(counterState, "classID", "EQUALS", ITEM_ENHANCEMENTS_CLASS_ID),
+						})
+					end,
+				},
+				{
+					name = L["basicPresetCategoryQuest"] or "Quest",
+					priority = 29,
 					sortMode = "quality",
 					color = { 1, 0.9, 0.44 },
 					ruleTree = function(counterState)

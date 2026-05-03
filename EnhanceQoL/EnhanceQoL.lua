@@ -741,6 +741,7 @@ local frameVisibilityStates = {}
 local hookedUnitFrames = {}
 local ApplyFrameVisibilityState -- forward declaration
 local IsInDruidTravelForm
+local GetDruidTravelStanceIndexes
 local EnsureSkyridingStateDriver
 local EnsureSpellActivationOverlayWatcher
 
@@ -837,7 +838,37 @@ local function BuildUnitFrameDriverExpression(config, opts)
 
 	local function addSkyridingClauses(target, seen)
 		addClause(target, seen, "nodead,advflyable,flyable,mounted,flying")
-		if addon.variables and addon.variables.unitClass == "DRUID" then addClause(target, seen, "nodead,advflyable,flyable,stance:3,flying") end
+		if addon.variables and addon.variables.unitClass == "DRUID" and GetDruidTravelStanceIndexes then
+			for _, idx in ipairs(GetDruidTravelStanceIndexes()) do
+				addClause(target, seen, ("nodead,advflyable,flyable,stance:%d,flying"):format(idx))
+			end
+		end
+	end
+
+	local function addMountedClauses(target, seen)
+		addClause(target, seen, "mounted")
+		if addon.variables and addon.variables.unitClass == "DRUID" and GetDruidTravelStanceIndexes then
+			for _, idx in ipairs(GetDruidTravelStanceIndexes()) do
+				addClause(target, seen, ("stance:%d"):format(idx))
+			end
+		end
+	end
+
+	local function addNotMountedClauses(target, seen)
+		if addon.variables and addon.variables.unitClass == "DRUID" and GetDruidTravelStanceIndexes then
+			local stanceIndexes = GetDruidTravelStanceIndexes()
+			if #stanceIndexes > 0 then
+				local clause = "nomounted"
+				for _, idx in ipairs(stanceIndexes) do
+					clause = ("%s,nostance:%d"):format(clause, idx)
+				end
+				addClause(target, seen, clause)
+			else
+				addClause(target, seen, "nomounted")
+			end
+		else
+			addClause(target, seen, "nomounted")
+		end
 	end
 
 	if config.ALWAYS_HIDE_IN_GROUP then addClause(hideClauses, hideSeen, "group") end
@@ -851,8 +882,8 @@ local function BuildUnitFrameDriverExpression(config, opts)
 	if config.SKYRIDING_ACTIVE then addSkyridingClauses(showClauses, showSeen) end
 	if config.FLYING_ACTIVE then addClause(showClauses, showSeen, "nodead,flying") end
 	if config.PLAYER_HAS_TARGET then addClause(showClauses, showSeen, "@target,exists") end
-	if config.PLAYER_MOUNTED then addClause(showClauses, showSeen, "mounted") end
-	if config.PLAYER_NOT_MOUNTED then addClause(showClauses, showSeen, "nomounted") end
+	if config.PLAYER_MOUNTED then addMountedClauses(showClauses, showSeen) end
+	if config.PLAYER_NOT_MOUNTED then addNotMountedClauses(showClauses, showSeen) end
 	if config.PLAYER_IN_GROUP then addClause(showClauses, showSeen, "group") end
 	if config.PLAYER_IN_PARTY then addClause(showClauses, showSeen, "group:party") end
 	if config.PLAYER_IN_RAID then addClause(showClauses, showSeen, "group:raid") end
@@ -1431,6 +1462,16 @@ local DRUID_TRAVEL_FORM_SPELL_IDS = {
 	[210053] = true, -- Mount Form (Stag)
 }
 
+GetDruidTravelStanceIndexes = function()
+	local indexes = {}
+	if not GetNumShapeshiftForms or not GetShapeshiftFormInfo then return indexes end
+	for idx = 1, GetNumShapeshiftForms() do
+		local _, _, _, spellID = GetShapeshiftFormInfo(idx)
+		if spellID and DRUID_TRAVEL_FORM_SPELL_IDS[spellID] then indexes[#indexes + 1] = idx end
+	end
+	return indexes
+end
+
 IsInDruidTravelForm = function()
 	local class = addon.variables and addon.variables.unitClass
 	if not class and UnitClass then
@@ -1447,8 +1488,7 @@ IsInDruidTravelForm = function()
 	end
 	local spellID = select(4, GetShapeshiftFormInfo(form))
 	if spellID and DRUID_TRAVEL_FORM_SPELL_IDS[spellID] then return true end
-	-- Fallback: Travel Form is always slot 3 in the druid shapeshift list.
-	return form == 3
+	return false
 end
 
 local function computeCooldownViewerTargetAlpha(cfg, state)
@@ -2875,7 +2915,14 @@ EnsureSkyridingStateDriver = function()
 	end)
 	local expr
 	if addon.variables.unitClass == "DRUID" then
-		expr = "[nodead,advflyable,flyable,mounted,flying] show; [nodead,advflyable,flyable,stance:3,flying] show; hide"
+		local clauses = { "[nodead,advflyable,flyable,mounted,flying] show" }
+		if GetDruidTravelStanceIndexes then
+			for _, idx in ipairs(GetDruidTravelStanceIndexes()) do
+				clauses[#clauses + 1] = ("[nodead,advflyable,flyable,stance:%d,flying] show"):format(idx)
+			end
+		end
+		clauses[#clauses + 1] = "hide"
+		expr = table.concat(clauses, "; ")
 	else
 		expr = "[nodead,advflyable,flyable,mounted,flying] show; hide"
 	end

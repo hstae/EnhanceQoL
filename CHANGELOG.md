@@ -4,8 +4,10 @@
 
 ### 🐛 Fixed
 
+- Visibility / Resource Bars: Fixed Mounted and Not mounted visibility rules for Druids so available Travel, Flight, and Mount Form shapeshift slots are handled consistently by Resource Bars, Unit Frames, and other secure visibility drivers.
 - Unit Frames: Added separate Absorb and Heal Absorb overlay height controls for custom unit and group frames; setting either height to 0 now uses the full health bar height so overlays keep scaling with the frame.
 - Unit Frames / Resource Bars: Disabled Blizzard class-resource hide settings, such as Soul Shards and Combo Points, while the custom EQoL Player Frame is active so users are not shown controls that no longer affect the active frame.
+- Bags: Fixed missing Basic preset auto-categories for Housing (ClassID 20) and Item Enhancements (ClassID 8), so these entries are now created automatically with Basic rules again.
 
 ---
 
