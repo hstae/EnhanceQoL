@@ -6,6 +6,7 @@ _G[addonName] = addon
 addon.Bags = addon.Bags or {}
 addon.Bags.functions = addon.Bags.functions or {}
 addon.Bags.variables = addon.Bags.variables or {}
+addon.Bags.API = addon.Bags.API or {}
 
 local Bags = addon.Bags
 local L = addon.L or {}
@@ -28,6 +29,7 @@ Core.FOOTER_ROW_HEIGHT = 18
 Core.FOOTER_ROW_SPACING = 4
 Core.FOOTER_SECTION_SPACING = 6
 Core.FOOTER_DIVIDER_OFFSET = 6
+Core.FOOTER_EXTERNAL_REGION_Y_OFFSET = 2
 Core.SECTION_HEADER_HEIGHT = 18
 Core.GROUP_HEADER_HEIGHT = Core.SECTION_HEADER_HEIGHT
 Core.GROUP_HEADER_GAP = 4
@@ -167,6 +169,7 @@ if state.awaitingRuleItemData == nil then
 end
 state.pendingRuleItemDataIDs = state.pendingRuleItemDataIDs or {}
 state.bagSlotPanels = state.bagSlotPanels or {}
+state.footerRegions = state.footerRegions or {}
 
 local applyConfiguredOverlayAnchors
 local applyConfiguredItemButtonFonts
@@ -183,6 +186,39 @@ local installFrameDropReceiver
 local receiveCursorItemIntoBags
 local itemLevelEligibilityCache = {}
 local BagSlotPanel = {}
+
+function Core.GetFooterRegions(side)
+	local regions = {}
+	local requestedSide = side or "left"
+
+	for id, entry in pairs(state.footerRegions) do
+		local region = entry and entry.region
+		if entry.side == requestedSide and region and region.GetObjectType and (not region.IsForbidden or not region:IsForbidden()) then
+			regions[#regions + 1] = entry
+			entry.id = id
+		end
+	end
+
+	table.sort(regions, function(left, right)
+		local leftPriority = tonumber(left.priority) or 100
+		local rightPriority = tonumber(right.priority) or 100
+		if leftPriority ~= rightPriority then
+			return leftPriority < rightPriority
+		end
+		return tostring(left.id or "") < tostring(right.id or "")
+	end)
+
+	return regions
+end
+
+function Core.GetFooterRegionSize(region)
+	if not region then
+		return 0, 0
+	end
+	local width = region.GetWidth and region:GetWidth() or 0
+	local height = region.GetHeight and region:GetHeight() or 0
+	return math.max(0, math.ceil(width or 0)), math.max(0, math.ceil(height or 0))
+end
 
 local function wipeTable(tbl)
 	if not tbl then
@@ -2816,6 +2852,10 @@ local function createMainFrame()
 	footer.CurrencyContainer:SetPoint("BOTTOMLEFT", footer, "BOTTOMLEFT", 0, 0)
 	footer.CurrencyContainer:SetHeight(Core.FOOTER_ROW_HEIGHT)
 
+	footer.ExternalLeftContainer = CreateFrame("Frame", nil, footer)
+	footer.ExternalLeftContainer:SetPoint("BOTTOMLEFT", footer, "BOTTOMLEFT", 0, 0)
+	footer.ExternalLeftContainer:SetHeight(Core.FOOTER_ROW_HEIGHT)
+
 	footer.MoneyButton = CreateFrame("Button", nil, footer)
 	footer.MoneyButton:SetPoint("BOTTOMRIGHT", footer, "BOTTOMRIGHT", 0, 0)
 	footer.MoneyButton:SetHeight(Core.FOOTER_ROW_HEIGHT)
@@ -4815,6 +4855,8 @@ local function layoutFooter(layoutData, frameWidth)
 	local currencyRowCount = 0
 	local currencyRowsHeight = 0
 	local moneyOnSeparateRow = false
+	local externalLeftRegions = Core.GetFooterRegions("left")
+	local leftFooterItems = {}
 
 	applyConfiguredFrameFonts()
 	applyFramePadding(settings)
@@ -4822,6 +4864,7 @@ local function layoutFooter(layoutData, frameWidth)
 	footer.NormalSlotsText:ClearAllPoints()
 	footer.ReagentSlotsText:ClearAllPoints()
 	footer.CurrencyContainer:ClearAllPoints()
+	footer.ExternalLeftContainer:ClearAllPoints()
 	footer.MoneyButton:ClearAllPoints()
 
 	if showFooterSlotSummary then
@@ -4857,6 +4900,21 @@ local function layoutFooter(layoutData, frameWidth)
 	end
 
 	local reservedMoneyWidth = settings.showGold and math.max(120, footer.MoneyButton:GetWidth()) or 0
+	for _, entry in ipairs(externalLeftRegions) do
+		local region = entry.region
+		local width, height = Core.GetFooterRegionSize(region)
+		if width > 0 and height > 0 then
+			region:SetParent(footer.ExternalLeftContainer)
+			region:ClearAllPoints()
+			leftFooterItems[#leftFooterItems + 1] = {
+				type = "external",
+				region = region,
+				width = width,
+				height = math.max(Core.FOOTER_ROW_HEIGHT, height),
+			}
+		end
+	end
+
 	for index, currencyInfo in ipairs(footerData.currencies or {}) do
 		local button = acquireCurrencyButton(index)
 		local quantityText = formatFooterCurrencyQuantity(currencyInfo.quantity or 0)
@@ -4866,6 +4924,13 @@ local function layoutFooter(layoutData, frameWidth)
 		button.Count:SetText(quantityText)
 		button:SetWidth(button.Count:GetStringWidth() + 24)
 		currencyButtons[index] = button
+		leftFooterItems[#leftFooterItems + 1] = {
+			type = "currency",
+			button = button,
+			index = index,
+			width = button:GetWidth(),
+			height = Core.FOOTER_ROW_HEIGHT,
+		}
 
 		maxCurrencyButtonWidth = math.max(maxCurrencyButtonWidth, button:GetWidth())
 		totalCurrencyWidth = totalCurrencyWidth + button:GetWidth()
@@ -4885,14 +4950,25 @@ local function layoutFooter(layoutData, frameWidth)
 	if settings.showGold then
 		minimumFooterContentWidth = math.max(minimumFooterContentWidth, math.ceil(footer.MoneyButton:GetWidth() or 0))
 	end
+	for _, item in ipairs(leftFooterItems) do
+		minimumFooterContentWidth = math.max(minimumFooterContentWidth, math.ceil(item.width or 0))
+	end
 	if maxCurrencyButtonWidth > 0 then
 		minimumFooterContentWidth = math.max(minimumFooterContentWidth, math.ceil(maxCurrencyButtonWidth))
 	end
 	state.minimumFooterContentWidth = minimumFooterContentWidth
 
+	local totalLeftFooterWidth = 0
+	for index, item in ipairs(leftFooterItems) do
+		totalLeftFooterWidth = totalLeftFooterWidth + (item.width or 0)
+		if index > 1 then
+			totalLeftFooterWidth = totalLeftFooterWidth + 10
+		end
+	end
+
 	moneyOnSeparateRow = settings.showGold
-		and visibleCurrencyCount > 0
-		and totalCurrencyWidth > math.max(1, footerWidth - reservedMoneyWidth)
+		and #leftFooterItems > 0
+		and totalLeftFooterWidth > math.max(1, footerWidth - reservedMoneyWidth)
 
 	local currencyRowWidth = footerWidth
 	if not moneyOnSeparateRow and settings.showGold then
@@ -4902,10 +4978,9 @@ local function layoutFooter(layoutData, frameWidth)
 	local rowAssignments = {}
 	local currentRowIndex = 1
 	local currentRowWidth = 0
-	for index = 1, visibleCurrencyCount do
-		local button = currencyButtons[index]
-		local buttonWidth = button:GetWidth()
-		local requiredWidth = buttonWidth
+	for index, item in ipairs(leftFooterItems) do
+		local itemWidth = item.width or 0
+		local requiredWidth = itemWidth
 		if currentRowWidth > 0 then
 			requiredWidth = requiredWidth + 10
 		end
@@ -4913,7 +4988,7 @@ local function layoutFooter(layoutData, frameWidth)
 		if currentRowWidth > 0 and (currentRowWidth + requiredWidth) > currencyRowWidth then
 			currentRowIndex = currentRowIndex + 1
 			currentRowWidth = 0
-			requiredWidth = buttonWidth
+			requiredWidth = itemWidth
 		end
 
 		if currentRowWidth > 0 then
@@ -4924,7 +4999,7 @@ local function layoutFooter(layoutData, frameWidth)
 			row = currentRowIndex,
 			x = currentRowWidth,
 		}
-		currentRowWidth = currentRowWidth + buttonWidth
+		currentRowWidth = currentRowWidth + itemWidth
 		currencyRowCount = currentRowIndex
 	end
 
@@ -4984,22 +5059,51 @@ local function layoutFooter(layoutData, frameWidth)
 	footer.CurrencyContainer:SetHeight(math.max(0, currencyRowsHeight))
 	footer.CurrencyContainer:SetPoint("BOTTOMLEFT", footer, "BOTTOMLEFT", 0, currencyBottomOffset)
 	footer.CurrencyContainer:SetShown(currencyRowCount > 0)
+	footer.ExternalLeftContainer:SetWidth(math.max(1, currencyRowWidth))
+	footer.ExternalLeftContainer:SetHeight(math.max(0, currencyRowsHeight))
+	footer.ExternalLeftContainer:SetPoint("BOTTOMLEFT", footer, "BOTTOMLEFT", 0, currencyBottomOffset)
+	footer.ExternalLeftContainer:SetShown(#externalLeftRegions > 0 and currencyRowCount > 0)
 
 	if settings.showGold then
 		footer.MoneyButton:SetPoint("BOTTOMRIGHT", footer, "BOTTOMRIGHT", 0, footerPadding)
 	end
 
-	for index = 1, visibleCurrencyCount do
-		local button = currencyButtons[index]
+	for index, item in ipairs(leftFooterItems) do
 		local assignment = rowAssignments[index]
 		local rowBottomOffset = currencyRowsHeight - Core.FOOTER_ROW_HEIGHT - ((assignment.row - 1) * (Core.FOOTER_ROW_HEIGHT + Core.FOOTER_ROW_SPACING))
-		button:ClearAllPoints()
-		button:SetPoint("BOTTOMLEFT", footer.CurrencyContainer, "BOTTOMLEFT", assignment.x, rowBottomOffset)
-		button:Show()
+		if item.type == "external" then
+			item.region:ClearAllPoints()
+			item.region:SetPoint(
+				"LEFT",
+				footer.ExternalLeftContainer,
+				"BOTTOMLEFT",
+				assignment.x,
+				rowBottomOffset + (Core.FOOTER_ROW_HEIGHT / 2) + Core.FOOTER_EXTERNAL_REGION_Y_OFFSET
+			)
+			item.region:Show()
+		elseif item.button then
+			item.button:ClearAllPoints()
+			item.button:SetPoint("BOTTOMLEFT", footer.CurrencyContainer, "BOTTOMLEFT", assignment.x, rowBottomOffset)
+			item.button:Show()
+		end
 	end
 
 	for index = visibleCurrencyCount + 1, #state.currencyButtons do
 		state.currencyButtons[index]:Hide()
+	end
+	for _, entry in pairs(state.footerRegions) do
+		if entry.side == "left" and entry.region then
+			local isActive = false
+			for _, activeEntry in ipairs(externalLeftRegions) do
+				if activeEntry == entry then
+					isActive = true
+					break
+				end
+			end
+			if not isActive then
+				entry.region:Hide()
+			end
+		end
 	end
 
 	state.footerLayoutSignature = getFooterLayoutSignature(settings, footerWidth)
@@ -5655,6 +5759,55 @@ end
 
 function Bags.functions.RequestLayoutUpdate(requestRebuild, forceWhenHidden)
 	scheduleUpdate(true, requestRebuild, forceWhenHidden)
+end
+
+Bags.API.IsAvailable = function()
+	return Bags.IsEnabled and Bags.IsEnabled() == true
+end
+
+Bags.API.RequestLayoutRefresh = function()
+	if not Bags.API.IsAvailable() then
+		return false
+	end
+
+	state.footerDirty = true
+	scheduleUpdate(true, false, true)
+	return true
+end
+
+Bags.API.RegisterFooterRegion = function(id, region, options)
+	if not Bags.API.IsAvailable() or not id or not region or not region.GetObjectType then
+		return false
+	end
+
+	options = options or {}
+	state.footerRegions[tostring(id)] = {
+		region = region,
+		side = "left",
+		priority = tonumber(options.priority) or 100,
+	}
+
+	if state.frame and state.frame.Footer and state.frame.Footer.ExternalLeftContainer then
+		region:SetParent(state.frame.Footer.ExternalLeftContainer)
+	end
+
+	Bags.API.RequestLayoutRefresh()
+	return true
+end
+
+Bags.API.UnregisterFooterRegion = function(id)
+	id = id and tostring(id) or nil
+	local entry = id and state.footerRegions[id] or nil
+	if not entry then
+		return false
+	end
+
+	if entry.region and entry.region.Hide then
+		entry.region:Hide()
+	end
+	state.footerRegions[id] = nil
+	Bags.API.RequestLayoutRefresh()
+	return true
 end
 
 function Bags.functions.IsInventoryOpenForVendor()
