@@ -177,7 +177,7 @@ local customCategoryStateHiddenBuiltIn
 local customCategoryCompiledState
 local cachedCategoryRuleContextUsage
 local cachedCategorySectionDefinitions
-local BASIC_PRESET_VERSION = 18
+local BASIC_PRESET_VERSION = 19
 local HOUSING_CLASS_ID = 20
 local ITEM_ENHANCEMENTS_CLASS_ID = 8
 local CATEGORY_MODE_IDS = {
@@ -738,6 +738,15 @@ local FIELD_DEFINITIONS = {
 		operators = { "EQUALS" },
 		defaultOperator = "EQUALS",
 		contextKey = "isEquipmentSet",
+		buildOptions = buildBooleanOptions,
+	},
+	isTeleportItem = {
+		labelKey = "settingsRuleFieldTeleportItem",
+		groupID = "smart",
+		valueType = "enum",
+		operators = { "EQUALS" },
+		defaultOperator = "EQUALS",
+		contextKey = "isTeleportItem",
 		buildOptions = buildBooleanOptions,
 	},
 	isHearthstone = {
@@ -1721,8 +1730,19 @@ local function seedBasicPresetIntoModeState(modeState)
 					end,
 				},
 				{
-					name = L["basicPresetCategoryKeystones"] or "Keystones",
+					name = L["basicPresetCategoryTeleporting"] or "Teleporting",
 					priority = 91,
+					sortMode = "quality",
+					color = { 0.58, 0.86, 1 },
+					ruleTree = function(counterState)
+						return buildPresetRuleGroup(counterState, "AND", {
+							buildPresetRule(counterState, "isTeleportItem", "EQUALS", true),
+						})
+					end,
+				},
+				{
+					name = L["basicPresetCategoryKeystones"] or "Keystones",
+					priority = 90,
 					sortMode = "keystoneLevel",
 					color = { 0.82, 0.82, 1 },
 					ruleTree = function(counterState)

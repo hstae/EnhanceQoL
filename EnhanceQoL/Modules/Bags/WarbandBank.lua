@@ -2258,6 +2258,11 @@ local function resolveCategoryForItem(bagID, slotID, info, questInfo, settings, 
 			itemContext.canVendor = ((ruleItemInfo and ruleItemInfo.sellPrice) or 0) > 0
 			itemContext.canAuctionHouseSell = not not canAuctionHouseSell
 			itemContext.isEquipmentSet = not not isEquipmentSet
+			itemContext.isTeleportItem = addon.MythicPlus
+				and addon.MythicPlus.functions
+				and addon.MythicPlus.functions.IsTeleportItem
+				and addon.MythicPlus.functions.IsTeleportItem(info and info.itemID)
+				or false
 			itemContext.isHearthstone = usage.isHearthstone and isRuleHearthstoneItem(info and info.itemID) or false
 			itemContext.isKeystone = usage.isKeystone and isKeystoneItem(info and info.itemID) or false
 			itemContext.equipLoc = equipLoc
