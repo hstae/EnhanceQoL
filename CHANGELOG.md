@@ -6,6 +6,9 @@
 
 - Bags: Added optional item overlays for equipment set items and special bind statuses such as BoE, Warbound, and Warbound until equipped.
 - Bags: Added automatic Basic category support and a rule filter for transmog set items such as ensembles.
+- Bags: Added automatic Basic category support and a rule filter for toy items.
+- Bags: Added the known-item highlight to toys that are already collected.
+- Resource Bars: Added an Augmentation Evoker Ebon Might duration bar, including Shared mode support with a third slot only when the active specialization needs one.
 
 ### 🐛 Fixed
 

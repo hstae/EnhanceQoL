@@ -50,6 +50,8 @@ local EQUIPMENT_SET_OVERLAY_FALLBACK_TEXTURE = "Interface\\PaperDollInfoFrame\\U
 local CONSUMABLE_CLASS_ID = 0
 local CONSUMABLE_OTHER_SUBCLASS_ID = 8
 local LEARN_TRANSMOG_SET_TOOLTIP_LINE_TYPE = 39
+local TOY_TOOLTIP_LINE_TYPE = 0
+local KNOWN_SPELL_TOOLTIP_LINE_TYPE = 43
 
 local FREE_SLOTS_SECTION_ID = "warbandFreeSlots"
 local FREE_SLOTS_DEFINITION = {
@@ -1634,6 +1636,7 @@ local function createRuleRuntimeContext(usage)
 		equippedItemEquipLocs = {},
 		tooltipBindTypes = {},
 		tooltipTransmogSets = {},
+		tooltipToys = {},
 		persistentTooltipBindTypes = state.tooltipBindTypeCache,
 		recommendationCache = {},
 		upgradeTrackCache = {},
@@ -1815,6 +1818,58 @@ local function isTooltipLearnTransmogSet(bagID, slotID, info, classID, subClassI
 	end
 	runtimeBagCache[slotID] = isTransmogSet
 	return isTransmogSet
+end
+
+local function isTooltipToy(bagID, slotID, info, runtimeContext)
+	if not runtimeContext or not GET_BAG_ITEM_TOOLTIP or bagID == nil or slotID == nil or not _G.TOY then
+		return false
+	end
+
+	local runtimeBagCache = runtimeContext.tooltipToys[bagID]
+	local cachedValue = runtimeBagCache and runtimeBagCache[slotID]
+	if cachedValue ~= nil then
+		return cachedValue == true
+	end
+
+	local isToy = false
+	local tooltipData = GET_BAG_ITEM_TOOLTIP(bagID, slotID)
+	for _, line in ipairs((tooltipData and tooltipData.lines) or {}) do
+		if line and line.type == TOY_TOOLTIP_LINE_TYPE and line.leftText == _G.TOY then
+			isToy = true
+			break
+		end
+	end
+
+	if not runtimeBagCache then
+		runtimeBagCache = {}
+		runtimeContext.tooltipToys[bagID] = runtimeBagCache
+	end
+	runtimeBagCache[slotID] = isToy
+	return isToy
+end
+
+local function isTooltipKnownToy(bagID, slotID, info)
+	if not GET_BAG_ITEM_TOOLTIP or bagID == nil or slotID == nil or not _G.TOY or not ITEM_SPELL_KNOWN then
+		return false
+	end
+
+	local hasToyLine = false
+	local hasKnownLine = false
+	local tooltipData = GET_BAG_ITEM_TOOLTIP(bagID, slotID)
+	for _, line in ipairs((tooltipData and tooltipData.lines) or {}) do
+		if line then
+			if line.type == TOY_TOOLTIP_LINE_TYPE and line.leftText == _G.TOY then
+				hasToyLine = true
+			elseif line.type == KNOWN_SPELL_TOOLTIP_LINE_TYPE and line.leftText == ITEM_SPELL_KNOWN then
+				hasKnownLine = true
+			end
+		end
+		if hasToyLine and hasKnownLine then
+			return true
+		end
+	end
+
+	return false
 end
 
 local function getUpgradeComparisonSlots(equipLoc, runtimeContext)
@@ -2425,6 +2480,11 @@ local function resolveCategoryForItem(bagID, slotID, info, questInfo, settings, 
 				isTransmogSet = isTooltipLearnTransmogSet(bagID, slotID, info, classID, subClassID, ruleRuntimeContext)
 			end
 
+			local isToy
+			if usage.isToy then
+				isToy = isTooltipToy(bagID, slotID, info, ruleRuntimeContext)
+			end
+
 			local resolvedBindType = ruleItemInfo and ruleItemInfo.bindType or nil
 			if usage.bindType then
 				local tooltipBindType = getTooltipResolvedBindType(bagID, slotID, info, ruleRuntimeContext)
@@ -2470,6 +2530,7 @@ local function resolveCategoryForItem(bagID, slotID, info, questInfo, settings, 
 			itemContext.canAuctionHouseSell = not not canAuctionHouseSell
 			itemContext.isEquipmentSet = not not isEquipmentSet
 			itemContext.isTransmogSet = not not isTransmogSet
+			itemContext.isToy = not not isToy
 			itemContext.isTeleportItem = addon.MythicPlus
 				and addon.MythicPlus.functions
 				and addon.MythicPlus.functions.IsTeleportItem
@@ -2982,7 +3043,8 @@ local function updateButtonData(button, mapping, overlayRuntime, textAppearance,
 	local questID = questInfo and questInfo.questID or nil
 	local questIsActive = questInfo and questInfo.isActive or false
 	local isNewItem = isNewItemAtSlot(bagID, slotID)
-	local isUnusableRecipe = texture and Bags.functions.IsRecipeUnusableByPlayer and Bags.functions.IsRecipeUnusableByPlayer(itemID, itemLink) or false
+	local isKnownToy = texture and isTooltipKnownToy(bagID, slotID, info) or false
+	local isUnusableRecipe = (texture and Bags.functions.IsRecipeUnusableByPlayer and Bags.functions.IsRecipeUnusableByPlayer(itemID, itemLink) or false) or isKnownToy
 	local freeSlotGroup = mapping and mapping.freeSlotGroup or nil
 	local freeSlotSignature = getFreeSlotRenderSignature(freeSlotGroup)
 	overlayRuntime = overlayRuntime or getOverlayRuntimeConfig()

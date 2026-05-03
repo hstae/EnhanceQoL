@@ -21,6 +21,8 @@ Core.ITEM_QUALITY_POOR = Enum and Enum.ItemQuality and Enum.ItemQuality.Poor or 
 Core.CONSUMABLE_CLASS_ID = 0
 Core.CONSUMABLE_OTHER_SUBCLASS_ID = 8
 Core.LEARN_TRANSMOG_SET_TOOLTIP_LINE_TYPE = 39
+Core.TOY_TOOLTIP_LINE_TYPE = 0
+Core.KNOWN_SPELL_TOOLTIP_LINE_TYPE = 43
 
 Core.BUTTON_SIZE = 37
 Core.BUTTON_SPACING = 4
@@ -3539,7 +3541,8 @@ local function updateButtonData(button, mapping, overlayRuntime, textAppearance,
 	local questIsActive = questInfo and questInfo.isActive or false
 	local isNewItem = isNewItemAtSlot(bagID, slotID)
 	local freeSlotGroup = mapping and mapping.freeSlotGroup or nil
-	local isUnusableRecipe = texture and Bags.functions.IsRecipeUnusableByPlayer and Bags.functions.IsRecipeUnusableByPlayer(itemID, itemLink) or false
+	local isKnownToy = texture and Core.IsTooltipKnownToy(bagID, slotID, info) or false
+	local isUnusableRecipe = (texture and Bags.functions.IsRecipeUnusableByPlayer and Bags.functions.IsRecipeUnusableByPlayer(itemID, itemLink) or false) or isKnownToy
 	local freeSlotSignature = getFreeSlotRenderSignature(freeSlotGroup)
 	overlayRuntime = overlayRuntime or getOverlayRuntimeConfig()
 	fontSignature = fontSignature or getTextAppearanceSignature(textAppearance)
@@ -4103,6 +4106,7 @@ local function createRuleRuntimeContext(usage)
 		equippedItemEquipLocs = {},
 		tooltipBindTypes = {},
 		tooltipTransmogSets = {},
+		tooltipToys = {},
 		persistentTooltipBindTypes = state.tooltipBindTypeCache,
 		recommendationCache = {},
 		upgradeTrackCache = {},
@@ -4281,6 +4285,56 @@ function Core.IsTooltipLearnTransmogSet(bagID, slotID, info, classID, subClassID
 		runtimeCache[cacheKey] = isTransmogSet
 	end
 	return isTransmogSet
+end
+
+function Core.IsTooltipToy(bagID, slotID, info, runtimeContext)
+	if not runtimeContext or not Core.GET_BAG_ITEM_TOOLTIP or bagID == nil or slotID == nil or not _G.TOY then
+		return false
+	end
+
+	local cacheKey = tostring(bagID) .. ":" .. tostring(slotID)
+	local runtimeCache = runtimeContext.tooltipToys
+	if runtimeCache and runtimeCache[cacheKey] ~= nil then
+		return runtimeCache[cacheKey] == true
+	end
+
+	local isToy = false
+	local tooltipData = Core.GET_BAG_ITEM_TOOLTIP(bagID, slotID)
+	for _, line in ipairs((tooltipData and tooltipData.lines) or {}) do
+		if line and line.type == Core.TOY_TOOLTIP_LINE_TYPE and line.leftText == _G.TOY then
+			isToy = true
+			break
+		end
+	end
+
+	if runtimeCache then
+		runtimeCache[cacheKey] = isToy
+	end
+	return isToy
+end
+
+function Core.IsTooltipKnownToy(bagID, slotID, info)
+	if not Core.GET_BAG_ITEM_TOOLTIP or bagID == nil or slotID == nil or not _G.TOY or not ITEM_SPELL_KNOWN then
+		return false
+	end
+
+	local hasToyLine = false
+	local hasKnownLine = false
+	local tooltipData = Core.GET_BAG_ITEM_TOOLTIP(bagID, slotID)
+	for _, line in ipairs((tooltipData and tooltipData.lines) or {}) do
+		if line then
+			if line.type == Core.TOY_TOOLTIP_LINE_TYPE and line.leftText == _G.TOY then
+				hasToyLine = true
+			elseif line.type == Core.KNOWN_SPELL_TOOLTIP_LINE_TYPE and line.leftText == ITEM_SPELL_KNOWN then
+				hasKnownLine = true
+			end
+		end
+		if hasToyLine and hasKnownLine then
+			return true
+		end
+	end
+
+	return false
 end
 
 local function getUpgradeComparisonSlots(equipLoc, runtimeContext)
@@ -4649,6 +4703,11 @@ local function resolveCategoryForItem(bagID, slotID, info, questInfo, settings, 
 				isTransmogSet = Core.IsTooltipLearnTransmogSet(bagID, slotID, info, classID, subClassID, ruleRuntimeContext)
 			end
 
+			local isToy
+			if usage.isToy then
+				isToy = Core.IsTooltipToy(bagID, slotID, info, ruleRuntimeContext)
+			end
+
 			local resolvedBindType = ruleItemInfo and ruleItemInfo.bindType or nil
 			if usage.bindType then
 				local tooltipBindType = getTooltipResolvedBindType(bagID, slotID, info, ruleRuntimeContext)
@@ -4704,6 +4763,7 @@ local function resolveCategoryForItem(bagID, slotID, info, questInfo, settings, 
 			itemContext.canAuctionHouseSell = not not canAuctionHouseSell
 			itemContext.isEquipmentSet = not not isEquipmentSet
 			itemContext.isTransmogSet = not not isTransmogSet
+			itemContext.isToy = not not isToy
 			itemContext.isTeleportItem = addon.MythicPlus
 				and addon.MythicPlus.functions
 				and addon.MythicPlus.functions.IsTeleportItem

@@ -82,8 +82,9 @@ local AUTO_ENABLE_OPTIONS = {
 	HEALTH = L["Health"] or "Health",
 	MAIN = L["AutoEnableMain"] or "Main resource",
 	SECONDARY = L["AutoEnableSecondary"] or "Secondary resources",
+	TERTIARY = L["ResourceBarsTertiary"] or "Tertiary resource",
 }
-local AUTO_ENABLE_ORDER = { "HEALTH", "MAIN", "SECONDARY" }
+local AUTO_ENABLE_ORDER = { "HEALTH", "MAIN", "SECONDARY", "TERTIARY" }
 local RESOURCE_MODE_OPTIONS = {
 	SPEC = L["ResourceBarsModeSpec"] or "Classic",
 	SHARED = L["ResourceBarsModeShared"] or "Shared",
@@ -137,7 +138,7 @@ local function autoEnableSelection()
 	addon.db.resourceBarsAutoEnable = addon.db.resourceBarsAutoEnable or {}
 	-- Migrate legacy boolean flag into the new selection map
 	if addon.db.resourceBarsAutoEnableAll ~= nil then
-		if addon.db.resourceBarsAutoEnableAll == true and not next(addon.db.resourceBarsAutoEnable) then addon.db.resourceBarsAutoEnable = { HEALTH = true, MAIN = true, SECONDARY = true } end
+			if addon.db.resourceBarsAutoEnableAll == true and not next(addon.db.resourceBarsAutoEnable) then addon.db.resourceBarsAutoEnable = { HEALTH = true, MAIN = true, SECONDARY = true, TERTIARY = true } end
 		addon.db.resourceBarsAutoEnableAll = nil
 	end
 	return addon.db.resourceBarsAutoEnable
@@ -147,7 +148,15 @@ local function shouldAutoEnableBar(pType, specInfo, selection)
 	if not selection then return false end
 	if pType == "HEALTH" then return selection.HEALTH == true end
 	if specInfo and specInfo.MAIN == pType then return selection.MAIN == true end
-	if specInfo and pType ~= specInfo.MAIN and pType ~= "HEALTH" then return specInfo[pType] == true and selection.SECONDARY == true end
+	if specInfo and pType ~= specInfo.MAIN and pType ~= "HEALTH" then
+		local idx = 0
+		for _, classType in ipairs(ResourceBars.classPowerTypes or {}) do
+			if classType ~= specInfo.MAIN and specInfo[classType] then
+				idx = idx + 1
+				if classType == pType then return (idx == 1 and selection.SECONDARY == true) or (idx > 1 and selection.TERTIARY == true) end
+			end
+		end
+	end
 	return false
 end
 
@@ -155,7 +164,7 @@ local function maybeAutoEnableBars(specIndex, specCfg)
 	if not specCfg or specCfg._autoEnabled then return end
 	if getSpecMode(specIndex) == "SHARED" then return end
 	local selection = autoEnableSelection()
-	if not selection or not (selection.HEALTH or selection.MAIN or selection.SECONDARY) then return end
+	if not selection or not (selection.HEALTH or selection.MAIN or selection.SECONDARY or selection.TERTIARY) then return end
 
 	-- Skip if user already touched enable state
 	for _, cfg in pairs(specCfg) do
@@ -171,11 +180,15 @@ local function maybeAutoEnableBars(specIndex, specCfg)
 	local mainType = specInfo.MAIN
 	if selection.HEALTH then bars[#bars + 1] = "HEALTH" end
 	if selection.MAIN and mainType then bars[#bars + 1] = mainType end
-	if selection.SECONDARY then
-		for _, pType in ipairs(ResourceBars.classPowerTypes or {}) do
-			if specInfo[pType] and pType ~= mainType and pType ~= "HEALTH" then bars[#bars + 1] = pType end
+		if selection.SECONDARY or selection.TERTIARY then
+			local idx = 0
+			for _, pType in ipairs(ResourceBars.classPowerTypes or {}) do
+				if specInfo[pType] and pType ~= mainType and pType ~= "HEALTH" then
+					idx = idx + 1
+					if (idx == 1 and selection.SECONDARY) or (idx > 1 and selection.TERTIARY) then bars[#bars + 1] = pType end
+				end
+			end
 		end
-	end
 	if #bars == 0 then return end
 
 	local function frameNameFor(typeId)
@@ -743,6 +756,10 @@ registerEditModeBars = function()
 			local pType = currentEditorPowerType()
 			return ResourceBars and ResourceBars.separatorEligible and pType and ResourceBars.separatorEligible[pType] == true
 		end
+		local function currentEditorUsesDuration()
+			local pType = currentEditorPowerType()
+			return ResourceBars and ResourceBars.IsDurationPowerType and ResourceBars.IsDurationPowerType(pType) == true
+		end
 		local function currentPowerConfigTarget()
 			if genericSharedPowerEditor then
 				return ensurePowerTypeOverrideEntry(selectedSharedPowerTypeTarget())
@@ -936,6 +953,7 @@ registerEditModeBars = function()
 			if not store then return false end
 			if targetKey == "MAIN" then return store.MAIN end
 			if targetKey == "SECONDARY" then return store.SECONDARY end
+			if targetKey == "TERTIARY" then return store.TERTIARY end
 			return store[targetKey or barType]
 		end
 		local function confirmSaveGlobal(targetKey, doSave)
@@ -1224,6 +1242,7 @@ registerEditModeBars = function()
 				local function displayNameForBarType(pType)
 					if pType == "MAIN" then return L["AutoEnableMain"] or "Main resource" end
 					if pType == "SECONDARY" then return L["AutoEnableSecondary"] or "Secondary" end
+					if pType == "TERTIARY" then return L["ResourceBarsTertiary"] or "Tertiary" end
 					if pType == "HEALTH" then return HEALTH or "Health" end
 					local s = (ResourceBars.PowerLabels and ResourceBars.PowerLabels[pType]) or _G["POWER_TYPE_" .. pType] or _G[pType]
 					if type(s) == "string" and s ~= "" then return s end
@@ -3950,6 +3969,9 @@ registerEditModeBars = function()
 					end,
 					hasOpacity = true,
 					parentId = powerColorParentId,
+					isShown = function()
+						return not currentEditorUsesDuration()
+					end,
 				}
 			end
 
@@ -4908,6 +4930,7 @@ registerEditModeBars = function()
 		local assignments = ResourceBars.ResolveSharedSlotAssignments and ResourceBars.ResolveSharedSlotAssignments(activeSpec) or {}
 		if ResourceBars and ResourceBars.SyncSharedSlotProxyFrames then ResourceBars.SyncSharedSlotProxyFrames(activeSpec) end
 		local allowed = { HEALTH = true, MAIN = true, SECONDARY = true }
+		if assignments and assignments.TERTIARY then allowed.TERTIARY = true end
 		clearUnusedRegistrations(allowed)
 		registerBar("HEALTH", "EQOLHealthBar", "HEALTH", ResourceBars.DEFAULT_HEALTH_WIDTH, ResourceBars.DEFAULT_HEALTH_HEIGHT, {
 			sharedSlot = "HEALTH",
@@ -4917,6 +4940,7 @@ registerEditModeBars = function()
 			{ slot = "MAIN", label = L["AutoEnableMain"] or "Main resource" },
 			{ slot = "SECONDARY", label = L["AutoEnableSecondary"] or "Secondary" },
 		}
+		if assignments and assignments.TERTIARY then sharedEntries[#sharedEntries + 1] = { slot = "TERTIARY", label = L["ResourceBarsTertiary"] or "Tertiary" } end
 		for _, entry in ipairs(sharedEntries) do
 			local resolvedType = assignments and assignments[entry.slot]
 			registerBar(
@@ -5140,11 +5164,22 @@ local function buildSettings()
 		parentCheck = sharedModeParentCheck,
 	})
 
+	local sharedEnableOptions = AUTO_ENABLE_OPTIONS
+	local sharedEnableOrder = AUTO_ENABLE_ORDER
+	do
+		local activeSpec = tonumber(getActiveSpecIndex()) or tonumber(addon.variables and addon.variables.unitSpec) or 0
+		local assignments = ResourceBars.ResolveSharedSlotAssignments and ResourceBars.ResolveSharedSlotAssignments(activeSpec) or nil
+		if not (assignments and assignments.TERTIARY) then
+			sharedEnableOptions = CopyTable(AUTO_ENABLE_OPTIONS)
+			sharedEnableOptions.TERTIARY = nil
+			sharedEnableOrder = { "HEALTH", "MAIN", "SECONDARY" }
+		end
+	end
 	addon.functions.SettingsCreateMultiDropdown(cat, {
 		var = "resourceBarsSharedEnabled",
 		text = L["ResourceBarsModeShared"] or "Shared",
-		options = AUTO_ENABLE_OPTIONS,
-		order = AUTO_ENABLE_ORDER,
+		options = sharedEnableOptions,
+		order = sharedEnableOrder,
 		isSelectedFunc = function(key)
 			return isSharedSlotEnabled(key)
 		end,

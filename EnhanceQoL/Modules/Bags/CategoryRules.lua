@@ -177,7 +177,7 @@ local customCategoryStateHiddenBuiltIn
 local customCategoryCompiledState
 local cachedCategoryRuleContextUsage
 local cachedCategorySectionDefinitions
-local BASIC_PRESET_VERSION = 20
+local BASIC_PRESET_VERSION = 21
 local HOUSING_CLASS_ID = 20
 local ITEM_ENHANCEMENTS_CLASS_ID = 8
 local CATEGORY_MODE_IDS = {
@@ -765,6 +765,15 @@ local FIELD_DEFINITIONS = {
 		operators = { "EQUALS" },
 		defaultOperator = "EQUALS",
 		contextKey = "isTransmogSet",
+		buildOptions = buildBooleanOptions,
+	},
+	isToy = {
+		labelKey = "settingsRuleFieldToy",
+		groupID = "smart",
+		valueType = "enum",
+		operators = { "EQUALS" },
+		defaultOperator = "EQUALS",
+		contextKey = "isToy",
 		buildOptions = buildBooleanOptions,
 	},
 	isKeystone = {
@@ -1913,6 +1922,17 @@ local function seedBasicPresetIntoModeState(modeState)
 						return buildPresetRuleGroup(counterState, "OR", {
 							buildPresetRule(counterState, "subClassKey", "EQUALS", "15:2"),
 							buildPresetRule(counterState, "classID", "EQUALS", 17),
+						})
+					end,
+				},
+				{
+					name = L["basicPresetCategoryToys"] or "Toys",
+					priority = 33,
+					sortMode = "quality",
+					color = { 0.5, 0.86, 1 },
+					ruleTree = function(counterState)
+						return buildPresetRuleGroup(counterState, "AND", {
+							buildPresetRule(counterState, "isToy", "EQUALS", true),
 						})
 					end,
 				},
