@@ -4,6 +4,7 @@
 
 ### 🐛 Fixed
 
+- Unit Frames: Added separate Absorb and Heal Absorb overlay height controls for custom unit and group frames; setting either height to 0 now uses the full health bar height so overlays keep scaling with the frame.
 - Unit Frames / Resource Bars: Disabled Blizzard class-resource hide settings, such as Soul Shards and Combo Points, while the custom EQoL Player Frame is active so users are not shown controls that no longer affect the active frame.
 
 ---

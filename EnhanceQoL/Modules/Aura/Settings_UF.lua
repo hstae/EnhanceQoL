@@ -4860,6 +4860,10 @@ local function buildUnitSettings(unit)
 			if not height or height <= 0 then height = def.healthHeight or 24 end
 			return height
 		end
+		local function formatOverlayHeight(value)
+			if (tonumber(value) or 0) <= 0 then return L["Max"] or "Max" end
+			return tostring(math.floor((tonumber(value) or 0) + 0.5))
+		end
 
 		list[#list + 1] = { name = L["Absorb"] or "Absorb", kind = UF.ui.settingType.Collapsible, id = "absorb", defaultCollapsed = true }
 		local absorbColorDef = healthDef.absorbColor or { 0.85, 0.95, 1, 0.7 }
@@ -4925,15 +4929,16 @@ local function buildUnitSettings(unit)
 			function() return getValue(unit, { "health", "absorbReverseFill" }, healthDef.absorbReverseFill == true) == true end
 		)
 
-		list[#list + 1] = slider(L["Absorb overlay height"] or "Absorb overlay height", 1, 80, 1, function()
+		list[#list + 1] = slider(L["Absorb overlay height"] or "Absorb overlay height", 0, 80, 1, function()
 			local fallback = getOverlayHeightFallback()
 			local val = getValue(unit, { "health", "absorbOverlayHeight" }, healthDef.absorbOverlayHeight)
-			if not val or val <= 0 then return fallback end
+			if not val or val <= 0 then return 0 end
 			return math.min(val, fallback)
 		end, function(val)
-			setValue(unit, { "health", "absorbOverlayHeight" }, val or getOverlayHeightFallback())
+			val = tonumber(val) or 0
+			setValue(unit, { "health", "absorbOverlayHeight" }, val > 0 and val or nil)
 			refresh()
-		end, getOverlayHeightFallback(), "absorb", true)
+		end, 0, "absorb", true, formatOverlayHeight)
 
 		list[#list + 1] = checkbox(L["Show sample absorb"] or "Show sample absorb", function() return sampleAbsorb[unit] == true end, function(val)
 			sampleAbsorb[unit] = val and true or false
@@ -4994,15 +4999,16 @@ local function buildUnitSettings(unit)
 			"healAbsorb"
 		)
 
-		list[#list + 1] = slider(L["Heal absorb overlay height"] or "Heal absorb overlay height", 1, 80, 1, function()
+		list[#list + 1] = slider(L["Heal absorb overlay height"] or "Heal absorb overlay height", 0, 80, 1, function()
 			local fallback = getOverlayHeightFallback()
 			local val = getValue(unit, { "health", "healAbsorbOverlayHeight" }, healthDef.healAbsorbOverlayHeight)
-			if not val or val <= 0 then return fallback end
+			if not val or val <= 0 then return 0 end
 			return math.min(val, fallback)
 		end, function(val)
-			setValue(unit, { "health", "healAbsorbOverlayHeight" }, val or getOverlayHeightFallback())
+			val = tonumber(val) or 0
+			setValue(unit, { "health", "healAbsorbOverlayHeight" }, val > 0 and val or nil)
 			refresh()
-		end, getOverlayHeightFallback(), "healAbsorb", true)
+		end, 0, "healAbsorb", true, formatOverlayHeight)
 
 		list[#list + 1] = checkbox(L["Show sample heal absorb"] or "Show sample heal absorb", function() return sampleHealAbsorb[unit] == true end, function(val)
 			sampleHealAbsorb[unit] = val and true or false

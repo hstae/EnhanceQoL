@@ -235,6 +235,11 @@ local function formatSliderDecimal(value)
 	return text
 end
 
+function GF.FormatOverlayHeight(value)
+	if (tonumber(value) or 0) <= 0 then return L["Max"] or "Max" end
+	return tostring(floor((tonumber(value) or 0) + 0.5))
+end
+
 function GF.SetStatusBarValue(bar, value, smooth, forceImmediate)
 	if not bar or value == nil then return end
 	local pixelHelper = GFH and GFH.Pixel
@@ -1015,8 +1020,9 @@ end
 
 function GF._resolveOverlayHeightSetting(value, fallback)
 	local v = tonumber(value)
-	if not v or v <= 0 then return fallback end
-	if v > fallback then return fallback end
+	if not v then return fallback end
+	if v <= 0 then return 0 end
+	if v >= fallback then return 0 end
 	return v
 end
 
@@ -19908,10 +19914,11 @@ local function buildEditModeSettings(kind, editModeId)
 			allowInput = true,
 			field = "absorbOverlayHeight",
 			parentId = "absorb",
-			minValue = 1,
+			minValue = 0,
 			maxValue = 300,
 			valueStep = 1,
-			default = GF._computeOverlayHeightFallback((DEFAULTS[kind] and DEFAULTS[kind].height) or 24, (DEFAULTS[kind] and DEFAULTS[kind].powerHeight) or 6),
+			formatter = GF.FormatOverlayHeight,
+			default = 0,
 			get = function()
 				local cfg = getCfg(kind)
 				local hc = cfg and cfg.health or {}
@@ -19928,8 +19935,8 @@ local function buildEditModeSettings(kind, editModeId)
 				cfg.health = cfg.health or {}
 				local def = DEFAULTS[kind] or {}
 				local fallback = GF._computeOverlayHeightFallback((cfg and cfg.height) or def.height, (cfg and cfg.powerHeight) or def.powerHeight)
-				local v = clampNumber(value, 1, 300, fallback)
-				if not v or v <= 0 then v = fallback end
+				local v = clampNumber(value, 0, 300, 0)
+				if not v or v <= 0 then v = 0 end
 				v = GF._resolveOverlayHeightSetting(v, fallback)
 				cfg.health.absorbOverlayHeight = v
 				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "absorbOverlayHeight", v, nil, true) end
@@ -20184,10 +20191,11 @@ local function buildEditModeSettings(kind, editModeId)
 			allowInput = true,
 			field = "healAbsorbOverlayHeight",
 			parentId = "healabsorb",
-			minValue = 1,
+			minValue = 0,
 			maxValue = 300,
 			valueStep = 1,
-			default = GF._computeOverlayHeightFallback((DEFAULTS[kind] and DEFAULTS[kind].height) or 24, (DEFAULTS[kind] and DEFAULTS[kind].powerHeight) or 6),
+			formatter = GF.FormatOverlayHeight,
+			default = 0,
 			get = function()
 				local cfg = getCfg(kind)
 				local hc = cfg and cfg.health or {}
@@ -20204,8 +20212,8 @@ local function buildEditModeSettings(kind, editModeId)
 				cfg.health = cfg.health or {}
 				local def = DEFAULTS[kind] or {}
 				local fallback = GF._computeOverlayHeightFallback((cfg and cfg.height) or def.height, (cfg and cfg.powerHeight) or def.powerHeight)
-				local v = clampNumber(value, 1, 300, fallback)
-				if not v or v <= 0 then v = fallback end
+				local v = clampNumber(value, 0, 300, 0)
+				if not v or v <= 0 then v = 0 end
 				v = GF._resolveOverlayHeightSetting(v, fallback)
 				cfg.health.healAbsorbOverlayHeight = v
 				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "healAbsorbOverlayHeight", v, nil, true) end
@@ -28184,7 +28192,7 @@ local function applyEditModeData(kind, data)
 	if data.absorbOverlayHeight ~= nil then
 		cfg.health = cfg.health or {}
 		local fallback = GF._computeOverlayHeightFallback(cfg.height, cfg.powerHeight)
-		cfg.health.absorbOverlayHeight = GF._resolveOverlayHeightSetting(clampNumber(data.absorbOverlayHeight, 1, 300, fallback), fallback)
+		cfg.health.absorbOverlayHeight = GF._resolveOverlayHeightSetting(clampNumber(data.absorbOverlayHeight, 0, 300, 0), fallback)
 	end
 	if data.absorbUseCustomColor ~= nil then
 		cfg.health = cfg.health or {}
@@ -28225,7 +28233,7 @@ local function applyEditModeData(kind, data)
 	if data.healAbsorbOverlayHeight ~= nil then
 		cfg.health = cfg.health or {}
 		local fallback = GF._computeOverlayHeightFallback(cfg.height, cfg.powerHeight)
-		cfg.health.healAbsorbOverlayHeight = GF._resolveOverlayHeightSetting(clampNumber(data.healAbsorbOverlayHeight, 1, 300, fallback), fallback)
+		cfg.health.healAbsorbOverlayHeight = GF._resolveOverlayHeightSetting(clampNumber(data.healAbsorbOverlayHeight, 0, 300, 0), fallback)
 	end
 	if data.healAbsorbUseCustomColor ~= nil then
 		cfg.health = cfg.health or {}
