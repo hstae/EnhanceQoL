@@ -252,6 +252,24 @@ local function invalidateResolvedTextAppearanceCache()
 	resolvedTextAppearanceCache.byElement = {}
 end
 
+local function clampTextAppearanceSize(size)
+	size = math.floor((tonumber(size) or defaultSettings.textAppearance.size) + 0.5)
+	if size < 8 then
+		return 8
+	elseif size > 24 then
+		return 24
+	end
+	return size
+end
+
+local function setResolvedElementSize(appearance, elementID, size)
+	local element = appearance and appearance.elements and appearance.elements[elementID] or nil
+	if not element then
+		return
+	end
+	element.size = clampTextAppearanceSize(size)
+end
+
 local TRACKED_CURRENCY_DATA_REQUEST_THROTTLE = 5
 local trackedCurrencyDataRequestState = addon.Bags.variables.trackedCurrencyDataRequestState or {}
 addon.Bags.variables.trackedCurrencyDataRequestState = trackedCurrencyDataRequestState
@@ -1559,12 +1577,7 @@ function addon.SetTextElementSize(elementID, size)
 	if not element then
 		return false
 	end
-	size = math.floor((tonumber(size) or element.size or defaultSettings.textAppearance.size) + 0.5)
-	if size < 8 then
-		size = 8
-	elseif size > 24 then
-		size = 24
-	end
+	size = clampTextAppearanceSize(tonumber(size) or element.size or defaultSettings.textAppearance.size)
 	if tonumber(element.size) == size then
 		return false
 	end
@@ -1700,18 +1713,17 @@ function addon.SetTextAppearanceFont(fontID)
 end
 
 function addon.SetTextAppearanceSize(size)
-	size = math.floor((tonumber(size) or defaultSettings.textAppearance.size) + 0.5)
-	if size < 8 then
-		size = 8
-	elseif size > 24 then
-		size = 24
-	end
+	size = clampTextAppearanceSize(size)
 
 	local appearance = addon.GetTextAppearance()
+	local oldSize = clampTextAppearanceSize(tonumber(appearance.size) or defaultSettings.textAppearance.size)
 	if tonumber(appearance.size) == size then
 		return false
 	end
 	appearance.size = size
+	local sizeDelta = size - oldSize
+	setResolvedElementSize(appearance, "categoryHeader", (tonumber(appearance.elements.categoryHeader.size) or TEXT_ELEMENT_DEFINITIONS.categoryHeader.size) + sizeDelta)
+	setResolvedElementSize(appearance, "subcategoryHeader", (tonumber(appearance.elements.subcategoryHeader.size) or TEXT_ELEMENT_DEFINITIONS.subcategoryHeader.size) + sizeDelta)
 	invalidateResolvedTextAppearanceCache()
 	return true
 end
@@ -1733,12 +1745,7 @@ function addon.GetTextAppearanceOverlaySize()
 end
 
 function addon.SetTextAppearanceOverlaySize(size)
-	size = math.floor((tonumber(size) or defaultSettings.textAppearance.size) + 0.5)
-	if size < 8 then
-		size = 8
-	elseif size > 24 then
-		size = 24
-	end
+	size = clampTextAppearanceSize(size)
 
 	local appearance = addon.GetTextAppearance()
 	if tonumber(appearance.overlaySize) == size then
@@ -1746,6 +1753,8 @@ function addon.SetTextAppearanceOverlaySize(size)
 	end
 
 	appearance.overlaySize = size
+	setResolvedElementSize(appearance, "overlays", size)
+	setResolvedElementSize(appearance, "stackCount", size)
 	invalidateResolvedTextAppearanceCache()
 	return true
 end

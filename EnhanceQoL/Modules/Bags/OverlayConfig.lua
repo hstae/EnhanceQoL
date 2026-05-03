@@ -140,6 +140,26 @@ local ANCHOR_OPTIONS = {
 
 local OVERLAY_ELEMENTS = {
 	{
+		id = "bindStatus",
+		frameKey = "BindStatusText",
+		labelKey = "settingsOverlayBindStatus",
+		descriptionKey = "settingsOverlayBindStatusTooltip",
+		defaultAnchor = "BOTTOMRIGHT",
+		defaultEnabled = false,
+		previewText = "BoE",
+		previewColor = { 0.38, 0.82, 1 },
+	},
+	{
+		id = "equipmentSet",
+		frameKey = "EquipmentSetIcon",
+		labelKey = "settingsOverlayEquipmentSet",
+		descriptionKey = "settingsOverlayEquipmentSetTooltip",
+		defaultAnchor = "BOTTOMLEFT",
+		defaultEnabled = false,
+		previewText = "SET",
+		previewColor = { 0.36, 0.78, 1 },
+	},
+	{
 		id = "itemLevel",
 		frameKey = "ItemLevelText",
 		labelKey = "settingsOverlayItemLevel",

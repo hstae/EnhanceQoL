@@ -1,5 +1,18 @@
 # Changelog
 
+## [10.12.0] - 2026-05-03
+
+### ✨ Added
+
+- Bags: Added optional item overlays for equipment set items and special bind statuses such as BoE, Warbound, and Warbound until equipped.
+
+### 🐛 Fixed
+
+- Bags: Fixed the subcategory name spacing option so disabling it keeps compact category rows compact again.
+- Bags: Fixed bag text and overlay size controls so changes update the affected labels and item overlays immediately.
+
+---
+
 ## [10.11.0] - 2026-05-03
 
 ### ✨ Added

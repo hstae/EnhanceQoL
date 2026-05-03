@@ -58,6 +58,7 @@ Core.SECTION_TOGGLE_RIGHT_WIDTH = Core.SECTION_HEADER_HEIGHT
 Core.SECTION_TOGGLE_WIDTH = Core.SECTION_TOGGLE_LEFT_WIDTH + Core.SECTION_TOGGLE_RIGHT_WIDTH
 Core.REAGENT_SLOT_ICON_ATLAS = "bags-icon-reagents"
 Core.GET_BAG_ITEM_TOOLTIP = C_TooltipInfo and C_TooltipInfo.GetBagItem
+Core.EQUIPMENT_SET_OVERLAY_FALLBACK_TEXTURE = "Interface\\PaperDollInfoFrame\\UI-EquipmentManager-Toggle"
 Core.ACTIVE_BAG_EVENTS = {
 	"ITEM_LOCK_CHANGED",
 	"BAG_UPDATE_COOLDOWN",
@@ -147,6 +148,7 @@ state.groupSpacers = state.groupSpacers or {}
 state.currencyButtons = state.currencyButtons or {}
 state.itemRuleDataCache = state.itemRuleDataCache or {}
 state.tooltipBindTypeCache = state.tooltipBindTypeCache or {}
+state.overlayBindStatusCache = state.overlayBindStatusCache or {}
 state.slotCategoryCache = state.slotCategoryCache or {}
 state.openSessionNewItems = state.openSessionNewItems or {}
 state.acknowledgedOpenSessionNewItems = state.acknowledgedOpenSessionNewItems or {}
@@ -270,6 +272,12 @@ function BagsItemButton_OnLoad(self)
 	self.ItemLevelText:Hide()
 	if self.ItemUpgradeText then
 		self.ItemUpgradeText:Hide()
+	end
+	if self.EquipmentSetIcon then
+		self.EquipmentSetIcon:Hide()
+	end
+	if self.BindStatusText then
+		self.BindStatusText:Hide()
 	end
 	if self.ReagentTint then
 		self.ReagentTint:Hide()
@@ -1205,6 +1213,10 @@ applyConfiguredItemButtonFonts = function(button, appearance, signature)
 	if button.ItemUpgradeText then
 		applyConfiguredFont(button.ItemUpgradeText, math.max(8, overlayBaseSize - 2), "overlays")
 		button.ItemUpgradeText:SetJustifyH("RIGHT")
+	end
+	if button.BindStatusText then
+		applyConfiguredFont(button.BindStatusText, math.max(8, overlayBaseSize - 2), "overlays")
+		button.BindStatusText:SetJustifyH("RIGHT")
 	end
 	if button.Count then
 		applyConfiguredFont(button.Count, stackBaseSize, "stackCount")
@@ -3142,6 +3154,168 @@ local function updateItemUpgradeText(button, itemLink, itemID, overlayRuntime)
 	button._bagsItemUpgradeEvalKey = evalKey
 end
 
+Core.GetTooltipOverlayBindStatus = function(bagID, slotID, info)
+	if not Core.GET_BAG_ITEM_TOOLTIP or bagID == nil or slotID == nil then
+		return nil
+	end
+
+	local cacheKey = tostring(bagID) .. ":" .. tostring(slotID)
+	local itemLink = info and info.hyperlink or nil
+	local itemID = info and info.itemID or nil
+	local isBound = info and info.isBound or false
+	local cached = state.overlayBindStatusCache and state.overlayBindStatusCache[cacheKey] or nil
+	if cached
+		and cached.itemLink == itemLink
+		and cached.itemID == itemID
+		and cached.isBound == isBound
+	then
+		return cached.status or nil
+	end
+
+	local status
+	local tooltipData = Core.GET_BAG_ITEM_TOOLTIP(bagID, slotID)
+	for _, line in ipairs((tooltipData and tooltipData.lines) or {}) do
+		local text = line and line.leftText or nil
+		if line and line.type == 20 and text then
+			if text == ITEM_BIND_ON_EQUIP then
+				status = "BoE"
+				break
+			elseif text == ITEM_ACCOUNTBOUND_UNTIL_EQUIP or text == ITEM_BIND_TO_ACCOUNT_UNTIL_EQUIP then
+				status = "WuE"
+				break
+			elseif text == ITEM_ACCOUNTBOUND or text == ITEM_BIND_TO_ACCOUNT or text == ITEM_BIND_TO_BNETACCOUNT then
+				status = "WB"
+				break
+			end
+		end
+	end
+
+	state.overlayBindStatusCache[cacheKey] = {
+		itemLink = itemLink,
+		itemID = itemID,
+		isBound = isBound,
+		status = status or false,
+	}
+
+	return status
+end
+
+Core.GetBindStatusOverlayColor = function(status)
+	if status == "BoE" then
+		return 0.38, 0.82, 1
+	elseif status == "WB" then
+		return 0.4, 1, 0.72
+	elseif status == "WuE" then
+		return 0.8, 1, 0.45
+	end
+	return 1, 1, 1
+end
+
+Core.UpdateBindStatusOverlay = function(button, bagID, slotID, info, overlayRuntime)
+	if not button or not button.BindStatusText then
+		return
+	end
+
+	local text = button.BindStatusText
+	local overlayEntry = overlayRuntime and overlayRuntime.byID and overlayRuntime.byID.bindStatus or nil
+	local overlayVersion = overlayRuntime and overlayRuntime.version or 0
+	local itemLink = info and info.hyperlink or nil
+	local itemID = info and info.itemID or nil
+	local evalKey = string.format("%s:%s:%s:%s", tostring(bagID), tostring(slotID), tostring(itemLink or itemID or 0), tostring(overlayVersion))
+
+	if not (overlayEntry and overlayEntry.enabled) then
+		hideButtonOverlayText(button, text, "_bagsBindStatusEvalKey", "hidden:" .. evalKey)
+		return
+	end
+
+	if not itemLink and not itemID then
+		hideButtonOverlayText(button, text, "_bagsBindStatusEvalKey", "empty:" .. evalKey)
+		return
+	end
+
+	local status = Core.GetTooltipOverlayBindStatus(bagID, slotID, info)
+	if not status then
+		hideButtonOverlayText(button, text, "_bagsBindStatusEvalKey", "none:" .. evalKey)
+		return
+	end
+
+	local statusEvalKey = status .. ":" .. evalKey
+	if button._bagsBindStatusEvalKey == statusEvalKey then
+		return
+	end
+
+	text:SetText(addon.FormatTextElement and addon.FormatTextElement("overlays", status) or status)
+	text:SetTextColor(Core.GetBindStatusOverlayColor(status))
+	text:Show()
+	button._bagsBindStatusEvalKey = statusEvalKey
+end
+
+Core.HideButtonOverlayRegion = function(button, region, cacheField, hiddenKey)
+	if button[cacheField] == hiddenKey then
+		return
+	end
+
+	region:Hide()
+	button[cacheField] = hiddenKey
+end
+
+Core.GetEquipmentSetOverlayTexture = function(bagID, slotID)
+	if not (C_Container and C_Container.GetContainerItemEquipmentSetInfo) then
+		return nil
+	end
+
+	local inEquipmentSet, setList = C_Container.GetContainerItemEquipmentSetInfo(bagID, slotID)
+	if not inEquipmentSet then
+		return nil
+	end
+
+	local firstSetName = type(setList) == "string" and setList:match("^%s*([^,]+)") or nil
+	firstSetName = firstSetName and firstSetName:match("^%s*(.-)%s*$") or nil
+	local setID = firstSetName and C_EquipmentSet and C_EquipmentSet.GetEquipmentSetID and C_EquipmentSet.GetEquipmentSetID(firstSetName) or nil
+	local texture = setID and C_EquipmentSet.GetEquipmentSetInfo and select(2, C_EquipmentSet.GetEquipmentSetInfo(setID)) or nil
+	return texture or Core.EQUIPMENT_SET_OVERLAY_FALLBACK_TEXTURE
+end
+
+Core.UpdateEquipmentSetOverlay = function(button, bagID, slotID, info, overlayRuntime)
+	if not button or not button.EquipmentSetIcon then
+		return
+	end
+
+	local icon = button.EquipmentSetIcon
+	local overlayEntry = overlayRuntime and overlayRuntime.byID and overlayRuntime.byID.equipmentSet or nil
+	local overlayVersion = overlayRuntime and overlayRuntime.version or 0
+	local itemLink = info and info.hyperlink or nil
+	local itemID = info and info.itemID or nil
+	local evalKey = string.format("%s:%s:%s:%s", tostring(bagID), tostring(slotID), tostring(itemLink or itemID or 0), tostring(overlayVersion))
+
+	if not (overlayEntry and overlayEntry.enabled) then
+		Core.HideButtonOverlayRegion(button, icon, "_bagsEquipmentSetEvalKey", "hidden:" .. evalKey)
+		return
+	end
+
+	if not itemLink and not itemID then
+		Core.HideButtonOverlayRegion(button, icon, "_bagsEquipmentSetEvalKey", "empty:" .. evalKey)
+		return
+	end
+
+	local texture = Core.GetEquipmentSetOverlayTexture(bagID, slotID)
+	if not texture then
+		Core.HideButtonOverlayRegion(button, icon, "_bagsEquipmentSetEvalKey", "none:" .. evalKey)
+		return
+	end
+
+	local setEvalKey = tostring(texture) .. ":" .. evalKey
+	if button._bagsEquipmentSetEvalKey == setEvalKey then
+		return
+	end
+
+	icon:SetTexture(texture)
+	icon:SetSize(14, 14)
+	icon:SetVertexColor(1, 1, 1)
+	icon:Show()
+	button._bagsEquipmentSetEvalKey = setEvalKey
+end
+
 updateReagentBagVisuals = function(button)
 	if not button then
 		return
@@ -3398,6 +3572,9 @@ local function updateButtonData(button, mapping, overlayRuntime, textAppearance,
 			Bags.functions.ApplyRecipeUsabilityVisual(button, isUnusableRecipe)
 		end
 		updateReagentBagVisuals(button)
+		applyConfiguredOverlayAnchors(button, overlayRuntime)
+		Core.UpdateEquipmentSetOverlay(button, bagID, slotID, info, overlayRuntime)
+		Core.UpdateBindStatusOverlay(button, bagID, slotID, info, overlayRuntime)
 		if button._bagsRenderFiltered ~= isFiltered then
 			updateButtonSearchState(button, isFiltered)
 		end
@@ -3453,6 +3630,8 @@ local function updateButtonData(button, mapping, overlayRuntime, textAppearance,
 	applyConfiguredOverlayAnchors(button, overlayRuntime)
 	updateItemLevelText(button, itemLink, itemID, quality, overlayRuntime)
 	updateItemUpgradeText(button, itemLink, itemID, overlayRuntime)
+	Core.UpdateEquipmentSetOverlay(button, bagID, slotID, info, overlayRuntime)
+	Core.UpdateBindStatusOverlay(button, bagID, slotID, info, overlayRuntime)
 	storeButtonRenderState(
 		button,
 		bagID,
@@ -4852,6 +5031,13 @@ local function ensureButtonCapacity(requiredCount)
 			button.ItemUpgradeText:SetText("")
 			button.ItemUpgradeText:Hide()
 		end
+		if button.EquipmentSetIcon then
+			button.EquipmentSetIcon:Hide()
+		end
+		if button.BindStatusText then
+			button.BindStatusText:SetText("")
+			button.BindStatusText:Hide()
+		end
 		state.buttons[index] = button
 	end
 
@@ -5144,6 +5330,9 @@ end
 
 local function getMeasuredSectionHeaderWidth(label, isCustom, textElementID)
 	if not label or label == "" then
+		return Core.BUTTON_SIZE
+	end
+	if textElementID == "subcategoryHeader" and addon.GetSubcategoryFullLabels and not addon.GetSubcategoryFullLabels() then
 		return Core.BUTTON_SIZE
 	end
 
