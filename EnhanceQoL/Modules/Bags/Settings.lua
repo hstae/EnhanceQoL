@@ -2689,6 +2689,24 @@ local function createCategoriesPage(parent)
 	end
 	page.GroupSpacerBefore = groupSpacerBefore
 
+	local groupCombineSubcategories = createInlineCheckbox(
+		detailContent,
+		L["settingsCategoryGroupCombineSubcategories"] or "Combine subcategories in this group",
+		L["settingsCategoryGroupCombineSubcategoriesTooltip"] or "",
+		function(value)
+			local selection = getCategoryPageSelection()
+			if selection.selectedType == "group" and selection.selectedGroup and addon.SetCustomCategoryGroupCombineSubcategories then
+				addon.SetCustomCategoryGroupCombineSubcategories(selection.selectedGroup.id, value)
+				requestCategoryRefresh()
+			end
+		end
+	)
+	groupCombineSubcategories:SetPoint("TOPLEFT", groupSpacerBefore, "BOTTOMLEFT", 0, -8)
+	if groupCombineSubcategories.Label then
+		groupCombineSubcategories.Label:SetPoint("RIGHT", detailContent, "RIGHT", -14, 0)
+	end
+	page.GroupCombineSubcategories = groupCombineSubcategories
+
 	local matchPriorityLabel = detailContent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	matchPriorityLabel:SetPoint("TOPLEFT", priorityHint, "BOTTOMLEFT", 0, -16)
 	matchPriorityLabel:SetText(L["settingsCategoryPriorityLabel"] or "Priority")
@@ -3019,6 +3037,10 @@ refreshCategoriesPage = function(page)
 	if page.GroupSpacerBefore.Label then
 		page.GroupSpacerBefore.Label:SetShown(isGroupSelection)
 	end
+	page.GroupCombineSubcategories:SetShown(isGroupSelection)
+	if page.GroupCombineSubcategories.Label then
+		page.GroupCombineSubcategories.Label:SetShown(isGroupSelection)
+	end
 	page.ItemsCard:SetShown(isCategorySelection)
 	page.RulesCard:SetShown(isCategorySelection)
 
@@ -3056,6 +3078,7 @@ refreshCategoriesPage = function(page)
 		page.PriorityHint:SetText(L["settingsCategoryOrderHint"] or "Lower values render earlier. This only changes where the entry appears, not which items match its rules.")
 		page.SortButton:SetText(L["settingsCategorySortDefault"] or "Default")
 		page.GroupSpacerBefore:SetChecked(selectedGroup.spacerBefore == true)
+		page.GroupCombineSubcategories:SetChecked(selectedGroup.combineSubcategories == true)
 		if not page.PriorityValue:HasFocus() then
 			page.PriorityValue:SetText(tostring(selectedGroup.sortOrder or 0))
 		end
@@ -3070,7 +3093,7 @@ refreshCategoriesPage = function(page)
 		end
 
 		local detailTop = page.DetailContent:GetTop()
-		local groupSpacerBottom = page.GroupSpacerBefore:GetBottom()
+		local groupSpacerBottom = page.GroupCombineSubcategories:GetBottom()
 		local contentHeight
 		if detailTop and groupSpacerBottom then
 			contentHeight = math.ceil((detailTop - groupSpacerBottom) + 24)

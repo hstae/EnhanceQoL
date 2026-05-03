@@ -1,5 +1,14 @@
 # Changelog
 
+## [10.11.0] - 2026-05-03
+
+### ✨ Added
+
+- Bags: Added an option for category groups to show their items together without separate subcategory headers, making grouped layouts more compact.
+- Bags: Added Basic category support for equipment set items so saved gear pieces can be grouped ahead of other gear.
+
+---
+
 ## [10.10.1] - 2026-05-03
 
 ### 🐛 Fixed

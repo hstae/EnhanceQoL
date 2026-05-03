@@ -177,7 +177,7 @@ local customCategoryStateHiddenBuiltIn
 local customCategoryCompiledState
 local cachedCategoryRuleContextUsage
 local cachedCategorySectionDefinitions
-local BASIC_PRESET_VERSION = 17
+local BASIC_PRESET_VERSION = 18
 local HOUSING_CLASS_ID = 20
 local ITEM_ENHANCEMENTS_CLASS_ID = 8
 local CATEGORY_MODE_IDS = {
@@ -207,6 +207,8 @@ for _, definition in ipairs(CATEGORY_SORT_MODE_DEFINITIONS) do
 end
 
 local ITEM_CLASS_TRADEGOODS = Enum and Enum.ItemClass and Enum.ItemClass.Tradegoods or 7
+local ITEM_CLASS_MISCELLANEOUS = Enum and Enum.ItemClass and Enum.ItemClass.Miscellaneous or 15
+local ITEM_MISC_OTHER_SUBCLASS_ID = 4
 local PROFESSION_GROUP_DEFINITIONS = {
 	{ id = "alchemyHerbalism", labelKey = "professionGroupAlchemyHerbalism", fallback = "Herbalism / Alchemy" },
 	{ id = "miningSmithingEngineeringJewelcrafting", labelKey = "professionGroupMiningSmithingEngineeringJewelcrafting", fallback = "Mining / Blacksmithing / Engineering / Jewelcrafting" },
@@ -235,6 +237,20 @@ local TRADEGOODS_PROFESSION_GROUP_BY_SUBCLASS_ID = {
 	[13] = "inscription",
 	[14] = "craftingReagents", -- Optional reagents
 	[15] = "craftingReagents", -- Finishing reagents
+}
+local PROFESSION_GROUP_BY_TREATISE_ITEM_ID = {
+	-- TODO: Review and extend this list for each major expansion when new profession knowledge treatises are added.
+	[245755] = "alchemyHerbalism", -- Thalassian Treatise on Alchemy
+	[245756] = "tailoring", -- Thalassian Treatise on Tailoring
+	[245757] = "inscription", -- Thalassian Treatise on Inscription
+	[245758] = "leatherworkingSkinning", -- Thalassian Treatise on Leatherworking
+	[245759] = "enchanting", -- Thalassian Treatise on Enchanting
+	[245760] = "miningSmithingEngineeringJewelcrafting", -- Thalassian Treatise on Jewelcrafting
+	[245761] = "alchemyHerbalism", -- Thalassian Treatise on Herbalism
+	[245762] = "miningSmithingEngineeringJewelcrafting", -- Thalassian Treatise on Mining
+	[245763] = "miningSmithingEngineeringJewelcrafting", -- Thalassian Treatise on Blacksmithing
+	[245809] = "miningSmithingEngineeringJewelcrafting", -- Thalassian Treatise on Engineering
+	[245828] = "leatherworkingSkinning", -- Thalassian Treatise on Skinning
 }
 
 local function trimUpgradeTrackText(text)
@@ -457,14 +473,23 @@ local function getItemEnhancementsClassLabel()
 	return getClassLabelByID(ITEM_ENHANCEMENTS_CLASS_ID) or "Item Enhancements"
 end
 
-function addon.GetProfessionGroupKeyForItem(classID, subClassID)
+function addon.GetProfessionGroupKeyForItem(classID, subClassID, itemID)
 	classID = tonumber(classID)
 	subClassID = tonumber(subClassID)
-	if classID ~= ITEM_CLASS_TRADEGOODS or subClassID == nil then
+	if classID == ITEM_CLASS_TRADEGOODS and subClassID ~= nil then
+		return TRADEGOODS_PROFESSION_GROUP_BY_SUBCLASS_ID[subClassID]
+	end
+
+	if classID ~= ITEM_CLASS_MISCELLANEOUS or subClassID ~= ITEM_MISC_OTHER_SUBCLASS_ID then
 		return nil
 	end
 
-	return TRADEGOODS_PROFESSION_GROUP_BY_SUBCLASS_ID[subClassID]
+	itemID = tonumber(itemID)
+	if itemID and PROFESSION_GROUP_BY_TREATISE_ITEM_ID[itemID] then
+		return PROFESSION_GROUP_BY_TREATISE_ITEM_ID[itemID]
+	end
+
+	return itemID and PROFESSION_GROUP_BY_TREATISE_ITEM_ID[itemID] or nil
 end
 
 local FIELD_DEFINITIONS = {
@@ -704,6 +729,15 @@ local FIELD_DEFINITIONS = {
 		operators = { "EQUALS" },
 		defaultOperator = "EQUALS",
 		contextKey = "canAuctionHouseSell",
+		buildOptions = buildBooleanOptions,
+	},
+	isEquipmentSet = {
+		labelKey = "settingsRuleFieldEquipmentSet",
+		groupID = "smart",
+		valueType = "enum",
+		operators = { "EQUALS" },
+		defaultOperator = "EQUALS",
+		contextKey = "isEquipmentSet",
 		buildOptions = buildBooleanOptions,
 	},
 	isHearthstone = {
@@ -1311,6 +1345,7 @@ local function buildCompiledCustomCategoryState(categories, groups)
 					groupColor = group.color,
 					groupCollapseID = string.format("group:%s", group.id),
 					groupSpacerBefore = group.spacerBefore == true,
+					groupCombineSubcategories = group.combineSubcategories == true,
 					collapsible = false,
 				}
 			end
@@ -1444,6 +1479,7 @@ local function sanitizeCustomGroup(settings, group, index)
 	group.name = sanitizeGroupName(group.name) or string.format("%s %d", L["settingsCategoryGroupLabel"] or "Group", index)
 	group.color = sanitizeColor(group.color, getDefaultCategoryColor(index))
 	group.spacerBefore = group.spacerBefore == true
+	group.combineSubcategories = group.combineSubcategories == true
 	return group
 end
 
@@ -1533,6 +1569,17 @@ local function seedBasicPresetIntoModeState(modeState)
 						return buildPresetRuleGroup(counterState, "AND", {
 							buildPresetRule(counterState, "recommendedForClass", "EQUALS", true),
 							buildPresetRule(counterState, "isUpgrade", "EQUALS", true),
+						})
+					end,
+				},
+				{
+					name = L["basicPresetCategoryEquipmentSets"] or "Equipment Sets",
+					priority = 96,
+					sortMode = "itemLevel",
+					color = { 0.6, 0.76, 1 },
+					ruleTree = function(counterState)
+						return buildPresetRuleGroup(counterState, "AND", {
+							buildPresetRule(counterState, "isEquipmentSet", "EQUALS", true),
 						})
 					end,
 				},
@@ -2744,6 +2791,22 @@ function addon.SetCustomCategoryGroupSpacerBefore(groupID, enabled)
 	end
 
 	group.spacerBefore = enabled
+	markCustomCategoryStateDirty()
+	return true
+end
+
+function addon.SetCustomCategoryGroupCombineSubcategories(groupID, enabled)
+	local group = findGroupByID(groupID)
+	if not group then
+		return false
+	end
+
+	enabled = enabled == true
+	if group.combineSubcategories == enabled then
+		return false
+	end
+
+	group.combineSubcategories = enabled
 	markCustomCategoryStateDirty()
 	return true
 end

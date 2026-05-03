@@ -3553,6 +3553,7 @@ local function buildSectionDefinitions()
 			groupColor = definition.groupColor,
 			groupCollapseID = definition.groupCollapseID,
 			groupSpacerBefore = definition.groupSpacerBefore == true,
+			groupCombineSubcategories = definition.groupCombineSubcategories == true,
 			collapsible = definition.collapsible ~= false,
 			forceHeader = definition.forceHeader == true,
 		}
@@ -4321,6 +4322,7 @@ local function ensureSection(layoutData, sectionID)
 		groupColor = definition.groupColor,
 		groupCollapseID = definition.groupCollapseID,
 		groupSpacerBefore = definition.groupSpacerBefore == true,
+		groupCombineSubcategories = definition.groupCombineSubcategories == true,
 		collapsible = definition.collapsible ~= false,
 		columnCount = tonumber(definition.columnCount) or nil,
 		forceHeader = definition.forceHeader == true,
@@ -4419,6 +4421,14 @@ local function resolveCategoryForItem(bagID, slotID, info, questInfo, settings, 
 				canAuctionHouseSell = itemLocation and itemLocation:IsValid() and C_AuctionHouse and C_AuctionHouse.IsSellItemValid and C_AuctionHouse.IsSellItemValid(itemLocation, false) or false
 			end
 
+			local isEquipmentSet
+			if usage.isEquipmentSet then
+				isEquipmentSet = C_Container
+					and C_Container.GetContainerItemEquipmentSetInfo
+					and C_Container.GetContainerItemEquipmentSetInfo(bagID, slotID)
+					or false
+			end
+
 			local resolvedBindType = ruleItemInfo and ruleItemInfo.bindType or nil
 			if usage.bindType then
 				local tooltipBindType = getTooltipResolvedBindType(bagID, slotID, info, ruleRuntimeContext)
@@ -4448,7 +4458,9 @@ local function resolveCategoryForItem(bagID, slotID, info, questInfo, settings, 
 			itemContext.classID = classID
 			itemContext.subClassID = subClassID
 			itemContext.subClassKey = classID and subClassID and string.format("%d:%d", classID, subClassID) or nil
-			itemContext.professionGroupKey = addon.GetProfessionGroupKeyForItem and addon.GetProfessionGroupKeyForItem(classID, subClassID) or nil
+			itemContext.professionGroupKey = addon.GetProfessionGroupKeyForItem
+				and addon.GetProfessionGroupKeyForItem(classID, subClassID, info and info.itemID)
+				or nil
 			itemContext.bindType = resolvedBindType
 			itemContext.expansionID = ruleItemInfo and ruleItemInfo.expansionID or nil
 			itemContext.setID = ruleItemInfo and ruleItemInfo.setID or nil
@@ -4470,6 +4482,7 @@ local function resolveCategoryForItem(bagID, slotID, info, questInfo, settings, 
 			itemContext.upgradeTrackKey = upgradeTrackKey
 			itemContext.canVendor = ((ruleItemInfo and ruleItemInfo.sellPrice) or 0) > 0
 			itemContext.canAuctionHouseSell = not not canAuctionHouseSell
+			itemContext.isEquipmentSet = not not isEquipmentSet
 			itemContext.isHearthstone = usage.isHearthstone and isRuleHearthstoneItem(info and info.itemID) or false
 			itemContext.isKeystone = usage.isKeystone and isKeystoneItem(info and info.itemID) or false
 			itemContext.equipLoc = equipLoc
@@ -5356,6 +5369,49 @@ local function layoutFrame(layoutData)
 				setSectionMappingsCollapsed(groupedSection, true)
 				sectionIndex = sectionIndex + 1
 			end
+			if sectionIndex <= #layoutData.sections then
+				yOffset = yOffset + Core.SECTION_GAP
+			end
+		elseif section.groupID and section.groupCombineSubcategories then
+			local combinedSlotIndices = {}
+			local combinedGroupID = section.groupID
+			while sectionIndex <= #layoutData.sections do
+				local groupedSection = layoutData.sections[sectionIndex]
+				if groupedSection.groupID ~= combinedGroupID or not groupedSection.groupCombineSubcategories then
+					break
+				end
+				setSectionMappingsCollapsed(groupedSection, false)
+				for _, mappingIndex in ipairs(groupedSection.slotIndices or {}) do
+					combinedSlotIndices[#combinedSlotIndices + 1] = mappingIndex
+				end
+				sectionIndex = sectionIndex + 1
+			end
+
+			local itemCount = #combinedSlotIndices
+			if itemCount > 0 then
+				local visibleColumns = math.max(1, math.min(effectiveMaxColumns, itemCount))
+				local rows = math.max(1, math.ceil(itemCount / effectiveMaxColumns))
+				local sectionWidth = (visibleColumns * buttonSize) + (math.max(0, visibleColumns - 1) * buttonSpacing)
+				contentWidth = math.max(contentWidth, sectionWidth)
+
+				for visualIndex, mappingIndex in ipairs(combinedSlotIndices) do
+					local button = state.buttons[mappingIndex]
+					local row = math.floor((visualIndex - 1) / effectiveMaxColumns)
+					local column = (visualIndex - 1) % effectiveMaxColumns
+					button:SetSize(buttonSize, buttonSize)
+					button:ClearAllPoints()
+					button:SetPoint(
+						"TOPLEFT",
+						state.content,
+						"TOPLEFT",
+						column * (buttonSize + buttonSpacing),
+						-(yOffset + (row * (buttonSize + buttonSpacing)))
+					)
+				end
+
+				yOffset = yOffset + (rows * buttonSize) + (math.max(0, rows - 1) * buttonSpacing)
+			end
+
 			if sectionIndex <= #layoutData.sections then
 				yOffset = yOffset + Core.SECTION_GAP
 			end
