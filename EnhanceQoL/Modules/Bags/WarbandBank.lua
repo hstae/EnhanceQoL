@@ -47,6 +47,9 @@ local DEPOSIT_BUTTON_WIDTH = 220
 local MONEY_BUTTON_WIDTH = 96
 local GET_BAG_ITEM_TOOLTIP = C_TooltipInfo and C_TooltipInfo.GetBagItem
 local EQUIPMENT_SET_OVERLAY_FALLBACK_TEXTURE = "Interface\\PaperDollInfoFrame\\UI-EquipmentManager-Toggle"
+local CONSUMABLE_CLASS_ID = 0
+local CONSUMABLE_OTHER_SUBCLASS_ID = 8
+local LEARN_TRANSMOG_SET_TOOLTIP_LINE_TYPE = 39
 
 local FREE_SLOTS_SECTION_ID = "warbandFreeSlots"
 local FREE_SLOTS_DEFINITION = {
@@ -1630,6 +1633,7 @@ local function createRuleRuntimeContext(usage)
 		equippedItemLevels = {},
 		equippedItemEquipLocs = {},
 		tooltipBindTypes = {},
+		tooltipTransmogSets = {},
 		persistentTooltipBindTypes = state.tooltipBindTypeCache,
 		recommendationCache = {},
 		upgradeTrackCache = {},
@@ -1780,6 +1784,37 @@ local function getTooltipResolvedBindType(bagID, slotID, info, runtimeContext)
 		}
 	end
 	return resolvedBindType
+end
+
+local function isTooltipLearnTransmogSet(bagID, slotID, info, classID, subClassID, runtimeContext)
+	if tonumber(classID) ~= CONSUMABLE_CLASS_ID or tonumber(subClassID) ~= CONSUMABLE_OTHER_SUBCLASS_ID then
+		return false
+	end
+	if not runtimeContext or not GET_BAG_ITEM_TOOLTIP or bagID == nil or slotID == nil then
+		return false
+	end
+
+	local runtimeBagCache = runtimeContext.tooltipTransmogSets[bagID]
+	local cachedValue = runtimeBagCache and runtimeBagCache[slotID]
+	if cachedValue ~= nil then
+		return cachedValue == true
+	end
+
+	local isTransmogSet = false
+	local tooltipData = GET_BAG_ITEM_TOOLTIP(bagID, slotID)
+	for _, line in ipairs((tooltipData and tooltipData.lines) or {}) do
+		if line and line.type == LEARN_TRANSMOG_SET_TOOLTIP_LINE_TYPE then
+			isTransmogSet = true
+			break
+		end
+	end
+
+	if not runtimeBagCache then
+		runtimeBagCache = {}
+		runtimeContext.tooltipTransmogSets[bagID] = runtimeBagCache
+	end
+	runtimeBagCache[slotID] = isTransmogSet
+	return isTransmogSet
 end
 
 local function getUpgradeComparisonSlots(equipLoc, runtimeContext)
@@ -2385,6 +2420,11 @@ local function resolveCategoryForItem(bagID, slotID, info, questInfo, settings, 
 					or false
 			end
 
+			local isTransmogSet
+			if usage.isTransmogSet then
+				isTransmogSet = isTooltipLearnTransmogSet(bagID, slotID, info, classID, subClassID, ruleRuntimeContext)
+			end
+
 			local resolvedBindType = ruleItemInfo and ruleItemInfo.bindType or nil
 			if usage.bindType then
 				local tooltipBindType = getTooltipResolvedBindType(bagID, slotID, info, ruleRuntimeContext)
@@ -2429,6 +2469,7 @@ local function resolveCategoryForItem(bagID, slotID, info, questInfo, settings, 
 			itemContext.canVendor = ((ruleItemInfo and ruleItemInfo.sellPrice) or 0) > 0
 			itemContext.canAuctionHouseSell = not not canAuctionHouseSell
 			itemContext.isEquipmentSet = not not isEquipmentSet
+			itemContext.isTransmogSet = not not isTransmogSet
 			itemContext.isTeleportItem = addon.MythicPlus
 				and addon.MythicPlus.functions
 				and addon.MythicPlus.functions.IsTeleportItem

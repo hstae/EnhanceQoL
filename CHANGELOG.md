@@ -5,6 +5,7 @@
 ### ✨ Added
 
 - Bags: Added optional item overlays for equipment set items and special bind statuses such as BoE, Warbound, and Warbound until equipped.
+- Bags: Added automatic Basic category support and a rule filter for transmog set items such as ensembles.
 
 ### 🐛 Fixed
 

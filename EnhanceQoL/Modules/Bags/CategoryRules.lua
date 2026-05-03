@@ -177,7 +177,7 @@ local customCategoryStateHiddenBuiltIn
 local customCategoryCompiledState
 local cachedCategoryRuleContextUsage
 local cachedCategorySectionDefinitions
-local BASIC_PRESET_VERSION = 19
+local BASIC_PRESET_VERSION = 20
 local HOUSING_CLASS_ID = 20
 local ITEM_ENHANCEMENTS_CLASS_ID = 8
 local CATEGORY_MODE_IDS = {
@@ -756,6 +756,15 @@ local FIELD_DEFINITIONS = {
 		operators = { "EQUALS" },
 		defaultOperator = "EQUALS",
 		contextKey = "isHearthstone",
+		buildOptions = buildBooleanOptions,
+	},
+	isTransmogSet = {
+		labelKey = "settingsRuleFieldTransmogSet",
+		groupID = "smart",
+		valueType = "enum",
+		operators = { "EQUALS" },
+		defaultOperator = "EQUALS",
+		contextKey = "isTransmogSet",
 		buildOptions = buildBooleanOptions,
 	},
 	isKeystone = {
@@ -1769,6 +1778,17 @@ local function seedBasicPresetIntoModeState(modeState)
 					ruleTree = function(counterState)
 						return buildPresetRuleGroup(counterState, "AND", {
 							buildPresetRule(counterState, "isKeystone", "EQUALS", true),
+						})
+					end,
+				},
+				{
+					name = L["basicPresetCategoryTransmogSets"] or "Transmog Sets",
+					priority = 83,
+					sortMode = "name",
+					color = { 0.86, 0.62, 1 },
+					ruleTree = function(counterState)
+						return buildPresetRuleGroup(counterState, "AND", {
+							buildPresetRule(counterState, "isTransmogSet", "EQUALS", true),
 						})
 					end,
 				},
