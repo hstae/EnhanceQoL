@@ -4849,7 +4849,6 @@ local function layoutFooter(layoutData, frameWidth)
 	local minimumFooterHeight = getMinimumFooterHeight(settings)
 	local footerWidth = math.max(1, (footer and footer.GetWidth and footer:GetWidth()) or frameWidth or 1)
 	local visibleCurrencyCount = 0
-	local currencyButtons = {}
 	local totalCurrencyWidth = 0
 	local maxCurrencyButtonWidth = 0
 	local currencyRowCount = 0
@@ -4923,7 +4922,6 @@ local function layoutFooter(layoutData, frameWidth)
 		button.Icon:SetTexture(currencyInfo.iconFileID)
 		button.Count:SetText(quantityText)
 		button:SetWidth(button.Count:GetStringWidth() + 24)
-		currencyButtons[index] = button
 		leftFooterItems[#leftFooterItems + 1] = {
 			type = "currency",
 			button = button,
